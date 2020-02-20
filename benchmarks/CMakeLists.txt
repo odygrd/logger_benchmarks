@@ -4,4 +4,4 @@ include_directories(/home/ody/CLionProjects/logger_benchmarks/third_party)
 # call_site_latency_percentile_linux_benchmark
 add_executable(call_site_latency_percentile_linux_benchmark)
 target_sources(call_site_latency_percentile_linux_benchmark PRIVATE call_site_latency_percentile_linux.cpp)
-target_link_libraries(call_site_latency_percentile_linux_benchmark PRIVATE quill IyengarNanoLog Threads::Threads)
+target_link_libraries(call_site_latency_percentile_linux_benchmark PRIVATE quill IyengarNanoLog reckless Threads::Threads)
