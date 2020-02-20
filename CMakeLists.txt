@@ -134,3 +134,5 @@ endif ()
 # Subdirectories
 #-------------------------------------------------------------------------------------------------------
 add_subdirectory(quill)
+
+add_subdirectory(third_party/Iyengar_NanoLog)
