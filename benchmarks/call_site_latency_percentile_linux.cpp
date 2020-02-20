@@ -20,13 +20,12 @@
 #include "Iyengar_NanoLog/NanoLog.hpp"
 
 // Reckless
-#include "reckless/severity_log.hpp"
 #include "reckless/file_writer.hpp"
+#include "reckless/severity_log.hpp"
 
 #include "platformlab_nanolog/include/nanolog/NanoLogCpp17.h"
 
 // #endif
-
 
 /***/
 template <typename Function>
@@ -56,11 +55,12 @@ void run_log_benchmark(Function&& f, char const* benchmark_name, std::mutex& m, 
   // protect access to cout
   std::lock_guard<std::mutex> lock{m};
   std::cout << "Thread: " << thread_num << std::setw(12) << "50th" << std::setw(20) << "75th"
-            << std::setw(20) << "90th" << std::setw(19) << "99th" << std::setw(20) << "99.9th"
-            << std::setw(20) << "Worst" << std::setw(21) << "Average\n"
+            << std::setw(20) << "90th" << std::setw(19) << "95th" << std::setw(20) << "99th"
+            << std::setw(20) << "99.9th" << std::setw(20) << "Worst" << std::setw(21) << "Average\n"
             << std::setw(20) << latencies[(size_t)iterations * 0.5] << std::setw(20)
-            << latencies[(size_t)iterations * 0.75] << std::setw(20) << latencies[(size_t)iterations * 0.9]
-            << std::setw(20) << latencies[(size_t)iterations * 0.99] << std::setw(20)
+            << latencies[(size_t)iterations * 0.75] << std::setw(20)
+            << latencies[(size_t)iterations * 0.9] << std::setw(19) << latencies[(size_t)iterations * 0.95]
+            << std::setw(21) << latencies[(size_t)iterations * 0.99] << std::setw(20)
             << latencies[(size_t)iterations * 0.999] << std::setw(20) << latencies[latencies.size() - 1]
             << std::setw(20) << (sum * 1.0) / latencies.size() << "\n\n";
 }
@@ -176,7 +176,7 @@ void iyengar_nanoLog_benchmark(std::array<int32_t, 4> threads_num)
 
   std::this_thread::sleep_for(std::chrono::seconds(3));
 
-  auto nanolog_benchmark = [](int32_t i, double d, char const* str)  {
+  auto nanolog_benchmark = [](int32_t i, double d, char const* str) {
     auto const start = std::chrono::steady_clock::now();
     IY_LOG_INFO << "Logging str: " << str << ", int: " << i << ", double: " << d;
     auto const end = std::chrono::steady_clock::now();
@@ -196,7 +196,7 @@ void reckless_benchmark(std::array<int32_t, 4> threads_num)
 {
   std::remove("reckless_call_site_latency_percentile_linux_benchmark.log");
 
-  using log_t = reckless::severity_log < reckless::indent < 4 >, ' ', reckless::severity_field, reckless::timestamp_field >;
+  using log_t = reckless::severity_log<reckless::indent<4>, ' ', reckless::severity_field, reckless::timestamp_field>;
   reckless::file_writer writer("reckless_call_site_latency_percentile_linux_benchmark.log");
   log_t g_log(&writer);
   g_log.permanent_error_policy(reckless::error_policy::block);
@@ -204,7 +204,7 @@ void reckless_benchmark(std::array<int32_t, 4> threads_num)
 
   std::this_thread::sleep_for(std::chrono::seconds(3));
 
-  auto reckless_benchmark = [&g_log](int32_t i, double d, char const* str)  {
+  auto reckless_benchmark = [&g_log](int32_t i, double d, char const* str) {
     auto const start = std::chrono::steady_clock::now();
     g_log.info("Logging str: %s, int: %d, double: %f", str, i, d);
     auto const end = std::chrono::steady_clock::now();
@@ -230,7 +230,7 @@ void platformlab_nanolog(std::array<int32_t, 4> threads_num)
 
   std::this_thread::sleep_for(std::chrono::seconds(3));
 
-  auto platformlab_nanolog_benchmark = [](int32_t i, double d, char const* str)  {
+  auto platformlab_nanolog_benchmark = [](int32_t i, double d, char const* str) {
     auto const start = std::chrono::steady_clock::now();
     PL_NANO_LOG(NOTICE, "Logging str: %s, int: %d, double: %f", str, i, d);
     auto const end = std::chrono::steady_clock::now();

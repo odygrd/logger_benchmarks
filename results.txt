@@ -1,434 +1,435 @@
 $ time ./call_site_latency_percentile_linux_benchmark quill
 *********************************
 Total thread count: 1 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  16                  17                  17                1632                3611                5521             52.0341
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1633                3616                4693             52.0384
 
 *********************************
 Total thread count: 4 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                  16                  17                  17                1567                3209                4800             51.1081
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1641                3656                4885             52.7159
 
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  17                  17                  17                1570                3767                5739             51.4594
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1629                3628                5445             52.5772
 
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                  16                  17                  17                1567                3756                5044             51.2901
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1624                3628                5036             52.4771
 
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                  16                  17                  17                1583                3738                4903             51.6277
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1620                3637                5603             52.2718
 
 *********************************
 Total thread count: 0 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
 *********************************
 Total thread count: 0 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
 
-real    0m3.086s
-user    0m2.363s
+real    0m3.024s
+user    0m2.370s
+sys     0m0.085s
+
+$ time ./call_site_latency_percentile_linux_benchmark quill
+*********************************
+Total thread count: 1 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1628                3001                5119             51.4077
+
+*********************************
+Total thread count: 4 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1625                3656                5211             52.4216
+
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1627                3626                4858             52.5027
+
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1628                3684                4811             52.5631
+
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1638                3622                4660             52.5448
+
+*********************************
+Total thread count: 0 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
+*********************************
+Total thread count: 0 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
+
+real    0m3.047s
+user    0m2.368s
+sys     0m0.088s
+
+$ time ./call_site_latency_percentile_linux_benchmark quill
+*********************************
+Total thread count: 1 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1625                2961                4709             51.2397
+
+*********************************
+Total thread count: 4 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1627                3630                5606             52.4353
+
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1631                3668                4654             52.5523
+
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1623                3627                5748             52.4685
+
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  16                  17                  17                 17                 1620                3618                4995              52.425
+
+*********************************
+Total thread count: 0 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
+*********************************
+Total thread count: 0 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
+
+real    0m3.057s
+user    0m2.368s
+sys     0m0.095s
+
+$ time ./call_site_latency_percentile_linux_benchmark pl_nanolog
+*********************************
+Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 20                   24                  44               32415             29.5916
+
+*********************************
+Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 19                   24                  43               36435             30.7545
+
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 19                   23                  61            20567469             234.632
+
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 20                   24                  43            18669290              215.84
+
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 19                   23                  41               34480             28.3105
+
+*********************************
+Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+*********************************
+Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+
+real    0m3.204s
+user    0m0.239s
+sys     0m0.030s
+
+$ time ./call_site_latency_percentile_linux_benchmark pl_nanolog
+*********************************
+Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 20                   24                  46               32740             30.7321
+
+*********************************
+Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 19                   24                  43            15715896             183.996
+
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 19                   24                  52              172528             32.4262
+
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 19                   24                  42              154151             31.0447
+
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 19                   23                  43               33686             29.5512
+
+*********************************
+Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+*********************************
+Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+
+real    0m3.205s
+user    0m0.236s
+sys     0m0.035s
+
+$ time ./call_site_latency_percentile_linux_benchmark pl_nanolog
+*********************************
+Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 21                   24                  46               32407             29.3992
+
+*********************************
+Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 19                   24                  45            15735106             187.868
+
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 19                   23                  42               32149             28.7826
+
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  19                 19                   24                  42               34414             30.1694
+
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  18                  18                  20                 22                   24                  43               32982             29.3539
+
+*********************************
+Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+*********************************
+Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+
+real    0m3.216s
+user    0m0.246s
+sys     0m0.029s
+
+$ time ./call_site_latency_percentile_linux_benchmark iy_nanolog
+*********************************
+Total thread count: 1 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  75               1058                 1178                3255            13006678             347.261
+
+*********************************
+Total thread count: 4 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  71               1047                 1151                3290            33013891             463.445
+
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  72               1043                 1138                3268               13889             133.269
+
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  75               1045                 1128                3261            22378824             707.547
+
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  74               1044                 1140                3291            43015633             735.704
+
+*********************************
+Total thread count: 0 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
+*********************************
+Total thread count: 0 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
+
+real    0m5.993s
+user    0m1.217s
+sys     0m0.884s
+
+$ time ./call_site_latency_percentile_linux_benchmark iy_nanolog
+*********************************
+Total thread count: 1 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  64                  77               1041                 1156                3224            13002383             346.918
+
+*********************************
+Total thread count: 4 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  72               1059                 1156                3292            77015317             904.373
+
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  74               1047                 1153                3292            89058814              1464.6
+
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  74               1044                 1134                3318               13380             133.575
+
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  72               1044                 1130                3299            69819831             961.421
+
+*********************************
+Total thread count: 0 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
+*********************************
+Total thread count: 0 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
+
+real    0m6.057s
+user    0m1.318s
+sys     0m0.847s
+
+$ time ./call_site_latency_percentile_linux_benchmark iy_nanolog
+*********************************
+Total thread count: 1 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  75               1042                 1154                3187            13002667             345.118
+
+*********************************
+Total thread count: 4 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  71               1047                 1146                3306            33013972             463.484
+
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  72               1059                 1152                3314            49690371             631.132
+
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  72               1044                 1134                3311            22498805             688.421
+
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  62                  63                  73               1048                 1146                3303            42937231             816.736
+
+*********************************
+Total thread count: 0 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
+*********************************
+Total thread count: 0 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
+
+real    0m5.996s
+user    0m1.209s
+sys     0m0.877s
+
+$ time ./call_site_latency_percentile_linux_benchmark reckless
+*********************************
+Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54                   57              106982           600779234             6711.58
+
+*********************************
+Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54               160244              298432              554933             2472.14
+
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54               159807              298672             1445049             2495.36
+
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54               159736              299568             1579271             2511.42
+
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54               160143              299945             1498055             2525.02
+
+*********************************
+Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+*********************************
+Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+
+real    0m4.362s
+user    0m0.446s
+sys     0m0.087s
+
+$ time ./call_site_latency_percentile_linux_benchmark reckless
+*********************************
+Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54                   57              107584           604924183             6782.11
+
+*********************************
+Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54               160254              300057              555425             2481.35
+
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54               160740              299437             1443972             2502.81
+
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54               160266              300230             1440720             2516.84
+
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54               160712              299515             1588800             2531.28
+
+*********************************
+Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+*********************************
+Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+
+real    0m4.387s
+user    0m0.448s
+sys     0m0.088s
+
+$ time ./call_site_latency_percentile_linux_benchmark reckless
+*********************************
+Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  52                 54                   58              106935           604747864             6748.49
+
+*********************************
+Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54               159727              298149              549963             2473.63
+
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54               159965              298424             1369514             2492.92
+
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  51                  51                  54                 54               159442              299178             1397264             2506.86
+
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                  50                  51                  53                 54               159768              299454             1548767             2520.75
+
+*********************************
+Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+*********************************
+Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+
+real    0m4.384s
+user    0m0.446s
 sys     0m0.097s
 
-$ time ./call_site_latency_percentile_linux_benchmark quill
+$ time ./call_site_latency_percentile_linux_benchmark spdlog
 *********************************
-Total thread count: 1 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  16                  17                  17                1644                3626                4627             52.2679
-
-*********************************
-Total thread count: 4 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                  17                  17                  17                1568                3658                4915             51.3062
-
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  16                  17                  17                1570                3664                6135             51.3167
-
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                  16                  17                  17                1565                3671                4699             51.3293
-
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                  16                  17                  17                1572                3786                5022             51.4743
+Total thread count: 1 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 183                 199                 246               2814                 2865                4399            10393156             440.557
 
 *********************************
-Total thread count: 0 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
-*********************************
-Total thread count: 0 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 4 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 183                 194                 239                247                  346                 567            44004492             635.307
 
-real    0m3.046s
-user    0m2.388s
-sys     0m0.075s
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 182                 190                 238                246                  351                 568            22004417             414.733
 
-$ time ./call_site_latency_percentile_linux_benchmark quill
-*********************************
-Total thread count: 1 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  17                  17                  17                1629                3607                5092             52.0572
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 183                 193                 240                250                 2858                2935            77005827             1003.49
 
-*********************************
-Total thread count: 4 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                  17                  17                  17                1573                3664                4823             51.4096
-
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  17                  17                  17                1574                3363                4990             51.2962
-
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                  17                  17                  17                1569                3325                4793             51.3252
-
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                  17                  17                  17                1569                3627                5489             51.4468
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 183                 196                 244                314                 2875                3129            48089095             1217.37
 
 *********************************
-Total thread count: 0 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 0 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
 *********************************
-Total thread count: 0 - Logger: Quill - Benchmark: Caller Thread Latency in nanoseconds
-
-real    0m3.074s
-user    0m2.370s
-sys     0m0.087s
-
-$ time ./call_site_latency_percentile_linux_benchmark pl_nanolog
-*********************************
-Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  24                  45               33047             29.5206
-
-*********************************
-Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  23                  43               33365             28.6799
-
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  24                  49               47270             30.5556
-
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  23                  42            18741254             216.478
-
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  24                  43               34365             28.2636
-
-*********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-*********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-
-real    0m3.192s
-user    0m0.227s
-sys     0m0.032s
-
-$ time ./call_site_latency_percentile_linux_benchmark pl_nanolog
-*********************************
-Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  24                  43               33470             28.3264
-
-*********************************
-Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  23                  50            15633385             185.217
-
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  24                  42              174205              30.231
-
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  24                  41               34628             28.9587
-
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  23                  43               34125             30.1335
-
-*********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-*********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-
-real    0m3.198s
-user    0m0.207s
-sys     0m0.050s
-
-$ time ./call_site_latency_percentile_linux_benchmark pl_nanolog
-*********************************
-Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  24                  43               33325             28.2797
-
-*********************************
-Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  24                  49            19934664              226.17
-
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  23                  42            13273871             161.029
-
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  24                  43            20673963             249.415
-
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                  18                  18                  19                  24                  43               34529             29.9436
-
-*********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-*********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-
-real    0m3.215s
-user    0m0.230s
-sys     0m0.036s
-
-$ time ./call_site_latency_percentile_linux_benchmark iy_nanolog
-*********************************
-Total thread count: 1 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  77                1158                3270            26002870             473.552
-
-*********************************
-Total thread count: 4 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  65                  75                1136                3309            77015738             904.348
-
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  76                1139                3277            89045553             1354.91
-
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  76                1131                3310            30469069             618.843
-
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  75                1130                3307            20506772             469.305
-
-*********************************
-Total thread count: 0 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
-*********************************
-Total thread count: 0 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
-
-real    0m6.084s
-user    0m1.299s
-sys     0m0.885s
-
-$ time ./call_site_latency_percentile_linux_benchmark iy_nanolog
-*********************************
-Total thread count: 1 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  65                  77                1172                3174            26002711             445.927
-
-*********************************
-Total thread count: 4 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  75                1145                3258            44015218             574.451
-
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  75                1138                3275               13936             134.245
-
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  75                1136                3299               47978             134.599
-
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  75                1138                3225            77488849             1039.21
-
-*********************************
-Total thread count: 0 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
-*********************************
-Total thread count: 0 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
-
-real    0m6.007s
-user    0m1.200s
-sys     0m0.892s
-
-$ time ./call_site_latency_percentile_linux_benchmark iy_nanolog
-*********************************
-Total thread count: 1 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  76                1158                3151            26002832             470.778
-
-*********************************
-Total thread count: 4 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  74                1143                3247            77015250             904.221
-
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  75                1135                3250            89068027             1354.88
-
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  74                1139                3305            18014249             314.254
-
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                  62                  64                  76                1130                3312            30456852             887.536
-
-*********************************
-Total thread count: 0 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
-*********************************
-Total thread count: 0 - Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency in nanoseconds
-
-real    0m6.072s
-user    0m1.249s
-sys     0m0.902s
-
-$ time ./call_site_latency_percentile_linux_benchmark reckless
-*********************************
-Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  51                  57              107905           602977565             6763.21
-
-*********************************
-Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  51              160151              303182              559706             2481.99
-
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  51              160851              299298             1566132             2506.74
-
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  52              160385              299694             1485912             2519.87
-
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  52              160340              301079             2758148             2532.42
-
-*********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-*********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-
-real    0m4.386s
-user    0m0.452s
-sys     0m0.087s
-
-$ time ./call_site_latency_percentile_linux_benchmark reckless
-*********************************
-Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  51                  62              107422           602192146             6722.22
-
-*********************************
-Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  52              159673              301650              557984              2478.9
-
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  52              159950              298736             1470418              2499.3
-
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  52              160359              298480             1470589             2512.33
-
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  52              159775              300154             2792755             2525.58
-
-*********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-*********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-
-real    0m4.363s
-user    0m0.458s
-sys     0m0.079s
-
-$ time ./call_site_latency_percentile_linux_benchmark reckless
-*********************************
-Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  51                  57              107453           606891084             6778.87
-
-*********************************
-Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  51              160665              299728              502155             2489.33
-
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  52              160143              301267             1466284             2508.03
-
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  51              159959              302619             1468264             2521.19
-
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                  49                  50                  52              160175              300811             2741790             2532.55
-
-*********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-*********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
-
-real    0m4.373s
-user    0m0.469s
-sys     0m0.068s
+Total thread count: 0 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
+
+real    0m5.314s
+user    0m0.879s
+sys     0m0.960s
 
 $ time ./call_site_latency_percentile_linux_benchmark spdlog
 *********************************
 Total thread count: 1 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                 184                 227                 338                2898                5564            10567967             553.902
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 183                 227                 417               2830                 2890                5605            10661032             566.046
 
 *********************************
 Total thread count: 4 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                 183                 189                 240                 354                 573            22003439             415.572
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 182                 190                 238                246                  346                 565            33004118             524.661
 
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                 183                 189                 240                 352                 573            22003828             415.458
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 183                 193                 240                250                 2821                2910            76004558             989.471
 
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                 183                 190                 241                2844                2943            77003857             1000.59
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 183                 197                 244                319                 2843                3059            46165871             1199.06
 
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                 183                 194                 245                2870                3132            55004778             1214.18
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 183                 191                 238                247                  354                 569            47695325              1001.9
 
 *********************************
 Total thread count: 0 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
 *********************************
 Total thread count: 0 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
 
-real    0m5.319s
-user    0m0.871s
-sys     0m0.983s
+real    0m5.320s
+user    0m0.884s
+sys     0m0.968s
 
 $ time ./call_site_latency_percentile_linux_benchmark spdlog
 *********************************
 Total thread count: 1 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                 184                 198                 248                2872                4372            10831786             446.104
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 183                 226                 369               2842                 2906                5598            10791577             560.577
 
 *********************************
 Total thread count: 4 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                 183                 189                 240                 355                 575            44005176             965.957
+Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 183                 194                 239                248                  353                 569            44003828             965.624
 
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                 183                 189                 240                 354                 575            33004903             525.692
+Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 182                 190                 238                246                  350                 570            33003985             524.762
 
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                 183                 191                 243                2828                2917            76005350             1247.53
+Thread: 2        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 183                 193                 240                250                 2830                2912            76004035             987.783
 
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                 184                 195                 246                2866                3077            46015573             1198.07
-
-*********************************
-Total thread count: 0 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
-*********************************
-Total thread count: 0 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
-
-real    0m5.311s
-user    0m0.904s
-sys     0m0.923s
-
-$ time ./call_site_latency_percentile_linux_benchmark spdlog
-*********************************
-Total thread count: 1 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                 184                 225                 263                2893                5557            10721989             536.654
-
-*********************************
-Total thread count: 4 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
-Thread: 3        50th                75th                90th               99th              99.9th               Worst             Average
-                 183                 189                 240                 347                 570            44005359             965.654
-
-Thread: 4        50th                75th                90th               99th              99.9th               Worst             Average
-                 183                 189                 240                 348                 574            22006645             505.272
-
-Thread: 2        50th                75th                90th               99th              99.9th               Worst             Average
-                 184                 193                 242                2823                2908            74005061              971.63
-
-Thread: 1        50th                75th                90th               99th              99.9th               Worst             Average
-                 184                 195                 245                2844                3110            46276376             1180.72
+Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
+                 183                 197                 244                324                 2859                3101            46394518             1201.78
 
 *********************************
 Total thread count: 0 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
 *********************************
 Total thread count: 0 - Logger: Spdlog - Benchmark: Caller Thread Latency in nanoseconds
 
-real    0m5.322s
-user    0m0.890s
-sys     0m0.955s
+real    0m5.332s
+user    0m0.994s
+sys     0m0.858s
+
