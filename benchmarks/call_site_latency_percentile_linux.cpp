@@ -198,7 +198,7 @@ void reckless_benchmark(std::array<int32_t, 4> threads_num)
 
   using log_t = reckless::severity_log < reckless::indent < 4 >, ' ', reckless::severity_field, reckless::timestamp_field >;
   reckless::file_writer writer("reckless_call_site_latency_percentile_linux_benchmark.log");
-  log_t g_log(&writer, 8388608, 65534, 8388608);
+  log_t g_log(&writer);
   g_log.permanent_error_policy(reckless::error_policy::block);
   g_log.temporary_error_policy(reckless::error_policy::block);
 
@@ -255,7 +255,7 @@ int main(int argc, char* argv[])
     return 0;
   }
 
-  std::array<int32_t, 4> threads_num{{1, 2, 3, 4}};
+  std::array<int32_t, 4> threads_num{{1, 4}};
 
   // Main thread is not important so set it to the same cpu as the backend
   quill::detail::set_cpu_affinity(0);
