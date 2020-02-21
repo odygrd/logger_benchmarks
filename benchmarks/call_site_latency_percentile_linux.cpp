@@ -29,9 +29,14 @@
 
 /***/
 template <typename Function>
-void run_log_benchmark(Function&& f, char const* benchmark_name, std::mutex& m, int thread_num)
+void run_log_benchmark(Function&& f, std::function<void()> on_thread_init, char const* benchmark_name, std::mutex& m, int thread_num)
 {
-  // Always ignore the first log statement as it will be doing initialisation for most loggers
+  if (on_thread_init)
+  {
+    on_thread_init();
+  }
+
+  // Always ignore the first log statement as it will be doing initialisation for most loggers - quill and nanolog don't need this as they have preallocate
   f(100, 100, "initial");
 
   int iterations = 100'000;
@@ -45,6 +50,12 @@ void run_log_benchmark(Function&& f, char const* benchmark_name, std::mutex& m, 
     std::chrono::nanoseconds const latency = f(i, d, str);
     latencies.push_back(latency.count());
   }
+
+  //  std::cout << "Array Indices\n";
+  //  for (size_t i = 0; i < latencies.size(); ++i)
+  //  {
+  //    std::cout << i << " : " << latencies[i] << "\n";
+  //  }
 
   // Sort all latencies
   std::sort(latencies.begin(), latencies.end());
@@ -67,7 +78,7 @@ void run_log_benchmark(Function&& f, char const* benchmark_name, std::mutex& m, 
 
 /***/
 template <typename Function>
-void run_benchmark(Function&& f, int32_t thread_count, char const* benchmark_name)
+void run_benchmark(Function&& f, std::function<void()> on_thread_init, int32_t thread_count, char const* benchmark_name)
 {
   std::cout << "********************************* " << std::endl;
   std::cout << "Total thread count: " << thread_count << " - " << benchmark_name
@@ -78,7 +89,8 @@ void run_benchmark(Function&& f, int32_t thread_count, char const* benchmark_nam
   for (int i = 0; i < thread_count; ++i)
   {
     // Spawn num threads
-    threads.emplace_back(run_log_benchmark<Function>, std::ref(f), benchmark_name, std::ref(m), i + 1);
+    threads.emplace_back(run_log_benchmark<Function>, std::ref(f), on_thread_init, benchmark_name,
+                         std::ref(m), i + 1);
   }
 
   // Wait for threads to finish
@@ -118,10 +130,13 @@ void quill_benchmark(std::array<int32_t, 4> threads_num)
     return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
   };
 
+  auto on_init = []() { quill::preallocate(); };
+
   // Run the benchmark for n threads
   for (auto threads : threads_num)
   {
-    run_benchmark(quill_benchmark, threads, "Logger: Quill - Benchmark: Caller Thread Latency");
+    run_benchmark(quill_benchmark, on_init, threads,
+                  "Logger: Quill - Benchmark: Caller Thread Latency");
   }
 }
 
@@ -158,10 +173,13 @@ void spdlog_benchmark(std::array<int32_t, 4> threads_num)
     return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
   };
 
+  auto on_init = []() {};
+
   // Run the benchmark for n threads
   for (auto threads : threads_num)
   {
-    run_benchmark(spdlog_benchmark, threads, "Logger: Spdlog - Benchmark: Caller Thread Latency");
+    run_benchmark(spdlog_benchmark, on_init, threads,
+                  "Logger: Spdlog - Benchmark: Caller Thread Latency");
   }
 }
 
@@ -183,10 +201,12 @@ void iyengar_nanoLog_benchmark(std::array<int32_t, 4> threads_num)
     return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
   };
 
+  auto on_init = []() {};
+
   // Run the benchmark for n threads
   for (auto threads : threads_num)
   {
-    run_benchmark(nanolog_benchmark, threads,
+    run_benchmark(nanolog_benchmark, on_init, threads,
                   "Logger: Iyengar_NanoLog - Benchmark: Caller Thread Latency");
   }
 }
@@ -211,10 +231,12 @@ void reckless_benchmark(std::array<int32_t, 4> threads_num)
     return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
   };
 
+  auto on_init = []() {};
+
   // Run the benchmark for n threads
   for (auto threads : threads_num)
   {
-    run_benchmark(reckless_benchmark, threads,
+    run_benchmark(reckless_benchmark, on_init, threads,
                   "Logger: Reckless - Benchmark: Caller Thread Latency");
   }
 }
@@ -223,8 +245,6 @@ void reckless_benchmark(std::array<int32_t, 4> threads_num)
 void platformlab_nanolog(std::array<int32_t, 4> threads_num)
 {
   std::remove("platformlab_nanolog_call_site_latency_percentile_linux_benchmark.log");
-
-  NanoLog::preallocate();
 
   NanoLog::setLogFile("platformlab_nanolog_call_site_latency_percentile_linux_benchmark.log");
 
@@ -237,10 +257,12 @@ void platformlab_nanolog(std::array<int32_t, 4> threads_num)
     return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
   };
 
+  auto on_init = []() { NanoLog::preallocate(); };
+
   // Run the benchmark for n threads
   for (auto threads : threads_num)
   {
-    run_benchmark(platformlab_nanolog_benchmark, threads,
+    run_benchmark(platformlab_nanolog_benchmark, on_init, threads,
                   "Logger: Reckless - Benchmark: Caller Thread Latency");
   }
 }
