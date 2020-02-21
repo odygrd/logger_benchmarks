@@ -25,7 +25,27 @@
 
 #include "platformlab_nanolog/include/nanolog/NanoLogCpp17.h"
 
+#include <random>
+#include <chrono>
+#include <cstdint>
+
 // #endif
+
+// Instead of sleep
+void wait(uint32_t min, uint32_t max)
+{
+  std::random_device rd;
+  std::mt19937 gen(1234);
+  std::uniform_int_distribution<> dis(min, max);
+
+  auto const start_time = std::chrono::steady_clock::now();
+  auto const end_time = start_time.time_since_epoch() + std::chrono::nanoseconds {dis(gen)};
+  std::chrono::nanoseconds time_now;
+  do
+  {
+    time_now = std::chrono::steady_clock::now().time_since_epoch();
+  }while(time_now < end_time);
+}
 
 /***/
 template <typename Function>
@@ -39,7 +59,7 @@ void run_log_benchmark(Function&& f, std::function<void()> on_thread_init, char 
   // Always ignore the first log statement as it will be doing initialisation for most loggers - quill and nanolog don't need this as they have preallocate
   f(100, 100, "initial");
 
-  int iterations = 100'000;
+  int iterations = 10'000;
   std::vector<uint64_t> latencies;
   constexpr char const* str = "benchmark";
 
@@ -49,6 +69,9 @@ void run_log_benchmark(Function&& f, std::function<void()> on_thread_init, char 
     double const d = i + (0.1 * i);
     std::chrono::nanoseconds const latency = f(i, d, str);
     latencies.push_back(latency.count());
+
+    // send the next log after x time
+    wait(50000, 300000);
   }
 
   std::cout << "Array Indices\n";
@@ -111,7 +134,7 @@ void quill_benchmark(std::array<int32_t, 4> threads_num)
   quill::config::set_backend_thread_sleep_duration(std::chrono::nanoseconds{0});
 
   // Start the logging backend thread
-  // quill::start();
+  quill::start();
 
   // wait for the backend thread to start
   std::this_thread::sleep_for(std::chrono::seconds(2));
