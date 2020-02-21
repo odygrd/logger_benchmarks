@@ -87,12 +87,12 @@ sys     0m0.095s
 
 $ time ./call_site_latency_percentile_linux_benchmark pl_nanolog
 *********************************
-Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 1 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency in nanoseconds
 Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
                   18                  18                  19                 20                   24                  44               32415             29.5916
 
 *********************************
-Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 4 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency in nanoseconds
 Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
                   18                  18                  19                 19                   24                  43               36435             30.7545
 
@@ -106,9 +106,9 @@ Thread: 2        50th                75th                90th               95th
                   18                  18                  19                 19                   23                  41               34480             28.3105
 
 *********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 0 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency in nanoseconds
 *********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 0 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency in nanoseconds
 
 real    0m3.204s
 user    0m0.239s
@@ -116,12 +116,12 @@ sys     0m0.030s
 
 $ time ./call_site_latency_percentile_linux_benchmark pl_nanolog
 *********************************
-Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 1 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency in nanoseconds
 Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
                   18                  18                  19                 20                   24                  46               32740             30.7321
 
 *********************************
-Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 4 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency in nanoseconds
 Thread: 4        50th                75th                90th               95th                99th              99.9th               Worst             Average
                   18                  18                  19                 19                   24                  43            15715896             183.996
 
@@ -135,9 +135,9 @@ Thread: 3        50th                75th                90th               95th
                   18                  18                  19                 19                   23                  43               33686             29.5512
 
 *********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 0 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency in nanoseconds
 *********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 0 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency in nanoseconds
 
 real    0m3.205s
 user    0m0.236s
@@ -145,12 +145,12 @@ sys     0m0.035s
 
 $ time ./call_site_latency_percentile_linux_benchmark pl_nanolog
 *********************************
-Total thread count: 1 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 1 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency in nanoseconds
 Thread: 1        50th                75th                90th               95th                99th              99.9th               Worst             Average
                   18                  18                  19                 21                   24                  46               32407             29.3992
 
 *********************************
-Total thread count: 4 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 4 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency in nanoseconds
 Thread: 3        50th                75th                90th               95th                99th              99.9th               Worst             Average
                   18                  18                  19                 19                   24                  45            15735106             187.868
 
@@ -164,9 +164,9 @@ Thread: 1        50th                75th                90th               95th
                   18                  18                  20                 22                   24                  43               32982             29.3539
 
 *********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 0 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency in nanoseconds
 *********************************
-Total thread count: 0 - Logger: Reckless - Benchmark: Caller Thread Latency in nanoseconds
+Total thread count: 0 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency in nanoseconds
 
 real    0m3.216s
 user    0m0.246s
