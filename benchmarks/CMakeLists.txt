@@ -5,3 +5,7 @@ include_directories(${CMAKE_SOURCE_DIR}/third_party)
 add_executable(call_site_latency_percentile_linux_benchmark)
 target_sources(call_site_latency_percentile_linux_benchmark PRIVATE call_site_latency_percentile_linux.cpp)
 target_link_libraries(call_site_latency_percentile_linux_benchmark PRIVATE quill IyengarNanoLog reckless platformlab_nanolog Threads::Threads)
+
+add_executable(benchmark_quill_spsc_queue)
+target_sources(benchmark_quill_spsc_queue PRIVATE benchmark_quill_spsc_queue.cpp)
+target_link_libraries(benchmark_quill_spsc_queue PRIVATE quill Threads::Threads)

@@ -274,11 +274,11 @@ void BoundedSPSCQueue<TBaseObject, Capacity>::prefetch_memory_pages() const
   madvice(_producer.buffer, 2 * capacity());
 
   // Walk all queue memory. This is done to prefetch all the pages.
-  QUILL_MAYBE_UNUSED volatile unsigned int sum = 0;
-  for (size_t z = (2 * capacity()) - 1; z != 0; --z)
-  {
-    sum += ((unsigned char*)_producer.buffer)[z];
-  }
+  //  QUILL_MAYBE_UNUSED volatile unsigned int sum = 0;
+  //  for (size_t z = (2 * capacity()) - 1; z != 0; --z)
+  //  {
+  //    sum += ((unsigned char*)_producer.buffer)[z];
+  //  }
 }
 
 /***/

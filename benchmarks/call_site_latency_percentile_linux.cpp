@@ -51,11 +51,11 @@ void run_log_benchmark(Function&& f, std::function<void()> on_thread_init, char 
     latencies.push_back(latency.count());
   }
 
-  //  std::cout << "Array Indices\n";
-  //  for (size_t i = 0; i < latencies.size(); ++i)
-  //  {
-  //    std::cout << i << " : " << latencies[i] << "\n";
-  //  }
+  std::cout << "Array Indices\n";
+  for (size_t i = 0; i < latencies.size(); ++i)
+  {
+    std::cout << i << " : " << latencies[i] << "\n";
+  }
 
   // Sort all latencies
   std::sort(latencies.begin(), latencies.end());
@@ -111,7 +111,7 @@ void quill_benchmark(std::array<int32_t, 4> threads_num)
   quill::config::set_backend_thread_sleep_duration(std::chrono::nanoseconds{0});
 
   // Start the logging backend thread
-  quill::start();
+  // quill::start();
 
   // wait for the backend thread to start
   std::this_thread::sleep_for(std::chrono::seconds(2));
@@ -277,7 +277,7 @@ int main(int argc, char* argv[])
     return 0;
   }
 
-  std::array<int32_t, 4> threads_num{{1, 4}};
+  std::array<int32_t, 4> threads_num{{1}};
 
   // Main thread is not important so set it to the same cpu as the backend
   quill::detail::set_cpu_affinity(0);
