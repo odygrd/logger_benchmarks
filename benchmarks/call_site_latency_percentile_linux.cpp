@@ -59,7 +59,7 @@ void run_log_benchmark(Function&& f, std::function<void()> on_thread_init, char 
   // Always ignore the first log statement as it will be doing initialisation for most loggers - quill and nanolog don't need this as they have preallocate
   f(100, 100, "initial");
 
-  int iterations = 10'000;
+  int iterations = 100'000;
   std::vector<uint64_t> latencies;
   constexpr char const* str = "benchmark";
 
@@ -71,7 +71,7 @@ void run_log_benchmark(Function&& f, std::function<void()> on_thread_init, char 
     latencies.push_back(latency.count());
 
     // send the next log after x time
-    wait(50000, 300000);
+    wait(100000, 5000000);
   }
 
   std::cout << "Array Indices\n";

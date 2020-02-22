@@ -1,11 +1,12 @@
 #include "quill/detail/BoundedSPSCQueue.h"
+#include "quill/detail/SPSCQueue.h"
 #include "quill/detail/record/LogRecord.h"
 #include "quill/detail/record/RecordBase.h"
 
-//#define NO_PERF
+#define NO_PERF
 
 using namespace quill::detail;
-using SPSCQueueT = BoundedSPSCQueue<RecordBase, 4 * 4096>;
+using SPSCQueueT = BoundedSPSCQueue<RecordBase, 262144>;
 
 template <typename... FmtArgs>
 auto push_record(SPSCQueueT& spsc_queue, StaticLogRecordInfo const* log_line_info, FmtArgs&&... fmt_args)
@@ -27,7 +28,6 @@ auto push_record(SPSCQueueT& spsc_queue, StaticLogRecordInfo const* log_line_inf
 int main(int argc, char* argv[])
 {
   SPSCQueueT queue;
-  queue.prefetch_memory_pages();
   static constexpr StaticLogRecordInfo log_line_info{QUILL_STRINGIFY(__LINE__), __FILE__, __FUNCTION__,
                                                      "Logging str: {}, int: {}, double: {}",
                                                      quill::LogLevel::Debug};
@@ -36,28 +36,25 @@ int main(int argc, char* argv[])
   std::vector<std::chrono::nanoseconds> results;
 #endif
 
-  for (int i = 0; i < 5; ++i)
+  for (size_t j = 0; j <= 256; ++j)
   {
-    for (size_t j = 0; j <= 128; ++j)
-    {
 #ifdef NO_PERF
-      auto const start = std::chrono::steady_clock::now();
+    auto const start = std::chrono::steady_clock::now();
 #endif
 
-      push_record(queue, &log_line_info, uint64_t{13}, uint64_t{13}, uint64_t{13}, uint64_t{13});
+    push_record(queue, &log_line_info, uint64_t{13}, uint64_t{13}, uint64_t{13}, uint64_t{13});
 
 #ifdef NO_PERF
-      auto const end = std::chrono::steady_clock::now();
-      results.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start));
+    auto const end = std::chrono::steady_clock::now();
+    results.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start));
 #endif
-    }
-
-    auto handle = queue.try_pop();
-    do
-    {
-      handle = queue.try_pop();
-    } while (handle.is_valid());
   }
+
+  //    auto handle = queue.try_pop();
+  //    do
+  //    {
+  //      handle = queue.try_pop();
+  //    } while (handle.is_valid());
 
 #ifdef NO_PERF
   for (size_t i = 0; i < results.size(); ++i)
