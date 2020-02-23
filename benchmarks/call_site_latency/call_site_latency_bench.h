@@ -165,19 +165,14 @@ inline void run_benchmark(char const* benchmark_name,
   // Sort all latencies
   std::sort(latencies_combined.begin(), latencies_combined.end());
 
-  // Calculate the sum of all latencies
-  uint64_t sum =
-    std::accumulate(latencies_combined.begin(), latencies_combined.end(), static_cast<uint64_t>(0));
-
   std::cout << "Thread Count " << thread_count << " - Total messages " << latencies_combined.size()
-            << " - " << benchmark_name << "\n | 50th | 75th | 90th | 95th | 99th | 99.9th | Worst | Average |\n"
-            << " | " << latencies_combined[(size_t)num_iterations * 0.5] << " | "
-            << latencies_combined[(size_t)num_iterations * 0.75] << " | "
-            << latencies_combined[(size_t)num_iterations * 0.9] << " | "
-            << latencies_combined[(size_t)num_iterations * 0.95] << " | "
-            << latencies_combined[(size_t)num_iterations * 0.99] << " | "
-            << latencies_combined[(size_t)num_iterations * 0.999] << " | "
-            << latencies_combined[latencies_combined.size() - 1] << " | "
-            << (sum * 1.0) / latencies_combined.size() << "|\n\n";
+            << " - " << benchmark_name << "\n |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |\n"
+            << " |  " << latencies_combined[(size_t)num_iterations * 0.5] << "  |  "
+            << latencies_combined[(size_t)num_iterations * 0.75] << "  |  "
+            << latencies_combined[(size_t)num_iterations * 0.9] << "  |  "
+            << latencies_combined[(size_t)num_iterations * 0.95] << "  |  "
+            << latencies_combined[(size_t)num_iterations * 0.99] << "  |  "
+            << latencies_combined[(size_t)num_iterations * 0.999] << "  |  "
+            << latencies_combined[latencies_combined.size() - 1] << "  |\n\n";
 #endif
 }
