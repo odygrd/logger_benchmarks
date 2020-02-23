@@ -1,0 +1,27 @@
+# include spdlog
+include_directories(${CMAKE_SOURCE_DIR}/third_party)
+
+# quill
+add_executable(benchmark_quill_call_site_latency)
+target_sources(benchmark_quill_call_site_latency PRIVATE benchmark_quill_call_site_latency.cpp)
+target_link_libraries(benchmark_quill_call_site_latency PRIVATE quill)
+
+# platform lab
+add_executable(benchmark_platformlab_call_site_latency)
+target_sources(benchmark_platformlab_call_site_latency PRIVATE benchmark_platformlab_nanolog_call_site_latency.cpp)
+target_link_libraries(benchmark_platformlab_call_site_latency PRIVATE platformlab_nanolog rt Threads::Threads)
+
+# Iyengar NanoLog
+add_executable(benchmark_iyengar_nanolog_call_site_latency)
+target_sources(benchmark_iyengar_nanolog_call_site_latency PRIVATE benchmark_iyengar_nanolog_call_site_latency.cpp)
+target_link_libraries(benchmark_iyengar_nanolog_call_site_latency PRIVATE IyengarNanoLog Threads::Threads)
+
+# Reckless
+add_executable(benchmark_reckless_call_site_latency)
+target_sources(benchmark_reckless_call_site_latency PRIVATE benchmark_reckless_call_site_latency.cpp)
+target_link_libraries(benchmark_reckless_call_site_latency PRIVATE reckless Threads::Threads)
+
+# spdlog
+add_executable(benchmark_spdlog_call_site_latency)
+target_sources(benchmark_spdlog_call_site_latency PRIVATE benchmark_spdlog_call_site_latency.cpp)
+target_link_libraries(benchmark_spdlog_call_site_latency PRIVATE Threads::Threads)

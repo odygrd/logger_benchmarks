@@ -41,6 +41,7 @@ inline void set_thread_affinity(size_t cpu_num)
   }
 }
 
+#ifdef BENCH_WITHOUT_PERF
 /***/
 inline void run_log_benchmark(size_t num_iterations,
                               std::function<void()> on_thread_start,
@@ -49,6 +50,7 @@ inline void run_log_benchmark(size_t num_iterations,
                               size_t current_thread_num,
                               std::vector<uint64_t>& latencies)
 {
+  // running thread affinity
   set_thread_affinity(current_thread_num);
 
   on_thread_start();
@@ -75,6 +77,40 @@ inline void run_log_benchmark(size_t num_iterations,
 
   on_thread_exit();
 }
+#else
+/***/
+inline void run_log_benchmark(size_t num_iterations,
+                              std::function<void()> on_thread_start,
+                              std::function<std::chrono::nanoseconds(int, double, char const*)> log_func,
+                              std::function<void()> on_thread_exit,
+                              size_t current_thread_num)
+{
+  // running thread affinity
+  set_thread_affinity(current_thread_num);
+
+  on_thread_start();
+
+  // Always ignore the first log statement as it will be doing initialisation for most loggers - quill and nanolog don't need this as they have preallocate
+  log_func(100, 100, "initial");
+
+  // Main Benchmark
+  for (int i = 0; i < num_iterations; ++i)
+  {
+    // generate a double from i
+    double const d = i + (0.1 * i);
+    std::string str_to_log = "iteration_";
+    str_to_log += std::to_string(i);
+    char const* str = str_to_log.data();
+
+    log_func(i, d, str);
+
+    // send the next log after x time
+    wait(MIN_WAIT_DURATION, MAX_WAIT_DURATION);
+  }
+
+  on_thread_exit();
+}
+#endif
 
 /***/
 inline void run_benchmark(char const* benchmark_name,
@@ -84,8 +120,10 @@ inline void run_benchmark(char const* benchmark_name,
                           std::function<std::chrono::nanoseconds(int, double, char const*)> log_func,
                           std::function<void()> on_thread_exit)
 {
+  // main thread affinity
   set_thread_affinity(0);
 
+#ifdef BENCH_WITHOUT_PERF
   // each thread gets a vector of latencies
   std::vector<std::vector<uint64_t>> latencies;
   latencies.resize(thread_count);
@@ -93,13 +131,20 @@ inline void run_benchmark(char const* benchmark_name,
   {
     elem.reserve(num_iterations);
   }
+#endif
 
   std::vector<std::thread> threads;
   for (int thread_num = 0; thread_num < thread_count; ++thread_num)
   {
+#ifdef BENCH_WITHOUT_PERF
     // Spawn num threads
     threads.emplace_back(run_log_benchmark, num_iterations, on_thread_start, log_func,
                          on_thread_exit, thread_num + 1, std::ref(latencies[thread_num]));
+#else
+    // Spawn num threads
+    threads.emplace_back(run_log_benchmark, num_iterations, on_thread_start, log_func,
+                         on_thread_exit, thread_num + 1);
+#endif
   }
 
   // Wait for threads to finish
@@ -108,6 +153,7 @@ inline void run_benchmark(char const* benchmark_name,
     threads[i].join();
   }
 
+#ifdef BENCH_WITHOUT_PERF
   // All threads have finished we can read all latencies
   std::vector<uint64_t> latencies_combined;
   latencies_combined.reserve(num_iterations * thread_count);
@@ -133,4 +179,5 @@ inline void run_benchmark(char const* benchmark_name,
             << latencies_combined[(size_t)num_iterations * 0.999] << " | "
             << latencies_combined[latencies_combined.size() - 1] << " | "
             << (sum * 1.0) / latencies_combined.size() << "|\n\n";
+#endif
 }
