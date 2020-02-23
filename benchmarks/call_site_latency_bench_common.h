@@ -4,8 +4,8 @@
 #define THREAD_LIST_COUNT                                                                          \
   std::vector<int32_t> { 1, 4 }
 #define ITERATIONS                                                                                 \
-  std::size_t { 100000 }
+  std::size_t { 50000 }
 #define MIN_WAIT_DURATION                                                                          \
-  std::chrono::microseconds { 3 }
+  std::chrono::microseconds { 2 }
 #define MAX_WAIT_DURATION                                                                          \
   std::chrono::microseconds { 100 }
