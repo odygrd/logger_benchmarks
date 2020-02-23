@@ -7,12 +7,12 @@ namespace quill
 /***/
 void preallocate()
 {
-  detail::LogManagerSingleton::instance()
-    .log_manager()
-    .thread_context_collection()
-    .local_thread_context()
-    ->spsc_queue()
-    .prefetch_memory_pages();
+  QUILL_MAYBE_UNUSED size_t const volatile x = detail::LogManagerSingleton::instance()
+                                                 .log_manager()
+                                                 .thread_context_collection()
+                                                 .local_thread_context()
+                                                 ->spsc_queue()
+                                                 .capacity();
 }
 
 /***/
@@ -106,6 +106,13 @@ void set_backend_thread_name(std::string const& name) noexcept
 {
   detail::LogManagerSingleton::instance().log_manager().config().set_backend_thread_name(name);
 }
+
+/***/
+void set_initial_queue_capacity(size_t initial_capacity) noexcept
+{
+  detail::LogManagerSingleton::instance().log_manager().config().set_initial_queue_capacity(initial_capacity);
+}
+
 } // namespace config
 
 } // namespace quill

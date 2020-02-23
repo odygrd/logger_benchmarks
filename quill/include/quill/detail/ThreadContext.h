@@ -2,7 +2,8 @@
 
 #include "quill/detail/misc/Common.h"
 
-#include "quill/detail/BoundedSPSCQueue.h"
+#include "quill/detail/ThreadContext.h"
+#include "quill/detail/UnboundedSPSCQueue.h"
 #include "quill/detail/misc/Os.h"
 #include "quill/detail/record/RecordBase.h"
 #include <atomic>
@@ -25,12 +26,12 @@ namespace detail
 class ThreadContext
 {
 public:
-  using SPSCQueueT = BoundedSPSCQueue<RecordBase, QUILL_BOUNDED_SPSC_QUEUE_SIZE>;
+  using SPSCQueueT = UnboundedSPSCQueue<RecordBase>;
 
   /**
    * Constructor
    */
-  ThreadContext() = default;
+  explicit ThreadContext(Config const& config) : _spsc_queue(config.initial_queue_capacity()){};
 
   /**
    * Deleted

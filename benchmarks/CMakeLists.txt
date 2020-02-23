@@ -1,10 +1,20 @@
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+
 # include spdlog
 include_directories(${CMAKE_SOURCE_DIR}/third_party)
 
-# call_site_latency_percentile_linux_benchmark
-add_executable(call_site_latency_percentile_linux_benchmark)
-target_sources(call_site_latency_percentile_linux_benchmark PRIVATE call_site_latency_percentile_linux.cpp)
-target_link_libraries(call_site_latency_percentile_linux_benchmark PRIVATE quill IyengarNanoLog reckless platformlab_nanolog Threads::Threads)
+# quill
+add_executable(benchmark_quill_call_site_latency)
+target_sources(benchmark_quill_call_site_latency PRIVATE benchmark_quill_call_site_latency.cpp)
+target_link_libraries(benchmark_quill_call_site_latency PRIVATE quill)
+
+# platform lab
+add_executable(benchmark_platformlab_call_site_latency)
+target_sources(benchmark_platformlab_call_site_latency PRIVATE benchmark_platformlab_nanolog_call_site_latency.cpp)
+target_link_libraries(benchmark_platformlab_call_site_latency PRIVATE platformlab_nanolog rt Threads::Threads)
+
+
+# IyengarNanoLog reckless platformlab_nanolog Threads::Threads)
 
 add_executable(benchmark_quill_spsc_queue)
 target_sources(benchmark_quill_spsc_queue PRIVATE benchmark_quill_spsc_queue.cpp)

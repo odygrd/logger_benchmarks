@@ -1,13 +1,4 @@
-#include <chrono>
-#include <cstdint>
-#include <iomanip>
-#include <iostream>
-#include <mutex>
-#include <numeric>
-#include <thread>
-
 // Quill
-#include "quill/Quill.h"
 
 // #if 0
 
@@ -23,147 +14,14 @@
 #include "reckless/file_writer.hpp"
 #include "reckless/severity_log.hpp"
 
-#include "platformlab_nanolog/include/nanolog/NanoLogCpp17.h"
 
-#include <random>
 #include <chrono>
 #include <cstdint>
+#include <random>
 
 // #endif
 
-// Instead of sleep
-void wait(uint32_t min, uint32_t max)
-{
-  std::random_device rd;
-  std::mt19937 gen(1234);
-  std::uniform_int_distribution<> dis(min, max);
-
-  auto const start_time = std::chrono::steady_clock::now();
-  auto const end_time = start_time.time_since_epoch() + std::chrono::nanoseconds {dis(gen)};
-  std::chrono::nanoseconds time_now;
-  do
-  {
-    time_now = std::chrono::steady_clock::now().time_since_epoch();
-  }while(time_now < end_time);
-}
-
-/***/
-template <typename Function>
-void run_log_benchmark(Function&& f, std::function<void()> on_thread_init, char const* benchmark_name, std::mutex& m, int thread_num)
-{
-  if (on_thread_init)
-  {
-    on_thread_init();
-  }
-
-  // Always ignore the first log statement as it will be doing initialisation for most loggers - quill and nanolog don't need this as they have preallocate
-  f(100, 100, "initial");
-
-  int iterations = 100'000;
-  std::vector<uint64_t> latencies;
-  constexpr char const* str = "benchmark";
-
-  for (int i = 0; i < iterations; ++i)
-  {
-    // generate a double from i
-    double const d = i + (0.1 * i);
-    std::chrono::nanoseconds const latency = f(i, d, str);
-    latencies.push_back(latency.count());
-
-    // send the next log after x time
-    wait(100000, 5000000);
-  }
-
-  std::cout << "Array Indices\n";
-  for (size_t i = 0; i < latencies.size(); ++i)
-  {
-    std::cout << i << " : " << latencies[i] << "\n";
-  }
-
-  // Sort all latencies
-  std::sort(latencies.begin(), latencies.end());
-
-  // Calculate the sum of all latencies
-  uint64_t sum = std::accumulate(latencies.begin(), latencies.end(), static_cast<uint64_t>(0));
-
-  // protect access to cout
-  std::lock_guard<std::mutex> lock{m};
-  std::cout << "Thread: " << thread_num << std::setw(12) << "50th" << std::setw(20) << "75th"
-            << std::setw(20) << "90th" << std::setw(19) << "95th" << std::setw(20) << "99th"
-            << std::setw(20) << "99.9th" << std::setw(20) << "Worst" << std::setw(21) << "Average\n"
-            << std::setw(20) << latencies[(size_t)iterations * 0.5] << std::setw(20)
-            << latencies[(size_t)iterations * 0.75] << std::setw(20)
-            << latencies[(size_t)iterations * 0.9] << std::setw(19) << latencies[(size_t)iterations * 0.95]
-            << std::setw(21) << latencies[(size_t)iterations * 0.99] << std::setw(20)
-            << latencies[(size_t)iterations * 0.999] << std::setw(20) << latencies[latencies.size() - 1]
-            << std::setw(20) << (sum * 1.0) / latencies.size() << "\n\n";
-}
-
-/***/
-template <typename Function>
-void run_benchmark(Function&& f, std::function<void()> on_thread_init, int32_t thread_count, char const* benchmark_name)
-{
-  std::cout << "********************************* " << std::endl;
-  std::cout << "Total thread count: " << thread_count << " - " << benchmark_name
-            << " in nanoseconds " << std::endl;
-
-  std::mutex m;
-  std::vector<std::thread> threads;
-  for (int i = 0; i < thread_count; ++i)
-  {
-    // Spawn num threads
-    threads.emplace_back(run_log_benchmark<Function>, std::ref(f), on_thread_init, benchmark_name,
-                         std::ref(m), i + 1);
-  }
-
-  // Wait for threads to finish
-  for (int i = 0; i < thread_count; ++i)
-  {
-    threads[i].join();
-  }
-}
-
-/***/
-void quill_benchmark(std::array<int32_t, 4> threads_num)
-{
-  std::remove("quill_call_site_latency_percentile_linux_benchmark.log");
-
-  // Setup
-  // Pin the backend thread to cpu 0
-  quill::config::set_backend_thread_cpu_affinity(0);
-  quill::config::set_backend_thread_sleep_duration(std::chrono::nanoseconds{0});
-
-  // Start the logging backend thread
-  quill::start();
-
-  // wait for the backend thread to start
-  std::this_thread::sleep_for(std::chrono::seconds(2));
-
-  // Create a file handler to write to a file
-  quill::Handler* file_handler =
-    quill::file_handler("quill_call_site_latency_percentile_linux_benchmark.log", "w");
-
-  quill::Logger* logger = quill::create_logger("bench_logger", file_handler);
-
-  // Define a logging lambda
-  auto quill_benchmark = [logger](int32_t i, double d, char const* str) {
-    auto const start = std::chrono::steady_clock::now();
-    LOG_INFO(logger, "Logging str: {}, int: {}, double: {}", str, i, d);
-    auto const end = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-  };
-
-  auto on_init = []() { quill::preallocate(); };
-
-  // Run the benchmark for n threads
-  for (auto threads : threads_num)
-  {
-    run_benchmark(quill_benchmark, on_init, threads,
-                  "Logger: Quill - Benchmark: Caller Thread Latency");
-  }
-}
-
-// #if 0
+#if 0
 
 /***/
 void spdlog_benchmark(std::array<int32_t, 4> threads_num)
@@ -264,53 +122,25 @@ void reckless_benchmark(std::array<int32_t, 4> threads_num)
   }
 }
 
-/***/
-void platformlab_nanolog(std::array<int32_t, 4> threads_num)
-{
-  std::remove("platformlab_nanolog_call_site_latency_percentile_linux_benchmark.log");
-
-  NanoLog::setLogFile("platformlab_nanolog_call_site_latency_percentile_linux_benchmark.log");
-
-  std::this_thread::sleep_for(std::chrono::seconds(3));
-
-  auto platformlab_nanolog_benchmark = [](int32_t i, double d, char const* str) {
-    auto const start = std::chrono::steady_clock::now();
-    PL_NANO_LOG(NOTICE, "Logging str: %s, int: %d, double: %f", str, i, d);
-    auto const end = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-  };
-
-  auto on_init = []() { NanoLog::preallocate(); };
-
-  // Run the benchmark for n threads
-  for (auto threads : threads_num)
-  {
-    run_benchmark(platformlab_nanolog_benchmark, on_init, threads,
-                  "Logger: Reckless - Benchmark: Caller Thread Latency");
-  }
-}
-// #endif
+#endif
 
 int main(int argc, char* argv[])
 {
-
   if (argc != 2)
   {
     std::cerr << "Please provide the name of the logger as argument." << std::endl;
     return 0;
   }
 
-  std::array<int32_t, 4> threads_num{{1}};
-
-  // Main thread is not important so set it to the same cpu as the backend
-  quill::detail::set_cpu_affinity(0);
+  std::vector<int32_t> threads_count{1, 4};
+  std::size_t num_iterations{100'000};
 
   if (strcmp(argv[1], "quill") == 0)
   {
-    quill_benchmark(threads_num);
+    quill_benchmark(threads_count, num_iterations);
   }
 
-  // #if 0
+#if 0
   else if (strcmp(argv[1], "spdlog") == 0)
   {
     spdlog_benchmark(threads_num);
@@ -327,7 +157,7 @@ int main(int argc, char* argv[])
   {
     platformlab_nanolog(threads_num);
   }
-  // #endif
+#endif
 
   return 0;
 }
