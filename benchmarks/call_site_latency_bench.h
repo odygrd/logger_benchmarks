@@ -14,7 +14,7 @@
 inline void wait(std::chrono::nanoseconds min, std::chrono::nanoseconds max)
 {
   std::random_device rd;
-  std::mt19937 gen(1234);
+  std::mt19937 gen(rd());
   std::uniform_int_distribution<> dis(min.count(), max.count());
 
   auto const start_time = std::chrono::steady_clock::now();
@@ -49,6 +49,8 @@ inline void run_log_benchmark(size_t num_iterations,
                               size_t current_thread_num,
                               std::vector<uint64_t>& latencies)
 {
+  set_thread_affinity(current_thread_num);
+
   on_thread_start();
 
   // Always ignore the first log statement as it will be doing initialisation for most loggers - quill and nanolog don't need this as they have preallocate
@@ -82,6 +84,8 @@ inline void run_benchmark(char const* benchmark_name,
                           std::function<std::chrono::nanoseconds(int, double, char const*)> log_func,
                           std::function<void()> on_thread_exit)
 {
+  set_thread_affinity(0);
+
   // each thread gets a vector of latencies
   std::vector<std::vector<uint64_t>> latencies;
   latencies.resize(thread_count);

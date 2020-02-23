@@ -6,6 +6,6 @@
 #define ITERATIONS                                                                                 \
   std::size_t { 100000 }
 #define MIN_WAIT_DURATION                                                                          \
-  std::chrono::microseconds { 1 }
+  std::chrono::microseconds { 3 }
 #define MAX_WAIT_DURATION                                                                          \
   std::chrono::microseconds { 100 }
