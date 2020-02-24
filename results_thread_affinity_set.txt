@@ -1,0 +1,189 @@
+  -------------------------------------------------------------
+           0.00%  100.00%    0.00%    0.00%                0x38     0       1    35370  0xffffffffa2ed5566         0       168         0        1         1  [k] resched_curr  [kernel.kallsyms
+            |
+            ---0xffffffffa359000a
+               0xffffffffa2e31704
+               0xffffffffa2f8cfd8
+               0xffffffffa2f8cf95
+               0xffffffffa2fae87f
+               0xffffffffa2fae745
+               0xffffffffa2ed2643
+               0xffffffffa2ed25f3
+               0xffffffffa2ed24d2
+               0xffffffffa305e5b3
+               0xffffffffa2eda0c2
+               0xffffffffa2ed9dcf
+               0xffffffffa2ed666f
+               0xffffffffa2ed6539
+               0xffffffffa2ed5566
+
+
+  -------------------------------------------------------------
+     12        0        1        0        0  0xffff993529585280
+  -------------------------------------------------------------
+           0.00%  100.00%    0.00%    0.00%                0x10     0       1    35370  0xffffffffa2ed6498         0       171         0        1         1  [k] check_preempt_curr  [kernel.ka
+            |
+            ---0xffffffffa359000a
+               0xffffffffa2e31704
+$
+$
+$ ls
+benchmark_iyengar_nanolog_call_site_latency  CMakeFiles           platformlab_nanolog_call_site_latency_percentile_linux_benchmark.log
+benchmark_platformlab_call_site_latency      cmake_install.cmake  quill_call_site_latency_percentile_linux_benchmark.log
+benchmark_quill_call_site_latency            Makefile             spdlog_call_site_latency_percentile_linux_benchmark.log
+benchmark_reckless_call_site_latency         perf.data
+benchmark_spdlog_call_site_latency           perf.data.old
+$ ls -la
+total 1052712
+drwxr-sr-x 3 odysseas.georgoudis dept_listedderivativesexecution      8192 Feb 24 01:09 .
+drwxr-sr-x 4 odysseas.georgoudis dept_listedderivativesexecution      8192 Feb 23 23:37 ..
+-rwxr-xr-x 1 odysseas.georgoudis dept_listedderivativesexecution    567536 Feb 23 23:37 benchmark_iyengar_nanolog_call_site_latency
+-rwxr-xr-x 1 odysseas.georgoudis dept_listedderivativesexecution   1131040 Feb 24 00:39 benchmark_platformlab_call_site_latency
+-rwxr-xr-x 1 odysseas.georgoudis dept_listedderivativesexecution   3293832 Feb 24 01:08 benchmark_quill_call_site_latency
+-rwxr-xr-x 1 odysseas.georgoudis dept_listedderivativesexecution   1483320 Feb 23 23:37 benchmark_reckless_call_site_latency
+-rwxr-xr-x 1 odysseas.georgoudis dept_listedderivativesexecution   7620600 Feb 23 23:37 benchmark_spdlog_call_site_latency
+drwxr-sr-x 7 odysseas.georgoudis dept_listedderivativesexecution      8192 Feb 23 17:37 CMakeFiles
+-rw-r--r-- 1 odysseas.georgoudis dept_listedderivativesexecution      1186 Feb 23 17:37 cmake_install.cmake
+-rw-r--r-- 1 odysseas.georgoudis dept_listedderivativesexecution     20180 Feb 23 17:37 Makefile
+-rw------- 1 odysseas.georgoudis dept_listedderivativesexecution 431758696 Feb 24 00:36 perf.data
+-rw------- 1 odysseas.georgoudis dept_listedderivativesexecution 537347880 Feb 24 00:32 perf.data.old
+-rw-r--r-- 1 odysseas.georgoudis dept_listedderivativesexecution   3894455 Feb 24 01:06 platformlab_nanolog_call_site_latency_percentile_linux_benchmark.log
+-rw-r--r-- 1 odysseas.georgoudis dept_listedderivativesexecution  15376910 Feb 24 00:36 quill_call_site_latency_percentile_linux_benchmark.log
+-rw-r--r-- 1 odysseas.georgoudis dept_listedderivativesexecution  75384535 Feb 23 18:17 spdlog_call_site_latency_percentile_linux_benchmark.log
+$ clear
+$ ./benchmark_quill_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  20  |  27  |  55  |  60  |  98  |  131  |  4772  |
+
+Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  19  |  19  |  19  |  20  |  20  |  20  |  3667  |
+
+$ ./benchmark_quill_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  20  |  21  |  22  |  23  |  54  |  97  |  4908  |
+
+Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  19  |  19  |  19  |  19  |  19  |  19  |  3460  |
+
+$ ./benchmark_quill_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  20  |  21  |  25  |  49  |  61  |  107  |  3831  |
+
+Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  19  |  19  |  19  |  19  |  19  |  20  |  3480  |
+
+$ ./benchmark_platformlab_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  51  |  53  |  56  |  58  |  68  |  100  |  1488  |
+
+Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  25  |  26  |  27  |  28  |  28  |  28  |  7154  |
+
+$ ./benchmark_platformlab_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  49  |  51  |  54  |  56  |  63  |  97  |  1591  |
+
+Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  25  |  27  |  29  |  29  |  30  |  30  |  1911  |
+
+$ ./benchmark_platformlab_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  53  |  55  |  57  |  59  |  66  |  99  |  4183  |
+
+Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  25  |  26  |  28  |  29  |  29  |  29  |  1910  |
+
+$ ./benchmark_iyengar_nanolog_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  218  |  237  |  269  |  1173  |  1396  |  3360  |  713187  |
+
+Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  196  |  204  |  207  |  208  |  209  |  209  |  1314797  |
+
+$ ./benchmark_iyengar_nanolog_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  220  |  244  |  277  |  1176  |  1400  |  3341  |  752494  |
+
+Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  196  |  204  |  208  |  209  |  210  |  210  |  1286957  |
+
+$ ./benchmark_iyengar_nanolog_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  218  |  240  |  273  |  1185  |  1404  |  3334  |  749398  |
+
+Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  198  |  207  |  211  |  212  |  213  |  213  |  1286187  |
+
+$ ./benchmark_reckless_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  88  |  122  |  178  |  193  |  220  |  273  |  599966047  |
+
+Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  159  |  163  |  165  |  166  |  166  |  167  |  340683821  |
+
+$ ./benchmark_reckless_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  87  |  128  |  168  |  186  |  209  |  301  |  591215000  |
+
+Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  159  |  169  |  175  |  176  |  177  |  178  |  367750219  |
+
+$ ./benchmark_reckless_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  88  |  124  |  173  |  192  |  212  |  309  |  592523541  |
+
+Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  163  |  173  |  177  |  178  |  178  |  179  |  361454201  |
+
+$ ./benchmark_spdlog_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  1614  |  1650  |  1682  |  1702  |  1746  |  2838  |  6672  |
+
+Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  530  |  1499  |  1531  |  1537  |  1542  |  1543  |  123934  |
+
+$ ./benchmark_spdlog_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  1604  |  1636  |  1665  |  1684  |  1725  |  2837  |  12795  |
+
+Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  531  |  1515  |  1543  |  1549  |  1553  |  1554  |  8196  |
+
+$ ./benchmark_spdlog_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  1598  |  1631  |  1661  |  1680  |  1722  |  2894  |  11499  |
+
+Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  530  |  1518  |  1544  |  1550  |  1554  |  1554  |  13985  |
+
+$
