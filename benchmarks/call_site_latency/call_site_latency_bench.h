@@ -13,9 +13,10 @@
 // Instead of sleep
 inline void wait(std::chrono::nanoseconds min, std::chrono::nanoseconds max)
 {
-  std::random_device rd;
-  std::mt19937 gen(rd());
-  std::uniform_int_distribution<> dis(min.count(), max.count());
+#ifdef BENCH_WITHOUT_PERF
+  static std::random_device rd;
+  static std::mt19937 gen(rd());
+  static std::uniform_int_distribution<> dis(min.count(), max.count());
 
   auto const start_time = std::chrono::steady_clock::now();
   auto const end_time = start_time.time_since_epoch() + std::chrono::nanoseconds{dis(gen)};
@@ -24,6 +25,10 @@ inline void wait(std::chrono::nanoseconds min, std::chrono::nanoseconds max)
   {
     time_now = std::chrono::steady_clock::now().time_since_epoch();
   } while (time_now < end_time);
+#else
+  // when in perf use sleep as the other variables add noise
+  std::this_thread::sleep_for(std::chrono::microseconds{50});
+#endif
 }
 
 inline void set_thread_affinity(size_t cpu_num)
@@ -134,6 +139,7 @@ inline void run_benchmark(char const* benchmark_name,
 #endif
 
   std::vector<std::thread> threads;
+  threads.reserve(thread_count);
   for (int thread_num = 0; thread_num < thread_count; ++thread_num)
   {
 #ifdef BENCH_WITHOUT_PERF
