@@ -12,4 +12,4 @@
 #define MIN_WAIT_DURATION                                                                          \
   std::chrono::microseconds { 1 }
 #define MAX_WAIT_DURATION                                                                          \
-  std::chrono::microseconds { 100 }
+  std::chrono::microseconds { 3 }

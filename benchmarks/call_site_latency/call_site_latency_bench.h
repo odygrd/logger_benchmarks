@@ -27,7 +27,7 @@ inline void wait(std::chrono::nanoseconds min, std::chrono::nanoseconds max)
   } while (time_now < end_time);
 #else
   // when in perf use sleep as the other variables add noise
-  std::this_thread::sleep_for(std::chrono::microseconds{50});
+  std::this_thread::sleep_for(max);
 #endif
 }
 
