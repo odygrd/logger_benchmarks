@@ -29,5 +29,6 @@ add_subdirectory(quill)
 add_subdirectory(third_party/Iyengar_NanoLog)
 add_subdirectory(third_party/reckless)
 add_subdirectory(third_party/platformlab_nanolog)
+add_subdirectory(third_party/g3log)
 
 add_subdirectory(benchmarks)

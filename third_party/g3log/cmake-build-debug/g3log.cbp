@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6"/>
+	<Project>
+		<Option title="g3log"/>
+		<Option makefile_is_custom="1"/>
+		<Option compiler="gcc"/>
+		<Option virtualFolders="CMake Files\;CMake Files\example\;CMake Files\test_performance\;CMake Files\test_unit\;CMake Files\cmake\;"/>
+		<Build>
+			<Target title="all">
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 all"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="install/local">
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 install/local"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="install">
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 install"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="g3log-FATAL-choice">
+				<Option output="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/g3log-FATAL-choice" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/example"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/backward"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/local/gcc9.1/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 g3log-FATAL-choice"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="g3log-FATAL-choice/fast">
+				<Option output="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/g3log-FATAL-choice" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/example"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/backward"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/local/gcc9.1/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 g3log-FATAL-choice/fast"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="g3log-FATAL-sigsegv">
+				<Option output="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/g3log-FATAL-sigsegv" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/example"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/backward"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/local/gcc9.1/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 g3log-FATAL-sigsegv"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="g3log-FATAL-sigsegv/fast">
+				<Option output="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/g3log-FATAL-sigsegv" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/example"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/backward"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/local/gcc9.1/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 g3log-FATAL-sigsegv/fast"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="install/strip">
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 install/strip"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="list_install_components">
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 list_install_components"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="g3log-FATAL-contract">
+				<Option output="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/g3log-FATAL-contract" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/example"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/backward"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/local/gcc9.1/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 g3log-FATAL-contract"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="g3log-FATAL-contract/fast">
+				<Option output="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/g3log-FATAL-contract" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/example"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/backward"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/local/gcc9.1/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 g3log-FATAL-contract/fast"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="g3logger">
+				<Option output="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/libg3logger.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/include"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/example"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/backward"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/local/gcc9.1/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 g3logger"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="g3logger/fast">
+				<Option output="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/libg3logger.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/include"/>
+					<Add directory="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/example"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/backward"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/local/gcc9.1/include"/>
+					<Add directory="/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 g3logger/fast"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="package">
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 package"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="package_source">
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 package_source"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="edit_cache">
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 edit_cache"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="clean-cmake">
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean-cmake"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="rebuild_cache">
+				<Option working_dir="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 rebuild_cache"/>
+					<CompileFile command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -j18 -f &quot;/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/include/g3log/generated_definitions.hpp">
+			<Option target="g3logger"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/example/main_contract.cpp">
+			<Option target="g3log-FATAL-contract"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/example/main_fatal_choice.cpp">
+			<Option target="g3log-FATAL-choice"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/example/main_sigsegv.cpp">
+			<Option target="g3log-FATAL-sigsegv"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src/crashhandler_unix.cpp">
+			<Option target="g3logger"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src/filesink.cpp">
+			<Option target="g3logger"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src/filesinkhelper.ipp">
+			<Option target="g3logger"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src/g3log.cpp">
+			<Option target="g3logger"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src/logcapture.cpp">
+			<Option target="g3logger"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src/loglevels.cpp">
+			<Option target="g3logger"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src/logmessage.cpp">
+			<Option target="g3logger"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src/logworker.cpp">
+			<Option target="g3logger"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/src/time.cpp">
+			<Option target="g3logger"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/Build.cmake">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/CPackLists.txt">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/GenerateMacroDefinitionsFile.cmake">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/Options.cmake">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/iOSBuild.cmake">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/example/Example.cmake">
+			<Option virtualFolder="CMake Files\example\"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/test_performance/Performance.cmake">
+			<Option virtualFolder="CMake Files\test_performance\"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/test_unit/Test.cmake">
+			<Option virtualFolder="CMake Files\test_unit\"/>
+		</Unit>
+		<Unit filename="/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake/g3loggerConfig.cmake">
+			<Option virtualFolder="CMake Files\cmake\"/>
+		</Unit>
+	</Project>
+</CodeBlocks_project_file>

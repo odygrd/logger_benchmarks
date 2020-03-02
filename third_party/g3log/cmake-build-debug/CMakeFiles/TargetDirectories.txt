@@ -1,0 +1,13 @@
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/install/local.dir
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/install.dir
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/g3log-FATAL-choice.dir
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/g3log-FATAL-sigsegv.dir
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/install/strip.dir
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/list_install_components.dir
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/g3log-FATAL-contract.dir
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/g3logger.dir
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/package.dir
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/package_source.dir
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/edit_cache.dir
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/clean-cmake.dir
+/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/rebuild_cache.dir

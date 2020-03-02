@@ -1,0 +1,526 @@
+The system is: Linux - 3.10.0-1062.1.1.el7.x86_64 - x86_64
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+Compiler: /usr/local/gcc9.1/bin/g++ 
+Build flags: 
+Id flags:  
+
+The output was:
+0
+
+
+Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "a.out"
+
+The CXX compiler identification is GNU, found in "/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/3.16.0/CompilerIdCXX/a.out"
+
+Determining if the CXX compiler works passed with the following output:
+Change Dir: /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_90e0c/fast && gmake: Warning: File `Makefile' has modification time 1.7 s in the future
+/usr/bin/gmake -f CMakeFiles/cmTC_90e0c.dir/build.make CMakeFiles/cmTC_90e0c.dir/build
+gmake[1]: Entering directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake[1]: Warning: File `CMakeFiles/cmTC_90e0c.dir/flags.make' has modification time 1.7 s in the future
+Building CXX object CMakeFiles/cmTC_90e0c.dir/testCXXCompiler.cxx.o
+/usr/local/gcc9.1/bin/g++     -o CMakeFiles/cmTC_90e0c.dir/testCXXCompiler.cxx.o -c /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp/testCXXCompiler.cxx
+Linking CXX executable cmTC_90e0c
+/apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/bin/cmake -E cmake_link_script CMakeFiles/cmTC_90e0c.dir/link.txt --verbose=1
+/usr/local/gcc9.1/bin/g++       -rdynamic CMakeFiles/cmTC_90e0c.dir/testCXXCompiler.cxx.o  -o cmTC_90e0c 
+gmake[1]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[1]: Leaving directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake: warning:  Clock skew detected.  Your build may be incomplete.
+
+
+
+Detecting CXX compiler ABI info compiled with the following output:
+Change Dir: /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_16c62/fast && gmake: Warning: File `Makefile' has modification time 1.7 s in the future
+/usr/bin/gmake -f CMakeFiles/cmTC_16c62.dir/build.make CMakeFiles/cmTC_16c62.dir/build
+gmake[1]: Entering directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake[1]: Warning: File `CMakeFiles/cmTC_16c62.dir/flags.make' has modification time 1.7 s in the future
+Building CXX object CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o
+/usr/local/gcc9.1/bin/g++    -v -o CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o -c /apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/share/cmake-3.16/Modules/CMakeCXXCompilerABI.cpp
+Using built-in specs.
+COLLECT_GCC=/usr/local/gcc9.1/bin/g++
+Target: x86_64-pc-linux-gnu
+Configured with: /root/work/gcc/gcc-9.1.0/configure --prefix=/usr/local/gcc9.1 --disable-multilib --enable-languages=c,c++
+Thread model: posix
+gcc version 9.1.0 (GCC) 
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ /usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/cc1plus -quiet -v -D_GNU_SOURCE /apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/share/cmake-3.16/Modules/CMakeCXXCompilerABI.cpp -quiet -dumpbase CMakeCXXCompilerABI.cpp -mtune=generic -march=x86-64 -auxbase-strip CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o -version -o /tmp/ccRq432V.s
+GNU C++14 (GCC) version 9.1.0 (x86_64-pc-linux-gnu)
+	compiled by GNU C version 9.1.0, GMP version 6.0.0, MPFR version 3.1.1, MPC version 1.0.1, isl version none
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+ignoring nonexistent directory "/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../x86_64-pc-linux-gnu/include"
+#include "..." search starts here:
+#include <...> search starts here:
+ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0
+ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/x86_64-pc-linux-gnu
+ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/backward
+ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include
+ /usr/local/include
+ /usr/local/gcc9.1/include
+ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed
+ /usr/include
+End of search list.
+GNU C++14 (GCC) version 9.1.0 (x86_64-pc-linux-gnu)
+	compiled by GNU C version 9.1.0, GMP version 6.0.0, MPFR version 3.1.1, MPC version 1.0.1, isl version none
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+Compiler executable checksum: c6de29a3de5cf71ee80cc9f591b65b15
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ as -v --64 -o CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o /tmp/ccRq432V.s
+GNU assembler version 2.30 (x86_64-redhat-linux) using BFD version version 2.30-47.el7
+COMPILER_PATH=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+Linking CXX executable cmTC_16c62
+/apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/bin/cmake -E cmake_link_script CMakeFiles/cmTC_16c62.dir/link.txt --verbose=1
+/usr/local/gcc9.1/bin/g++      -v -rdynamic CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o  -o cmTC_16c62 
+Using built-in specs.
+COLLECT_GCC=/usr/local/gcc9.1/bin/g++
+COLLECT_LTO_WRAPPER=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/lto-wrapper
+Target: x86_64-pc-linux-gnu
+Configured with: /root/work/gcc/gcc-9.1.0/configure --prefix=/usr/local/gcc9.1 --disable-multilib --enable-languages=c,c++
+Thread model: posix
+gcc version 9.1.0 (GCC) 
+COMPILER_PATH=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_16c62' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ /usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/collect2 -plugin /usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/liblto_plugin.so -plugin-opt=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/lto-wrapper -plugin-opt=-fresolution=/tmp/cc2jED9Z.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_16c62 /lib/../lib64/crt1.o /lib/../lib64/crti.o /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/crtbegin.o -L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0 -L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../.. CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/crtend.o /lib/../lib64/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_16c62' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+gmake[1]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[1]: Leaving directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake: warning:  Clock skew detected.  Your build may be incomplete.
+
+
+
+Parsed CXX implicit include dir info from above output: rv=done
+  found start of include info
+  found start of implicit include info
+    add: [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0]
+    add: [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/x86_64-pc-linux-gnu]
+    add: [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/backward]
+    add: [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include]
+    add: [/usr/local/include]
+    add: [/usr/local/gcc9.1/include]
+    add: [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed]
+    add: [/usr/include]
+  end of search list found
+  collapse include dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0] ==> [/usr/local/gcc9.1/include/c++/9.1.0]
+  collapse include dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/x86_64-pc-linux-gnu] ==> [/usr/local/gcc9.1/include/c++/9.1.0/x86_64-pc-linux-gnu]
+  collapse include dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/backward] ==> [/usr/local/gcc9.1/include/c++/9.1.0/backward]
+  collapse include dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include] ==> [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include]
+  collapse include dir [/usr/local/include] ==> [/usr/local/include]
+  collapse include dir [/usr/local/gcc9.1/include] ==> [/usr/local/gcc9.1/include]
+  collapse include dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed] ==> [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed]
+  collapse include dir [/usr/include] ==> [/usr/include]
+  implicit include dirs: [/usr/local/gcc9.1/include/c++/9.1.0;/usr/local/gcc9.1/include/c++/9.1.0/x86_64-pc-linux-gnu;/usr/local/gcc9.1/include/c++/9.1.0/backward;/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include;/usr/local/include;/usr/local/gcc9.1/include;/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed;/usr/include]
+
+
+Parsed CXX implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp]
+  ignore line: []
+  ignore line: [Run Build Command(s):/usr/bin/gmake cmTC_16c62/fast && gmake: Warning: File `Makefile' has modification time 1.7 s in the future]
+  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_16c62.dir/build.make CMakeFiles/cmTC_16c62.dir/build]
+  ignore line: [gmake[1]: Entering directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp']
+  ignore line: [gmake[1]: Warning: File `CMakeFiles/cmTC_16c62.dir/flags.make' has modification time 1.7 s in the future]
+  ignore line: [Building CXX object CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o]
+  ignore line: [/usr/local/gcc9.1/bin/g++    -v -o CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o -c /apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/share/cmake-3.16/Modules/CMakeCXXCompilerABI.cpp]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/local/gcc9.1/bin/g++]
+  ignore line: [Target: x86_64-pc-linux-gnu]
+  ignore line: [Configured with: /root/work/gcc/gcc-9.1.0/configure --prefix=/usr/local/gcc9.1 --disable-multilib --enable-languages=c c++]
+  ignore line: [Thread model: posix]
+  ignore line: [gcc version 9.1.0 (GCC) ]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
+  ignore line: [ /usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/cc1plus -quiet -v -D_GNU_SOURCE /apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/share/cmake-3.16/Modules/CMakeCXXCompilerABI.cpp -quiet -dumpbase CMakeCXXCompilerABI.cpp -mtune=generic -march=x86-64 -auxbase-strip CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o -version -o /tmp/ccRq432V.s]
+  ignore line: [GNU C++14 (GCC) version 9.1.0 (x86_64-pc-linux-gnu)]
+  ignore line: [	compiled by GNU C version 9.1.0  GMP version 6.0.0  MPFR version 3.1.1  MPC version 1.0.1  isl version none]
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [ignoring nonexistent directory "/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../x86_64-pc-linux-gnu/include"]
+  ignore line: [#include "..." search starts here:]
+  ignore line: [#include <...> search starts here:]
+  ignore line: [ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0]
+  ignore line: [ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/x86_64-pc-linux-gnu]
+  ignore line: [ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../include/c++/9.1.0/backward]
+  ignore line: [ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include]
+  ignore line: [ /usr/local/include]
+  ignore line: [ /usr/local/gcc9.1/include]
+  ignore line: [ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed]
+  ignore line: [ /usr/include]
+  ignore line: [End of search list.]
+  ignore line: [GNU C++14 (GCC) version 9.1.0 (x86_64-pc-linux-gnu)]
+  ignore line: [	compiled by GNU C version 9.1.0  GMP version 6.0.0  MPFR version 3.1.1  MPC version 1.0.1  isl version none]
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [Compiler executable checksum: c6de29a3de5cf71ee80cc9f591b65b15]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
+  ignore line: [ as -v --64 -o CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o /tmp/ccRq432V.s]
+  ignore line: [GNU assembler version 2.30 (x86_64-redhat-linux) using BFD version version 2.30-47.el7]
+  ignore line: [COMPILER_PATH=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
+  ignore line: [Linking CXX executable cmTC_16c62]
+  ignore line: [/apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/bin/cmake -E cmake_link_script CMakeFiles/cmTC_16c62.dir/link.txt --verbose=1]
+  ignore line: [/usr/local/gcc9.1/bin/g++      -v -rdynamic CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o  -o cmTC_16c62 ]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/local/gcc9.1/bin/g++]
+  ignore line: [COLLECT_LTO_WRAPPER=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/lto-wrapper]
+  ignore line: [Target: x86_64-pc-linux-gnu]
+  ignore line: [Configured with: /root/work/gcc/gcc-9.1.0/configure --prefix=/usr/local/gcc9.1 --disable-multilib --enable-languages=c c++]
+  ignore line: [Thread model: posix]
+  ignore line: [gcc version 9.1.0 (GCC) ]
+  ignore line: [COMPILER_PATH=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_16c62' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
+  link line: [ /usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/collect2 -plugin /usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/liblto_plugin.so -plugin-opt=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/lto-wrapper -plugin-opt=-fresolution=/tmp/cc2jED9Z.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_16c62 /lib/../lib64/crt1.o /lib/../lib64/crti.o /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/crtbegin.o -L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0 -L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../.. CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/crtend.o /lib/../lib64/crtn.o]
+    arg [/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/cc2jED9Z.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [--eh-frame-hdr] ==> ignore
+    arg [-m] ==> ignore
+    arg [elf_x86_64] ==> ignore
+    arg [-export-dynamic] ==> ignore
+    arg [-dynamic-linker] ==> ignore
+    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_16c62] ==> ignore
+    arg [/lib/../lib64/crt1.o] ==> ignore
+    arg [/lib/../lib64/crti.o] ==> ignore
+    arg [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/crtbegin.o] ==> ignore
+    arg [-L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0] ==> dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0]
+    arg [-L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64] ==> dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64]
+    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+    arg [-L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../..] ==> dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../..]
+    arg [CMakeFiles/cmTC_16c62.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
+    arg [-lstdc++] ==> lib [stdc++]
+    arg [-lm] ==> lib [m]
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [-lgcc] ==> lib [gcc]
+    arg [-lc] ==> lib [c]
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [-lgcc] ==> lib [gcc]
+    arg [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/crtend.o] ==> ignore
+    arg [/lib/../lib64/crtn.o] ==> ignore
+  collapse library dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0] ==> [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0]
+  collapse library dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64] ==> [/usr/local/gcc9.1/lib64]
+  collapse library dir [/lib/../lib64] ==> [/lib64]
+  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+  collapse library dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../..] ==> [/usr/local/gcc9.1/lib]
+  implicit libs: [stdc++;m;gcc_s;gcc;c;gcc_s;gcc]
+  implicit dirs: [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0;/usr/local/gcc9.1/lib64;/lib64;/usr/lib64;/usr/local/gcc9.1/lib]
+  implicit fwks: []
+
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /usr/local/gcc9.1/bin/gcc 
+Build flags: 
+Id flags:  
+
+The output was:
+0
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+
+The C compiler identification is GNU, found in "/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/3.16.0/CompilerIdC/a.out"
+
+Determining if the C compiler works passed with the following output:
+Change Dir: /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_699cc/fast && gmake: Warning: File `Makefile' has modification time 1.7 s in the future
+/usr/bin/gmake -f CMakeFiles/cmTC_699cc.dir/build.make CMakeFiles/cmTC_699cc.dir/build
+gmake[1]: Entering directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake[1]: Warning: File `CMakeFiles/cmTC_699cc.dir/flags.make' has modification time 1.7 s in the future
+Building C object CMakeFiles/cmTC_699cc.dir/testCCompiler.c.o
+/usr/local/gcc9.1/bin/gcc    -o CMakeFiles/cmTC_699cc.dir/testCCompiler.c.o   -c /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp/testCCompiler.c
+Linking C executable cmTC_699cc
+/apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/bin/cmake -E cmake_link_script CMakeFiles/cmTC_699cc.dir/link.txt --verbose=1
+/usr/local/gcc9.1/bin/gcc      -rdynamic CMakeFiles/cmTC_699cc.dir/testCCompiler.c.o  -o cmTC_699cc 
+gmake[1]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[1]: Leaving directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake: warning:  Clock skew detected.  Your build may be incomplete.
+
+
+
+Detecting C compiler ABI info compiled with the following output:
+Change Dir: /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_0a29b/fast && gmake: Warning: File `Makefile' has modification time 1.7 s in the future
+/usr/bin/gmake -f CMakeFiles/cmTC_0a29b.dir/build.make CMakeFiles/cmTC_0a29b.dir/build
+gmake[1]: Entering directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake[1]: Warning: File `CMakeFiles/cmTC_0a29b.dir/flags.make' has modification time 1.7 s in the future
+Building C object CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o
+/usr/local/gcc9.1/bin/gcc   -v -o CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o   -c /apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/share/cmake-3.16/Modules/CMakeCCompilerABI.c
+Using built-in specs.
+COLLECT_GCC=/usr/local/gcc9.1/bin/gcc
+Target: x86_64-pc-linux-gnu
+Configured with: /root/work/gcc/gcc-9.1.0/configure --prefix=/usr/local/gcc9.1 --disable-multilib --enable-languages=c,c++
+Thread model: posix
+gcc version 9.1.0 (GCC) 
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64'
+ /usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/cc1 -quiet -v /apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/share/cmake-3.16/Modules/CMakeCCompilerABI.c -quiet -dumpbase CMakeCCompilerABI.c -mtune=generic -march=x86-64 -auxbase-strip CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o -version -o /tmp/ccplyRyD.s
+GNU C17 (GCC) version 9.1.0 (x86_64-pc-linux-gnu)
+	compiled by GNU C version 9.1.0, GMP version 6.0.0, MPFR version 3.1.1, MPC version 1.0.1, isl version none
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+ignoring nonexistent directory "/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../x86_64-pc-linux-gnu/include"
+#include "..." search starts here:
+#include <...> search starts here:
+ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include
+ /usr/local/include
+ /usr/local/gcc9.1/include
+ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed
+ /usr/include
+End of search list.
+GNU C17 (GCC) version 9.1.0 (x86_64-pc-linux-gnu)
+	compiled by GNU C version 9.1.0, GMP version 6.0.0, MPFR version 3.1.1, MPC version 1.0.1, isl version none
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+Compiler executable checksum: 71d3736fad8de7950509c59d5a04e3a5
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64'
+ as -v --64 -o CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o /tmp/ccplyRyD.s
+GNU assembler version 2.30 (x86_64-redhat-linux) using BFD version version 2.30-47.el7
+COMPILER_PATH=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64'
+Linking C executable cmTC_0a29b
+/apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/bin/cmake -E cmake_link_script CMakeFiles/cmTC_0a29b.dir/link.txt --verbose=1
+/usr/local/gcc9.1/bin/gcc     -v -rdynamic CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o  -o cmTC_0a29b 
+Using built-in specs.
+COLLECT_GCC=/usr/local/gcc9.1/bin/gcc
+COLLECT_LTO_WRAPPER=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/lto-wrapper
+Target: x86_64-pc-linux-gnu
+Configured with: /root/work/gcc/gcc-9.1.0/configure --prefix=/usr/local/gcc9.1 --disable-multilib --enable-languages=c,c++
+Thread model: posix
+gcc version 9.1.0 (GCC) 
+COMPILER_PATH=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_0a29b' '-mtune=generic' '-march=x86-64'
+ /usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/collect2 -plugin /usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/liblto_plugin.so -plugin-opt=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/lto-wrapper -plugin-opt=-fresolution=/tmp/ccwVV0lF.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_0a29b /lib/../lib64/crt1.o /lib/../lib64/crti.o /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/crtbegin.o -L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0 -L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../.. CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/crtend.o /lib/../lib64/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_0a29b' '-mtune=generic' '-march=x86-64'
+gmake[1]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[1]: Leaving directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake: warning:  Clock skew detected.  Your build may be incomplete.
+
+
+
+Parsed C implicit include dir info from above output: rv=done
+  found start of include info
+  found start of implicit include info
+    add: [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include]
+    add: [/usr/local/include]
+    add: [/usr/local/gcc9.1/include]
+    add: [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed]
+    add: [/usr/include]
+  end of search list found
+  collapse include dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include] ==> [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include]
+  collapse include dir [/usr/local/include] ==> [/usr/local/include]
+  collapse include dir [/usr/local/gcc9.1/include] ==> [/usr/local/gcc9.1/include]
+  collapse include dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed] ==> [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed]
+  collapse include dir [/usr/include] ==> [/usr/include]
+  implicit include dirs: [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include;/usr/local/include;/usr/local/gcc9.1/include;/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed;/usr/include]
+
+
+Parsed C implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp]
+  ignore line: []
+  ignore line: [Run Build Command(s):/usr/bin/gmake cmTC_0a29b/fast && gmake: Warning: File `Makefile' has modification time 1.7 s in the future]
+  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_0a29b.dir/build.make CMakeFiles/cmTC_0a29b.dir/build]
+  ignore line: [gmake[1]: Entering directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp']
+  ignore line: [gmake[1]: Warning: File `CMakeFiles/cmTC_0a29b.dir/flags.make' has modification time 1.7 s in the future]
+  ignore line: [Building C object CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o]
+  ignore line: [/usr/local/gcc9.1/bin/gcc   -v -o CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o   -c /apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/share/cmake-3.16/Modules/CMakeCCompilerABI.c]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/local/gcc9.1/bin/gcc]
+  ignore line: [Target: x86_64-pc-linux-gnu]
+  ignore line: [Configured with: /root/work/gcc/gcc-9.1.0/configure --prefix=/usr/local/gcc9.1 --disable-multilib --enable-languages=c c++]
+  ignore line: [Thread model: posix]
+  ignore line: [gcc version 9.1.0 (GCC) ]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64']
+  ignore line: [ /usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/cc1 -quiet -v /apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/share/cmake-3.16/Modules/CMakeCCompilerABI.c -quiet -dumpbase CMakeCCompilerABI.c -mtune=generic -march=x86-64 -auxbase-strip CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o -version -o /tmp/ccplyRyD.s]
+  ignore line: [GNU C17 (GCC) version 9.1.0 (x86_64-pc-linux-gnu)]
+  ignore line: [	compiled by GNU C version 9.1.0  GMP version 6.0.0  MPFR version 3.1.1  MPC version 1.0.1  isl version none]
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [ignoring nonexistent directory "/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../x86_64-pc-linux-gnu/include"]
+  ignore line: [#include "..." search starts here:]
+  ignore line: [#include <...> search starts here:]
+  ignore line: [ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include]
+  ignore line: [ /usr/local/include]
+  ignore line: [ /usr/local/gcc9.1/include]
+  ignore line: [ /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/include-fixed]
+  ignore line: [ /usr/include]
+  ignore line: [End of search list.]
+  ignore line: [GNU C17 (GCC) version 9.1.0 (x86_64-pc-linux-gnu)]
+  ignore line: [	compiled by GNU C version 9.1.0  GMP version 6.0.0  MPFR version 3.1.1  MPC version 1.0.1  isl version none]
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [Compiler executable checksum: 71d3736fad8de7950509c59d5a04e3a5]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64']
+  ignore line: [ as -v --64 -o CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o /tmp/ccplyRyD.s]
+  ignore line: [GNU assembler version 2.30 (x86_64-redhat-linux) using BFD version version 2.30-47.el7]
+  ignore line: [COMPILER_PATH=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64']
+  ignore line: [Linking C executable cmTC_0a29b]
+  ignore line: [/apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/bin/cmake -E cmake_link_script CMakeFiles/cmTC_0a29b.dir/link.txt --verbose=1]
+  ignore line: [/usr/local/gcc9.1/bin/gcc     -v -rdynamic CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o  -o cmTC_0a29b ]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/local/gcc9.1/bin/gcc]
+  ignore line: [COLLECT_LTO_WRAPPER=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/lto-wrapper]
+  ignore line: [Target: x86_64-pc-linux-gnu]
+  ignore line: [Configured with: /root/work/gcc/gcc-9.1.0/configure --prefix=/usr/local/gcc9.1 --disable-multilib --enable-languages=c c++]
+  ignore line: [Thread model: posix]
+  ignore line: [gcc version 9.1.0 (GCC) ]
+  ignore line: [COMPILER_PATH=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_0a29b' '-mtune=generic' '-march=x86-64']
+  link line: [ /usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/collect2 -plugin /usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/liblto_plugin.so -plugin-opt=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/lto-wrapper -plugin-opt=-fresolution=/tmp/ccwVV0lF.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_0a29b /lib/../lib64/crt1.o /lib/../lib64/crti.o /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/crtbegin.o -L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0 -L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../.. CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/crtend.o /lib/../lib64/crtn.o]
+    arg [/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/usr/local/gcc9.1/libexec/gcc/x86_64-pc-linux-gnu/9.1.0/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/ccwVV0lF.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [--eh-frame-hdr] ==> ignore
+    arg [-m] ==> ignore
+    arg [elf_x86_64] ==> ignore
+    arg [-export-dynamic] ==> ignore
+    arg [-dynamic-linker] ==> ignore
+    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_0a29b] ==> ignore
+    arg [/lib/../lib64/crt1.o] ==> ignore
+    arg [/lib/../lib64/crti.o] ==> ignore
+    arg [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/crtbegin.o] ==> ignore
+    arg [-L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0] ==> dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0]
+    arg [-L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64] ==> dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64]
+    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+    arg [-L/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../..] ==> dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../..]
+    arg [CMakeFiles/cmTC_0a29b.dir/CMakeCCompilerABI.c.o] ==> ignore
+    arg [-lgcc] ==> lib [gcc]
+    arg [--push-state] ==> ignore
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--pop-state] ==> ignore
+    arg [-lc] ==> lib [c]
+    arg [-lgcc] ==> lib [gcc]
+    arg [--push-state] ==> ignore
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--pop-state] ==> ignore
+    arg [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/crtend.o] ==> ignore
+    arg [/lib/../lib64/crtn.o] ==> ignore
+  collapse library dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0] ==> [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0]
+  collapse library dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../../../lib64] ==> [/usr/local/gcc9.1/lib64]
+  collapse library dir [/lib/../lib64] ==> [/lib64]
+  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+  collapse library dir [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0/../../..] ==> [/usr/local/gcc9.1/lib]
+  implicit libs: [gcc;gcc_s;c;gcc;gcc_s]
+  implicit dirs: [/usr/local/gcc9.1/lib/gcc/x86_64-pc-linux-gnu/9.1.0;/usr/local/gcc9.1/lib64;/lib64;/usr/lib64;/usr/local/gcc9.1/lib]
+  implicit fwks: []
+
+
+Determining if the include file pthread.h exists passed with the following output:
+Change Dir: /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_e77bd/fast && gmake: Warning: File `Makefile' has modification time 1.7 s in the future
+/usr/bin/gmake -f CMakeFiles/cmTC_e77bd.dir/build.make CMakeFiles/cmTC_e77bd.dir/build
+gmake[1]: Entering directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake[1]: Warning: File `CMakeFiles/cmTC_e77bd.dir/flags.make' has modification time 1.7 s in the future
+Building C object CMakeFiles/cmTC_e77bd.dir/CheckIncludeFile.c.o
+/usr/local/gcc9.1/bin/gcc    -o CMakeFiles/cmTC_e77bd.dir/CheckIncludeFile.c.o   -c /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp/CheckIncludeFile.c
+Linking C executable cmTC_e77bd
+/apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e77bd.dir/link.txt --verbose=1
+/usr/local/gcc9.1/bin/gcc      -rdynamic CMakeFiles/cmTC_e77bd.dir/CheckIncludeFile.c.o  -o cmTC_e77bd 
+gmake[1]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[1]: Leaving directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake: warning:  Clock skew detected.  Your build may be incomplete.
+
+
+
+Determining if the function pthread_create exists in the pthread passed with the following output:
+Change Dir: /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_24413/fast && gmake: Warning: File `Makefile' has modification time 1.7 s in the future
+/usr/bin/gmake -f CMakeFiles/cmTC_24413.dir/build.make CMakeFiles/cmTC_24413.dir/build
+gmake[1]: Entering directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake[1]: Warning: File `CMakeFiles/cmTC_24413.dir/flags.make' has modification time 1.7 s in the future
+Building C object CMakeFiles/cmTC_24413.dir/CheckFunctionExists.c.o
+/usr/local/gcc9.1/bin/gcc   -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_24413.dir/CheckFunctionExists.c.o   -c /apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/share/cmake-3.16/Modules/CheckFunctionExists.c
+Linking C executable cmTC_24413
+/apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/bin/cmake -E cmake_link_script CMakeFiles/cmTC_24413.dir/link.txt --verbose=1
+/usr/local/gcc9.1/bin/gcc  -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_24413.dir/CheckFunctionExists.c.o  -o cmTC_24413  -lpthread 
+gmake[1]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[1]: Leaving directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake: warning:  Clock skew detected.  Your build may be incomplete.
+
+
+
+Determining if the backtrace exist passed with the following output:
+Change Dir: /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_d432c/fast && gmake: Warning: File `Makefile' has modification time 1.7 s in the future
+/usr/bin/gmake -f CMakeFiles/cmTC_d432c.dir/build.make CMakeFiles/cmTC_d432c.dir/build
+gmake[1]: Entering directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake[1]: Warning: File `CMakeFiles/cmTC_d432c.dir/flags.make' has modification time 1.7 s in the future
+Building C object CMakeFiles/cmTC_d432c.dir/CheckSymbolExists.c.o
+/usr/local/gcc9.1/bin/gcc    -o CMakeFiles/cmTC_d432c.dir/CheckSymbolExists.c.o   -c /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_d432c
+/apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d432c.dir/link.txt --verbose=1
+/usr/local/gcc9.1/bin/gcc      -rdynamic CMakeFiles/cmTC_d432c.dir/CheckSymbolExists.c.o  -o cmTC_d432c 
+gmake[1]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[1]: Leaving directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake: warning:  Clock skew detected.  Your build may be incomplete.
+
+
+File /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <execinfo.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef backtrace
+  return ((int*)(&backtrace))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the abi::__cxa_demangle exist passed with the following output:
+Change Dir: /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_9d2e2/fast && gmake: Warning: File `Makefile' has modification time 1.7 s in the future
+/usr/bin/gmake -f CMakeFiles/cmTC_9d2e2.dir/build.make CMakeFiles/cmTC_9d2e2.dir/build
+gmake[1]: Entering directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake[1]: Warning: File `CMakeFiles/cmTC_9d2e2.dir/flags.make' has modification time 1.7 s in the future
+Building CXX object CMakeFiles/cmTC_9d2e2.dir/CheckSymbolExists.cxx.o
+/usr/local/gcc9.1/bin/g++     -o CMakeFiles/cmTC_9d2e2.dir/CheckSymbolExists.cxx.o -c /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx
+Linking CXX executable cmTC_9d2e2
+/apps/home/odygrd/clion-201.5616.31/bin/cmake/linux/bin/cmake -E cmake_link_script CMakeFiles/cmTC_9d2e2.dir/link.txt --verbose=1
+/usr/local/gcc9.1/bin/g++       -rdynamic CMakeFiles/cmTC_9d2e2.dir/CheckSymbolExists.cxx.o  -o cmTC_9d2e2 
+gmake[1]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[1]: Leaving directory `/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp'
+gmake: warning:  Clock skew detected.  Your build may be incomplete.
+
+
+File /net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:
+/* */
+#include <cxxabi.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+  return ((int*)(&abi::__cxa_demangle))[argc];
+}
