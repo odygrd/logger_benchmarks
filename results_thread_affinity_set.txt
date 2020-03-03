@@ -167,29 +167,29 @@ Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Threa
 g3log g3FileSink shutdown at: 22:55:34 860473
 Log file at: [./g2log_logger.g3log.20200303-225531.log]
 $ ./benchmark_ms_binlog_call_site_latency
-Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
+Thread Count 1 - Total messages 100000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
  |  41  |  43  |  46  |  88  |  120  |  1184  |  3211  |
 
-Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
+Thread Count 4 - Total messages 400000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
  |  36  |  36  |  37  |  37  |  37  |  37  |  4415  |
 
 $ ./benchmark_ms_binlog_call_site_latency
-Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
+Thread Count 1 - Total messages 100000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
  |  41  |  43  |  46  |  85  |  113  |  1160  |  3162  |
 
-Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
+Thread Count 4 - Total messages 400000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
  |  36  |  36  |  37  |  37  |  37  |  37  |  3527  |
 
 $ ./benchmark_ms_binlog_call_site_latency
-Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
+Thread Count 1 - Total messages 100000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
  |  41  |  43  |  46  |  82  |  112  |  1185  |  6995  |
 
-Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
+Thread Count 4 - Total messages 400000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
  |  36  |  36  |  37  |  37  |  37  |  37  |  4284  |
 
