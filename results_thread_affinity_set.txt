@@ -1,169 +1,196 @@
- ./benchmark_quill_call_site_latency
+$ ./benchmark_quill_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  25  |  26  |  52  |  55  |  61  |  95  |  1987  |
+ |  25  |  26  |  52  |  58  |  90  |  103  |  2071  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  23  |  23  |  24  |  24  |  24  |  24  |  2071  |
+ |  23  |  23  |  24  |  24  |  24  |  24  |  29337  |
 
- ./benchmark_quill_call_site_latency
+$ ./benchmark_quill_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  24  |  26  |  27  |  48  |  61  |  84  |  1677  |
+ |  25  |  28  |  56  |  61  |  95  |  109  |  1995  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  20  |  22  |  23  |  23  |  23  |  23  |  3615  |
+ |  22  |  23  |  23  |  24  |  24  |  24  |  1852  |
 
- ./benchmark_quill_call_site_latency
+$ ./benchmark_quill_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  25  |  26  |  57  |  59  |  66  |  112  |  4866  |
+ |  25  |  27  |  51  |  58  |  70  |  102  |  1706  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  23  |  23  |  24  |  24  |  24  |  24  |  2927  |
+ |  23  |  23  |  24  |  24  |  24  |  24  |  2208  |
 
- ./benchmark_platformlab_call_site_latency
+$ ./benchmark_platformlab_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  25  |  26  |  28  |  52  |  58  |  70  |  1427  |
+ |  25  |  26  |  28  |  50  |  58  |  77  |  1750  |
 
 Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  21  |  21  |  21  |  21  |  21  |  21  |  1692  |
+ |  21  |  21  |  21  |  21  |  21  |  21  |  1819  |
 
- ./benchmark_platformlab_call_site_latency
+$ ./benchmark_platformlab_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  25  |  26  |  28  |  50  |  59  |  78  |  1669  |
+ |  25  |  26  |  28  |  50  |  59  |  71  |  1473  |
 
 Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  21  |  21  |  21  |  21  |  21  |  21  |  2117  |
+ |  21  |  21  |  21  |  21  |  21  |  21  |  1803  |
 
- ./benchmark_platformlab_call_site_latency
+$ ./benchmark_platformlab_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  25  |  26  |  28  |  50  |  59  |  74  |  1417  |
+ |  25  |  26  |  28  |  51  |  59  |  71  |  1806  |
 
 Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  21  |  21  |  21  |  21  |  21  |  21  |  1932  |
+ |  21  |  21  |  21  |  21  |  21  |  21  |  1725  |
 
- ./benchmark_iyengar_nanolog_call_site_latency
+$ ./benchmark_iyengar_nanolog_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  169  |  175  |  184  |  1076  |  1243  |  3322  |  523517  |
+ |  165  |  172  |  182  |  1100  |  1264  |  3355  |  520855  |
 
 Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  186  |  192  |  194  |  195  |  196  |  196  |  488909  |
+ |  189  |  194  |  197  |  198  |  198  |  199  |  468780  |
 
- ./benchmark_iyengar_nanolog_call_site_latency
+$ ./benchmark_iyengar_nanolog_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  164  |  171  |  179  |  1077  |  1244  |  3317  |  532826  |
+ |  164  |  171  |  180  |  1092  |  1245  |  3257  |  493463  |
 
 Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  192  |  197  |  200  |  201  |  202  |  202  |  497156  |
+ |  188  |  193  |  196  |  197  |  197  |  198  |  475670  |
 
- ./benchmark_iyengar_nanolog_call_site_latency
+$ ./benchmark_iyengar_nanolog_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  166  |  171  |  180  |  1085  |  1246  |  3287  |  492571  |
+ |  166  |  172  |  180  |  1092  |  1252  |  3262  |  491910  |
 
 Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  192  |  197  |  199  |  200  |  201  |  201  |  470135  |
+ |  187  |  192  |  195  |  196  |  197  |  197  |  465727  |
 
- ./benchmark_reckless_call_site_latency
+$ ./benchmark_reckless_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  161  |  183  |  199  |  236  |  295  |  355  |  609844699  |
+ |  177  |  197  |  225  |  260  |  329  |  392  |  604855241  |
 
 Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  166  |  172  |  176  |  178  |  179  |  179  |  978164  |
+ |  179  |  188  |  191  |  192  |  193  |  193  |  905547  |
 
- ./benchmark_reckless_call_site_latency
+$ ./benchmark_reckless_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  167  |  189  |  210  |  253  |  315  |  371  |  607326958  |
+ |  184  |  204  |  231  |  268  |  337  |  403  |  601433603  |
 
 Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  180  |  187  |  191  |  192  |  193  |  193  |  878574  |
+ |  181  |  188  |  192  |  193  |  194  |  194  |  924498  |
 
- ./benchmark_reckless_call_site_latency
+$ ./benchmark_reckless_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  176  |  203  |  223  |  259  |  326  |  388  |  601120492  |
+ |  187  |  209  |  239  |  273  |  344  |  411  |  605440663  |
 
 Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  184  |  192  |  196  |  197  |  199  |  199  |  912529  |
+ |  187  |  195  |  199  |  201  |  202  |  202  |  959407  |
 
- ./benchmark_spdlog_call_site_latency
+$ ./benchmark_spdlog_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  1626  |  1682  |  1735  |  1828  |  2911  |  3114  |  7335  |
+ |  1552  |  1614  |  1667  |  1721  |  2839  |  3264  |  8160  |
 
 Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  454  |  493  |  521  |  531  |  540  |  543  |  16703  |
+ |  451  |  492  |  522  |  533  |  542  |  544  |  20169  |
 
- ./benchmark_spdlog_call_site_latency
+$ ./benchmark_spdlog_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  1604  |  1661  |  1713  |  1778  |  2897  |  3203  |  8907  |
+ |  1511  |  1575  |  1630  |  1680  |  2797  |  3085  |  7330  |
 
 Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  434  |  471  |  497  |  506  |  515  |  516  |  27572  |
+ |  433  |  472  |  499  |  509  |  518  |  520  |  16647  |
 
- ./benchmark_spdlog_call_site_latency
+$ ./benchmark_spdlog_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  1605  |  1665  |  1725  |  1866  |  2933  |  3258  |  8850  |
+ |  1472  |  1529  |  1582  |  1635  |  2751  |  3033  |  7534  |
 
 Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  451  |  490  |  517  |  527  |  535  |  537  |  14128  |
+ |  435  |  474  |  500  |  510  |  518  |  520  |  15631  |
 
- ./benchmark_g3log_call_site_latency
+$ ./benchmark_g3log_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  2808  |  3001  |  4336  |  4928  |  5938  |  7829  |  10057  |
+ |  2846  |  3035  |  4324  |  4963  |  5917  |  7612  |  9990  |
 
 Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  1273  |  1306  |  1328  |  1337  |  1344  |  1346  |  55835  |
+ |  1289  |  1321  |  1344  |  1353  |  1361  |  1362  |  31423  |
 
-g3log g3FileSink shutdown at: 23:15:37 414285
-Log file at: [./g2log_logger.g3log.20200302-231533.log]
- ./benchmark_g3log_call_site_latency
+g3log g3FileSink shutdown at: 22:55:23 474223
+Log file at: [./g2log_logger.g3log.20200303-225519.log]
+$ ./benchmark_g3log_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  2880  |  3074  |  4315  |  4904  |  5899  |  7644  |  10721  |
+ |  2903  |  3068  |  4269  |  4861  |  5733  |  6562  |  9631  |
 
 Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  1283  |  1315  |  1338  |  1347  |  1355  |  1356  |  56833  |
+ |  1296  |  1328  |  1351  |  1360  |  1368  |  1369  |  31873  |
 
-g3log g3FileSink shutdown at: 23:15:45 090715
-Log file at: [./g2log_logger.g3log.20200302-231541.log]
- ./benchmark_g3log_call_site_latency
+g3log g3FileSink shutdown at: 22:55:28 873018
+Log file at: [./g2log_logger.g3log.20200303-225525.log]
+$ ./benchmark_g3log_call_site_latency
 Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  2972  |  3175  |  4361  |  4872  |  5713  |  7097  |  10357  |
+ |  2895  |  3115  |  4438  |  5055  |  6039  |  7949  |  10329  |
 
 Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  1295  |  1326  |  1348  |  1358  |  1365  |  1367  |  49919  |
+ |  1274  |  1312  |  1339  |  1350  |  1358  |  1361  |  42836  |
 
-g3log g3FileSink shutdown at: 23:15:53 289755
-Log file at: [./g2log_logger.g3log.20200302-231549.log]
+g3log g3FileSink shutdown at: 22:55:34 860473
+Log file at: [./g2log_logger.g3log.20200303-225531.log]
+$ ./benchmark_ms_binlog_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  41  |  43  |  46  |  88  |  120  |  1184  |  3211  |
 
+Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  36  |  36  |  37  |  37  |  37  |  37  |  4415  |
+
+$ ./benchmark_ms_binlog_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  41  |  43  |  46  |  85  |  113  |  1160  |  3162  |
+
+Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  36  |  36  |  37  |  37  |  37  |  37  |  3527  |
+
+$ ./benchmark_ms_binlog_call_site_latency
+Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  41  |  43  |  46  |  82  |  112  |  1185  |  6995  |
+
+Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  36  |  36  |  37  |  37  |  37  |  37  |  4284  |
+
+$
