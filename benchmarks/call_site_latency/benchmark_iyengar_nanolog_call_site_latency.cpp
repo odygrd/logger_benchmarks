@@ -11,8 +11,8 @@ void iyengar_nanoLog_benchmark(std::vector<int32_t> thread_count_array, size_t n
   nanolog::initialize(nanolog::GuaranteedLogger(), "./",
                       "iyengar_nanoLog_call_site_latency_percentile_linux_benchmark.log", 500);
 
-  std::this_thread::sleep_for(std::chrono::seconds(3));
-
+  std::this_thread::sleep_for(std::chrono::seconds(1));
+  
   auto log_func = [](int32_t i, double d, char const* str) {
     auto const start = std::chrono::steady_clock::now();
     IY_LOG_INFO << "Logging str: " << str << ", int: " << i << ", double: " << d;

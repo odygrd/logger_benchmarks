@@ -9,7 +9,8 @@ void platformlab_nanolog(std::vector<int32_t> thread_count_array, size_t num_ite
 
   NanoLog::setLogFile("platformlab_nanolog_call_site_latency_percentile_linux_benchmark.log");
 
-  std::this_thread::sleep_for(std::chrono::seconds(3));
+  // wait for the backend thread to start
+  std::this_thread::sleep_for(std::chrono::seconds(1));
 
   auto log_func = [](int32_t i, double d, char const* str) {
     auto const start = std::chrono::steady_clock::now();

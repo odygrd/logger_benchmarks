@@ -15,7 +15,7 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   quill::start();
 
   // wait for the backend thread to start
-  std::this_thread::sleep_for(std::chrono::seconds(2));
+  std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Create a file handler to write to a file
   quill::Handler* file_handler =

@@ -31,6 +31,9 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
     } while (!done.load(std::memory_order_relaxed) || consume_result.bytesConsumed != 0);
   });
 
+  // wait for the backend thread to start
+  std::this_thread::sleep_for(std::chrono::seconds(1));
+
   // --- Benchmark ---
   // Define a logging lambda
   auto log_func = [](int32_t i, double d, char const* str) {

@@ -13,7 +13,7 @@ void g3log_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   g3::initializeLogging(worker.get());
 
   // wait for the backend thread to start
-  std::this_thread::sleep_for(std::chrono::seconds(2));
+  std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Define a logging lambda
   auto log_func = [](int32_t i, double d, char const* str) {

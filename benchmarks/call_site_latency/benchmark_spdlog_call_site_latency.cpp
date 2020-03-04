@@ -25,7 +25,8 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
                                                        spdlog::async_overflow_policy::block);
   logger->set_pattern("%T.%F [%t] %s:%# %l     %n - %v");
 
-  std::this_thread::sleep_for(std::chrono::seconds(3));
+  // wait for the backend thread to start
+  std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Define a logging lambda
   auto log_func = [logger](int32_t i, double d, char const* str) {
