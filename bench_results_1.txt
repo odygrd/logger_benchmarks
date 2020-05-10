@@ -1,0 +1,32 @@
+Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  2734  |  2874  |  3011  |  3102  |  3302  |  3582  |  4000  |
+
+Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  2682  |  2832  |  2971  |  3060  |  3256  |  3550  |  4155  |
+
+Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  2667  |  2811  |  2946  |  3033  |  3214  |  3466  |  3863  |
+
+Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  2612  |  2766  |  2909  |  3000  |  3195  |  3475  |  4042  |
+
+Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  2705  |  2850  |  2991  |  3085  |  3279  |  3530  |  3949  |
+
+Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  2637  |  2792  |  2932  |  3021  |  3214  |  3485  |  4025  |
+
+Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  2762  |  2907  |  3040  |  3124  |  3299  |  3544  |  4045  |
+
+Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  2650  |  2812  |  2960  |  3055  |  3261  |  3566  |  4107  |
+
