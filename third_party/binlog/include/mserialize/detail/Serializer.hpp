@@ -122,6 +122,8 @@ struct BuiltinSerializer<Sequence, enable_spec_if<
   }
 
 private:
+  using value_type = sequence_value_t<Sequence>;
+
   template <typename OutputStream>
   static void serialize_elems(
     std::false_type /* no batch copy */,
@@ -130,7 +132,7 @@ private:
   {
     for (auto&& elem : s)
     {
-      mserialize::serialize(elem, ostream);
+      mserialize::serialize<value_type>(elem, ostream);
     }
   }
 
@@ -140,9 +142,15 @@ private:
     const Sequence& s, std::uint32_t size, OutputStream& ostream
   )
   {
-    const char* data = reinterpret_cast<const char*>(sequence_data(s));
-    const size_t serialized_size = sizeof(sequence_data_t<const Sequence>) * size;
-    ostream.write(data, std::streamsize(serialized_size));
+    // Avoid passing nullptr `data` to write, that ends up calling memcpy
+    // (e.g: if OutputStream is QueueWriter) as it is undefined behavior
+    // C11 7.24.1 String function conventions p2
+    if (size)
+    {
+      const char* data = reinterpret_cast<const char*>(sequence_data(s));
+      const size_t serialized_size = sizeof(sequence_data_t<const Sequence>) * size;
+      ostream.write(data, std::streamsize(serialized_size));
+    }
   }
 
   static std::size_t sizeof_elems(
@@ -153,7 +161,7 @@ private:
     std::size_t result = 0;
     for (auto&& elem : s)
     {
-      result += mserialize::serialized_size(elem);
+      result += mserialize::serialized_size<value_type>(elem);
     }
     return result;
   }

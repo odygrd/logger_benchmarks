@@ -8,13 +8,14 @@
 #include <binlog/detail/QueueReader.hpp>
 #include <binlog/detail/VectorOutputStream.hpp>
 
+#include <algorithm> // move
 #include <atomic>
 #include <cstdint>
 #include <deque>
-#include <list>
 #include <memory>
 #include <mutex>
 #include <utility> // move
+#include <vector>
 
 namespace binlog {
 
@@ -48,7 +49,7 @@ class Session
 public:
   struct Channel
   {
-    explicit Channel(Session& session, std::size_t queueCapacity, WriterProp writerProp = {});
+    explicit Channel(Session& session, std::size_t queueCapacity, WriterProp writerProp_ = {});
     ~Channel();
 
     Channel(const Channel&) = delete;
@@ -59,7 +60,6 @@ public:
 
     detail::Queue& queue();
 
-    std::atomic<bool> closed;   /**< True, if queue will be no longer written */        // NOLINT
     WriterProp writerProp;      /**< Describes the writer of this channel (optional) */ // NOLINT
 
   private:
@@ -75,16 +75,19 @@ public:
     std::size_t channelsRemoved = 0;    /**< Number of channels removed because they are empty and closed */
   };
 
+  Session();
+
   /**
    * Create a channel with a queue of `queueCapacity` bytes.
    *
-   * Session retains ownership of the created channel.
-   * The channel is disposed when it is marked closed
-   * and is empty - by the next `consume` call.
+   * Session retains partial ownership of the created channel.
+   * The channel is disposed when this ownership becomes exclusive
+   * (i.e: there are no more outstanding shared pointers)
+   * and the channel is empty - by the next `consume` call.
    *
-   * @return stable reference to the created channel
+   * @return a shared pointer to the created channel
    */
-  Channel& createChannel(std::size_t queueCapacity, WriterProp writerProp = {});
+  std::shared_ptr<Channel> createChannel(std::size_t queueCapacity, WriterProp writerProp = {});
 
   /**
    * Thread-safe way to set the writer id of `channel` to `id`.
@@ -130,6 +133,14 @@ public:
   void setMinSeverity(Severity severity);
 
   /**
+   * Add `clockSync` to the set of managed metadata.
+   *
+   * Affects Events consumed after this call.
+   * Overwrites previously set, and the default ClockSync.
+   */
+  void setClockSync(const ClockSync& clockSync);
+
+  /**
    * Move metadata and data from the session to `out`.
    *
    * If needed (i.e: first time to consume), a
@@ -161,7 +172,7 @@ public:
   /**
    * Move already consumed metadata again to `out`.
    *
-   * Already consumed EventSources and a new ClockSync are consumed.
+   * Already consumed EventSources and the ClockSync are consumed.
    * Not-yet consumed EventSources will not be consumed.
    *
    * Useful if `out` changes runtime, e.g: because of log rotation.
@@ -181,7 +192,8 @@ private:
 
   std::mutex _mutex;
 
-  std::list<Channel> _channels;
+  std::vector<std::shared_ptr<Channel>> _channels;
+  detail::RecoverableVectorOutputStream _clockSync = {0xFE214F726E35BDBC, this};
   detail::RecoverableVectorOutputStream _sources = {0xFE214F726E35BDBC, this};
   std::streamsize _sourcesConsumePos = 0;
   std::uint64_t _nextSourceId = 1;
@@ -190,12 +202,13 @@ private:
 
   std::atomic<Severity> _minSeverity = {Severity::trace};
 
+  bool _consumeClockSync = true;
+
   detail::VectorOutputStream _specialEntryBuffer;
 };
 
-inline Session::Channel::Channel(Session& session, std::size_t queueCapacity, WriterProp writerProp)
-  :closed(false),
-   writerProp(std::move(writerProp)),
+inline Session::Channel::Channel(Session& session, std::size_t queueCapacity, WriterProp writerProp_)
+  :writerProp(std::move(writerProp_)),
    _queue(new char[sizeof(std::uint64_t) + sizeof(Session*) + sizeof(detail::Queue) + queueCapacity])
 {
   // To be able to recover unconsumed queue data from memory dumps,
@@ -234,11 +247,17 @@ inline detail::Queue& Session::Channel::queue()
   return *reinterpret_cast<detail::Queue*>(_queue.get() + sizeof(std::uint64_t) + sizeof(Session*));
 }
 
-inline Session::Channel& Session::createChannel(std::size_t queueCapacity, WriterProp writerProp)
+inline Session::Session()
+{
+  const ClockSync clockSync = systemClockSync();
+  serializeSizePrefixedTagged(clockSync, _clockSync);
+}
+
+inline std::shared_ptr<Session::Channel> Session::createChannel(std::size_t queueCapacity, WriterProp writerProp)
 {
   std::lock_guard<std::mutex> lock(_mutex);
 
-  _channels.emplace_back(*this, queueCapacity, std::move(writerProp));
+  _channels.push_back(std::make_shared<Channel>(*this, queueCapacity, std::move(writerProp)));
   return _channels.back();
 }
 
@@ -275,6 +294,14 @@ inline void Session::setMinSeverity(Severity severity)
   _minSeverity.store(severity, std::memory_order_release);
 }
 
+inline void Session::setClockSync(const ClockSync& clockSync)
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+
+  serializeSizePrefixedTagged(clockSync, _clockSync);
+  _consumeClockSync = true;
+}
+
 template <typename OutputStream>
 Session::ConsumeResult Session::consume(OutputStream& out)
 {
@@ -298,11 +325,12 @@ Session::ConsumeResult Session::consume(OutputStream& out)
 
   ConsumeResult result;
 
-  // add a clock sync to the beginning of the stream
-  if (_totalConsumedBytes == 0)
+  // add a clock sync if not yet added
+  if (_consumeClockSync)
   {
-    const ClockSync clockSync = systemClockSync();
-    result.bytesConsumed += consumeSpecialEntry(clockSync, out);
+    out.write(_clockSync.data(), _clockSync.ssize());
+    result.bytesConsumed += std::size_t(_clockSync.ssize());
+    _consumeClockSync = false;
   }
 
   // consume event sources before events
@@ -314,21 +342,23 @@ Session::ConsumeResult Session::consume(OutputStream& out)
   // consume some events
   for (auto it = _channels.begin(); it != _channels.end();)
   {
-    // Important to check closed before beginRead,
+    // Important to check if channel is closed before beginRead,
     // otherwise the following race becomes possible:
     //  - Consumer finds queue is empty
     //  - Producer adds data
     //  - Producer closes the queue
     //  - Consumer finds queue is closed, removes it -> data loss
-    const bool isClosed = it->closed;
+    const bool isClosed = (it->use_count() == 1);
 
-    detail::QueueReader reader(it->queue());
+    Channel& ch = **it;
+
+    detail::QueueReader reader(ch.queue());
     const detail::QueueReader::ReadResult data = reader.beginRead();
     if (data.size())
     {
       // consume writerProp entry
-      it->writerProp.batchSize = data.size();
-      result.bytesConsumed += consumeSpecialEntry(it->writerProp, out);
+      ch.writerProp.batchSize = data.size();
+      result.bytesConsumed += consumeSpecialEntry(ch.writerProp, out);
 
       // consume queue data
       out.write(data.buffer1, std::streamsize(data.size1));
@@ -345,7 +375,8 @@ Session::ConsumeResult Session::consume(OutputStream& out)
     if (isClosed)
     {
       // queue is empty and closed, remove it
-      it = _channels.erase(it);
+      std::move(it+1, _channels.end(), it);
+      _channels.pop_back();
       result.channelsRemoved++;
     }
     else
@@ -370,8 +401,8 @@ Session::ConsumeResult Session::reconsumeMetadata(OutputStream& out)
   ConsumeResult result;
 
   // add clock sync
-  const ClockSync clockSync = systemClockSync();
-  result.bytesConsumed += serializeSizePrefixedTagged(clockSync, out);
+  out.write(_clockSync.data(), _clockSync.ssize());
+  result.bytesConsumed += std::size_t(_clockSync.ssize());
 
   // add consumed sources
   out.write(_sources.data(), _sourcesConsumePos);
