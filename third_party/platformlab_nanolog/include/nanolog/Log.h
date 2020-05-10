@@ -16,7 +16,7 @@
 #include <ctime>
 #include <vector>
 
-#include <assert.h>
+#include <cassert>
 #include <stdio.h>
 
 #include "Config.h"
@@ -191,10 +191,7 @@ namespace Log {
 
         // After this header are the uncompressed arguments required by
         // the original format string
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
         char argData[];
-#pragma GCC diagnostic pop
     };
 
     /**
@@ -389,11 +386,7 @@ namespace Log {
         uint16_t filenameLength;
 
         // Filename for the original source file containing the LOG statement
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
         char filename[];
-#pragma GCC diagnostic pop
-
     } __attribute__((packed));
 
     /**
@@ -410,19 +403,13 @@ namespace Log {
         bool hasDynamicWidth:1;
         bool hasDynamicPrecision:1;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
         //TODO(syang0) is this necessary? The format framgnet is null-terminated
         // Length of the format fragment
         uint16_t fragmentLength;
-#pragma GCC diagnostic pop
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
         // A fragment of the original LOG statement that contains at most
         // one format specifier.
         char formatFragment[];
-#pragma GCC diagnostic pop
     } __attribute__((packed));
 
 
@@ -651,10 +638,12 @@ namespace Log {
                 bool skipCheckpoint=false,
                 bool forceDictionaryOutput=false);
 
+#ifdef PREPROCESSOR_NANOLOG
         long encodeLogMsgs(char *from, uint64_t nbytes,
                            uint32_t bufferId,
                            bool wrapAround,
                            uint64_t *numEventsCompressed);
+#endif // PREPROCESSOR_NANOLOG
 
         long encodeLogMsgs(char *from, uint64_t nbytes,
                                     uint32_t bufferId,
@@ -688,7 +677,7 @@ namespace Log {
 
         // A pointer to the last encoded BufferExtent's length to allow updating
         // the value as the user performs more encodeLogMsgs with the same id.
-        uint32_t *currentExtentSize;
+        void *currentExtentSize;
 
         // Metric: Total number of encode failures due to missing metadata. This
         // is typically due to a benign race condition, but could indicate an
@@ -815,7 +804,7 @@ namespace Log {
          *      long double argument
          */
         inline void
-        push(long double phony __attribute__((unused))) {
+        push(long double phony) {
             push<int>(-1);
         }
 
@@ -916,6 +905,9 @@ namespace Log {
             uint64_t getNextLogTimestamp() const;
         };
 
+        static bool compareBufferFragments(const BufferFragment *a,
+                                           const BufferFragment *b);
+
         bool readDictionary(FILE *fd, bool flushOldDictionary);
         bool readDictionaryFragment(FILE *fd);
 
@@ -979,7 +971,7 @@ namespace Log {
 
         DISALLOW_COPY_AND_ASSIGN(Decoder);
     };
-} /* namespace Log */
-} /* namespace NanoLogInternal */
+}; /* namespace Log */
+}; /* namespace NanoLogInternal */
 
 #endif /* LOG_H */

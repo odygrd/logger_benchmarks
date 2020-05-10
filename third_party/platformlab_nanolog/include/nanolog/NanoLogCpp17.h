@@ -364,9 +364,6 @@ getNumNibblesNeeded(const char (&fmt)[N])
  * \param stringSize
  *      Stores the byte length of the argument, if it is a string (unused here)
  */
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
 template<typename T>
 inline
 typename std::enable_if<!std::is_same<T, const wchar_t*>::value
@@ -379,8 +376,7 @@ store_argument(char **storage,
                ParamType paramType,
                size_t stringSize)
 {
-    T *dest = reinterpret_cast<T*>(*storage);
-    *dest = arg;
+    std::memcpy(*storage, &arg, sizeof(T));
     *storage += sizeof(T);
 
     #ifdef ENABLE_DEBUG_PRINTING
@@ -388,7 +384,6 @@ store_argument(char **storage,
         std::cout << *dest << "\r\n";
     #endif
 }
-#pragma GCC diagnostic pop
 
 // string specialization of the above
 template<typename T>
@@ -414,18 +409,22 @@ store_argument(char **storage,
     // Since we've already paid the cost to find the string length earlier,
     // might as well save it in the stream so that the compression function
     // can later avoid another strlen/wsclen invocation.
-    uint32_t *size = reinterpret_cast<uint32_t*>(*storage);
+    if(stringSize > std::numeric_limits<uint32_t>::max())
+    {
+        throw std::invalid_argument("Strings larger than std::numeric_limits<uint32_t>::max() are unsupported");
+    }
+    auto size = static_cast<uint32_t>(stringSize);
+    std::memcpy(*storage, &size, sizeof(uint32_t));
     *storage += sizeof(uint32_t);
-    *size = static_cast<uint32_t>(stringSize);
 
 #ifdef ENABLE_DEBUG_PRINTING
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 #pragma GCC diagnostic ignored "-Wformat"
         if (sizeof(typename std::remove_pointer<T>::type) == 1) {
-            printf("\tRString[%p-%u]= %s\r\n", *buffer, *size, arg);
+            printf("\tRString[%p-%u]= %s\r\n", *buffer, size, arg);
         } else {
-            printf("\tRWString[%p-%u]= %ls\r\n", *buffer, *size, arg);
+            printf("\tRWString[%p-%u]= %ls\r\n", *buffer, size, arg);
         }
 #pragma GCC diagnostic pop
 #endif
@@ -482,8 +481,6 @@ store_arguments(const std::array<ParamType, N>& paramTypes,
  * Specialization of store_arguments that processes no arguments, i.e. this
  * is the end of the head/rest recursion. See above for full documentation.
  */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
 template<int argNum = 0, unsigned long N, int M>
 inline void
 store_arguments(const std::array<ParamType, N>&,
@@ -492,7 +489,7 @@ store_arguments(const std::array<ParamType, N>&,
 {
     // No arguments, do nothing.
 }
-#pragma GCC diagnostic pop
+
 /**
  * Special templated function that takes in an argument T and attempts to
  * convert it to a uint64_t. If the type T is incompatible, than a value
@@ -550,8 +547,6 @@ as_uint64_t(T t) {
  * \return
  *      Size of the full-width argument without compression
  */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
 template<typename T>
 inline
 typename std::enable_if<!std::is_same<T, const wchar_t*>::value
@@ -571,13 +566,10 @@ getArgSize(const ParamType fmtType,
 
     return sizeof(T);
 }
-#pragma GCC diagnostic pop
 
 /**
  * "void *" specialization for getArgSize. (See documentation above).
  */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
 inline size_t
 getArgSize(const ParamType,
            uint64_t &previousPrecision,
@@ -586,7 +578,7 @@ getArgSize(const ParamType,
 {
     return sizeof(void*);
 }
-#pragma GCC diagnostic pop
+
 /**
  * String specialization for getArgSize. Returns the number of bytes needed
  * to represent a string (with consideration for any 'precision' specifiers
@@ -758,7 +750,8 @@ compressSingle(BufferUtils::TwoNibbles* nibbles,
                 char **out)
 {
     if (paramType > ParamType::NON_STRING) {
-        uint32_t stringBytes = *reinterpret_cast<uint32_t*>(*in);
+        uint32_t stringBytes;
+        std::memcpy(&stringBytes, *in, sizeof(uint32_t));
         *in += sizeof(uint32_t);
 
         // Skipping strings
@@ -781,8 +774,16 @@ compressSingle(BufferUtils::TwoNibbles* nibbles,
         // to quickly skip strings in the stringsOnly=false pass.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
-        constexpr uint32_t characterWidth =
-                                sizeof(typename std::remove_pointer<T>::type);
+        constexpr uint32_t characterWidth = [](){
+            if constexpr(std::is_same_v<std::decay_t<std::remove_pointer_t<T>>, void>)
+            {
+                return sizeof(void *);
+            }
+            else
+            {
+                return sizeof(typename std::remove_pointer<T>::type);
+            }
+        }();
 #pragma GCC diagnostic pop
 
         bzero(*out, characterWidth);
@@ -796,7 +797,8 @@ compressSingle(BufferUtils::TwoNibbles* nibbles,
         return;
     }
 
-    T argument = *reinterpret_cast<T*>(*in);
+    T argument;
+    std::memcpy(&argument, *in, sizeof(T));
 
 #ifdef ENABLE_DEBUG_PRINTING
     printf("\tCBasic  [%p->%p]= ", *in, *out);
@@ -882,10 +884,6 @@ compress_internal(BufferUtils::TwoNibbles *nibbles, int nibbleCnt,
                                 argNum, in, out);
 }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
-
 template<>
 inline void
 __attribute__((always_inline))
@@ -897,7 +895,7 @@ compress_internal(BufferUtils::TwoNibbles *nibbles, int nibbleCnt,
     // in which case we do nothing. This is needed since the head/tail pack
     // expansion used above will always end with Ts = {}
 }
-#pragma GCC diagnostic pop
+
 
 /**
  * Consumes the raw log format parameters in the input buffer and compresses
@@ -1030,20 +1028,23 @@ log(int &logId,
                             stringSizes, args...) + sizeof(UncompressedEntry);
 
     char *writePos = NanoLogInternal::RuntimeLogger::reserveAlloc(allocSize);
-    UncompressedEntry *ue = reinterpret_cast<UncompressedEntry*>(writePos);
+    auto originalWritePos = writePos;
 
-    writePos = ue->argData;
+    UncompressedEntry *ue = new(writePos) UncompressedEntry();
+    writePos += sizeof(UncompressedEntry);
+
     store_arguments(paramTypes, stringSizes, &writePos, args...);
 
     ue->fmtId = logId;
     ue->timestamp = timestamp;
     ue->entrySize = downCast<uint32_t>(allocSize);
+
 #ifdef ENABLE_DEBUG_PRINTING
     printf("\r\nRecording %d:'%s' of size %u\r\n",
                         logId, info.formatString, ue->entrySize);
 #endif
 
-    assert(allocSize == downCast<uint32_t>((writePos - (char*)(ue))));
+    assert(allocSize == downCast<uint32_t>((writePos - originalWritePos)));
     NanoLogInternal::RuntimeLogger::finishAlloc(allocSize);
 }
 
@@ -1071,10 +1072,9 @@ checkFormat(const char *, ...) {}
  * \param ...UNASSIGNED_LOGID
  *      Log arguments associated with the printf-like string.
  */
-#define PL_NANO_LOG(severity, format, ...) do { \
-    using namespace NanoLogInternal; \
-    constexpr int numNibbles = getNumNibblesNeeded(format); \
-    constexpr int nParams = countFmtParams(format); \
+#define NANO_LOG(severity, format, ...) do { \
+    constexpr int numNibbles = NanoLogInternal::getNumNibblesNeeded(format); \
+    constexpr int nParams = NanoLogInternal::countFmtParams(format); \
     \
     /*** Very Important*** These must be 'static' so that we can save pointers
      * to these variables and have them persist beyond the invocation.
@@ -1082,19 +1082,19 @@ checkFormat(const char *, ...) {}
      * to an expansion of #NANO_LOG) with an id and the paramTypes array is
      * used by the compression function, which is invoked in another thread
      * at a much later time. */ \
-    static constexpr std::array<ParamType, nParams> paramTypes = \
-                                analyzeFormatString<nParams>(format); \
-    static int logId = UNASSIGNED_LOGID; \
+    static constexpr std::array<NanoLogInternal::ParamType, nParams> paramTypes = \
+                                NanoLogInternal::analyzeFormatString<nParams>(format); \
+    static int logId = NanoLogInternal::UNASSIGNED_LOGID; \
     \
-    if (severity > NanoLog::getLogLevel()) \
+    if (NanoLog::severity > NanoLog::getLogLevel()) \
         break; \
     \
     /* Triggers the GNU printf checker by passing it into a no-op function.
      * Trick: This call is surrounded by an if false so that the VA_ARGS don't
      * evaluate for cases like '++i'.*/ \
-    if (false) { checkFormat(format, ##__VA_ARGS__); } \
+    if (false) { NanoLogInternal::checkFormat(format, ##__VA_ARGS__); } /*NOLINT(cppcoreguidelines-pro-type-vararg, hicpp-vararg)*/\
     \
-    NanoLogInternal::log(logId, __FILE__, __LINE__, severity, format, \
+    NanoLogInternal::log(logId, __FILE__, __LINE__, NanoLog::severity, format, \
                             numNibbles, paramTypes, ##__VA_ARGS__); \
 } while(0)
 } /* Namespace NanoLogInternal */

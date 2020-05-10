@@ -21,9 +21,9 @@
 #include <stdlib.h>
 
 
-#include "nanolog/Cycles.h"
-#include "nanolog/Initialize.h"
-#include "nanolog/Util.h"
+#include "Cycles.h"
+#include "Initialize.h"
+#include "Util.h"
 
 namespace PerfUtils {
 

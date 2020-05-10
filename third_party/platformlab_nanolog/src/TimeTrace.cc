@@ -15,7 +15,7 @@
 
 #include <vector>
 
-#include "nanolog/TimeTrace.h"
+#include "TimeTrace.h"
 
 
 using std::string;

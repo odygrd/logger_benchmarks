@@ -85,6 +85,6 @@ class Fence {
         lfence();
     }
 };
-} // namespace NanoLogInternal
+}; // namespace NanoLogInternal
 
 #endif  // FENCE_H

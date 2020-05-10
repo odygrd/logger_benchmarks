@@ -15,7 +15,7 @@
 
 #include <sstream>
 
-#include "nanolog/Util.h"
+#include "Util.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string>
@@ -51,10 +51,7 @@ vformat(const char* format, va_list ap)
     // Try 1K, if not the return value will tell us how much is necessary.
     int bufSize = 1024;
     while (true) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wvla"
         char buf[bufSize];
-#pragma GCC diagnostic pop
         // vsnprintf trashes the va_list, so copy it first
         va_list aq;
         __va_copy(aq, ap);

@@ -1,5 +1,5 @@
-#include "nanolog/NanoLog.h"
-#include "nanolog/RuntimeLogger.h"
+#include "NanoLog.h"
+#include "RuntimeLogger.h"
 
 /**
  * This file implements the public API to NanoLog
@@ -49,4 +49,4 @@ namespace NanoLog {
     int getCoreIdOfBackgroundThread() {
         return RuntimeLogger::getCoreIdOfBackgroundThread();
     }
-}
+};

@@ -106,6 +106,7 @@ using namespace NanoLog;
             if (stagingBuffer == nullptr)
                 nanoLogSingleton.ensureStagingBufferAllocated();
 
+            // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
             return stagingBuffer->reserveProducerSpace(nbytes);
         }
 
@@ -221,11 +222,8 @@ using namespace NanoLog;
         // construction of the LogCompressor
         int outputFd;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
         // POSIX AIO structure used to communicate async IO requests
         struct aiocb aioCb;
-#pragma GCC diagnostic pop
 
         // Used to stage the compressed log messages before passing it on to the
         // POSIX AIO library.
@@ -510,7 +508,7 @@ using namespace NanoLog;
 
         DISALLOW_COPY_AND_ASSIGN(RuntimeLogger);
     };  // RuntimeLogger
-} // Namespace NanoLogInternal
+}; // Namespace NanoLogInternal
 
 // MUST appear at the very end of the RuntimeLogger.h file, right before the
 // last #endif. It serves a marker for the preprocessor for where it can

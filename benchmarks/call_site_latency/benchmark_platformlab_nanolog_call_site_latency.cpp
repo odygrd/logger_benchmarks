@@ -13,7 +13,7 @@ void platformlab_nanolog(std::vector<int32_t> thread_count_array, size_t num_ite
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   auto log_func = [](uint64_t i, uint64_t j, double d) {
-    PL_NANO_LOG(NOTICE, "Logging int: %ul, int: %ul, double: %f", i, j, d);
+    NANO_LOG(NOTICE, "Logging int: %lu, int: %lu, double: %f", i, j, d);
   };
 
   auto on_start = []() { NanoLog::preallocate(); };

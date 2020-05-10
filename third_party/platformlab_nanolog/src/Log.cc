@@ -19,8 +19,8 @@
 #include <regex>
 #include <vector>
 
-#include "nanolog/Log.h"
-#include "nanolog/GeneratedCode.h"
+#include "Log.h"
+#include "GeneratedCode.h"
 
 namespace NanoLogInternal {
 
@@ -60,6 +60,7 @@ Log::insertCheckpoint(char **out, char *outLimit, bool writeDictionary) {
     if (!writeDictionary)
         return true;
 
+#ifdef PREPROCESSOR_NANOLOG
     long int bytesWritten = GeneratedFunctions::writeDictionary(*out, outLimit);
 
     if (bytesWritten == -1) {
@@ -72,6 +73,7 @@ Log::insertCheckpoint(char **out, char *outLimit, bool writeDictionary) {
     ck->newMetadataBytes = static_cast<uint32_t>(bytesWritten);
     ck->totalMetadataEntries = static_cast<uint32_t>(
             GeneratedFunctions::numLogIds);
+#endif // PREPROCESSOR_NANOLOG
 
     return true;
 }
@@ -181,6 +183,7 @@ Log::Encoder::encodeNewDictionaryEntries(uint32_t& currentPosition,
     return df->newMetadataBytes;
 }
 
+#ifdef PREPROCESSOR_NANOLOG
 /**
  * Interprets the uncompressed log messages (created by the compile-time
  * generated code) contained in the *from buffer and compresses them to
@@ -259,13 +262,17 @@ Log::Encoder::encodeLogMsgs(char *from,
     }
 
     assert(currentExtentSize);
-    *currentExtentSize += downCast<uint32_t>(writePos - bufferStart);
+    uint32_t currentSize;
+    std::memcpy(&currentSize, currentExtentSize, sizeof(uint32_t));
+    currentSize += downCast<uint32_t>(writePos - bufferStart);
+    std::memcpy(currentExtentSize, &currentSize, sizeof(uint32_t));
 
     if (numEventsCompressed)
         *numEventsCompressed += numEventsProcessed;
 
     return nbytes - remaining;
 }
+#endif // PREPROCESSOR_NANOLOG
 
 
 /**
@@ -328,7 +335,7 @@ Log::Encoder::encodeLogMsgs(char *from,
                                 "be a problem with your integration (static "
                                 "logs detected=%lu).\r\n",
                                 entry->fmtId,
-                                GeneratedFunctions::numLogIds);
+                                 GeneratedFunctions::numLogIds);
             }
 
             break;
@@ -383,7 +390,10 @@ Log::Encoder::encodeLogMsgs(char *from,
     }
 
     assert(currentExtentSize);
-    *currentExtentSize += downCast<uint32_t>(writePos - bufferStart);
+    uint32_t currentSize;
+    std::memcpy(&currentSize, currentExtentSize, sizeof(uint32_t));
+    currentSize += downCast<uint32_t>(writePos - bufferStart);
+    std::memcpy(currentExtentSize, &currentSize, sizeof(uint32_t));
 
     if (numEventsCompressed)
         *numEventsCompressed += numEventsProcessed;
@@ -981,11 +991,8 @@ Log::Decoder::readDictionaryFragment(FILE *fd) {
     // These buffers start us off with some statically allocated space.
     // Should we need more, we will malloc it.
     size_t bufferSize = 10*1024;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wvla"    
     char filenameBuffer[bufferSize];
     char formatBuffer[bufferSize];
-#pragma GCC diagnostic pop
 
     bool newBuffersAllocated = false;
     char *filename = filenameBuffer;
@@ -1350,6 +1357,7 @@ Log::Decoder::BufferFragment::decompressNextLogStatement(FILE *outputFd,
         strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", tm);
     }
 
+#ifdef PREPROCESSOR_NANOLOG
     if (fmtId2metadata.empty() || aggregationFn != nullptr) {
         // Output the context
         struct GeneratedFunctions::LogMetadata meta =
@@ -1382,7 +1390,9 @@ Log::Decoder::BufferFragment::decompressNextLogStatement(FILE *outputFd,
         GeneratedFunctions::decompressAndPrintFnArray[nextLogId](&readPos,
                                                                  outputFd,
                                                                  aggFn);
-    } else {
+    } else
+#endif // PREPROCESSOR_NANOLOG
+    {
         using namespace BufferUtils;
         auto *metadata = reinterpret_cast<FormatMetadata*>(
                                             fmtId2metadata.at(nextLogId));
@@ -1763,6 +1773,27 @@ Log::Decoder::internalDecompressUnordered(FILE* outputFd,
     return good;
 }
 
+
+/**
+ * Compares two BufferFragments (a, b) based on the timestamps of
+ * their next decompress-able log statements. Returns true if
+ * a's timestamp chronologically occurs after b's timestamp.
+ *
+ * \param a
+ *      First BufferFragment to compare
+ * \param b
+ *      Second BufferFragment to compare
+ *
+ * \return
+ *      True if a > b; False otherwise
+ */
+bool
+Log::Decoder::compareBufferFragments(const BufferFragment *a,
+                                     const BufferFragment *b)
+{
+    return a->getNextLogTimestamp() > b->getNextLogTimestamp();
+};
+
 /**
  * Decompress the log file that was open()-ed and print the log messages out
  * in chronological order.
@@ -1864,14 +1895,10 @@ Log::Decoder::decompressTo(FILE* outputFd)
                 break;
         }
 
-        // Step 2: Sort all BufferFragments within the stages from
+        // Step 2: Heapify all BufferFragments within the stages from
         // front=max to back=min
         for (auto &stage : stages) {
-            std::sort(stage.begin(), stage.end(),
-                [](const BufferFragment *a, const BufferFragment *b) -> bool
-                {
-                    return a->getNextLogTimestamp() > b->getNextLogTimestamp();
-                });
+            std::make_heap(stage.begin(), stage.end(), compareBufferFragments);
         }
 
         // Step 3: Deplete the first stage
@@ -1882,9 +1909,9 @@ Log::Decoder::decompressTo(FILE* outputFd)
                 if (stages[i].empty())
                     continue;
 
-                uint64_t next = stages[i].back()->getNextLogTimestamp();
+                uint64_t next = stages[i].front()->getNextLogTimestamp();
                 if (minStage == nullptr ||
-                        next < minStage->back()->getNextLogTimestamp()) {
+                        next < minStage->front()->getNextLogTimestamp()) {
                     minStage = &(stages[i]);
                 }
             }
@@ -1894,20 +1921,21 @@ Log::Decoder::decompressTo(FILE* outputFd)
                 break;
 
             // Step 3b: Output the log message
-            BufferFragment *bf = minStage->back();
+            BufferFragment *bf = minStage->front();
             bf->decompressNextLogStatement(outputFd, logMsgsPrinted,
                                            logArguments, checkpoint,
                                            fmtId2metadata);
 
+            // Moves the minimum element to the end of the array
+            std::pop_heap(minStage->begin(), minStage->end(),
+                    compareBufferFragments);
+
             if (bf->hasNext()) {
-                std::sort(minStage->begin(), minStage->end(),
-                    [](const BufferFragment *a, const BufferFragment *b) -> bool
-                    {
-                        return a->getNextLogTimestamp() >
-                                                       b->getNextLogTimestamp();
-                    });
+                // If there's more, re-heapify the last element
+                std::push_heap(minStage->begin(), minStage->end(),
+                              compareBufferFragments);
             } else {
-                // Buffer is depleted, remove it
+                // Otherwise, buffer is depleted -> remove it
                 minStage->pop_back();
                 freeBufferFragment(bf);
             }
@@ -2037,4 +2065,4 @@ Log::Decoder::decompressUnordered(FILE* outputFd) {
     return (success) ? logMsgsPrinted : -1;
 }
 
-} /* NanoLogInternal */
+}; /* NanoLogInternal */

@@ -28,7 +28,7 @@ namespace NanoLogConfig {
     static const int FILE_PARAMS = O_APPEND|O_RDWR|O_CREAT|O_NOATIME|O_DSYNC;
 
     // Location of the initial log file
-    static const char DEFAULT_LOG_FILE[] = "/tmp/compressedLog";
+    static const char DEFAULT_LOG_FILE[] = "./compressedLog";
 
     // Determines the byte size of the per-thread StagingBuffer that decouples
     // the producer logging thread from the consumer background compression

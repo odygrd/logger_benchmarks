@@ -19,7 +19,7 @@
 #include <time.h>
 #include <stdint.h>
 #include <sched.h>
-#include <assert.h>
+#include <cassert>
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
@@ -120,14 +120,11 @@ cpu_set_t getCpuAffinity() {
  *      An object of type cpu_set_t which encodes the set of cores which
  *      current thread is permitted to run on.
  */
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
 static FORCE_INLINE
 void setCpuAffinity(cpu_set_t cpuset) {
     assert(sched_setaffinity(0, sizeof(cpuset), &cpuset) == 0);
 }
-#pragma GCC diagnostic pop
+
 /**
  * This function is used to seralize machine instructions so that no
  * instructions that appear after it in the current thread can run before any

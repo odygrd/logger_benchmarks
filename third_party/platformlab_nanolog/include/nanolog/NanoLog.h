@@ -57,7 +57,7 @@ namespace LogLevels {
                 DEBUG,
         NUM_LOG_LEVELS // must be the last element in the enum
     };
-}
+};
 using namespace LogLevels;
 
 // User API
@@ -125,7 +125,7 @@ void printConfig();
  */
 int getCoreIdOfBackgroundThread();
 
-} // namespace NanoLog
+}; // namespace NanoLog
 
 
 // These header files are needed for the in-lined runtime code. They are

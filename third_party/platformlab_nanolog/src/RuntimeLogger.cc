@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2018 Stanford University
+/* Copyright (c) 2016-2019 Stanford University
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -23,10 +23,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "nanolog/Cycles.h"         /* Cycles::rdtsc() */
-#include "nanolog/RuntimeLogger.h"
-#include "nanolog/Config.h"
-#include "nanolog/Util.h"
+#include "Cycles.h"         /* Cycles::rdtsc() */
+#include "RuntimeLogger.h"
+#include "Config.h"
+#include "Util.h"
 
 namespace NanoLogInternal {
 
@@ -99,7 +99,9 @@ RuntimeLogger::RuntimeLogger()
         std::exit(-1);
     }
 
+#ifndef BENCHMARK_DISCARD_ENTRIES_AT_STAGINGBUFFER
     compressionThread = std::thread(&RuntimeLogger::compressionThreadMain, this);
+#endif
 }
 
 // RuntimeLogger destructor
@@ -658,7 +660,9 @@ RuntimeLogger::setLogFile_internal(const char *filename) {
     // Relaunch thread
     nextInvocationIndexToBePersisted = 0; // Reset the dictionary
     compressionThreadShouldExit = false;
+#ifndef BENCHMARK_DISCARD_ENTRIES_AT_STAGINGBUFFER
     compressionThread = std::thread(&RuntimeLogger::compressionThreadMain, this);
+#endif
 }
 
 /**
@@ -706,6 +710,10 @@ RuntimeLogger::setLogLevel(LogLevel logLevel) {
 */
 void
 RuntimeLogger::sync() {
+#ifdef BENCHMARK_DISCARD_ENTRIES_AT_STAGINGBUFFER
+    return;
+#endif
+
     std::unique_lock<std::mutex> lock(nanoLogSingleton.condMutex);
     nanoLogSingleton.syncRequested = true;
     nanoLogSingleton.workAdded.notify_all();
@@ -771,6 +779,12 @@ RuntimeLogger::StagingBuffer::reserveSpaceInternal(size_t nbytes, bool blocking)
             minFreeSpace = cachedConsumerPos - producerPos;
         }
 
+#ifdef BENCHMARK_DISCARD_ENTRIES_AT_STAGINGBUFFER
+        // If we are discarding entries anwyay, just reset space to the head
+        producerPos = storage;
+        minFreeSpace = endOfBuffer - storage;
+#endif
+
         // Needed to prevent infinite loops in tests
         if (!blocking && minFreeSpace <= nbytes)
             return nullptr;
@@ -821,4 +835,4 @@ RuntimeLogger::StagingBuffer::peek(uint64_t *bytesAvailable) {
     return consumerPos;
 }
 
-} // namespace NanoLog Internal
+}; // namespace NanoLog Internal
