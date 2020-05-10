@@ -16,11 +16,8 @@ void g3log_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Define a logging lambda
-  auto log_func = [](int32_t i, double d, char const* str) {
-    auto const start = std::chrono::steady_clock::now();
-    LOG(INFO) << "Logging str: " << str << ", int: " << i << ", double: " << d;
-    auto const end = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+  auto log_func = [](uint64_t i, uint64_t j, double d) {
+    LOG(INFO) << "Logging int: " << i << ", int: " << j << ", double: " << d;
   };
 
   auto on_start = []() {};

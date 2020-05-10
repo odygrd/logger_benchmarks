@@ -1,5 +1,6 @@
-#include "call_site_latency_bench.h"
+#define QUILL_QUEUE_CAPACITY 262'144
 
+#include "call_site_latency_bench.h"
 #include "quill/Quill.h"
 
 /***/
@@ -9,7 +10,7 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
 
   // Setup
   quill::config::set_backend_thread_sleep_duration(std::chrono::nanoseconds{0});
-  quill::config::set_backend_thread_cpu_affinity(0);
+  quill::config::set_backend_thread_cpu_affinity(6);
 
   // Start the logging backend thread
   quill::start();
@@ -24,11 +25,9 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   quill::Logger* logger = quill::create_logger("bench_logger", file_handler);
 
   // Define a logging lambda
-  auto log_func = [logger](int32_t i, double d, char const* str) {
-    auto const start = std::chrono::steady_clock::now();
-    LOG_INFO(logger, "Logging str: {}, int: {}, double: {}", str, i, d);
-    auto const end = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+  auto log_func = [logger](uint64_t i, uint64_t j, double d)
+  {
+    LOG_INFO(logger, "Logging int: {}, int: {}, double: {}", i, j, d);
   };
 
   auto on_start = []() { quill::preallocate(); };

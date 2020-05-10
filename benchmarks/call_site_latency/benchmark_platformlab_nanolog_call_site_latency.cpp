@@ -12,11 +12,8 @@ void platformlab_nanolog(std::vector<int32_t> thread_count_array, size_t num_ite
   // wait for the backend thread to start
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
-  auto log_func = [](int32_t i, double d, char const* str) {
-    auto const start = std::chrono::steady_clock::now();
-    PL_NANO_LOG(NOTICE, "Logging str: %s, int: %d, double: %f", str, i, d);
-    auto const end = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+  auto log_func = [](uint64_t i, uint64_t j, double d) {
+    PL_NANO_LOG(NOTICE, "Logging int: %ul, int: %ul, double: %f", i, j, d);
   };
 
   auto on_start = []() { NanoLog::preallocate(); };

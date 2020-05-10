@@ -13,11 +13,8 @@ void iyengar_nanoLog_benchmark(std::vector<int32_t> thread_count_array, size_t n
 
   std::this_thread::sleep_for(std::chrono::seconds(1));
   
-  auto log_func = [](int32_t i, double d, char const* str) {
-    auto const start = std::chrono::steady_clock::now();
-    IY_LOG_INFO << "Logging str: " << str << ", int: " << i << ", double: " << d;
-    auto const end = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+  auto log_func = [](uint64_t i, uint64_t j, double d){
+    IY_LOG_INFO << "Logging int: " << i << ", int: " << j << ", double: " << d;
   };
 
   auto on_start = []() {};

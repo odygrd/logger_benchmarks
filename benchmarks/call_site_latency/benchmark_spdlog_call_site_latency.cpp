@@ -29,11 +29,8 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Define a logging lambda
-  auto log_func = [logger](int32_t i, double d, char const* str) {
-    auto const start = std::chrono::steady_clock::now();
-    SPDLOG_LOGGER_INFO(logger, "Logging str: {}, int: {}, double: {}", str, i, d);
-    auto const end = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+  auto log_func = [logger](uint64_t i, uint64_t j, double d) {
+    SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, double: {}", i, j, d);
   };
 
   auto on_start = []() {};

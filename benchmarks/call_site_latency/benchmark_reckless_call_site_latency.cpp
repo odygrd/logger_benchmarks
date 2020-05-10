@@ -17,11 +17,8 @@ void reckless_benchmark(std::vector<int32_t> thread_count_array, size_t num_iter
   // wait for the backend thread to start
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
-  auto log_func = [&g_log](int32_t i, double d, char const* str) {
-    auto const start = std::chrono::steady_clock::now();
-    g_log.info("Logging str: %s, int: %d, double: %f", str, i, d);
-    auto const end = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+  auto log_func = [&g_log](uint64_t i, uint64_t j, double d) {
+    g_log.info("Logging int: %i, int: %d, double: %f", i, j, d);
   };
 
   auto on_start = []() {};

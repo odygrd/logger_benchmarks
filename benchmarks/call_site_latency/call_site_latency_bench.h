@@ -10,6 +10,9 @@
 #include <random>
 #include <thread>
 
+#include "quill/detail/misc/RdtscClock.h"
+#include "quill/detail/misc/Rdtsc.h"
+
 // Instead of sleep
 inline void wait(std::chrono::nanoseconds min, std::chrono::nanoseconds max)
 {
@@ -50,10 +53,11 @@ inline void set_thread_affinity(size_t cpu_num)
 /***/
 inline void run_log_benchmark(size_t num_iterations,
                               std::function<void()> on_thread_start,
-                              std::function<std::chrono::nanoseconds(int, double, char const*)> log_func,
+                              std::function<void(uint64_t, uint64_t, double)> log_func,
                               std::function<void()> on_thread_exit,
                               size_t current_thread_num,
-                              std::vector<uint64_t>& latencies)
+                              std::vector<uint64_t>& latencies,
+                              double rdtsc_ticks_per_ns)
 {
   // running thread affinity
   set_thread_affinity(current_thread_num);
@@ -61,20 +65,25 @@ inline void run_log_benchmark(size_t num_iterations,
   on_thread_start();
 
   // Always ignore the first log statement as it will be doing initialisation for most loggers - quill and nanolog don't need this as they have preallocate
-  log_func(100, 100, "initial");
+  log_func(100, 100, 1.0);
+
+  unsigned int aux;
 
   // Main Benchmark
   for (int i = 0; i < num_iterations; ++i)
   {
     // generate a double from i
     double const d = i + (0.1 * i);
-    std::string str_to_log = "iteration_";
-    str_to_log += std::to_string(i);
-    char const* str = str_to_log.data();
 
-    std::chrono::nanoseconds const latency = log_func(i, d, str);
+    auto const start = __rdtscp(&aux);
+    for (size_t j=0; j<MESSAGES; ++j)
+    {
+      log_func(i, j, d);
+    }
+    auto const end = __rdtscp(&aux);
 
-    latencies.push_back(latency.count());
+    uint64_t const latency{static_cast<uint64_t>((end - start) / MESSAGES / rdtsc_ticks_per_ns)};
+    latencies.push_back(latency);
 
     // send the next log after x time
     wait(MIN_WAIT_DURATION, MAX_WAIT_DURATION);
@@ -86,7 +95,7 @@ inline void run_log_benchmark(size_t num_iterations,
 /***/
 inline void run_log_benchmark(size_t num_iterations,
                               std::function<void()> on_thread_start,
-                              std::function<std::chrono::nanoseconds(int, double, char const*)> log_func,
+                              std::function<void(uint64_t, uint64_t, double)> log_func,
                               std::function<void()> on_thread_exit,
                               size_t current_thread_num)
 {
@@ -96,19 +105,19 @@ inline void run_log_benchmark(size_t num_iterations,
   on_thread_start();
 
   // Always ignore the first log statement as it will be doing initialisation for most loggers - quill and nanolog don't need this as they have preallocate
-  log_func(100, 100, "initial");
+  log_func(100, 100, 1.0);
 
   // Main Benchmark
   for (int i = 0; i < num_iterations; ++i)
   {
     // generate a double from i
     double const d = i + (0.1 * i);
-    std::string str_to_log = "iteration_";
-    str_to_log += std::to_string(i);
-    char const* str = str_to_log.data();
 
-    log_func(i, d, str);
-
+    for (size_t j=0; j<MESSAGES; ++j)
+    {
+      log_func(i, j, d);
+    }
+    
     // send the next log after x time
     wait(MIN_WAIT_DURATION, MAX_WAIT_DURATION);
   }
@@ -122,11 +131,13 @@ inline void run_benchmark(char const* benchmark_name,
                           int32_t thread_count,
                           size_t num_iterations,
                           std::function<void()> on_thread_start,
-                          std::function<std::chrono::nanoseconds(int, double, char const*)> log_func,
+                          std::function<void(uint64_t, uint64_t, double)> log_func,
                           std::function<void()> on_thread_exit)
 {
   // main thread affinity
   set_thread_affinity(0);
+
+  quill::detail::RdtscClock rdtsc_clock;
 
 #ifdef BENCH_WITHOUT_PERF
   // each thread gets a vector of latencies
@@ -145,7 +156,7 @@ inline void run_benchmark(char const* benchmark_name,
 #ifdef BENCH_WITHOUT_PERF
     // Spawn num threads
     threads.emplace_back(run_log_benchmark, num_iterations, on_thread_start, log_func,
-                         on_thread_exit, thread_num + 1, std::ref(latencies[thread_num]));
+                         on_thread_exit, thread_num + 1, std::ref(latencies[thread_num]), rdtsc_clock.ticks_per_nanosecond());
 #else
     // Spawn num threads
     threads.emplace_back(run_log_benchmark, num_iterations, on_thread_start, log_func,

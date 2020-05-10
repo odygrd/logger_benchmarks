@@ -36,11 +36,8 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
 
   // --- Benchmark ---
   // Define a logging lambda
-  auto log_func = [](int32_t i, double d, char const* str) {
-    auto const start = std::chrono::steady_clock::now();
-    BINLOG_INFO("Logging str: {}, int: {}, double: {}", str, i, d);
-    auto const end = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+  auto log_func = [](uint64_t i, uint64_t j, double d) {
+    BINLOG_INFO("Logging int: {}, int: {}, double: {}", i, j, d);
   };
 
   auto on_start = []() {};
