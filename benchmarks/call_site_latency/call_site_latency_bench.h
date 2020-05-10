@@ -10,8 +10,6 @@
 #include <random>
 #include <thread>
 
-#include "quill/detail/misc/RdtscClock.h"
-#include "quill/detail/misc/Rdtsc.h"
 
 // Instead of sleep
 inline void wait(std::chrono::nanoseconds min, std::chrono::nanoseconds max)
@@ -117,7 +115,7 @@ inline void run_log_benchmark(size_t num_iterations,
     {
       log_func(i, j, d);
     }
-    
+
     // send the next log after x time
     wait(MIN_WAIT_DURATION, MAX_WAIT_DURATION);
   }
@@ -137,8 +135,6 @@ inline void run_benchmark(char const* benchmark_name,
   // main thread affinity
   set_thread_affinity(0);
 
-  quill::detail::RdtscClock rdtsc_clock;
-
 #ifdef BENCH_WITHOUT_PERF
   // each thread gets a vector of latencies
   std::vector<std::vector<uint64_t>> latencies;
@@ -156,7 +152,7 @@ inline void run_benchmark(char const* benchmark_name,
 #ifdef BENCH_WITHOUT_PERF
     // Spawn num threads
     threads.emplace_back(run_log_benchmark, num_iterations, on_thread_start, log_func,
-                         on_thread_exit, thread_num + 1, std::ref(latencies[thread_num]), rdtsc_clock.ticks_per_nanosecond());
+                         on_thread_exit, thread_num + 1, std::ref(latencies[thread_num]), rdtsc_ticks());
 #else
     // Spawn num threads
     threads.emplace_back(run_log_benchmark, num_iterations, on_thread_start, log_func,
