@@ -169,8 +169,8 @@ class FunctionGenerator(object):
 #ifndef BUFFER_STUFFER
 #define BUFFER_STUFFER
 
-#include "nanolog/NanoLog.h"
-#include "nanolog/Packer.h"
+#include "NanoLog.h"
+#include "Packer.h"
 
 #include <string>
 
@@ -180,8 +180,6 @@ class FunctionGenerator(object):
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#pragma GCC diagnostic ignored "-Wpedantic"
 
 /**
  * Describes a log message found in the user sources by the original format
@@ -200,7 +198,7 @@ namespace {{
 
 using namespace NanoLog::LogLevels;
 """.format(logLevelEnum=LOG_LEVEL_ENUM))
-            for logId, code in mergedCode.iteritems():
+            for logId, code in sorted(mergedCode.items()):
                 if logId == "__INVALID__INVALID__INVALID__":
                     continue
 
@@ -220,7 +218,7 @@ using namespace NanoLog::LogLevels;
             compressFnNameArray = []
             decompressFnNameArray = []
             dictionaryFragments = []
-            for logId, code in mergedCode.iteritems():
+            for logId, code in sorted(mergedCode.items()):
                 if logId == "__INVALID__INVALID__INVALID__":
                     continue
 
@@ -284,7 +282,7 @@ size_t numLogIds = {count};
 // Pop the unused gcc warnings
 #pragma GCC diagnostic pop
 
-}} // {namespace}
+}}; // {namespace}
 
 #endif /* BUFFER_STUFFER */
 """.format(count=count,
@@ -308,7 +306,7 @@ size_t numLogIds = {count};
     def getRecordFunctionDefinitionsFor(self, compilationUnit):
         recordFns = []
 
-        for logId, code in self.logId2Code.iteritems():
+        for logId, code in sorted(self.logId2Code.items()):
             if code["compilationUnit"] == compilationUnit:
                 recordFns.append(code["recordFnDef"])
 
@@ -448,7 +446,7 @@ size_t numLogIds = {count};
 
         # Bytes needed to store the primitive byte lengths
         numNibbles = len(nonStringArgsIdx)
-        nibbleByteSizes = ( numNibbles + 1)/2
+        nibbleByteSizes = int(( numNibbles + 1)/2)
 
         recordNonStringArgsCode = "".join(["\t%s(buffer, arg%d);\n" % \
                 (RECORD_PRIMITIVE_FN, idx) for idx in nonStringArgsIdx])
@@ -512,7 +510,8 @@ inline {function_declaration} {{
         readBackNonStringArgsCode = ""
         for idx in nonStringArgsIdx:
             readBackNonStringArgsCode += \
-                "\t{type} arg{id} = *reinterpret_cast<{type}*>(args); " \
+                    "\t{type} arg{id}; " \
+                    "std::memcpy(&arg{id}, args, sizeof({type})); " \
                 "args +=sizeof({type});\n".format(type=argList[idx], id=idx)
 
         packNonStringArgsCode = ""

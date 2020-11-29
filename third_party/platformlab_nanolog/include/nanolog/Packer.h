@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2018 Stanford University
+/* Copyright (c) 2016-2020 Stanford University
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,6 +20,7 @@
 #include <cstdint>
 
 #include "Common.h"
+#include "Portability.h"
 
 #ifndef PACKER_H
 #define PACKER_H
@@ -71,10 +72,12 @@ namespace BufferUtils {
  * Packs two 4-bit nibbles into one byte. This is used to pack the special
  * codes returned by pack() in the compressed log.
  */
+NANOLOG_PACK_PUSH
 struct TwoNibbles {
     uint8_t first:4;
     uint8_t second:4;
-} __attribute__((packed));
+};
+NANOLOG_PACK_POP
 
 /**
  * Given an unsigned integer and a char array, find the fewest number of
@@ -281,8 +284,8 @@ unpack(const char **in, uint8_t packNibble) {
     T result;
     int bytes = packNibble == 0 ? 16 : packNibble;
     std::memcpy(&result, (*in), bytes);
-    (*in) += sizeof(T);
-    
+    (*in) += bytes;
+
     return result;
 }
 

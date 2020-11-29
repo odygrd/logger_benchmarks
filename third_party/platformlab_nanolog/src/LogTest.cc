@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2018 Stanford University
+/* Copyright (c) 2016-2020 Stanford University
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1671,29 +1671,29 @@ TEST_F(LogTest, Decoder_internalDecompress_end2end) {
     iFile.open(decomp);
     ASSERT_TRUE(iFile.good());
 
-    const char* unorderedLines[] = {
-        "1969-12-31 16:00:01.000000090 testHelper/client.cc:20 NOTICE[5]: Simple log message with 0 parameters\r",
-        "1969-12-31 16:00:01.000000105 testHelper/client.cc:21 NOTICE[5]: This is a string aaaaaaaaaaaaaaa\r",
-        "1969-12-31 16:00:01.000000093 testHelper/client.cc:20 NOTICE[10]: Simple log message with 0 parameters\r",
-        "1969-12-31 16:00:01.000000096 testHelper/client.cc:21 NOTICE[10]: This is a string aaaaaaaaaaaaaaa\r",
-        "1969-12-31 16:00:01.000000100 testHelper/client.cc:20 NOTICE[10]: Simple log message with 0 parameters\r",
-        "1969-12-31 16:00:01.000000111 testHelper/client.cc:21 NOTICE[10]: This is a string aaaaaaaaaaaaaaa\r",
-        "1969-12-31 16:00:01.000000145 testHelper/client.cc:20 NOTICE[5]: Simple log message with 0 parameters\r",
-        "1969-12-31 16:00:01.000000156 testHelper/client.cc:21 NOTICE[5]: This is a string aaaaaaaaaaaaaaa\r",
-        "1969-12-31 16:00:01.000000118 testHelper/client.cc:20 NOTICE[10]: Simple log message with 0 parameters\r",
-        "1969-12-31 16:00:01.000000091 testHelper/client.cc:20 NOTICE[11]: Simple log message with 0 parameters\r",
-        "1969-12-31 16:00:01.000000135 testHelper/client.cc:20 NOTICE[12]: Simple log message with 0 parameters\r",
-        "1969-12-31 16:00:01.000000126 testHelper/client.cc:20 NOTICE[7]: Simple log message with 0 parameters\r"
-    };
-
-    std::string iLine;
-    for (const char *line : unorderedLines) {
+    std::vector<std::string> iLines;
+    for (int i = 0; i < 12; ++i) {
         ASSERT_TRUE(iFile.good());
+        std::string iLine;
         std::getline(iFile, iLine);
-        EXPECT_STREQ(line, iLine.c_str());
+        iLines.push_back(iLine.c_str() + 14); // +14 to skip date and hour
     }
+
     EXPECT_FALSE(iFile.eof());
     iFile.close();
+
+    EXPECT_STREQ(iLines[0].c_str(),  "00:01.000000090 testHelper/client.cc:20 NOTICE[5]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[1].c_str(),  "00:01.000000105 testHelper/client.cc:21 NOTICE[5]: This is a string aaaaaaaaaaaaaaa\r");
+    EXPECT_STREQ(iLines[2].c_str(),  "00:01.000000093 testHelper/client.cc:20 NOTICE[10]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[3].c_str(),  "00:01.000000096 testHelper/client.cc:21 NOTICE[10]: This is a string aaaaaaaaaaaaaaa\r");
+    EXPECT_STREQ(iLines[4].c_str(),  "00:01.000000100 testHelper/client.cc:20 NOTICE[10]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[5].c_str(),  "00:01.000000111 testHelper/client.cc:21 NOTICE[10]: This is a string aaaaaaaaaaaaaaa\r");
+    EXPECT_STREQ(iLines[6].c_str(),  "00:01.000000145 testHelper/client.cc:20 NOTICE[5]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[7].c_str(),  "00:01.000000156 testHelper/client.cc:21 NOTICE[5]: This is a string aaaaaaaaaaaaaaa\r");
+    EXPECT_STREQ(iLines[8].c_str(),  "00:01.000000118 testHelper/client.cc:20 NOTICE[10]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[9].c_str(),  "00:01.000000091 testHelper/client.cc:20 NOTICE[11]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[10].c_str(), "00:01.000000135 testHelper/client.cc:20 NOTICE[12]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[11].c_str(), "00:01.000000126 testHelper/client.cc:20 NOTICE[7]: Simple log message with 0 parameters\r");
 
     // try iterative interface
     LogMessage msg;
@@ -1710,11 +1710,27 @@ TEST_F(LogTest, Decoder_internalDecompress_end2end) {
     iFile.open(decomp);
     ASSERT_TRUE(iFile.good());
 
-    for (const char *line : unorderedLines) {
+    iLines.clear();
+    for (int i = 0; i < 12; ++i) {
         ASSERT_TRUE(iFile.good());
+        std::string iLine;
         std::getline(iFile, iLine);
-        EXPECT_STREQ(line, iLine.c_str());
+        iLines.push_back(iLine.c_str() + 14); // +14 to skip date and hour
     }
+
+    EXPECT_STREQ(iLines[0].c_str(),  "00:01.000000090 testHelper/client.cc:20 NOTICE[5]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[1].c_str(),  "00:01.000000105 testHelper/client.cc:21 NOTICE[5]: This is a string aaaaaaaaaaaaaaa\r");
+    EXPECT_STREQ(iLines[2].c_str(),  "00:01.000000093 testHelper/client.cc:20 NOTICE[10]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[3].c_str(),  "00:01.000000096 testHelper/client.cc:21 NOTICE[10]: This is a string aaaaaaaaaaaaaaa\r");
+    EXPECT_STREQ(iLines[4].c_str(),  "00:01.000000100 testHelper/client.cc:20 NOTICE[10]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[5].c_str(),  "00:01.000000111 testHelper/client.cc:21 NOTICE[10]: This is a string aaaaaaaaaaaaaaa\r");
+    EXPECT_STREQ(iLines[6].c_str(),  "00:01.000000145 testHelper/client.cc:20 NOTICE[5]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[7].c_str(),  "00:01.000000156 testHelper/client.cc:21 NOTICE[5]: This is a string aaaaaaaaaaaaaaa\r");
+    EXPECT_STREQ(iLines[8].c_str(),  "00:01.000000118 testHelper/client.cc:20 NOTICE[10]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[9].c_str(),  "00:01.000000091 testHelper/client.cc:20 NOTICE[11]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[10].c_str(), "00:01.000000135 testHelper/client.cc:20 NOTICE[12]: Simple log message with 0 parameters\r");
+    EXPECT_STREQ(iLines[11].c_str(), "00:01.000000126 testHelper/client.cc:20 NOTICE[7]: Simple log message with 0 parameters\r");
+
     EXPECT_FALSE(iFile.eof());
     iFile.close();
 
@@ -1744,11 +1760,12 @@ TEST_F(LogTest, Decoder_internalDecompress_end2end) {
         "1969-12-31 16:00:01.000000156 testHelper/client.cc:21 NOTICE[5]: This is a string aaaaaaaaaaaaaaa\r"
     };
 
+    std::string iLine;
     iFile.open(decomp);
     for (const char *line : orderedLines) {
         ASSERT_TRUE(iFile.good());
         std::getline(iFile, iLine);
-        EXPECT_STREQ(line, iLine.c_str());
+        EXPECT_STREQ(line +  14, iLine.c_str() + 14); // +14 to skip date
     }
     EXPECT_FALSE(iFile.eof());
     iFile.close();
@@ -1860,7 +1877,8 @@ TEST_F(LogTest, Decoder_internalDecompress_fileBreaks) {
     for (const char *line : expectedLines) {
         ASSERT_TRUE(iFile.good());
         std::getline(iFile, iLine);
-        EXPECT_STREQ(line, iLine.c_str());
+        if (iLine.size() >= 14)
+            EXPECT_STREQ(line + 14, iLine.c_str() + 14);// +14 skips date + hour
     }
     EXPECT_FALSE(iFile.eof());
     iFile.close();
@@ -1881,7 +1899,8 @@ TEST_F(LogTest, Decoder_internalDecompress_fileBreaks) {
     for (const char *line : expectedLines) {
         ASSERT_TRUE(iFile.good());
         std::getline(iFile, iLine);
-        EXPECT_STREQ(line, iLine.c_str());
+        if (iLine.size() >= 14)
+            EXPECT_STREQ(line + 14, iLine.c_str() + 14);// +14 skips date + hour
     }
     EXPECT_FALSE(iFile.eof());
     iFile.close();
@@ -1901,7 +1920,122 @@ TEST_F(LogTest, Decoder_internalDecompress_fileBreaks) {
     for (const char *line : expectedLines) {
         ASSERT_TRUE(iFile.good());
         std::getline(iFile, iLine);
-        EXPECT_STREQ(line, iLine.c_str());
+        if (iLine.size() >= 14)
+            EXPECT_STREQ(line + 14, iLine.c_str() + 14);// +14 skips date + hour
+    }
+    EXPECT_FALSE(iFile.eof());
+    iFile.close();
+
+    std::remove(testFile);
+    std::remove(decomp);
+}
+
+TEST_F(LogTest, Decoder_internalDecompress_fileBreaks2) {
+    // This test is what happens if we have a break in a file. It should
+    // in theory output up to that point and no more.
+    char inputBuffer[1000], outputBuffer[1000];
+    const char *testFile = "/tmp/testFile";
+    const char *decomp = "/tmp/testFile2";
+
+    UncompressedEntry* ue = reinterpret_cast<UncompressedEntry*>(inputBuffer);
+    for (int i = 0; i < 5; ++i) {
+        ue->timestamp = i;
+        ue->fmtId = noParamsId;
+        ue->entrySize = sizeof(UncompressedEntry);
+        ++ue;
+    }
+
+    /// Simulate a file that's been written to 3x by using
+    /// 3 encoders on the same file.
+    uint64_t compressedLogs = 0;
+    Encoder encoder(outputBuffer, 1000);
+
+    // Hack to load fake Checkpoint values to get a consistent time output
+    Checkpoint *checkpoint = (Checkpoint*)outputBuffer;
+    checkpoint->cyclesPerSecond = 1e9;
+    checkpoint->rdtsc = 0;
+    checkpoint->unixTime = 1;
+
+    long bytesRead = encoder.encodeLogMsgs(inputBuffer,
+                                           1*sizeof(UncompressedEntry),
+                                           5,
+                                           true,
+                                           &compressedLogs);
+    EXPECT_EQ(1, compressedLogs);
+    EXPECT_EQ(1*sizeof(UncompressedEntry), bytesRead);
+
+    bytesRead = encoder.encodeLogMsgs(inputBuffer,
+                                      2*sizeof(UncompressedEntry),
+                                      5,
+                                      true,
+                                      &compressedLogs);
+    EXPECT_EQ(3, compressedLogs);
+    EXPECT_EQ(2*sizeof(UncompressedEntry), bytesRead);
+
+
+    bytesRead = encoder.encodeLogMsgs(inputBuffer,
+                                      2*sizeof(UncompressedEntry),
+                                      5,
+                                      true,
+                                      &compressedLogs);
+    EXPECT_EQ(5, compressedLogs);
+    EXPECT_EQ(2*sizeof(UncompressedEntry), bytesRead);
+
+    std::ofstream oFile;
+    oFile.open(testFile);
+    oFile.write(outputBuffer, encoder.getEncodedBytes());
+
+    Encoder encoder3(outputBuffer, 1000);
+
+    // Hack to load fake Checkpoint values to get a consistent time output
+    Checkpoint *checkpoint3 = (Checkpoint*)outputBuffer;
+    checkpoint3->cyclesPerSecond = 1e9;
+    checkpoint3->rdtsc = 0;
+    checkpoint3->unixTime = 1;
+
+    bytesRead = encoder3.encodeLogMsgs(inputBuffer,
+                                       1*sizeof(UncompressedEntry),
+                                       1,
+                                       false,
+                                       &compressedLogs);
+    EXPECT_EQ(6, compressedLogs);
+    EXPECT_EQ(1*sizeof(UncompressedEntry), bytesRead);
+    oFile.write(outputBuffer, encoder3.getEncodedBytes());
+    oFile.close();
+
+    // Now let's attempt to parse it back and read the output
+    const char* expectedLines[] = {
+            "1969-12-31 16:00:01.000000000 testHelper/client.cc:20 NOTICE[5]: Simple log message with 0 parameters\r",
+            "1969-12-31 16:00:01.000000000 testHelper/client.cc:20 NOTICE[5]: Simple log message with 0 parameters\r",
+            "1969-12-31 16:00:01.000000000 testHelper/client.cc:20 NOTICE[5]: Simple log message with 0 parameters\r",
+            "1969-12-31 16:00:01.000000001 testHelper/client.cc:20 NOTICE[5]: Simple log message with 0 parameters\r",
+            "1969-12-31 16:00:01.000000001 testHelper/client.cc:20 NOTICE[5]: Simple log message with 0 parameters\r",
+            "\r",
+            "# New execution started\r",
+            "1969-12-31 16:00:01.000000000 testHelper/client.cc:20 NOTICE[1]: Simple log message with 0 parameters\r"
+    };
+
+    // Try the ordered case
+    Decoder dc;
+    dc.open(testFile);
+
+    FILE* outputFd = fopen(decomp, "w");
+    ASSERT_NE(nullptr, outputFd);
+    dc.decompressTo(outputFd);
+    EXPECT_EQ(6, dc.logMsgsPrinted);
+    EXPECT_EQ(4, dc.numBufferFragmentsRead);
+    EXPECT_EQ(2, dc.numCheckpointsRead);
+    fclose(outputFd);
+
+    std::string iLine;
+    std::ifstream iFile;
+
+    iFile.open(decomp);
+    for (const char *line : expectedLines) {
+        ASSERT_TRUE(iFile.good());
+        std::getline(iFile, iLine);
+        if (iLine.size() >= 14)
+            EXPECT_STREQ(line + 14, iLine.c_str() + 14);// +14 skips date + hour
     }
     EXPECT_FALSE(iFile.eof());
     iFile.close();
@@ -1918,7 +2052,7 @@ TEST_F(LogTest, Decoder_decompressNextLogStatement_timeTravel) {
     LogMessage logMsg;
 
     UncompressedEntry* ue = reinterpret_cast<UncompressedEntry*>(inputBuffer);
-    ue->timestamp = 10e9;
+    ue->timestamp = 10e9 + 1;
     ue->fmtId = noParamsId;
     ue->entrySize = sizeof(UncompressedEntry);
 
@@ -1959,14 +2093,15 @@ TEST_F(LogTest, Decoder_decompressNextLogStatement_timeTravel) {
     ASSERT_TRUE(iFile.good());
 
     const char* expectedLines[] = {
-        "1969-12-31 16:00:20.000000000 testHelper/client.cc:20 NOTICE[1]: Simple log message with 0 parameters\r"
+        "1969-12-31 16:00:20.000000001 testHelper/client.cc:20 NOTICE[1]: Simple log message with 0 parameters\r"
     };
 
     std::string iLine;
     for (const char *line : expectedLines) {
         ASSERT_TRUE(iFile.good());
         std::getline(iFile, iLine);
-        EXPECT_STREQ(line, iLine.c_str());
+        if (iLine.size() >= 14)
+            EXPECT_STREQ(line + 14, iLine.c_str() + 14);// +14 skips date + hour
     }
     EXPECT_FALSE(iFile.eof());
     iFile.close();
@@ -1986,7 +2121,8 @@ TEST_F(LogTest, Decoder_decompressNextLogStatement_timeTravel) {
     for (const char *line : expectedLines) {
         ASSERT_TRUE(iFile.good());
         std::getline(iFile, iLine);
-        EXPECT_STREQ(line, iLine.c_str());
+        if (iLine.size() >= 14)
+            EXPECT_STREQ(line + 14, iLine.c_str() + 14);// +14 skips date + hour
     }
     EXPECT_FALSE(iFile.eof());
     iFile.close();
@@ -2006,7 +2142,8 @@ TEST_F(LogTest, Decoder_decompressNextLogStatement_timeTravel) {
     for (const char *line : expectedLines) {
         ASSERT_TRUE(iFile.good());
         std::getline(iFile, iLine);
-        EXPECT_STREQ(line, iLine.c_str());
+        if (iLine.size() >= 14)
+            EXPECT_STREQ(line + 14, iLine.c_str() + 14);// +14 skips date + hour
     }
     EXPECT_FALSE(iFile.eof());
     iFile.close();
@@ -2130,7 +2267,8 @@ TEST_F(LogTest, Decoder_getNextLogStatement) {
     for (const char *line : expectedLines) {
         ASSERT_TRUE(iFile.good());
         std::getline(iFile, iLine);
-        EXPECT_STREQ(line, iLine.c_str());
+        if (iLine.size() >= 14)
+            EXPECT_STREQ(line + 14, iLine.c_str() + 14);// +14 skips date + hour
     }
     EXPECT_FALSE(iFile.eof());
     iFile.close();
@@ -2188,9 +2326,6 @@ TEST_F(LogTest, Decoder_getNextLogStatement) {
 
     std::remove(testFile);
     std::remove(decomp);
-
-
-
 }
 
 // Static helper functions to test when aggregation is run.
@@ -2635,6 +2770,61 @@ TEST_F(LogTest, createMicroCode) {
     EXPECT_EQ(FormatType::int_t, pf->argType);
     EXPECT_STREQ(" %*.*d blah", pf->formatFragment);
     EXPECT_EQ(strlen(" %*.*d blah") + 1, pf->fragmentLength);
+    EXPECT_TRUE(pf->hasDynamicWidth);
+    EXPECT_TRUE(pf->hasDynamicPrecision);
+}
+
+TEST_F(LogTest, createMicroCode_specifiersWithoutSpaces) {
+    using namespace NanoLogInternal::Log;
+    FormatMetadata *fm;
+    PrintFragment *pf;
+    char backing_buffer[1024];
+    char *microCode = backing_buffer;
+    memset(backing_buffer, 'a', sizeof(backing_buffer));
+
+    microCode = backing_buffer;
+    const char *filename = "DatFile.txt";
+    const char *formatString = "%%%lf%Lf%*.*d";
+    EXPECT_TRUE(Decoder::createMicroCode(&microCode,
+                                         formatString,
+                                         filename,
+                                         1234,
+                                         1));
+
+    microCode = backing_buffer;
+    fm = push<FormatMetadata>(microCode);
+    microCode += fm->filenameLength;
+
+    EXPECT_STREQ(filename, fm->filename);
+    EXPECT_EQ(strlen(filename) + 1, fm->filenameLength);
+    EXPECT_EQ(1234, fm->lineNumber);
+    EXPECT_EQ(1, fm->logLevel);
+    EXPECT_EQ(5, fm->numNibbles);
+    EXPECT_EQ(3, fm->numPrintFragments);
+
+    pf = push<PrintFragment>(microCode);
+    microCode += pf->fragmentLength;
+
+    EXPECT_EQ(FormatType::double_t, pf->argType);
+    EXPECT_STREQ("%%%lf", pf->formatFragment);
+    EXPECT_EQ(strlen("%%%lf") + 1, pf->fragmentLength);
+    EXPECT_FALSE(pf->hasDynamicWidth);
+    EXPECT_FALSE(pf->hasDynamicPrecision);
+
+    pf = push<PrintFragment>(microCode);
+    microCode += pf->fragmentLength;
+
+    EXPECT_EQ(FormatType::long_double_t, pf->argType);
+    EXPECT_STREQ("%Lf", pf->formatFragment);
+    EXPECT_EQ(strlen("%Lf") + 1, pf->fragmentLength);
+    EXPECT_FALSE(pf->hasDynamicWidth);
+    EXPECT_FALSE(pf->hasDynamicPrecision);
+    pf = push<PrintFragment>(microCode);
+    microCode += pf->fragmentLength;
+
+    EXPECT_EQ(FormatType::int_t, pf->argType);
+    EXPECT_STREQ("%*.*d", pf->formatFragment);
+    EXPECT_EQ(strlen("%*.*d") + 1, pf->fragmentLength);
     EXPECT_TRUE(pf->hasDynamicWidth);
     EXPECT_TRUE(pf->hasDynamicPrecision);
 }

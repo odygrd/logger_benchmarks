@@ -1,4 +1,4 @@
-/* Copyright (c) 2017-2018 Stanford University
+/* Copyright (c) 2017-2020 Stanford University
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -632,7 +632,7 @@ Log::Decoder::Decoder()
 }
 
 /**
- * Reads the metadata necessary to decompress log messsages from a log file.
+ * Reads the metadata necessary to decompress log messages from a log file.
  * This function can be invoked incrementally to build a larger dictionary from
  * smaller fragments in the file and it should only be invoked once per fragment
  *
@@ -886,7 +886,8 @@ Log::Decoder::createMicroCode(char **microCode,
             continue;
         }
 
-        // Advance the pointer to the end of the specifier
+        // Advance the pointer to the end of the specifier & reset the % counter
+        consecutivePercents = 0;
         i += match.length();
 
         // At this point we found a match, let's start analyzing it
@@ -1352,6 +1353,14 @@ Log::Decoder::BufferFragment::decompressNextLogStatement(FILE *outputFd,
         int64_t wholeSeconds = static_cast<int64_t>(secondsSinceCheckpoint);
         nanos = 1.0e9 * (secondsSinceCheckpoint
                                 - static_cast<double>(wholeSeconds));
+
+        // If the timestamp occurred before the checkpoint, we may have to
+        // adjust the times so that nanos remains positive.
+        if (nanos < 0.0) {
+            wholeSeconds--;
+            nanos += 1.0e9;
+        }
+
         std::time_t absTime = wholeSeconds + checkpoint.unixTime;
         std::tm *tm = localtime(&absTime);
         strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", tm);
@@ -1885,11 +1894,9 @@ Log::Decoder::decompressTo(FILE* outputFd)
 
             // If we reach a logical end to the current stage,
             // make the current stage available for consumption
-            if (((mustDepleteAllStages || !good) && !stages[0].empty()) ||
-                    newStage)
-            {
+            bool needFlush = (mustDepleteAllStages || !good);
+            if (newStage || (needFlush && !stages[stagesBuffered].empty()))
                 ++stagesBuffered;
-            }
 
             if (stagesBuffered == stagesToBuffer)
                 break;
@@ -1917,8 +1924,10 @@ Log::Decoder::decompressTo(FILE* outputFd)
             }
 
             // If nothing was found, we're done
-            if (minStage == nullptr)
+            if (minStage == nullptr) {
+                stagesBuffered = 0; // All the stages we know about are clear
                 break;
+            }
 
             // Step 3b: Output the log message
             BufferFragment *bf = minStage->front();
