@@ -66,12 +66,14 @@ If the ```<boolean-expression>``` evaluates to false then the the message for th
 
 
   ### custom logging levels
-  Custom logging levels can be created and used. When defining a custom logging level you set the value for it as well as the text for it. You can re-use values for other levels such as *INFO*, *WARNING* etc or have your own values.
-
-   Any value with equal or higher value than the *FATAL* value will be considered a *FATAL* logging level. 
+  Custom logging levels can be created and used. When defining a custom logging level you set the value for it as well as the text for it. You can re-use values for other levels such as *INFO*, *WARNING* etc or have your own values. Any value with equal or higher value than the *FATAL* value will be considered a *FATAL* logging level. 
+  
+  **To keep in mind when adding your own custom levels.** 
+1. If the cmake option `G3_DYNAMIC_LOGGING` is enabled then you must use `g3::only_change_at_initialization::addLogLevel(...)` to give g3log a record of your logging level and if it is an enabled or disbled logging level. 
+1. If the cmake `G3_DYNAMIC_LOGGING` is turned OFF, then giving g3log a record of your logging level with 'addLogLevel(...) is **not needed** since no `"disbled/enabled"` check will happen - all logging levels will be considered enabled.
 
   Example:
-  ```
+  ```cpp
   // In CustomLoggingLevels.hpp
   #include <g3log/loglevels.hpp>
 
@@ -84,6 +86,7 @@ If the ```<boolean-expression>``` evaluates to false then the the message for th
   const LEVELS DEADLY {FATAL.value + 1, {"DEADLY"}}; 
   ```
 
+More examples can be viwed in the [unit tests](https://github.com/KjellKod/g3log/blob/master/test_unit/test_io.cpp). 
 
 
   
@@ -97,7 +100,7 @@ A logging sink is not required to be a subclass of a specific type. The only req
 
 ### Using the default sink
 Sink creation is defined in [logworker.hpp](src/g3log/logworker.hpp) and used in [logworker.cpp](src/logworker.cpp). For in-depth knowlege regarding sink implementation details you can look at [sinkhandle.hpp](src/g3log/sinkhandle.hpp) and [sinkwrapper.hpp](src/g3log/sinkwrapper.hpp)
-```
+```cpp
   std::unique_ptr<FileSinkHandle> addDefaultLogger(
             const std::string& log_prefix
             , const std::string& log_directory
@@ -105,7 +108,7 @@ Sink creation is defined in [logworker.hpp](src/g3log/logworker.hpp) and used in
 ```
 
 With the default id left as is (i.e. "g3log") a creation of the logger in the unit test "test_filechange" would look like this
-```
+```cpp
   const std::string directory = "./";
   const std::string name = "(ReplaceLogFile)";
   auto worker = g3::LogWorker::createLogWorker();
@@ -120,20 +123,20 @@ The resulting filename would be something like:
 ## Custom LOG <a name="log_formatting">formatting</a>
 ### Overriding the Default File Sink's file header
 The default file header can be customized in the default file sink in calling 
-```
+```cpp
    FileSink::overrideLogHeader(std::string);
 ```
 
 
 ### Overriding the Default FileSink's log formatting
 The default log formatting is defined in `LogMessage.hpp`
-```
+```cpp
    static std::string DefaultLogDetailsToString(const LogMessage& msg);
 ```
 
 ### Adding thread ID to the log formatting
 An "all details" log formatting function is also defined - this one also adds the "calling thread's ID"
-```
+```cpp
    static std::string FullLogDetailsToString(const LogMessage& msg);
 ```
 
@@ -143,25 +146,25 @@ If the sink receiving function calls `toString()` then the default log formattin
 If the sink receiving function calls `toString(&XFunc)` then the `XFunc`will be used instead (see `LogMessage.h/cpp` for code details if it is not clear). (`XFunc` is a place holder for *your* formatting function of choice). 
 
 The API for the function-ptr to pass in is 
-```
+```cpp
 std::string (*) (const LogMessage&)
 ```
 or for short as defined in `LogMessage.h`
-```
+```cpp
 using LogDetailsFunc = std::string (*) (const LogMessage&);
 ```
 
 ### Override the log formatting in the default sink
 For convenience the *Default* sink has a function
 for doing exactly this
-```
+```cpp
   void overrideLogDetails(LogMessage::LogDetailsFunc func);
 ```
 
 
 Example code for replacing the default log formatting for "full details" formatting (it adds thread ID)
 
-```
+```cpp
    auto worker = g3::LogWorker::createLogWorker();
    auto handle= worker->addDefaultLogger(argv[0], path_to_log_file);
    g3::initializeLogging(worker.get());
@@ -175,7 +178,7 @@ Example code for overloading the formatting of a custom sink. The log formatting
 `LogMessage::toString(...)` this will override the default log formatting
 
 Example
-```
+```cpp
 namespace {
       std::string MyCustomFormatting(const LogMessage& msg) {
         ... how you want it ...
@@ -199,7 +202,7 @@ namespace {
 
 
 ## LOG <a name="log_flushing">flushing</a> 
-The default file sink will flush each log entry as it comes in. For different flushing policies please take a look at g3sinks [logrotate and LogRotateWithFilters](http://www.github.com/KjellKod/g3sinks/logrotate).
+The default file sink will flush each log entry as it comes in. For different flushing policies please take a look at g3sinks [logrotate and LogRotateWithFilters](https://github.com/KjellKod/g3sinks/tree/master/sink_logrotate).
 
 At shutdown all enqueued logs will be flushed to the sink.  
 At a discovered fatal event (SIGSEGV et.al) all enqueued logs will be flushed to the sink.
@@ -208,12 +211,12 @@ A programmatically triggered abrupt process exit such as a call to   ```exit(0)`
 
 # G3log and Sink Usage Code Example
 Example usage where a [logrotate sink (g3sinks)](https://github.com/KjellKod/g3sinks) is added. In the example it is shown how the logrotate API is called. The logrotate limit is changed from the default to instead be 10MB. The limit is changed by calling the sink handler which passes the function call through to the actual logrotate sink object.
-```
+```cpp
 
 // main.cpp
 #include <g3log/g3log.hpp>
 #include <g3log/logworker.h>
-#include <g3sinks/logrotate.hpp>
+#include <g3sinks/LogRotate.h>
 #include <memory>
 
 int main(int argc, char**argv) {
@@ -256,7 +259,7 @@ This feature supported as a CMake option:
 
 The following is an example of changing the size for the message.
 
-```
+```cpp
     g3::only_change_at_initialization::setMaxMessageSize(10000);
 ```
 
@@ -266,7 +269,7 @@ The default behaviour for G3log is to catch several fatal events before they for
 
 
   ### <a name="fatal_handling_linux">Linux/*nix</a> 
-  The default fatal handling on Linux deals with fatal signals. At the time of writing these signals were   ```SIGABRT, SIGFPE, SIGILL, SIGILL, SIGSEGV, SIGSEGV, SIGTERM```.  The Linux fatal handling is handled in [crashhandler.hpp](src/g3log/crashhandler.hpp) and [crashhandler_unix.cpp](src/crashhandler_unix.cpp)
+  The default fatal handling on Linux deals with fatal signals. At the time of writing these signals were   ```SIGABRT, SIGFPE, SIGILL, SIGSEGV, SIGTERM```.  The Linux fatal handling is handled in [crashhandler.hpp](src/g3log/crashhandler.hpp) and [crashhandler_unix.cpp](src/crashhandler_unix.cpp)
 
 
 
@@ -308,7 +311,7 @@ The default behaviour for G3log is to catch several fatal events before they for
    SIGTERM
    ```
    If you want to define your own set of fatal signals, override the default ones, then this can be done as shown in [src/g3log/crashhandler.hpp](src/g3log/crashhandler.hpp)
-   ```
+   ```cpp
    // Example when SIGTERM is skipped due to ZMQ usage
    g3::overrideSetupSignals({ {SIGABRT, "SIGABRT"}, 
                               {SIGFPE, "SIGFPE"},
@@ -361,8 +364,6 @@ You could also contribute by saying thanks with a a donation. It would go a long
 * $10 for pizza 
 * $25 for a lunch or two
 * $100 for a date night with my wife (which buys family credit for evening coding)
-* $$$ for upgrading my development environment
-* $$$$ :)
 
 Cheers
 Kjell

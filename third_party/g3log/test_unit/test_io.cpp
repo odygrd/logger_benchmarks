@@ -67,7 +67,7 @@ TEST(Initialization, No_Logger_Initialized___Expecting_LOG_calls_to_be_Still_OKi
    EXPECT_TRUE(g3::logLevel(FATAL));
    EXPECT_TRUE(g3::logLevel(G3LOG_DEBUG));
    EXPECT_TRUE(g3::logLevel(WARNING));
-   std::string err_msg1 = "Hey. I am not instantiated but I still should not crash. (I am g3logger)";
+   std::string err_msg1 = "Hey. I am not instantiated but I still should not crash. (I am g3log)";
    std::string err_msg3_ignored = "This uninitialized message should be ignored";
    try {
       LOG(INFO) << err_msg1; // nothing happened. level not ON
@@ -93,7 +93,7 @@ TEST(Initialization, No_Logger_Initialized___Expecting_LOG_calls_to_be_Still_OKi
    EXPECT_TRUE(g3::logLevel(FATAL));
    EXPECT_TRUE(g3::logLevel(G3LOG_DEBUG));
    EXPECT_TRUE(g3::logLevel(WARNING));
-   std::string err_msg1 = "Hey. I am not instantiated but I still should not crash. (I am g3logger)";
+   std::string err_msg1 = "Hey. I am not instantiated but I still should not crash. (I am g3log)";
    std::string err_msg3_ignored = "This uninitialized message should be ignored";
 
    try {
@@ -398,7 +398,7 @@ namespace {
 // ref: https://github.com/KjellKod/g3log/blob/master/src/crashhandler_windows.cpp
 // what is missing is the override of signals and custom installation of signals
 // ref: https://github.com/KjellKod/g3log/blob/master/src/crashhandler_unix.cpp
-//      functions: void restoreSignalHandlerToDefault()
+//      functions: void restoreFatalHandlingToDefault()
 //                 void overrideSetupSignals(const std::map<int, std::string> overrideSignals)
 //                 void restoreSignalHandler(int signal_number)
 //
@@ -601,7 +601,34 @@ TEST(CHECK, CHECK_ThatWontThrow) {
    EXPECT_FALSE(verifyContent(mockFatalMessage(), msg3));
 }
 
+TEST(CHECK, CHECK_runtimeError) {
+   RestoreFileLogger logger(log_directory);
 
+   g3::setFatalExitHandler([](g3::FatalMessagePtr msg) {
+     throw std::runtime_error("fatal test handler");
+   });
+
+   class dynamic_int_array {
+     std::unique_ptr<int[]> data_;
+     const int size_;
+   public:
+     explicit dynamic_int_array(int size)
+         : data_{std::make_unique<int[]>(size)}
+         , size_(size)
+    {}
+
+    int& at(int i) {
+      CHECK(i < size_);
+
+      // unreachable if i >= size_
+      return data_[i];
+    }
+   };
+
+   dynamic_int_array arr{3};
+
+   EXPECT_THROW(arr.at(3) = 1, std::runtime_error);
+}
 
 TEST(CustomLogLevels, AddANonFatal) {
    RestoreFileLogger logger(log_directory);

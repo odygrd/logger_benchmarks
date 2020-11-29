@@ -19,8 +19,6 @@ install:
 
 # scripts to run before build
 before_build:
-  - cd c:\projects\g3log\3rdParty\gtest
-  - 7z x gtest-1.7.0.zip 
   - cd c:\projects\g3log\
   - mkdir build
   - cd build 
@@ -34,5 +32,6 @@ after_build:
   - cmd /c Release\g3log-FATAL-contract.exe || exit /B 0
   - tree /A /F c:\g3log
   - cpack -G "NSIS;ZIP"
+  - cpack -C Release
   - ctest -C Release --verbose
 

@@ -98,7 +98,7 @@ ELSE()
 ENDIF(NOT ENABLE_FATAL_SIGNALHANDLING)
 
 # Option for building as a static or shared library in all platforms
-option (G3_SHARED_LIB  "Build shared library" OFF)
+option (G3_SHARED_LIB  "Build shared library" ON)
 IF(G3_SHARED_LIB)
    message( STATUS "-DG3_SHARED_LIB=ON\tBuild shared library" ) 
 ELSE()
@@ -147,7 +147,7 @@ IF (MSVC OR MINGW)
 ENDIF (MSVC OR MINGW)
 message( STATUS "\n\n\n" )
 
-option(INSTALL_G3LOG "Enable installation of g3logger. (Projects embedding g3logger may want to turn this OFF.)" ON)
+option(INSTALL_G3LOG "Enable installation of g3log. (Projects embedding g3log may want to turn this OFF.)" ON)
 
 
 

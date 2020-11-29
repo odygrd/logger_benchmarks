@@ -29,7 +29,7 @@ target_link_libraries(benchmark_spdlog_call_site_latency PRIVATE Threads::Thread
 # g3log
 add_executable(benchmark_g3log_call_site_latency)
 target_sources(benchmark_g3log_call_site_latency PRIVATE benchmark_g3log_call_site_latency.cpp)
-target_link_libraries(benchmark_g3log_call_site_latency PRIVATE g3logger)
+target_link_libraries(benchmark_g3log_call_site_latency PRIVATE g3log)
 
 # g3log
 add_executable(benchmark_ms_binlog_call_site_latency)

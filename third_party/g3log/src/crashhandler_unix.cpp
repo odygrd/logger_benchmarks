@@ -59,7 +59,7 @@ namespace {
    // Dump of stack,. then exit through g3log background worker
    // ALL thanks to this thread at StackOverflow. Pretty much borrowed from:
    // Ref: http://stackoverflow.com/questions/77005/how-to-generate-a-stacktrace-when-my-gcc-c-app-crashes
-   void signalHandler(int signal_number, siginfo_t* info, void* unused_context) {
+   void signalHandler(int signal_number, siginfo_t* /*info*/, void* /*unused_context*/) {
 
       // Only one signal will be allowed past this point
       if (false == shouldDoExit()) {
@@ -154,7 +154,7 @@ namespace g3 {
          std::ostringstream oss;
          for (size_t idx = 1; idx < size && messages != nullptr; ++idx) {
             char* mangled_name = 0, *offset_begin = 0, *offset_end = 0;
-            // find parantheses and +address offset surrounding mangled name
+            // find parentheses and +address offset surrounding mangled name
             for (char* p = messages[idx]; *p; ++p) {
                if (*p == '(') {
                   mangled_name = p;
@@ -233,6 +233,16 @@ namespace g3 {
          exit(signal_number);
 
       }
+
+      // restores the signal handler back to default
+      void restoreFatalHandlingToDefault() {
+#if !(defined(DISABLE_FATAL_SIGNALHANDLING))
+         overrideSetupSignals(kSignals);
+#endif
+      }
+
+
+
    } // end g3::internal
 
 
@@ -281,11 +291,6 @@ namespace g3 {
       installCrashHandler(); // installs all the signal handling for gSignals
    }
 
-   // restores the signal handler back to default
-   void restoreSignalHandlerToDefault() {
-      overrideSetupSignals(kSignals);
-   }
-
 
    // installs the signal handling for whatever signal set that is currently active
    // If you want to setup your own signal handling then
@@ -294,4 +299,3 @@ namespace g3 {
       installSignalHandler();
    }
 } // end namespace g3
-
