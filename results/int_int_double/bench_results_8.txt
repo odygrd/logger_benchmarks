@@ -1,0 +1,32 @@
+Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  294  |  320  |  372  |  679  |  917  |  1592  |  1971  |
+
+Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  362  |  619  |  757  |  836  |  1231  |  1574  |  27077  |
+
+Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  289  |  320  |  639  |  693  |  1213  |  1563  |  1797  |
+
+Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  360  |  622  |  761  |  842  |  1234  |  1558  |  21377  |
+
+Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  290  |  321  |  635  |  693  |  1244  |  1581  |  2741  |
+
+Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  366  |  633  |  769  |  857  |  1274  |  1602  |  11211  |
+
+Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  286  |  315  |  356  |  669  |  836  |  1572  |  1771  |
+
+Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  353  |  608  |  757  |  838  |  1241  |  1570  |  16877  |
+

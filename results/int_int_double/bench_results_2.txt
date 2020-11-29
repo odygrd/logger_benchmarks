@@ -1,0 +1,32 @@
+Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  22  |  30  |  34  |  36  |  45  |  65  |  4334  |
+
+Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  21  |  28  |  34  |  38  |  60  |  76  |  5557  |
+
+Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  20  |  27  |  32  |  34  |  40  |  68  |  4236  |
+
+Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  21  |  29  |  34  |  39  |  60  |  77  |  5140  |
+
+Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  21  |  28  |  32  |  35  |  42  |  65  |  4404  |
+
+Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  20  |  28  |  33  |  36  |  48  |  75  |  10898  |
+
+Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  20  |  28  |  33  |  35  |  41  |  68  |  4359  |
+
+Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  22  |  29  |  35  |  44  |  63  |  80  |  16668  |
+

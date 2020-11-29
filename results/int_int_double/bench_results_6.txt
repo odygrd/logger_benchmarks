@@ -1,0 +1,32 @@
+Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  19  |  21  |  23  |  23  |  27  |  62  |  141  |
+
+Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  18  |  21  |  23  |  24  |  29  |  44  |  218  |
+
+Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  20  |  21  |  23  |  23  |  27  |  62  |  135  |
+
+Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  18  |  21  |  22  |  23  |  27  |  38  |  201  |
+
+Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  20  |  22  |  26  |  41  |  46  |  61  |  208  |
+
+Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  18  |  21  |  23  |  24  |  40  |  48  |  199  |
+
+Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  20  |  22  |  26  |  40  |  45  |  61  |  278  |
+
+Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  18  |  21  |  23  |  24  |  40  |  48  |  251  |
+

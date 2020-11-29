@@ -1,0 +1,32 @@
+Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  111  |  122  |  133  |  138  |  192  |  365  |  1312731  |
+
+Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  113  |  160  |  198  |  218  |  324  |  459  |  810149  |
+
+Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  109  |  119  |  130  |  134  |  174  |  362  |  826639  |
+
+Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  111  |  157  |  194  |  215  |  325  |  488  |  1165233  |
+
+Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  110  |  121  |  131  |  136  |  185  |  384  |  161731  |
+
+Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  105  |  115  |  154  |  179  |  246  |  814  |  2430828  |
+
+Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  110  |  120  |  130  |  134  |  176  |  376  |  9473  |
+
+Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  104  |  114  |  156  |  176  |  252  |  922  |  1567930  |
+

@@ -1,0 +1,32 @@
+Thread Count 1 - Total messages 100000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  46  |  47  |  48  |  49  |  75  |  126  |  394  |
+
+Thread Count 4 - Total messages 400000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  46  |  48  |  52  |  56  |  86  |  126  |  390  |
+
+Thread Count 1 - Total messages 100000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  46  |  47  |  48  |  49  |  71  |  125  |  346  |
+
+Thread Count 4 - Total messages 400000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  45  |  46  |  48  |  50  |  86  |  127  |  392  |
+
+Thread Count 1 - Total messages 100000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  45  |  47  |  48  |  49  |  71  |  129  |  327  |
+
+Thread Count 4 - Total messages 400000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  45  |  46  |  48  |  50  |  86  |  126  |  351  |
+
+Thread Count 1 - Total messages 100000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  46  |  48  |  49  |  52  |  73  |  126  |  335  |
+
+Thread Count 4 - Total messages 400000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  46  |  48  |  51  |  54  |  73  |  130  |  354  |
+

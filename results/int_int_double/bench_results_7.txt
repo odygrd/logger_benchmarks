@@ -1,0 +1,32 @@
+Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  68  |  72  |  99  |  113  |  131  |  163  |  13728502  |
+
+Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  112  |  122  |  128  |  139  |  175  |  375  |  48390478  |
+
+Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  73  |  81  |  107  |  118  |  142  |  174  |  13584852  |
+
+Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  115  |  127  |  134  |  145  |  181  |  413  |  24683605  |
+
+Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  68  |  73  |  99  |  113  |  133  |  163  |  11649130  |
+
+Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  109  |  120  |  127  |  137  |  172  |  383  |  48530207  |
+
+Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  68  |  73  |  101  |  112  |  130  |  165  |  11668253  |
+
+Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  112  |  121  |  128  |  137  |  173  |  381  |  55539721  |
+

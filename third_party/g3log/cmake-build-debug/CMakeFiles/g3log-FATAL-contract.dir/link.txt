@@ -1,1 +1,0 @@
-/usr/local/gcc9.1/bin/g++  -g  -rdynamic CMakeFiles/g3log-FATAL-contract.dir/example/main_contract.cpp.o  -o g3log-FATAL-contract  -Wl,-rpath,/net/nas/ldeuxhome/Odysseas.Georgoudis/git/g3log/cmake-build-debug libg3logger.so.1.3.2-85 -lpthread 
