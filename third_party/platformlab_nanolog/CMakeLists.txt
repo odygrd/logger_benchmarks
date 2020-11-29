@@ -2,7 +2,7 @@
 set(TARGET_NAME platformlab_nanolog)
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/GeneratedCode.cc
-                   COMMAND "g++" "-std=c++17" "-g"  "-O3" "-E" "-I" "include/" "src/testHelper/client.cc" "-o" "src/testHelper/client.cc.i"
+                   COMMAND "/usr/local/gcc-8.1.0/bin/g++-8.1" "-std=c++17" "-g"  "-O3" "-E" "-I" "include/" "src/testHelper/client.cc" "-o" "src/testHelper/client.cc.i"
                    COMMAND "python2.7" "${CMAKE_CURRENT_SOURCE_DIR}/preprocessor/parser.py" "--mapOutput=${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.map" "${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.cc.i"
                    COMMAND "python2.7" "${CMAKE_CURRENT_SOURCE_DIR}/preprocessor/parser.py" "--combinedOutput=${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/GeneratedCode.cc" "${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.map"
                    #COMMAND "rm" "-f" "${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.map" "${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.cc.i"  "${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.cc.ii"
@@ -12,8 +12,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/GeneratedCo
 add_custom_target(nanolog_GeneratedCode DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/GeneratedCode.cc)
 
 # header files
-set(HEADER_FILES include/nanolog/Atomic.h
-                 include/nanolog/Common.h
+set(HEADER_FILES include/nanolog/Common.h
                  include/nanolog/Config.h
                  include/nanolog/Cycles.h
                  include/nanolog/Fence.h
@@ -24,6 +23,7 @@ set(HEADER_FILES include/nanolog/Atomic.h
                  include/nanolog/NanoLogCpp17.h
                  include/nanolog/Packer.h
                  include/nanolog/PerfHelper.h
+                 include/nanolog/Portability.h
                  include/nanolog/RuntimeLogger.h
                  include/nanolog/TestUtil.h
                  include/nanolog/TimeTrace.h
