@@ -3,6 +3,8 @@
 
 #include <mserialize/Visitor.hpp>
 #include <mserialize/deserialize.hpp>
+#include <mserialize/singular.hpp>
+
 #include <mserialize/detail/integer_to_hex.hpp>
 #include <mserialize/detail/tag_util.hpp>
 
@@ -22,7 +24,7 @@ public:
   std::enable_if_t<std::is_integral<Integer>::value>
   visit(Integer v)
   {
-    _p = write_integer_as_hex(v, _p) - 1;
+    _p = write_integer_as_hex(v, &_buffer[19]);
   }
 
   template <typename T>
@@ -31,20 +33,21 @@ public:
 
   string_view value() const
   {
-    return string_view(_p+1, std::size_t(_buffer + 18 - _p));
+    return string_view(_p, std::size_t(_buffer + 19 - _p));
   }
 
   string_view delimited_value(char prefix, char postfix)
   {
+    char* begin = _p - 1;
+    *begin = prefix;
     _buffer[19] = postfix;
-    *_p = prefix;
-    return string_view(_p, std::size_t(_buffer + 20 - _p));
+    return string_view(begin, std::size_t(_buffer + 20 - begin));
   }
 };
 
 // forward declaration
 template <typename Visitor, typename InputStream>
-void visit_impl(string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream);
+void visit_impl(string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream, int max_recursion);
 
 /** @pre tag in "ycbsilBSILfdD" */
 template <typename Visitor, typename InputStream>
@@ -68,17 +71,29 @@ void visit_arithmetic(char tag, Visitor& visitor, InputStream& istream)
   case 'f': float f;       mserialize::deserialize(f, istream); visitor.visit(f); break;
   case 'd': double d;      mserialize::deserialize(d, istream); visitor.visit(d); break;
   case 'D': long double D; mserialize::deserialize(D, istream); visitor.visit(D); break;
+  default: throw std::runtime_error(std::string("Invalid arithmetic tag: ") + tag); break;
   }
 }
 
 template <typename Visitor, typename InputStream>
-void visit_sequence_impl(const string_view full_tag, const string_view elem_tag, std::uint32_t size, Visitor& visitor, InputStream& istream, char)
+void visit_sequence_impl(const string_view full_tag, const string_view elem_tag, std::uint32_t size, Visitor& visitor, InputStream& istream, int max_recursion, char)
 {
   visitor.visit(mserialize::Visitor::SequenceBegin{size, elem_tag});
 
-  while (size--)
+  if (size > 32 && singular(full_tag, elem_tag, max_recursion))
   {
-    visit_impl(full_tag, elem_tag, visitor, istream);
+    // every elem in the seq are the same and serialized using 0 bytes.
+    // visit the first one only, to prevent little input generating huge output
+    visitor.visit(mserialize::Visitor::RepeatBegin{size, elem_tag});
+    visit_impl(full_tag, elem_tag, visitor, istream, max_recursion);
+    visitor.visit(mserialize::Visitor::RepeatEnd{size, elem_tag});
+  }
+  else
+  {
+    while (size--)
+    {
+      visit_impl(full_tag, elem_tag, visitor, istream, max_recursion);
+    }
   }
 
   visitor.visit(mserialize::Visitor::SequenceEnd{});
@@ -86,7 +101,7 @@ void visit_sequence_impl(const string_view full_tag, const string_view elem_tag,
 
 template <typename Visitor, typename InputStream>
 void_t<decltype(&InputStream::view)>
-visit_sequence_impl(const string_view full_tag, const string_view elem_tag, std::uint32_t size, Visitor& visitor, InputStream& istream, int)
+visit_sequence_impl(const string_view full_tag, const string_view elem_tag, std::uint32_t size, Visitor& visitor, InputStream& istream, int max_recursion, int)
 {
   if (elem_tag.size() == 1 && elem_tag[0] == 'c')
   {
@@ -95,13 +110,13 @@ visit_sequence_impl(const string_view full_tag, const string_view elem_tag, std:
   }
   else
   {
-    visit_sequence_impl(full_tag, elem_tag, size, visitor, istream, '\0');
+    visit_sequence_impl(full_tag, elem_tag, size, visitor, istream, max_recursion, '\0');
   }
 }
 
 /** @pre tag.front() == '[' , followed by a single tag */
 template <typename Visitor, typename InputStream>
-void visit_sequence(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream)
+void visit_sequence(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream, int max_recursion)
 {
   tag.remove_prefix(1); // drop [
 
@@ -109,12 +124,12 @@ void visit_sequence(const string_view full_tag, string_view tag, Visitor& visito
   mserialize::deserialize(size, istream);
   const string_view elem_tag = tag_pop(tag);
 
-  visit_sequence_impl(full_tag, elem_tag, size, visitor, istream, 0);
+  visit_sequence_impl(full_tag, elem_tag, size, visitor, istream, max_recursion, 0);
 }
 
 /** @pre tag.front() == '(' and tag.back() == ')' , enclosing any number of concatenated tags */
 template <typename Visitor, typename InputStream>
-void visit_tuple(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream)
+void visit_tuple(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream, int max_recursion)
 {
   tag.remove_prefix(1); // drop (
   tag.remove_suffix(1); // drop )
@@ -123,7 +138,7 @@ void visit_tuple(const string_view full_tag, string_view tag, Visitor& visitor, 
 
   for (string_view elem_tag = tag_pop(tag); ! elem_tag.empty(); elem_tag = tag_pop(tag))
   {
-    visit_impl(full_tag, elem_tag, visitor, istream);
+    visit_impl(full_tag, elem_tag, visitor, istream, max_recursion);
   }
 
   visitor.visit(mserialize::Visitor::TupleEnd{});
@@ -131,7 +146,7 @@ void visit_tuple(const string_view full_tag, string_view tag, Visitor& visitor, 
 
 /** @pre tag.front() == '<' and tag.back() == '>' , enclosing 1-255 concatenated tags */
 template <typename Visitor, typename InputStream>
-void visit_variant(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream)
+void visit_variant(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream, int max_recursion)
 {
   tag.remove_prefix(1); // drop <
   tag.remove_suffix(1); // drop >
@@ -146,7 +161,14 @@ void visit_variant(const string_view full_tag, string_view tag, Visitor& visitor
 
   visitor.visit(mserialize::Visitor::VariantBegin{discriminator, option_tag});
 
-  visit_impl(full_tag, option_tag, visitor, istream);
+  if (option_tag == "0")
+  {
+    visitor.visit(mserialize::Visitor::Null{});
+  }
+  else
+  {
+    visit_impl(full_tag, option_tag, visitor, istream, max_recursion);
+  }
 
   visitor.visit(mserialize::Visitor::VariantEnd{});
 }
@@ -163,7 +185,7 @@ void visit_variant(const string_view full_tag, string_view tag, Visitor& visitor
  * @pre the described structure must not be infinitely recursive
  */
 template <typename Visitor, typename InputStream>
-void visit_struct(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream)
+void visit_struct(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream, int max_recursion)
 {
   tag.remove_suffix(1); // drop }
 
@@ -172,11 +194,7 @@ void visit_struct(const string_view full_tag, string_view tag, Visitor& visitor,
   if (tag.empty())
   {
     // perhaps a recursive struct?
-    const std::size_t intro_pos = full_tag.find(intro);
-    tag = string_view(full_tag.data() + intro_pos, full_tag.size() - intro_pos);
-    tag = tag_pop(tag);
-    tag.remove_prefix(intro.size());
-    tag.remove_suffix(1);
+    tag = resolve_recursive_tag(full_tag, intro);
   }
 
   intro.remove_prefix(1); // drop {
@@ -190,7 +208,7 @@ void visit_struct(const string_view full_tag, string_view tag, Visitor& visitor,
 
     visitor.visit(mserialize::Visitor::FieldBegin{field_name, field_tag});
 
-    visit_impl(full_tag, field_tag, visitor, istream);
+    visit_impl(full_tag, field_tag, visitor, istream, max_recursion);
 
     visitor.visit(mserialize::Visitor::FieldEnd{});
   }
@@ -205,6 +223,7 @@ void visit_struct(const string_view full_tag, string_view tag, Visitor& visitor,
  *
  * @pre tag.front() == / and tag.back() == \
  * @pre the underlying type must be an integer tag
+ * @throws std::runtime_error if syntax is invalid
  */
 template <typename Visitor, typename InputStream>
 void visit_enum(string_view tag, Visitor& visitor, InputStream& istream)
@@ -212,7 +231,7 @@ void visit_enum(string_view tag, Visitor& visitor, InputStream& istream)
   tag.remove_prefix(1); // drop slash
   tag.remove_suffix(1); // drop backslash
 
-  if (tag.empty()) { return; }
+  if (tag.empty()) { throw std::runtime_error("Invalid enum tag: '" + tag.to_string() + "'"); }
 
   // convert the discriminator to hex
   const char underlying_type_tag = tag[0];
@@ -243,31 +262,31 @@ void visit_enum(string_view tag, Visitor& visitor, InputStream& istream)
  * original definition of the structure has to be referenced.
  *
  * @pre tag is a substring of full_tag
+ * @throws std::runtime_error if max_recursion is 0
  */
 template <typename Visitor, typename InputStream>
-void visit_impl(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream)
+void visit_impl(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream, int max_recursion)
 {
+  if (max_recursion == 0) { throw std::runtime_error("Recursion limit exceeded while visiting tag: " + full_tag.to_string()); }
+
   if (tag.empty()) { return; }
 
   switch (tag.front())
   {
   case '[':
-    visit_sequence(full_tag, tag, visitor, istream);
+    visit_sequence(full_tag, tag, visitor, istream, max_recursion - 1);
     break;
   case '(':
-    visit_tuple(full_tag, tag, visitor, istream);
+    visit_tuple(full_tag, tag, visitor, istream, max_recursion - 1);
     break;
   case '<':
-    visit_variant(full_tag, tag, visitor, istream);
+    visit_variant(full_tag, tag, visitor, istream, max_recursion - 1);
     break;
   case '{':
-    visit_struct(full_tag, tag, visitor, istream);
+    visit_struct(full_tag, tag, visitor, istream, max_recursion - 1);
     break;
   case '/':
     visit_enum(tag, visitor, istream);
-    break;
-  case '0':
-    visitor.visit(mserialize::Visitor::Null{});
     break;
   default:
     visit_arithmetic(tag.front(), visitor, istream);
