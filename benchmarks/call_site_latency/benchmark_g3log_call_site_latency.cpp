@@ -3,6 +3,8 @@
 #include "g3log/g3log.hpp"
 #include "g3log/logworker.hpp"
 
+#include <string>
+
 /***/
 void g3log_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterations_per_thread)
 {
@@ -16,9 +18,15 @@ void g3log_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Define a logging lambda
+#ifdef BENCH_INT_INT_DOUBLE
   auto log_func = [](uint64_t i, uint64_t j, double d) {
     LOG(INFO) << "Logging int: " << i << ", int: " << j << ", double: " << d;
   };
+#elif defined(BENCH_INT_INT_LARGESTR)
+    auto log_func = [](uint64_t i, uint64_t j, std::string const& s) {
+    LOG(INFO) << "Logging int: " << i << ", int: " << j << ", string: " << s;
+  };
+#endif
 
   auto on_start = []() {};
 

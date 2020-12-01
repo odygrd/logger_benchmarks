@@ -5,6 +5,8 @@
 
 #include "binlog/binlog.hpp"
 
+#include <string>
+
 /***/
 void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterations_per_thread)
 {
@@ -36,9 +38,15 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
 
   // --- Benchmark ---
   // Define a logging lambda
+#ifdef BENCH_INT_INT_DOUBLE
   auto log_func = [](uint64_t i, uint64_t j, double d) {
     BINLOG_INFO("Logging int: {}, int: {}, double: {}", i, j, d);
   };
+#elif defined(BENCH_INT_INT_LARGESTR)
+  auto log_func = [](uint64_t i, uint64_t j, std::string const& s) {
+    BINLOG_INFO("Logging int: {}, int: {}, string: {}", i, j, s);
+  };
+#endif
 
   auto on_start = []() {};
 

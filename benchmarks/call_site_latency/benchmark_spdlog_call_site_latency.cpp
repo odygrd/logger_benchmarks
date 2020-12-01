@@ -4,6 +4,8 @@
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/spdlog.h"
 
+#include <string>
+
 /***/
 void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterations_per_thread)
 {
@@ -29,9 +31,15 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Define a logging lambda
+#ifdef BENCH_INT_INT_DOUBLE
   auto log_func = [logger](uint64_t i, uint64_t j, double d) {
     SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, double: {}", i, j, d);
   };
+#elif defined(BENCH_INT_INT_LARGESTR)
+  auto log_func = [logger](uint64_t i, uint64_t j, std::string const& s) {
+    SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, string: {}", i, j, s);
+  };
+#endif
 
   auto on_start = []() {};
 

@@ -1,32 +1,32 @@
 Thread Count 1 - Total messages 100000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  46  |  47  |  48  |  50  |  80  |  133  |  254  |
+ |  52  |  54  |  57  |  59  |  74  |  130  |  315  |
 
 Thread Count 4 - Total messages 400000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  46  |  48  |  52  |  56  |  87  |  126  |  479  |
+ |  51  |  54  |  58  |  63  |  96  |  128  |  398  |
 
 Thread Count 1 - Total messages 100000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  45  |  47  |  48  |  50  |  81  |  126  |  349  |
+ |  51  |  53  |  56  |  58  |  72  |  132  |  344  |
 
 Thread Count 4 - Total messages 400000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  46  |  48  |  52  |  55  |  83  |  132  |  482  |
+ |  51  |  54  |  57  |  61  |  86  |  139  |  731  |
 
 Thread Count 1 - Total messages 100000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  46  |  47  |  48  |  49  |  82  |  129  |  353  |
+ |  51  |  53  |  56  |  58  |  75  |  131  |  343  |
 
 Thread Count 4 - Total messages 400000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  45  |  46  |  48  |  49  |  75  |  125  |  271  |
+ |  51  |  54  |  58  |  62  |  96  |  133  |  375  |
 
 Thread Count 1 - Total messages 100000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  46  |  47  |  49  |  50  |  81  |  127  |  351  |
+ |  51  |  53  |  56  |  58  |  77  |  132  |  364  |
 
 Thread Count 4 - Total messages 400000 - Logger: Ms binLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  45  |  46  |  48  |  49  |  72  |  124  |  334  |
+ |  51  |  53  |  57  |  62  |  97  |  132  |  393  |
 

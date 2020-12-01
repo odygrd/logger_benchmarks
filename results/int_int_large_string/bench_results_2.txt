@@ -1,32 +1,32 @@
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Bounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  21  |  24  |  28  |  30  |  54  |  71  |  158  |
+ |  27  |  33  |  39  |  41  |  49  |  78  |  130  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Bounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  20  |  23  |  27  |  31  |  44  |  67  |  200  |
+ |  27  |  32  |  39  |  47  |  61  |  94  |  414  |
 
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Bounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  20  |  22  |  25  |  27  |  34  |  67  |  118  |
+ |  28  |  34  |  40  |  42  |  59  |  83  |  143  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Bounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  19  |  22  |  26  |  30  |  46  |  67  |  343  |
+ |  26  |  32  |  38  |  46  |  60  |  93  |  412  |
 
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Bounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  20  |  24  |  28  |  30  |  54  |  71  |  142  |
+ |  27  |  32  |  39  |  41  |  47  |  77  |  365  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Bounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  19  |  22  |  27  |  31  |  47  |  67  |  314  |
+ |  26  |  31  |  37  |  42  |  57  |  78  |  423  |
 
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Bounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  20  |  23  |  26  |  29  |  37  |  68  |  150  |
+ |  26  |  31  |  37  |  40  |  48  |  73  |  136  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Bounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  19  |  22  |  25  |  29  |  36  |  65  |  220  |
+ |  27  |  32  |  38  |  45  |  59  |  82  |  440  |
 

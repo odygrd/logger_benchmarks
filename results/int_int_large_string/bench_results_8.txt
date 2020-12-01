@@ -1,32 +1,32 @@
 Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  69  |  70  |  73  |  87  |  107  |  134  |  3991221  |
+ |  94  |  96  |  102  |  117  |  155  |  176  |  6924627  |
 
 Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  94  |  117  |  126  |  130  |  164  |  360  |  26172022  |
+ |  115  |  134  |  157  |  172  |  216  |  377  |  30721857  |
 
 Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  70  |  73  |  79  |  89  |  110  |  138  |  6031629  |
+ |  96  |  99  |  110  |  128  |  152  |  189  |  7166767  |
 
 Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  99  |  119  |  128  |  133  |  165  |  334  |  25931320  |
+ |  118  |  138  |  162  |  178  |  221  |  362  |  30892253  |
 
 Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  69  |  70  |  74  |  80  |  106  |  133  |  5908477  |
+ |  95  |  98  |  105  |  115  |  156  |  191  |  6956524  |
 
 Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  93  |  117  |  125  |  129  |  163  |  358  |  30186464  |
+ |  119  |  141  |  164  |  178  |  221  |  359  |  30856203  |
 
 Thread Count 1 - Total messages 100000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  69  |  70  |  78  |  89  |  108  |  137  |  7151937  |
+ |  95  |  97  |  105  |  115  |  150  |  178  |  7085423  |
 
 Thread Count 4 - Total messages 400000 - Logger: Reckless - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  97  |  115  |  123  |  127  |  146  |  345  |  30324587  |
+ |  117  |  134  |  155  |  171  |  217  |  365  |  30854803  |
 

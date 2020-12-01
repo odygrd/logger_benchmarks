@@ -396,15 +396,12 @@ void BackendWorker::_deserialize_raw_queue(ThreadContext* thread_context)
     auto const logger_details = reinterpret_cast<detail::LoggerDetails const*>(logger_details_ptr);
     read_buffer += sizeof(uintptr_t);
 
-    // Use our type_info string to read the remaining message until the end
-    std::vector<std::string> type_descriptor_tokens = split(serialization_metadata->serialization_info, '%');
-
     // Store all arguments
     fmt::dynamic_format_arg_store<fmt::format_context> fmt_store;
     size_t read_size = 0;
-    for (auto const& type_descriptor_str : type_descriptor_tokens)
+    for (char const type_descriptor : serialization_metadata->serialization_info)
     {
-      read_size += deserialize_argument(read_buffer, fmt_store, type_descriptor_str);
+      read_size += deserialize_argument(read_buffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
     }
 
     // Finish reading

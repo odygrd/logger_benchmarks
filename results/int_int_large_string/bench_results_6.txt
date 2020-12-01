@@ -1,32 +1,32 @@
 Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  2374  |  2912  |  3021  |  3084  |  3205  |  3360  |  6009  |
+ |  1139  |  1207  |  1974  |  2382  |  2577  |  2775  |  3084  |
 
 Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  2858  |  2955  |  3063  |  3162  |  5688  |  6152  |  29125  |
+ |  1585  |  2177  |  2353  |  2474  |  3735  |  4249  |  18973  |
 
 Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  2434  |  2886  |  2992  |  3055  |  3178  |  3338  |  5579  |
+ |  1122  |  1142  |  1368  |  2293  |  2516  |  2698  |  4051  |
 
 Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  2834  |  2939  |  3063  |  3200  |  5582  |  6058  |  20996  |
+ |  1816  |  2207  |  2389  |  2497  |  3457  |  4211  |  8365  |
 
 Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  2271  |  2903  |  3008  |  3069  |  3188  |  3342  |  5571  |
+ |  1136  |  1160  |  1398  |  2020  |  2514  |  2716  |  3976  |
 
 Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  2830  |  2947  |  3106  |  3511  |  5399  |  5876  |  21678  |
+ |  1692  |  2206  |  2362  |  2452  |  2784  |  4062  |  22196  |
 
 Thread Count 1 - Total messages 100000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  2477  |  2949  |  3054  |  3116  |  3246  |  3433  |  6269  |
+ |  1139  |  1154  |  1343  |  1472  |  2448  |  2695  |  4208  |
 
 Thread Count 4 - Total messages 400000 - Logger: G3Log - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  2834  |  2929  |  3032  |  3132  |  5081  |  5994  |  26563  |
+ |  1705  |  2177  |  2338  |  2444  |  3726  |  4254  |  9668  |
 

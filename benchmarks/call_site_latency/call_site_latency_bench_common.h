@@ -22,11 +22,12 @@
   std::size_t { 20 }
 
 #define MIN_WAIT_DURATION                                                                          \
-  std::chrono::microseconds { 1300 }
+  std::chrono::microseconds { 1700 }
 #define MAX_WAIT_DURATION                                                                          \
-  std::chrono::microseconds { 1800 }
+  std::chrono::microseconds { 4000 }
 
-
+#define BENCH_INT_INT_DOUBLE
+//#define BENCH_INT_INT_LARGESTR
 
 /** -------- **/
 double rdtsc_ticks()

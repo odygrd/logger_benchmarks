@@ -1,32 +1,32 @@
 Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  20  |  22  |  27  |  42  |  47  |  62  |  278  |
+ |  29  |  34  |  39  |  53  |  58  |  79  |  150  |
 
 Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  18  |  21  |  23  |  24  |  41  |  58  |  252  |
+ |  29  |  34  |  47  |  55  |  58  |  70  |  247  |
 
 Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  19  |  22  |  23  |  24  |  28  |  65  |  115  |
+ |  30  |  35  |  40  |  54  |  58  |  79  |  262  |
 
 Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  18  |  21  |  22  |  24  |  28  |  56  |  148  |
+ |  29  |  34  |  47  |  55  |  58  |  69  |  298  |
 
 Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  20  |  22  |  24  |  26  |  33  |  65  |  145  |
+ |  29  |  34  |  39  |  54  |  57  |  77  |  178  |
 
 Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  18  |  21  |  23  |  26  |  42  |  52  |  230  |
+ |  29  |  34  |  47  |  55  |  59  |  69  |  289  |
 
 Thread Count 1 - Total messages 100000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  19  |  22  |  23  |  25  |  28  |  64  |  128  |
+ |  30  |  35  |  39  |  54  |  57  |  76  |  137  |
 
 Thread Count 4 - Total messages 400000 - Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  18  |  21  |  23  |  24  |  42  |  58  |  223  |
+ |  28  |  34  |  48  |  55  |  58  |  68  |  229  |
 

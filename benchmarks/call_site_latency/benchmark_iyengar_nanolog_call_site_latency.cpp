@@ -2,6 +2,8 @@
 
 #include "Iyengar_NanoLog/NanoLog.hpp"
 
+#include <string>
+
 /***/
 void iyengar_nanoLog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterations_per_thread)
 {
@@ -12,10 +14,16 @@ void iyengar_nanoLog_benchmark(std::vector<int32_t> thread_count_array, size_t n
                       "iyengar_nanoLog_call_site_latency_percentile_linux_benchmark.log", 500);
 
   std::this_thread::sleep_for(std::chrono::seconds(1));
-  
+
+#ifdef BENCH_INT_INT_DOUBLE
   auto log_func = [](uint64_t i, uint64_t j, double d){
     IY_LOG_INFO << "Logging int: " << i << ", int: " << j << ", double: " << d;
   };
+#elif defined(BENCH_INT_INT_LARGESTR)
+  auto log_func = [](uint64_t i, uint64_t j, std::string const& s){
+    IY_LOG_INFO << "Logging int: " << i << ", int: " << j << ", string: " << s;
+  };
+#endif
 
   auto on_start = []() {};
 

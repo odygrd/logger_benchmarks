@@ -1,32 +1,32 @@
 Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  290  |  318  |  360  |  556  |  721  |  891  |  1550  |
+ |  232  |  254  |  268  |  280  |  589  |  802  |  1644  |
 
 Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  351  |  597  |  742  |  815  |  980  |  1375  |  9002  |
+ |  272  |  331  |  617  |  703  |  951  |  1388  |  7896  |
 
 Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  288  |  316  |  347  |  561  |  735  |  906  |  1666  |
+ |  231  |  254  |  269  |  282  |  612  |  825  |  1679  |
 
 Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  329  |  526  |  697  |  780  |  1057  |  1522  |  17392  |
+ |  268  |  306  |  589  |  667  |  880  |  1320  |  233669  |
 
 Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  285  |  310  |  325  |  342  |  679  |  904  |  5006  |
+ |  231  |  253  |  269  |  282  |  587  |  806  |  1055  |
 
 Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  335  |  537  |  714  |  796  |  1081  |  1534  |  27378  |
+ |  266  |  309  |  593  |  672  |  911  |  1329  |  13600  |
 
 Thread Count 1 - Total messages 100000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  288  |  312  |  328  |  345  |  670  |  914  |  4794  |
+ |  229  |  250  |  265  |  274  |  572  |  797  |  4527  |
 
 Thread Count 4 - Total messages 400000 - Logger: Spdlog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  336  |  595  |  749  |  837  |  1211  |  1573  |  74122  |
+ |  265  |  311  |  607  |  694  |  947  |  1377  |  3582  |
 

@@ -1,32 +1,32 @@
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  21  |  25  |  28  |  30  |  38  |  70  |  131  |
+ |  28  |  35  |  40  |  42  |  59  |  82  |  130  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  20  |  23  |  28  |  32  |  45  |  68  |  3996  |
+ |  27  |  32  |  39  |  46  |  61  |  109  |  4703  |
 
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  21  |  25  |  29  |  31  |  39  |  71  |  130  |
+ |  29  |  36  |  41  |  43  |  62  |  84  |  135  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  20  |  23  |  27  |  30  |  35  |  68  |  124  |
+ |  26  |  32  |  38  |  45  |  60  |  103  |  4134  |
 
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  20  |  24  |  28  |  30  |  36  |  69  |  134  |
+ |  28  |  33  |  39  |  42  |  59  |  79  |  138  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  20  |  22  |  26  |  30  |  46  |  66  |  242  |
+ |  26  |  32  |  38  |  46  |  60  |  106  |  3866  |
 
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  20  |  24  |  28  |  30  |  39  |  71  |  233  |
+ |  27  |  32  |  38  |  41  |  55  |  79  |  145  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency, Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  19  |  22  |  25  |  29  |  43  |  67  |  248  |
+ |  26  |  32  |  38  |  46  |  60  |  105  |  4050  |
 

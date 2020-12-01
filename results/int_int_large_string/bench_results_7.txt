@@ -1,32 +1,32 @@
 Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  112  |  122  |  134  |  147  |  207  |  337  |  597293  |
+ |  111  |  121  |  128  |  131  |  169  |  264  |  9458  |
 
 Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  115  |  156  |  191  |  214  |  299  |  441  |  1142546  |
+ |  111  |  121  |  137  |  174  |  228  |  797  |  19390  |
 
 Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  112  |  121  |  131  |  135  |  177  |  382  |  149837  |
+ |  111  |  119  |  126  |  130  |  171  |  301  |  18601  |
 
 Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  108  |  117  |  129  |  168  |  234  |  792  |  511168  |
+ |  110  |  121  |  152  |  177  |  235  |  810  |  32689  |
 
 Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  110  |  119  |  130  |  135  |  172  |  317  |  29536  |
+ |  111  |  119  |  127  |  131  |  172  |  319  |  9553  |
 
 Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  114  |  152  |  184  |  211  |  307  |  457  |  68708  |
+ |  111  |  121  |  137  |  175  |  231  |  811  |  32100  |
 
 Thread Count 1 - Total messages 100000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  111  |  120  |  131  |  135  |  177  |  377  |  57751  |
+ |  110  |  119  |  126  |  130  |  172  |  328  |  29209  |
 
 Thread Count 4 - Total messages 400000 - Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  108  |  117  |  156  |  176  |  246  |  803  |  510337  |
+ |  111  |  122  |  138  |  175  |  225  |  758  |  29180  |
 

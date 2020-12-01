@@ -1,32 +1,32 @@
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency - No Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  23  |  31  |  33  |  39  |  56  |  80  |  144  |
+ |  195  |  211  |  224  |  232  |  251  |  283  |  325  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency - No Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  21  |  28  |  33  |  37  |  59  |  77  |  4460  |
+ |  203  |  226  |  243  |  252  |  269  |  300  |  4278  |
 
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency - No Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  23  |  31  |  32  |  36  |  52  |  77  |  143  |
+ |  200  |  215  |  228  |  236  |  254  |  283  |  340  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency - No Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  22  |  29  |  37  |  46  |  62  |  78  |  4275  |
+ |  201  |  226  |  243  |  252  |  268  |  300  |  4181  |
 
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency - No Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  22  |  30  |  32  |  34  |  50  |  75  |  147  |
+ |  189  |  205  |  218  |  227  |  244  |  276  |  332  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency - No Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  22  |  28  |  34  |  39  |  56  |  73  |  4222  |
+ |  201  |  224  |  241  |  250  |  266  |  296  |  4409  |
 
 Thread Count 1 - Total messages 100000 - Logger: Quill - Benchmark: Caller Thread Latency - No Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  23  |  31  |  35  |  37  |  52  |  75  |  134  |
+ |  199  |  215  |  228  |  236  |  255  |  285  |  451  |
 
 Thread Count 4 - Total messages 400000 - Logger: Quill - Benchmark: Caller Thread Latency - No Dual Mode, Unbounded
  |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
- |  21  |  28  |  33  |  38  |  64  |  79  |  4207  |
+ |  194  |  218  |  236  |  246  |  265  |  296  |  4637  |
 

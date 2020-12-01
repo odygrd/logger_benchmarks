@@ -3,6 +3,8 @@
 #include "reckless/file_writer.hpp"
 #include "reckless/severity_log.hpp"
 
+#include <string>
+
 /***/
 void reckless_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterations_per_thread)
 {
@@ -17,9 +19,15 @@ void reckless_benchmark(std::vector<int32_t> thread_count_array, size_t num_iter
   // wait for the backend thread to start
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
+#ifdef BENCH_INT_INT_DOUBLE
   auto log_func = [&g_log](uint64_t i, uint64_t j, double d) {
     g_log.info("Logging int: %i, int: %d, double: %f", i, j, d);
   };
+#elif defined(BENCH_INT_INT_LARGESTR)
+  auto log_func = [&g_log](uint64_t i, uint64_t j, std::string const& s) {
+    g_log.info("Logging int: %i, int: %d, string: %s", i, j, s);
+  };
+#endif
 
   auto on_start = []() {};
 

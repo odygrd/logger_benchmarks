@@ -42,83 +42,67 @@ QUILL_NODISCARD size_t get_value<char const*>(unsigned char const*& read_buffer,
 } // namespace
 size_t deserialize_argument(unsigned char const*& read_buffer,
                             fmt::dynamic_format_arg_store<fmt::format_context>& fmt_store,
-                            std::string const& type_descriptor)
+                            TypeDescriptor type_descriptor)
 {
   // size of argument we deserialized
   size_t read_size{0};
 
-  if (std::strcmp(type_descriptor.data(), "B") == 0)
+  switch (type_descriptor)
   {
+  case TypeDescriptor::Bool:
     read_size = get_value<bool>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "IS") == 0)
-  {
+    break;
+  case TypeDescriptor::Short:
     read_size = get_value<short>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "I") == 0)
-  {
+    break;
+  case TypeDescriptor::Int:
     read_size = get_value<int>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "IL") == 0)
-  {
+    break;
+  case TypeDescriptor::Long:
     read_size = get_value<long>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "ILL") == 0)
-  {
+    break;
+  case TypeDescriptor::LongLong:
     read_size = get_value<long long>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "UIS") == 0)
-  {
+    break;
+  case TypeDescriptor::UnsignedShort:
     read_size = get_value<unsigned short>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "UI") == 0)
-  {
+    break;
+  case TypeDescriptor::UnsignedInt:
     read_size = get_value<unsigned int>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "UIL") == 0)
-  {
+    break;
+  case TypeDescriptor::UnsignedLong:
     read_size = get_value<unsigned long>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "UILL") == 0)
-  {
+    break;
+  case TypeDescriptor::UnsignedLongLong:
     read_size = get_value<unsigned long long>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "D") == 0)
-  {
+    break;
+  case TypeDescriptor::Double:
     read_size = get_value<double>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "LD") == 0)
-  {
+    break;
+  case TypeDescriptor::LongDouble:
     read_size = get_value<long double>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "F") == 0)
-  {
+    break;
+  case TypeDescriptor::Float:
     read_size = get_value<float>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "C") == 0)
-  {
+    break;
+  case TypeDescriptor::Char:
     read_size = get_value<char>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "UC") == 0)
-  {
+    break;
+  case TypeDescriptor::UnsignedChar:
     read_size = get_value<unsigned char>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "CS") == 0)
-  {
+    break;
+  case TypeDescriptor::SignedChar:
     read_size = get_value<signed char>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "P") == 0)
-  {
+    break;
+  case TypeDescriptor::VoidPtr:
     read_size = get_value<void*>(read_buffer, fmt_store);
-  }
-  else if (std::strcmp(type_descriptor.data(), "SC") == 0 ||
-           std::strcmp(type_descriptor.data(), "S") == 0)
-  {
+    break;
+  case TypeDescriptor::String:
     read_size = get_value<char const*>(read_buffer, fmt_store);
-  }
-  else
-  {
-    QUILL_THROW(QuillError{"Unknown type descriptor. [" + type_descriptor + "] Can not de-serialize."});
+    break;
+  default:
+    QUILL_THROW(QuillError{"Unknown type descriptor. [" +
+                           std::string{static_cast<char>(type_descriptor)} + "] Can not de-serialize."});
   }
 
   return read_size;

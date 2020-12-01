@@ -30,6 +30,24 @@ enum class EnumClass : char
   Four
 };
 
+TEST_CASE("type_descriptor_string")
+{
+  std::string const s1 = type_descriptor_string<char, std::string, unsigned long, double>();
+  REQUIRE_STREQ(s1.c_str(), "mqhj");
+
+  std::string const s2 = type_descriptor_string<unsigned int, EnumClass, void*, double>();
+  REQUIRE_STREQ(s2.c_str(), "gmpj");
+
+  std::string const s3 = type_descriptor_string<char const[32], EnumClass, Enum, long int>();
+  REQUIRE_STREQ(s3.c_str(), "qmdd");
+
+  std::string const s4 = type_descriptor_string<>();
+  REQUIRE_STREQ(s4.c_str(), "");
+
+  std::string const s5 = type_descriptor_string<double>();
+  REQUIRE_STREQ(s5.c_str(), "j");
+}
+
 TEST_CASE("argument_size")
 {
   REQUIRE_EQ(argument_size(true), sizeof(bool));
@@ -97,8 +115,10 @@ TEST_CASE("serialize_deserialize_bool")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "true");
 }
@@ -115,8 +135,10 @@ TEST_CASE("serialize_deserialize_short")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "1");
 }
@@ -133,8 +155,10 @@ TEST_CASE("serialize_deserialize_int")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "-123");
 }
@@ -151,8 +175,10 @@ TEST_CASE("serialize_deserialize_long")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "-12345");
 }
@@ -169,8 +195,10 @@ TEST_CASE("serialize_deserialize_long_long")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "-12345678");
 }
@@ -187,8 +215,10 @@ TEST_CASE("serialize_deserialize_unsigned_short")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "1");
 }
@@ -205,8 +235,10 @@ TEST_CASE("serialize_deserialize_unsigned_int")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "123");
 }
@@ -223,8 +255,10 @@ TEST_CASE("serialize_deserialize_unsigned_long")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "12345");
 }
@@ -241,8 +275,10 @@ TEST_CASE("serialize_deserialize_unsigned_long_long")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "12345678");
 }
@@ -259,8 +295,10 @@ TEST_CASE("serialize_deserialize_unsigned_double")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "12.34");
 }
@@ -277,8 +315,10 @@ TEST_CASE("serialize_deserialize_unsigned_long_double")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "12.345");
 }
@@ -295,8 +335,10 @@ TEST_CASE("serialize_deserialize_unsigned_float")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "123.3");
 }
@@ -313,8 +355,10 @@ TEST_CASE("serialize_deserialize_char")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "a");
 }
@@ -331,8 +375,10 @@ TEST_CASE("serialize_deserialize_unsigned_char")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "98");
 }
@@ -349,8 +395,10 @@ TEST_CASE("serialize_deserialize_signed_char")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "c");
 }
@@ -372,8 +420,10 @@ TEST_CASE("serialize_deserialize_signed_void_ptr")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   // on windows we get like original: 0xaff81c and for ss.str(): 00AFF81C
 
@@ -406,8 +456,10 @@ TEST_CASE("serialize_deserialize_string")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "test serialize_deserialize_string");
 }
@@ -424,8 +476,10 @@ TEST_CASE("serialize_deserialize_char_ptr")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "test serialize_deserialize_string");
 }
@@ -442,8 +496,10 @@ TEST_CASE("serialize_deserialize_char_array")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "test serialize_deserialize_string");
 }
@@ -466,10 +522,9 @@ TEST_CASE("serialize_deserialize_many")
   std::string type_descriptor_s;
   construct_type_descriptor_string<char const*, int, double, std::string, float>(type_descriptor_s);
 
-  auto const tokens = split(type_descriptor_s, '%');
-  for (auto const& token : tokens)
+  for (char const type_descriptor : type_descriptor_s)
   {
-    deserialize_argument(cbuffer, fmt_store, token);
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
   }
 
   REQUIRE_EQ(fmt::vformat("{} {} {} {} {}", fmt_store),
@@ -489,8 +544,10 @@ TEST_CASE("serialize_deserialize_string_view")
   serialize_arguments(buffer, a);
 
   // get the type_descriptor and also erase % since we are only using it to split the string
-  auto const type_descriptor_s = split(type_descriptor_string<value_t>(), '%').front();
-  deserialize_argument(cbuffer, fmt_store, type_descriptor_s);
+  for (char const type_descriptor : type_descriptor_string<value_t>())
+  {
+    deserialize_argument(cbuffer, fmt_store, static_cast<TypeDescriptor>(type_descriptor));
+  }
 
   REQUIRE_EQ(fmt::vformat("{}", fmt_store), "test serialize_deserialize_string");
 }
