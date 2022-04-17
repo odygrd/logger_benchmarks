@@ -43,7 +43,7 @@ cmake_minimum_required(VERSION 3.2)
 
 project(g3log CXX)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT (MSVC_IDE OR XCODE))
@@ -67,8 +67,8 @@ endif()
 
 
 # Calculate the version number
-SET(MAJOR_VERSION 2)
-SET(MINOR_VERSION 1)
+SET(MAJOR_VERSION 1)
+SET(MINOR_VERSION 3)
 
 IF ( NOT VERSION )
    IF ( "${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows" )
@@ -151,7 +151,7 @@ include(${g3log_SOURCE_DIR}/test_unit/Test.cmake)
 # For OSX you can also install an older version using 'brew install'
 #
 # ==========================================================================
-#include(${g3log_SOURCE_DIR}/CPackLists.txt)
+include(${g3log_SOURCE_DIR}/CPackLists.txt)
 
 if(MINGW)
   # this enables strerror_s
