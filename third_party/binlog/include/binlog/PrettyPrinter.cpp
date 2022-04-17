@@ -2,6 +2,7 @@
 
 #include <binlog/ToStringVisitor.hpp>
 
+#include <mserialize/detail/Visit.hpp> // IntegerToHex
 #include <mserialize/detail/tag_util.hpp>
 #include <mserialize/string_view.hpp>
 #include <mserialize/visit.hpp>
@@ -14,6 +15,26 @@
 #include <ostream>
 
 namespace {
+
+// false iff %u appears earlier than %d in `format`, % escapes %
+bool useLocaltime(const std::string& format)
+{
+  bool placeholder = false;
+  for (char c : format)
+  {
+    if (placeholder)
+    {
+      if (c == 'd') { return true; }
+      if (c == 'u') { return false; }
+      placeholder = false;
+    }
+    else
+    {
+      placeholder = (c == '%');
+    }
+  }
+  return true;
+}
 
 // Given path=foo/bar/baz.cpp, write baz.cpp to out,
 // or the full path if no path separator (/ or \) found.
@@ -63,7 +84,9 @@ namespace binlog {
 
 PrettyPrinter::PrettyPrinter(std::string eventFormat, std::string timeFormat)
   :_eventFormat(std::move(eventFormat)),
-   _timeFormat(std::move(timeFormat))
+   _timeFormat(std::move(timeFormat)),
+   _useLocaltime(useLocaltime(_eventFormat)),
+   _clockSync(nullptr)
 {}
 
 void PrettyPrinter::printEvent(
@@ -71,9 +94,10 @@ void PrettyPrinter::printEvent(
   const Event& event,
   const WriterProp& writerProp,
   const ClockSync& clockSync
-) const
+)
 {
   detail::OstreamBuffer out(ostr);
+  _clockSync = &clockSync;
 
   for (std::size_t i = 0; i < _eventFormat.size(); ++i)
   {
@@ -81,7 +105,7 @@ void PrettyPrinter::printEvent(
     if (c == '%' && ++i != _eventFormat.size())
     {
       const char spec = _eventFormat[i];
-      printEventField(out, spec, event, writerProp, clockSync);
+      printEventField(out, spec, event, writerProp);
     }
     else
     {
@@ -90,12 +114,82 @@ void PrettyPrinter::printEvent(
   }
 }
 
+bool PrettyPrinter::printStruct(detail::OstreamBuffer& out, mserialize::Visitor::StructBegin sb, Range& input) const
+{
+  if (sb.name == "binlog::address" && sb.tag == "`value'L")
+  {
+    const std::uint64_t value = input.read<std::uint64_t>();
+    mserialize::detail::IntegerToHex tohex;
+    tohex.visit(value);
+    out << "0x" << tohex.value();
+    return true;
+  }
+
+  if (sb.name == "std::chrono::system_clock::time_point" && sb.tag == "`ns'l")
+  {
+    if (_clockSync == nullptr) { return false; }
+
+    BrokenDownTime bdt{};
+    const auto sinceEpoch = std::chrono::nanoseconds{input.read<std::int64_t>()};
+
+    if (_useLocaltime)
+    {
+      const std::chrono::nanoseconds sinceEpochTz = sinceEpoch + std::chrono::seconds{_clockSync->tzOffset};
+      nsSinceEpochToBrokenDownTimeUTC(sinceEpochTz, bdt);
+      printTime(out, bdt, _clockSync->tzOffset, _clockSync->tzName.data());
+    }
+    else
+    {
+      nsSinceEpochToBrokenDownTimeUTC(sinceEpoch, bdt);
+      printTime(out, bdt, 0, "UTC");
+    }
+    return true;
+  }
+
+  if (sb.name.starts_with("std::chrono::duration<Rep,"))
+  {
+    const char* suffix =
+      sb.name.ends_with("std::nano>") ? "ns" :
+      sb.name.ends_with("std::micro>") ? "us" :
+      sb.name.ends_with("std::milli>") ? "ms" :
+      sb.name.ends_with("std::ratio<1>>") ? "s" :
+      sb.name.ends_with("std::ratio<60>>") ? "m" :
+      sb.name.ends_with("std::ratio<3600>>") ? "h" :
+      nullptr;
+    if (suffix != nullptr)
+    {
+      if (sb.tag == "`count'l")
+      {
+        const std::int64_t count = input.read<std::int64_t>();
+        out << count << suffix;
+        return true;
+      }
+      if (sb.tag == "`count'i") // on MSVC, for minutes and hours
+      {
+        const std::int32_t count = input.read<std::int32_t>();
+        out << count << suffix;
+        return true;
+      }
+    }
+  }
+
+  if ((sb.name == "std::filesystem::path" && sb.tag == "`str'[c")
+  || (sb.name == "std::filesystem::directory_entry" && sb.tag == "`path'{std::filesystem::path`str'[c}")
+  || (sb.name == "std::error_code" && sb.tag == "`message'[c")
+  ) {
+    const std::uint32_t size = input.read<std::uint32_t>();
+    out.write(input.view(size), size);
+    return true;
+  }
+
+  return false;
+}
+
 void PrettyPrinter::printEventField(
   detail::OstreamBuffer& out,
   char spec,
   const Event& event,
-  const WriterProp& writerProp,
-  const ClockSync& clockSync
+  const WriterProp& writerProp
 ) const
 {
   switch (spec)
@@ -134,10 +228,10 @@ void PrettyPrinter::printEventField(
     out << writerProp.id;
     break;
   case 'd':
-    printProducerLocalTime(out, clockSync, event.clockValue);
+    printProducerLocalTime(out, event.clockValue);
     break;
   case 'u':
-    printUTCTime(out, clockSync, event.clockValue);
+    printUTCTime(out, event.clockValue);
     break;
   case 'r':
     out << event.clockValue;
@@ -158,7 +252,7 @@ void PrettyPrinter::printEventMessage(detail::OstreamBuffer& out, const Event& e
 {
   mserialize::string_view tags = event.source->argumentTags;
   Range args = event.arguments;
-  ToStringVisitor visitor(out);
+  ToStringVisitor visitor(out, this);
 
   const std::string& fmt = event.source->formatString;
   for (std::size_t i = 0; i < fmt.size(); ++i)
@@ -177,17 +271,17 @@ void PrettyPrinter::printEventMessage(detail::OstreamBuffer& out, const Event& e
   }
 }
 
-void PrettyPrinter::printProducerLocalTime(detail::OstreamBuffer& out, const ClockSync& clockSync, std::uint64_t clockValue) const
+void PrettyPrinter::printProducerLocalTime(detail::OstreamBuffer& out, std::uint64_t clockValue) const
 {
   // TODO(benedek) perf: cache bdt, update instead of complete recompute
 
-  if (std::int64_t(clockSync.clockFrequency) > 0)
+  if (std::int64_t(_clockSync->clockFrequency) > 0)
   {
     BrokenDownTime bdt{};
-    const std::chrono::nanoseconds sinceEpoch = clockToNsSinceEpoch(clockSync, clockValue);
-    const std::chrono::nanoseconds sinceEpochTz = sinceEpoch + std::chrono::seconds{clockSync.tzOffset};
+    const std::chrono::nanoseconds sinceEpoch = clockToNsSinceEpoch(*_clockSync, clockValue);
+    const std::chrono::nanoseconds sinceEpochTz = sinceEpoch + std::chrono::seconds{_clockSync->tzOffset};
     nsSinceEpochToBrokenDownTimeUTC(sinceEpochTz, bdt);
-    printTime(out, bdt, clockSync.tzOffset, clockSync.tzName.data());
+    printTime(out, bdt, _clockSync->tzOffset, _clockSync->tzName.data());
   }
   else
   {
@@ -195,14 +289,14 @@ void PrettyPrinter::printProducerLocalTime(detail::OstreamBuffer& out, const Clo
   }
 }
 
-void PrettyPrinter::printUTCTime(detail::OstreamBuffer& out, const ClockSync& clockSync, std::uint64_t clockValue) const
+void PrettyPrinter::printUTCTime(detail::OstreamBuffer& out, std::uint64_t clockValue) const
 {
   // TODO(benedek) perf: cache bdt, update instead of complete recompute
 
-  if (std::int64_t(clockSync.clockFrequency) > 0)
+  if (std::int64_t(_clockSync->clockFrequency) > 0)
   {
     BrokenDownTime bdt{};
-    const std::chrono::nanoseconds sinceEpoch = clockToNsSinceEpoch(clockSync, clockValue);
+    const std::chrono::nanoseconds sinceEpoch = clockToNsSinceEpoch(*_clockSync, clockValue);
     nsSinceEpochToBrokenDownTimeUTC(sinceEpoch, bdt);
     printTime(out, bdt, 0, "UTC");
   }

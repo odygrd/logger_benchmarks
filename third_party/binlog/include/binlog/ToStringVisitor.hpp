@@ -1,6 +1,7 @@
 #ifndef BINLOG_TO_STRING_VISITOR_HPP
 #define BINLOG_TO_STRING_VISITOR_HPP
 
+#include <binlog/Range.hpp>
 #include <binlog/detail/OstreamBuffer.hpp>
 
 #include <mserialize/Visitor.hpp>
@@ -8,6 +9,8 @@
 #include <cstdint>
 
 namespace binlog {
+
+class PrettyPrinter;
 
 /**
  * Convert serialized values to string.
@@ -25,7 +28,7 @@ namespace binlog {
 class ToStringVisitor
 {
 public:
-  explicit ToStringVisitor(detail::OstreamBuffer& out);
+  explicit ToStringVisitor(detail::OstreamBuffer& out, const PrettyPrinter* pp = nullptr);
 
   // catch all for arithmetic types
   template <typename T>
@@ -38,21 +41,19 @@ public:
   void visit(std::int8_t);
   void visit(std::uint8_t);
 
-  void visit(mserialize::Visitor::SequenceBegin);
+  bool visit(mserialize::Visitor::SequenceBegin, Range&);
   void visit(mserialize::Visitor::SequenceEnd);
 
-  void visit(mserialize::Visitor::String);
-
-  void visit(mserialize::Visitor::TupleBegin);
+  bool visit(mserialize::Visitor::TupleBegin, const Range&);
   void visit(mserialize::Visitor::TupleEnd);
 
-  void visit(mserialize::Visitor::VariantBegin) {}
+  bool visit(mserialize::Visitor::VariantBegin, const Range&) { return false; }
   void visit(mserialize::Visitor::VariantEnd) {}
   void visit(mserialize::Visitor::Null);
 
   void visit(mserialize::Visitor::Enum);
 
-  void visit(mserialize::Visitor::StructBegin);
+  bool visit(mserialize::Visitor::StructBegin, Range&);
   void visit(mserialize::Visitor::StructEnd);
 
   void visit(mserialize::Visitor::FieldBegin);
@@ -76,6 +77,7 @@ private:
   int _seqDepth;
   bool _emptyStruct;
   detail::OstreamBuffer& _out;
+  const PrettyPrinter* _pp;
 };
 
 } // namespace binlog

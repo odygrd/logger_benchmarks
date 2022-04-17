@@ -75,10 +75,18 @@ void visit_arithmetic(char tag, Visitor& visitor, InputStream& istream)
   }
 }
 
+/** @pre tag.front() == '[' , followed by a single tag */
 template <typename Visitor, typename InputStream>
-void visit_sequence_impl(const string_view full_tag, const string_view elem_tag, std::uint32_t size, Visitor& visitor, InputStream& istream, int max_recursion, char)
+void visit_sequence(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream, int max_recursion)
 {
-  visitor.visit(mserialize::Visitor::SequenceBegin{size, elem_tag});
+  tag.remove_prefix(1); // drop [
+
+  std::uint32_t size;
+  mserialize::deserialize(size, istream);
+  const string_view elem_tag = tag_pop(tag);
+
+  const bool skip = visitor.visit(mserialize::Visitor::SequenceBegin{size, elem_tag}, istream);
+  if (skip) { return; }
 
   if (size > 32 && singular(full_tag, elem_tag, max_recursion))
   {
@@ -99,34 +107,6 @@ void visit_sequence_impl(const string_view full_tag, const string_view elem_tag,
   visitor.visit(mserialize::Visitor::SequenceEnd{});
 }
 
-template <typename Visitor, typename InputStream>
-void_t<decltype(&InputStream::view)>
-visit_sequence_impl(const string_view full_tag, const string_view elem_tag, std::uint32_t size, Visitor& visitor, InputStream& istream, int max_recursion, int)
-{
-  if (elem_tag.size() == 1 && elem_tag[0] == 'c')
-  {
-    string_view data(istream.view(size), size);
-    visitor.visit(mserialize::Visitor::String{data});
-  }
-  else
-  {
-    visit_sequence_impl(full_tag, elem_tag, size, visitor, istream, max_recursion, '\0');
-  }
-}
-
-/** @pre tag.front() == '[' , followed by a single tag */
-template <typename Visitor, typename InputStream>
-void visit_sequence(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream, int max_recursion)
-{
-  tag.remove_prefix(1); // drop [
-
-  std::uint32_t size;
-  mserialize::deserialize(size, istream);
-  const string_view elem_tag = tag_pop(tag);
-
-  visit_sequence_impl(full_tag, elem_tag, size, visitor, istream, max_recursion, 0);
-}
-
 /** @pre tag.front() == '(' and tag.back() == ')' , enclosing any number of concatenated tags */
 template <typename Visitor, typename InputStream>
 void visit_tuple(const string_view full_tag, string_view tag, Visitor& visitor, InputStream& istream, int max_recursion)
@@ -134,7 +114,8 @@ void visit_tuple(const string_view full_tag, string_view tag, Visitor& visitor, 
   tag.remove_prefix(1); // drop (
   tag.remove_suffix(1); // drop )
 
-  visitor.visit(mserialize::Visitor::TupleBegin{tag});
+  const bool skip = visitor.visit(mserialize::Visitor::TupleBegin{tag}, istream);
+  if (skip) { return; }
 
   for (string_view elem_tag = tag_pop(tag); ! elem_tag.empty(); elem_tag = tag_pop(tag))
   {
@@ -159,7 +140,8 @@ void visit_variant(const string_view full_tag, string_view tag, Visitor& visitor
 
   const string_view option_tag = tag_pop(tag);
 
-  visitor.visit(mserialize::Visitor::VariantBegin{discriminator, option_tag});
+  const bool skip = visitor.visit(mserialize::Visitor::VariantBegin{discriminator, option_tag}, istream);
+  if (skip) { return; }
 
   if (option_tag == "0")
   {
@@ -199,7 +181,8 @@ void visit_struct(const string_view full_tag, string_view tag, Visitor& visitor,
 
   intro.remove_prefix(1); // drop {
 
-  visitor.visit(mserialize::Visitor::StructBegin{intro, tag});
+  const bool skip = visitor.visit(mserialize::Visitor::StructBegin{intro, tag}, istream);
+  if (skip) { return; }
 
   while (! tag.empty())
   {

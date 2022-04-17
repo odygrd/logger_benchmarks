@@ -1,15 +1,17 @@
 #include <binlog/ToStringVisitor.hpp>
 
-#include <mserialize/detail/tag_util.hpp> // remove_prefix_before
+#include <binlog/PrettyPrinter.hpp>
 
+#include <mserialize/detail/tag_util.hpp> // remove_prefix_before
 
 namespace binlog {
 
-ToStringVisitor::ToStringVisitor(detail::OstreamBuffer& out)
+ToStringVisitor::ToStringVisitor(detail::OstreamBuffer& out, const PrettyPrinter* pp)
   :_state(State::Normal),
    _seqDepth(0),
    _emptyStruct(false),
-   _out(out)
+   _out(out),
+   _pp(pp)
 {}
 
 // avoid displaying int8_t and uint8_t as a character
@@ -25,12 +27,20 @@ void ToStringVisitor::visit(std::uint8_t v)
   _out << unsigned(v);
 }
 
-void ToStringVisitor::visit(mserialize::Visitor::SequenceBegin)
+bool ToStringVisitor::visit(mserialize::Visitor::SequenceBegin sb, Range& input)
 {
   comma();
 
+  if (sb.tag.size() == 1 && sb.tag[0] == 'c') // skip char-by-char visitation of strings
+  {
+    _out.write(input.view(sb.size), sb.size);
+    return true;
+  }
+
   _out.put('[');
   enterSeq();
+
+  return false;
 }
 
 void ToStringVisitor::visit(mserialize::Visitor::SequenceEnd)
@@ -39,17 +49,12 @@ void ToStringVisitor::visit(mserialize::Visitor::SequenceEnd)
   leaveSeq();
 }
 
-void ToStringVisitor::visit(mserialize::Visitor::String str)
-{
-  comma();
-  _out << str.data;
-}
-
-void ToStringVisitor::visit(mserialize::Visitor::TupleBegin)
+bool ToStringVisitor::visit(mserialize::Visitor::TupleBegin, const Range&)
 {
   comma();
   _out.put('(');
   enterSeq();
+  return false;
 }
 
 void ToStringVisitor::visit(mserialize::Visitor::TupleEnd)
@@ -77,9 +82,15 @@ void ToStringVisitor::visit(mserialize::Visitor::Enum e)
   }
 }
 
-void ToStringVisitor::visit(mserialize::Visitor::StructBegin sb)
+bool ToStringVisitor::visit(mserialize::Visitor::StructBegin sb, Range& input)
 {
   comma();
+
+  if (_pp != nullptr && _pp->printStruct(_out, sb, input))
+  {
+    return true;
+  }
+
   _out << mserialize::detail::remove_prefix_before(sb.name, '<');
   if (sb.tag.empty())
   {
@@ -90,6 +101,8 @@ void ToStringVisitor::visit(mserialize::Visitor::StructBegin sb)
     _out << "{ ";
     enterSeq();
   }
+
+  return false;
 }
 
 void ToStringVisitor::visit(mserialize::Visitor::StructEnd)
