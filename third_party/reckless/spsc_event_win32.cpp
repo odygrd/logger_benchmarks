@@ -1,5 +1,5 @@
 /* This file is part of reckless logging
- * Copyright 2015, 2016 Mattias Flodin <git@codepentry.com>
+ * Copyright 2015-2020 Mattias Flodin <git@codepentry.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -19,39 +19,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-#include "detail/utility.hpp"
-
-#include <unistd.h>
-
-namespace {
-std::size_t get_cache_line_size()
-{
-    long sz = sysconf(_SC_LEVEL1_DCACHE_LINESIZE);
-    return sz;
-}
-}   // anonymous namespace
+#include <detail/spsc_event.hpp>
+#include <new>
+#include <Windows.h>
 
 namespace reckless {
 namespace detail {
-    
-unsigned const cache_line_size = get_cache_line_size();
 
-std::size_t get_page_size()
+spsc_event::spsc_event() : handle_(CreateEvent(NULL, FALSE, FALSE, NULL))
 {
-    long sz = sysconf(_SC_PAGESIZE);
-    return sz;
+    if(handle_ == NULL)
+        throw std::bad_alloc();
 }
 
-void prefetch(void const* ptr, std::size_t size)
+spsc_event::~spsc_event()
 {
-    char const* p = static_cast<char const*>(ptr);
-    unsigned i = 0;
-    unsigned const stride = cache_line_size;
-    while(i < size) {
-        __builtin_prefetch(p + i);
-        i += stride;
-    }
+    CloseHandle(handle_);
 }
 
-}   // namespace detail
-}   // namespace reckless
+}
+}

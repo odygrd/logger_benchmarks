@@ -1,5 +1,5 @@
 /* This file is part of reckless logging
- * Copyright 2015, 2016 Mattias Flodin <git@codepentry.com>
+ * Copyright 2015-2020 Mattias Flodin <git@codepentry.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,7 @@
 #ifndef RECKLESS_SEVERITY_LOG_HPP
 #define RECKLESS_SEVERITY_LOG_HPP
 
-#include <reckless/policy_log.hpp>
+#include <policy_log.hpp>
 
 namespace reckless {
 class severity_field {
@@ -57,20 +57,7 @@ namespace detail {
 template <class IndentPolicy, char FieldSeparator, class... HeaderFields>
 class severity_log : public basic_log {
 public:
-    severity_log()
-    {
-    }
-
-    severity_log(writer* pwriter,
-            std::size_t output_buffer_max_capacity = 0,
-            std::size_t shared_input_queue_size = 0,
-            std::size_t thread_input_buffer_size = 0) :
-        basic_log(pwriter,
-                 output_buffer_max_capacity,
-                 shared_input_queue_size,
-                 thread_input_buffer_size)
-    {
-    }
+    using basic_log::basic_log;
 
     template <typename... Args>
     void debug(char const* fmt, Args&&... args)

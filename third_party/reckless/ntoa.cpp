@@ -1,5 +1,5 @@
 /* This file is part of reckless logging
- * Copyright 2015, 2016 Mattias Flodin <git@codepentry.com>
+ * Copyright 2015-2020 Mattias Flodin <git@codepentry.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -19,21 +19,21 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-#include "ntoa.hpp"
+#include <ntoa.hpp>
 
-#include "writer.hpp"
-#include "detail/utility.hpp"
+#include <writer.hpp>
+#include <detail/utility.hpp>
 
 #include <algorithm>    // max, min
 #include <type_traits>  // is_unsigned
 #include <cassert>
 #include <cstring>      // memset
-#include <cmath>        // lrint, llrint
+#include <cmath>        // lrint, llrint, frexp
 
 namespace reckless {
-namespace {
+namespace detail {
 
-char const decimal_digits[] =
+char const decimal_digits[201] =
     "00010203040506070809"
     "10111213141516171819"
     "20212223242526272829"
@@ -45,7 +45,7 @@ char const decimal_digits[] =
     "80818283848586878889"
     "90919293949596979899";
 
-std::uint64_t const power_lut[] = {
+std::uint64_t const power_lut[19] = {
     1,  // 0
     10,  // 1
     100,  // 2
@@ -66,7 +66,9 @@ std::uint64_t const power_lut[] = {
     100000000000000000,  // 17
     1000000000000000000   // 18
 };
+}   // namespace detail
 
+namespace {
 
 template <typename T>
 typename std::make_unsigned<T>::type unsigned_cast(T v)
@@ -87,6 +89,8 @@ template <typename Unsigned>
 typename std::enable_if<std::is_unsigned<Unsigned>::value, unsigned>::type
 utoa_generic_base10_preallocated(char* str, unsigned pos, Unsigned value)
 {
+    using detail::decimal_digits;
+
     if(value == 0)
         return pos;
     // FIXME is this right? What if value /= 100 yields 0 here? Do we get an
@@ -103,9 +107,9 @@ utoa_generic_base10_preallocated(char* str, unsigned pos, Unsigned value)
     }
     if(value < 10) {
         --pos;
-        str[pos] = '0' + unsigned_cast(value);
+        str[pos] = '0' + static_cast<char>(unsigned_cast(value));
     } else {
-        std::size_t offset = 2*value;
+        std::size_t offset = static_cast<std::size_t>(2*value);
         char d1 = decimal_digits[offset];
         char d2 = decimal_digits[offset+1];
         pos -= 2;
@@ -119,6 +123,8 @@ template <typename Unsigned>
 typename std::enable_if<std::is_unsigned<Unsigned>::value, Unsigned>::type
 utoa_generic_base10_preallocated(char* str, unsigned pos, Unsigned value, unsigned digits)
 {
+    using detail::decimal_digits;
+
     while(digits >= 2) {
         Unsigned remainder = value % 100;
         value /= 100;
@@ -132,7 +138,7 @@ utoa_generic_base10_preallocated(char* str, unsigned pos, Unsigned value, unsign
     }
     if(digits == 1) {
         --pos;
-        str[pos] = '0' + unsigned_cast(value % 10);
+        str[pos] = '0' + static_cast<char>(unsigned_cast(value % 10));
         value /= 10;
     }
     return value;
@@ -150,7 +156,7 @@ utoa_generic_base16_preallocated(char* str, unsigned pos, Unsigned value)
         value /= 0x10;
         str[pos] = v + (v<10? digit_offset : hexdigit_offset);
     }
-    return pos;   
+    return pos;
 }
 
 // For special case v=0, this returns 0.
@@ -279,7 +285,7 @@ log10(Uint64 x)
     // 01 234 56 789 AB CDE FG HIJ
     // 0 1 2 34 5 6 7 89 A B C DE F G H IJ
     //       3 4      8 9      D E      I J
-    // 
+    //
     // Splitting on 4 in the first branch gives us:
     // 012 3456789ABCDEFGHIJ
     // 0 12 3456789A BCDEFGHIJ
@@ -403,7 +409,7 @@ void itoa_generic_base10(output_buffer* pbuffer, bool negative, Unsigned value, 
     } else {
         sign = cs.plus_sign;
     }
-    
+
     // We have either
     // [sign] [zeroes] [digits] [padding]
     //        [---precision---]
@@ -424,10 +430,10 @@ void itoa_generic_base10(output_buffer* pbuffer, bool negative, Unsigned value, 
         zeroes += padding;
         padding = 0;
     }
-    
+
     char* str = pbuffer->reserve(size);
     unsigned pos = size;
-    
+
     if(cs.left_justify) {
         pos -= padding;
         std::memset(str+pos, ' ', padding);
@@ -472,7 +478,7 @@ void itoa_generic_base16(output_buffer* pbuffer, bool negative, Unsigned value, 
     unsigned digits = 0;
     unsigned prefix = 0;
     if(value != 0) {
-        digits = log16(value) + 1;
+        digits = static_cast<unsigned>(log16(value) + 1);
         if(cs.alternative_form)
             prefix = 2;
     }
@@ -515,7 +521,7 @@ void itoa_generic_base16(output_buffer* pbuffer, bool negative, Unsigned value, 
     assert(pos == 0);
     pbuffer->commit(size);
 }
-    
+
 template <typename Integer>
 typename std::enable_if<std::is_signed<Integer>::value, void>::type
 itoa_generic_base16(output_buffer* pbuffer, Integer value, conversion_specification const& cs)
@@ -536,6 +542,7 @@ itoa_generic_base16(output_buffer* pbuffer, Integer value, conversion_specificat
     itoa_generic_base16(pbuffer, false, value, cs);
 }
 
+#if defined(__GNUC__)
 template <typename Float>
 Float fxtract(Float v, Float* exp)
 {
@@ -543,6 +550,43 @@ Float fxtract(Float v, Float* exp)
     asm("fxtract" : "=t"(significand), "=u"(*exp) : "0"(v));
     return significand;
 }
+#elif defined(_MSC_VER)
+
+double fxtract(long double v, long double* exp)
+{
+    // So here's what you might think we can do.
+    //  long double significand;
+    //  long double exp;
+    //  __asm {
+    //      fld [v]
+    //      fxtract
+    //      fstp [exp]
+    //      fstp [significand]
+    //  }
+    //
+    // But MSVC does not support inline asm on x64, and don't have fxtract as
+    // an intrinsic, so we're kinda screwed. Additionally, they decided they
+    // don't need no 80-bit long double any longer, so we're even more screwed.
+    // I'm not sure how they expect anyone to be able to do this kind of stuff
+    // with the same quality and speed as e.g. gcc, but... their call. Instead
+    // we'll just extract the bits from the in-memory representation.
+
+    int iexp;
+    auto significand = std::frexp(v, &iexp);
+    *exp = iexp - 1;
+    return static_cast<double>(2*significand);
+
+    //std::uint16_t const* pv = reinterpret_cast<std::uint16_t const*>(&v);
+    //// Highest 16 bits is seeeeeee eeeemmmm. We want the e part which is the
+    //// exponent.
+    //unsigned exponent = pv[3];
+    //exponent = (exponent >> 4) & 0x7ff;
+    //*exp = static_cast<int>(exponent) - 1023;
+}
+
+#else
+static_assert(false, "fxtract is not implemented for this compiler")
+#endif
 
 template <typename Float>
 inline std::uint_fast64_t u64_rint(Float value)
@@ -564,7 +608,7 @@ decimal18 binary64_to_decimal18(double v)
 {
     if(v == 0)
         return {std::signbit(v), 0, 0};
-    
+
     long double e2;
     long double m2 = fxtract(static_cast<long double>(v), &e2);
 
@@ -572,19 +616,19 @@ decimal18 binary64_to_decimal18(double v)
     //   v = m2 * 2^e2  [1 <= m2 < 2] (1)
     // and want a new representation
     //   v = m10 * 10^e10  [1 <= m10 < 10].
-    //   
+    //
     // (1) can be rewritten as
     //   m2 * 10^(C*e2)  [C = log(2)/log(10)] =
     //   m2 * 10^(e10i + e10f)  [e10i = trunc(C*e2), e10f=frac(C*e2)] =
     //   m2 * 10^e10i * 10^e10f.
-    //   
+    //
     // If m2 * 10^e10f turns out to be in the range [1, 10) then this gives us
     // a value for m10 (and consequently for e10=C*e2i). But assuming e2f is a
     // positive fraction, we have
     //   0 <= e2f < 1
     //   1 <= 10^e2f < 10.
     //   1 <= m2 * 10^e2f < 20.
-    //   
+    //
     // We can adjust for m2 * 10^e2f >= 10 by dividing m2 by 10 and increasing
     // e10 by one. Hence, with D = e2*log(2)/log(10) we have
     //   m10 = m2 * 10^(frac(D))
@@ -594,7 +638,7 @@ decimal18 binary64_to_decimal18(double v)
     //   e10 = trunc(D) + 1.
     // when m2*10^(frac(D)) >= 10, i.e. normalization requires at most a shift
     // to the right by 1 digit.
-    // 
+    //
     // If e2f is a negative fraction we get
     //   -1 < e2f <= 0
     //   0.1 <= 10^e2f <= 1.
@@ -642,10 +686,10 @@ std::uint64_t rounded_divide(bool sign, std::uint64_t value, std::uint64_t divis
 }
 std::uint64_t rounded_rshift(bool sign, std::uint64_t value, unsigned digits)
 {
-    return rounded_divide(sign, value, power_lut[digits]);
+    return rounded_divide(sign, value, detail::power_lut[digits]);
 }
 
-unsigned count_trailing_zeroes(decimal18 const& dv, std::uint64_t truncated_digits)
+unsigned count_trailing_zeroes(decimal18 const& dv, unsigned truncated_digits)
 {
     std::uint64_t mantissa = rounded_rshift(dv.sign, dv.mantissa, truncated_digits);
     unsigned low = 0;
@@ -654,7 +698,7 @@ unsigned count_trailing_zeroes(decimal18 const& dv, std::uint64_t truncated_digi
     // Then the number of trailing zeroes is x-1.
     while(low < high) {
         unsigned pos = (low + high)/2;
-        if(mantissa % power_lut[pos] == 0)
+        if(mantissa % detail::power_lut[pos] == 0)
             low = pos + 1;
         else
             high = pos;
@@ -681,7 +725,7 @@ unsigned count_trailing_zeroes_after_dot(decimal18 const& dv)
     // Then the number of trailing zeroes is x-1.
     while(low < high) {
         unsigned pos = (low + high)/2;
-        if(mantissa % power_lut[pos] == 0)
+        if(mantissa % detail::power_lut[pos] == 0)
             low = pos + 1;
         else
             high = pos;
@@ -734,7 +778,7 @@ void ftoa_base10_f_normal(output_buffer* pbuffer, decimal18 dv, unsigned precisi
     unsigned zeroes_before_dot;
     unsigned zeroes_after_dot;
     unsigned digits_after_dot;
-    
+
     if(dv.exponent>=17) {
         // All digits from the mantissa are on the left-hand side of the dot.
         digits_before_dot = 18;
@@ -768,14 +812,14 @@ void ftoa_base10_f_normal(output_buffer* pbuffer, decimal18 dv, unsigned precisi
         }
     }
     unsigned suffix_zeroes = precision - (zeroes_after_dot + digits_after_dot);
-    
+
     bool dot = cs.alternative_form
         || (zeroes_after_dot + digits_after_dot + suffix_zeroes != 0);
 
     // Reduce the mantissa part to the requested number of digits.
     auto mantissa_digits = digits_before_dot + digits_after_dot;
     std::uint64_t mantissa = rounded_rshift(dv.sign, dv.mantissa, 18-mantissa_digits);
-    auto order = power_lut[mantissa_digits];
+    auto order = detail::power_lut[mantissa_digits];
     bool carry = mantissa >= order;
     if(carry) {
         // When reducing the mantissa, rounding caused it to overflow. For
@@ -785,7 +829,7 @@ void ftoa_base10_f_normal(output_buffer* pbuffer, decimal18 dv, unsigned precisi
         // end up not with 9, but with 10 due to rounding. In this case we need
         // to make room for an extra digit from the mantissa, which we'll take
         // from zeroes_after_dot or by increasing digits_before_dot.
-        // 
+        //
         // Logically this can only happen if there are actual digits from the
         // mantissa on the right-hand side of the dot. If all the digits are on
         // the left-hand side then no reduction will take place, because only
@@ -827,7 +871,7 @@ void ftoa_base10_f_normal(output_buffer* pbuffer, decimal18 dv, unsigned precisi
         mantissa = utoa_generic_base10_preallocated(str, pos, mantissa,
                 digits_after_dot);
         pos -= digits_after_dot;
-        
+
         pos -= zeroes_after_dot;
         std::memset(str+pos, '0', zeroes_after_dot);
         str[--pos] = '.';
@@ -869,7 +913,7 @@ void ftoa_base10_e_normal(output_buffer* pbuffer, decimal18 dv,
     }
     unsigned digits_after_dot = precision;
     int dot = digits_after_dot!=0 || cs.alternative_form;
-    
+
     int exponent_digits;
     // Apparently stdio never prints less than two digits for the exponent,
     // so we'll do the same to stay consistent. Maximum value of the exponent
@@ -888,11 +932,11 @@ void ftoa_base10_e_normal(output_buffer* pbuffer, decimal18 dv,
         pad_zeroes = padding;
         padding = 0;
     }
-    
+
     // Get rid of digits we don't want in the mantissa.
     std::uint64_t mantissa = rounded_rshift(dv.sign, dv.mantissa,
             18-(digits_after_dot+1));
-    
+
     char* str = pbuffer->reserve(size);
 
     unsigned pos = size;
@@ -908,7 +952,7 @@ void ftoa_base10_e_normal(output_buffer* pbuffer, decimal18 dv,
 
     mantissa = utoa_generic_base10_preallocated(str, pos, mantissa, digits_after_dot);
     pos -= digits_after_dot;
-    
+
     if(dot)
         str[--pos] = '.';
 
@@ -918,7 +962,7 @@ void ftoa_base10_e_normal(output_buffer* pbuffer, decimal18 dv,
     std::memset(str+pos, '0', pad_zeroes);
     if(sign)
         str[0] = sign;
-    
+
     if(!cs.left_justify) {
         pos -= padding;
         std::memset(str+pos, ' ', padding);
@@ -1011,7 +1055,7 @@ void ftoa_base10_g(output_buffer* pbuffer, double value, conversion_specificatio
     // want in the string representation. If the number of significant digits is
     // not enough to represent all the digits up to the dot (i.e. it is higher than
     // the number's exponent), then %e notation is used instead.
-    // 
+    //
     // A special feature of %g which is not present in %e and %f is that if there
     // are trailing zeroes in the fraction then those will be removed, unless
     // alternative mode is requested. Alternative mode also means that the period
@@ -1043,7 +1087,7 @@ void ftoa_base10_g(output_buffer* pbuffer, double value, conversion_specificatio
             }
         }
         unsigned truncated_digits = 18 - p;
-        
+
         if(p > dv.exponent && dv.exponent >= minimum_exponent) {
             unsigned trailing_zeroes = 0;
             if(!cs.alternative_form) {
@@ -1183,13 +1227,13 @@ public:
         cs.pad_with_zeroes = false;
         cs.plus_sign = 0;
         cs.uppercase = false;
-        
+
         TEST(convert(0, cs) == "          0");
         TEST(convert(1, cs) == "          1");
         TEST(convert(2, cs) == "          2");
         TEST(convert(10, cs) == "         10");
         TEST(convert(100, cs) == "        100");
-        
+
         TEST(convert(-1, cs) == "         -1");
         TEST(convert(-2, cs) == "         -2");
         TEST(convert(-10, cs) == "        -10");
@@ -1206,13 +1250,13 @@ public:
         cs.pad_with_zeroes = false;
         cs.plus_sign = 0;
         cs.uppercase = false;
-        
+
         TEST(convert(0, cs) == "0          ");
         TEST(convert(1, cs) == "1          ");
         TEST(convert(2, cs) == "2          ");
         TEST(convert(10, cs) == "10         ");
         TEST(convert(100, cs) == "100        ");
-        
+
         TEST(convert(-1, cs) == "-1         ");
         TEST(convert(-2, cs) == "-2         ");
         TEST(convert(-10, cs) == "-10        ");
@@ -1233,21 +1277,21 @@ public:
         TEST(convert(0, cs) == "");
         TEST(convert(1, cs) == "1");
         TEST(convert(10, cs) == "10");
-        
+
         cs.precision = 1;
-        
+
         TEST(convert(0, cs) == "0");
         TEST(convert(1, cs) == "1");
         TEST(convert(10, cs) == "10");
-        
+
         cs.precision = 2;
-        
+
         TEST(convert(0, cs) == "00");
         TEST(convert(1, cs) == "01");
         TEST(convert(10, cs) == "10");
-        
+
         cs.precision = 3;
-        
+
         TEST(convert(0, cs) == "000");
         TEST(convert(1, cs) == "001");
         TEST(convert(10, cs) == "010");
@@ -1263,12 +1307,12 @@ public:
         cs.pad_with_zeroes = false;
         cs.plus_sign = '+';
         cs.uppercase = false;
-        
+
         TEST(convert(0, cs) == "+");
         TEST(convert(1, cs) == "+1");
         TEST(convert(10, cs) == "+10");
         TEST(convert(-10, cs) == "-10");
-        
+
         cs.plus_sign = ' ';
         TEST(convert(1, cs) == " 1");
         TEST(convert(-1, cs) == "-1");
@@ -1299,7 +1343,7 @@ public:
         TEST(convert(1, cs) == "00001");
         TEST(convert(1000, cs) == "01000");
     }
-    
+
 private:
     template <class T>
     std::string convert(T v)
@@ -1312,20 +1356,20 @@ private:
         cs.pad_with_zeroes = false;
         cs.plus_sign = 0;
         cs.uppercase = false;
-        
+
         return convert(v, cs);
     }
     template <class T>
     std::string convert(T v, conversion_specification const& cs)
     {
         writer_.reset();
-        
+
         itoa_base10(&output_buffer_, v, cs);
-        
+
         output_buffer_.flush();
         return writer_.str();
     }
-    
+
     string_writer writer_;
     whitebox_output_buffer output_buffer_;
 };
@@ -1386,13 +1430,13 @@ public:
         cs.pad_with_zeroes = false;
         cs.plus_sign = 0;
         cs.uppercase = false;
-        
+
         TEST(convert(0x0, cs) == "          0");
         TEST(convert(0x1, cs) == "          1");
         TEST(convert(0x2, cs) == "          2");
         TEST(convert(0x10, cs) == "         10");
         TEST(convert(0x100, cs) == "        100");
-        
+
         TEST(convert(-0x1, cs) == "         -1");
         TEST(convert(-0x2, cs) == "         -2");
         TEST(convert(-0x10, cs) == "        -10");
@@ -1409,13 +1453,13 @@ public:
         cs.pad_with_zeroes = false;
         cs.plus_sign = 0;
         cs.uppercase = false;
-        
+
         TEST(convert(0x0, cs) == "0          ");
         TEST(convert(0x1, cs) == "1          ");
         TEST(convert(0x2, cs) == "2          ");
         TEST(convert(0x10, cs) == "10         ");
         TEST(convert(0x100, cs) == "100        ");
-        
+
         TEST(convert(-0x1, cs) == "-1         ");
         TEST(convert(-0x2, cs) == "-2         ");
         TEST(convert(-0x10, cs) == "-10        ");
@@ -1436,21 +1480,21 @@ public:
         TEST(convert(0, cs) == "");
         TEST(convert(1, cs) == "1");
         TEST(convert(0x10, cs) == "10");
-        
+
         cs.precision = 1;
-        
+
         TEST(convert(0x0, cs) == "0");
         TEST(convert(0x1, cs) == "1");
         TEST(convert(0x10, cs) == "10");
-        
+
         cs.precision = 2;
-        
+
         TEST(convert(0x0, cs) == "00");
         TEST(convert(0x1, cs) == "01");
         TEST(convert(0x10, cs) == "10");
-        
+
         cs.precision = 3;
-        
+
         TEST(convert(0x0, cs) == "000");
         TEST(convert(0x1, cs) == "001");
         TEST(convert(0x10, cs) == "010");
@@ -1466,12 +1510,12 @@ public:
         cs.pad_with_zeroes = false;
         cs.plus_sign = '+';
         cs.uppercase = false;
-        
+
         TEST(convert(0x0, cs) == "+");
         TEST(convert(0x1, cs) == "+1");
         TEST(convert(0x10, cs) == "+10");
         TEST(convert(-0x10, cs) == "-10");
-        
+
         cs.plus_sign = ' ';
         TEST(convert(0x01, cs) == " 1");
         TEST(convert(-0x1, cs) == "-1");
@@ -1494,7 +1538,7 @@ public:
         TEST(convert(0x1000, cs) == " 1000");
         TEST(convert(0x99999, cs) == "99999");
         TEST(convert(0x999999, cs) == "999999");
-        
+
         cs.precision = UNSPECIFIED_PRECISION;
         TEST(convert(0x0, cs) == "00000");
         TEST(convert(0x1, cs) == "00001");
@@ -1511,14 +1555,14 @@ public:
         cs.pad_with_zeroes = false;
         cs.plus_sign = 0;
         cs.uppercase = false;
-        
+
         TEST(convert(0xabcdef, cs) == "0xabcdef");
         TEST(convert(-0xabcdef, cs) == "-0xabcdef");
         cs.uppercase = true;
         TEST(convert(0xabcdef, cs) == "0XABCDEF");
         TEST(convert(-0xabcdef, cs) == "-0XABCDEF");
     }
-    
+
 private:
 
     template <class T>
@@ -1532,20 +1576,20 @@ private:
         cs.pad_with_zeroes = false;
         cs.plus_sign = 0;
         cs.uppercase = false;
-        
+
         return convert(v, cs);
     }
     template <class T>
     std::string convert(T v, conversion_specification const& cs)
     {
         writer_.reset();
-        
+
         itoa_base16(&output_buffer_, v, cs);
-        
+
         output_buffer_.flush();
         return writer_.str();
     }
-    
+
     string_writer writer_;
     whitebox_output_buffer output_buffer_;
 };
@@ -1568,7 +1612,7 @@ public:
         output_buffer_(&writer_, 1024)
     {
     }
-    
+
     void normal()
     {
         TEST(convert(1.5, 2) == "1.50");
@@ -1594,7 +1638,7 @@ public:
         TEST(convert(0, 0) == "0");
         TEST(convert(1.23456789012345670, 20) == "1.23456789012345670000");
         TEST(convert(0.123456789012345670, 20) == "0.12345678901234566300");
-        
+
         TEST(convert(0.000123, 6) == "0.000123");
     }
 
@@ -1608,14 +1652,14 @@ public:
         cs.pad_with_zeroes = true;
         cs.plus_sign = 0;
         cs.uppercase = false;
-        
+
         TEST(convert(0.5, cs) == "000.500");
         TEST(convert(-0.5, cs) == "-00.500");
         TEST(convert(0.0, cs) == "000.000");
         TEST(convert(-0.0, cs) == "-00.000");
-        
+
         cs.left_justify = true;
-        
+
         TEST(convert(0.5, cs) == "0.500  ");
         TEST(convert(-0.5, cs) == "-0.500 ");
         TEST(convert(0.0, cs) == "0.000  ");
@@ -1703,7 +1747,7 @@ public:
         TEST_FTOA(-12345678901234567890.0);
         TEST_FTOA(-1.23456789e300);
     }
-    
+
     void subnormals()
     {
         TEST_FTOA(2.2250738585072009e-308);
@@ -1732,7 +1776,7 @@ public:
         cs.pad_with_zeroes = false;
         cs.plus_sign = 0;
         cs.uppercase = false;
-        
+
         TEST(convert(-std::numeric_limits<double>::quiet_NaN(), cs) == "  -nan");
         TEST(convert(std::numeric_limits<double>::quiet_NaN(), cs) == "   nan");
         cs.left_justify = true;
@@ -1816,7 +1860,7 @@ public:
         std::cout << " (" << 100*static_cast<double>(perfect+correct_superfluous)/total << "%)\n";
         std::cout << "  Count of N correct significant digits:\n";
         for(std::size_t i=0; i!=18; ++i)
-            std::cout << "    " << i << ": " << quality_counts[i]  << 
+            std::cout << "    " << i << ": " << quality_counts[i]  <<
                 " (" << 100*static_cast<double>(quality_counts[i])/total << "%)\n";
         std::cout << "  Count of N superfluous/unneeded digits:\n";
         for(std::size_t i=0; i!=superfluous_counts.size(); ++i)
@@ -1835,7 +1879,7 @@ private:
         auto nonzero_pos = mantissa.find_first_not_of('0');
         if(nonzero_pos != std::string::npos)
             mantissa.erase(0, nonzero_pos);
-        
+
         std::string exponent;
         if(exponent_pos != std::string::npos)
             exponent.assign(number, exponent_pos+1, std::string::npos);
@@ -1902,7 +1946,7 @@ private:
         output_buffer_.flush();
         return writer_.str();
     }
-    
+
     std::string convert(double number, int significant_digits=18)
     {
         conversion_specification cs;
@@ -1913,7 +1957,7 @@ private:
         cs.pad_with_zeroes = false;
         cs.plus_sign = 0;
         cs.uppercase = false;
-        
+
         auto str = convert(number, cs);
         //char buf[128];
         //std::sprintf(buf, "%.*g", significant_digits, number);

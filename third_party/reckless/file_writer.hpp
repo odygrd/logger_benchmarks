@@ -1,5 +1,5 @@
 /* This file is part of reckless logging
- * Copyright 2015, 2016 Mattias Flodin <git@codepentry.com>
+ * Copyright 2015-2020 Mattias Flodin <git@codepentry.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,10 +29,13 @@ namespace reckless {
 class file_writer : public detail::fd_writer {
 public:
     file_writer(char const* path);
+#if defined(_WIN32)
+    file_writer(wchar_t const* path);
+#endif
+
     ~file_writer();
 };
 
 }   // namespace reckless
 
 #endif  // RECKLESS_FILE_WRITER_HPP
-

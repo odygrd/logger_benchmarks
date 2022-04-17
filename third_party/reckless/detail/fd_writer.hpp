@@ -1,5 +1,5 @@
 /* This file is part of reckless logging
- * Copyright 2015, 2016 Mattias Flodin <git@codepentry.com>
+ * Copyright 2015-2020 Mattias Flodin <git@codepentry.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,22 +22,29 @@
 #ifndef RECKLESS_FD_WRITER_HPP
 #define RECKLESS_FD_WRITER_HPP
 
-#include "../writer.hpp"
+#include <writer.hpp>
 
 namespace reckless {
 namespace detail {
 
 class fd_writer : public writer {
 public:
+#if defined(__unix__)
     fd_writer(int fd) : fd_(fd) {}
+#elif defined(_WIN32)
+    fd_writer(void* handle) : handle_(handle) {}
+#endif
+
     std::size_t write(void const* pbuffer, std::size_t count, std::error_code& ec) noexcept override;
 
-protected:
+#if defined(__unix__)
     int fd_;
+#elif defined(_WIN32)
+    void* handle_;
+#endif
 };
 
 }   // namespace detail
 }   // namespace reckless
 
 #endif  // RECKLESS_FD_WRITER_HPP
-

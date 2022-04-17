@@ -1,5 +1,5 @@
 /* This file is part of reckless logging
- * Copyright 2015, 2016 Mattias Flodin <git@codepentry.com>
+ * Copyright 2015-2020 Mattias Flodin <git@codepentry.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,7 @@
  */
 #ifndef RECKLESS_DETAIL_ITOA_HPP
 #define RECKLESS_DETAIL_ITOA_HPP
-#include "output_buffer.hpp"
+#include <output_buffer.hpp>
 
 #include <limits>
 
@@ -67,6 +67,12 @@ void itoa_base16(output_buffer* pbuffer, unsigned long long value, conversion_sp
 
 void ftoa_base10_f(output_buffer* pbuffer, double value, conversion_specification const& cs);
 void ftoa_base10_g(output_buffer* pbuffer, double value, conversion_specification const& cs);
+
+namespace detail
+{
+    extern char const decimal_digits[201];
+    extern std::uint64_t const power_lut[19];
+}
 
 }   // namespace reckless
 

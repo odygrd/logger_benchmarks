@@ -1,5 +1,5 @@
 /* This file is part of reckless logging
- * Copyright 2015, 2016 Mattias Flodin <git@codepentry.com>
+ * Copyright 2015-2020 Mattias Flodin <git@codepentry.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -19,29 +19,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-#ifndef RECKLESS_DETAIL_BRANCH_HINTS_HPP
-#define RECKLESS_DETAIL_BRANCH_HINTS_HPP
+
+#ifdef RECKLESS_ENABLE_TRACE_LOG
+#include <performance_log/trace_log.hpp>
 namespace reckless {
 namespace detail {
+trace_log g_trace_log(128*1024*1024);
+}
+}
 
-inline bool likely(bool expr) {
-#ifdef __GNUC__
-    return __builtin_expect(expr, true);
-#else
-    return expr;
 #endif
-}
-
-inline bool unlikely(bool expr)
-{
-#ifdef __GNUC__
-    return __builtin_expect(expr, false);
-#else
-    return expr;
-#endif
-}
-
-}
-}
-
-#endif  // RECKLESS_DETAIL_BRANCH_HINTS_HPP

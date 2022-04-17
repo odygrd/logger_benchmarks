@@ -1,5 +1,5 @@
 /* This file is part of reckless logging
- * Copyright 2015, 2016 Mattias Flodin <git@codepentry.com>
+ * Copyright 2015-2020 Mattias Flodin <git@codepentry.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,14 +23,23 @@
 
 namespace reckless {
 class basic_log;
-void install_crash_handler(std::initializer_list<basic_log*> log);
+void install_crash_handler(std::initializer_list<basic_log*> logs);
 void uninstall_crash_handler();
+
+inline void install_crash_handler(basic_log* plog)
+{
+    install_crash_handler({plog});
+}
 
 class scoped_crash_handler {
 public:
-    scoped_crash_handler(std::initializer_list<basic_log*> log)
+    scoped_crash_handler(basic_log* plog)
     {
-        install_crash_handler(log);
+        install_crash_handler(plog);
+    }
+    scoped_crash_handler(std::initializer_list<basic_log*> logs)
+    {
+        install_crash_handler(logs);
     }
     ~scoped_crash_handler()
     {

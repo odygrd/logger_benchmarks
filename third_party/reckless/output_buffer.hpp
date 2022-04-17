@@ -1,5 +1,5 @@
 /* This file is part of reckless logging
- * Copyright 2015, 2016 Mattias Flodin <git@codepentry.com>
+ * Copyright 2015-2020 Mattias Flodin <git@codepentry.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,7 @@
 #ifndef RECKLESS_OUTPUT_BUFFER_HPP
 #define RECKLESS_OUTPUT_BUFFER_HPP
 
-#include "detail/branch_hints.hpp"
+#include "detail/platform.hpp"  // likely
 #include "detail/spsc_event.hpp"
 
 #include <cstddef>  // size_t
@@ -120,6 +120,16 @@ public:
         commit(1);
     }
 
+    unsigned output_buffer_full_count() const
+    {
+        return detail::atomic_load_relaxed(&output_buffer_full_count_);
+    }
+
+    std::size_t output_buffer_high_watermark() const
+    {
+        return detail::atomic_load_relaxed(&output_buffer_high_watermark_);
+    }
+
 protected:
     void reset() noexcept;
     // throw bad_alloc if unable to malloc() the buffer.
@@ -134,6 +144,11 @@ protected:
     void lost_frame()
     {
         ++lost_input_frames_;
+        revert_frame();
+    }
+
+    void revert_frame()
+    {
         // Undo everything that has been written during the current input frame.
         pcommit_end_ = pframe_end_;
     }
@@ -183,19 +198,23 @@ protected:
         permanent_error_policy_.store(ep, std::memory_order_relaxed);
     }
 
-    spsc_event shared_input_queue_full_event_; // FIXME rename to something that indicates this is used for all "notifications" to the worker thread
+    detail::spsc_event shared_input_queue_full_event_; // FIXME rename to something that indicates this is used for all "notifications" to the worker thread
 
     std::atomic<error_policy> temporary_error_policy_{error_policy::ignore};
     std::atomic<error_policy> permanent_error_policy_{error_policy::fail_immediately};
     std::error_code error_code_;    // error code for error state
-    std::atomic_bool error_flag_{false};   // error state
-    std::atomic_bool panic_flush_{false};
+    bool error_flag_ = false;   // error state
+    bool panic_flush_ = false;
 
 private:
     output_buffer(output_buffer const&) = delete;
     output_buffer& operator=(output_buffer const&) = delete;
 
     char* reserve_slow_path(std::size_t size);
+    void increment_output_buffer_full_count()
+    {
+        detail::atomic_increment_fetch_relaxed(&output_buffer_full_count_);
+    }
 
     writer* pwriter_ = nullptr;
     char* pbuffer_ = nullptr;
@@ -206,6 +225,9 @@ private:
     std::error_code initial_error_;         // Keeps track of the first error that caused lost_input_frames_ to become non-zero.
     std::mutex writer_error_callback_mutex_;
     writer_error_callback_t writer_error_callback_;
+
+    unsigned output_buffer_full_count_ = 0;
+    std::size_t output_buffer_high_watermark_ = 0;
 };
 
 }
