@@ -33,7 +33,6 @@
 #include <functional>                                      // for greater, function
 #include <limits>                                          // for numeric_limits
 #include <memory>                                          // for unique_ptr, make_u...
-#include <mutex>                                           // for call_once, once_flag
 #include <queue>                                           // for priority_queue
 #include <string>                                          // for allocator, string
 #include <thread>                                          // for sleep_for, thread
@@ -99,7 +98,6 @@ public:
    */
   QUILL_ATTRIBUTE_COLD void set_error_handler(backend_worker_error_handler_t error_handler);
 #endif
-
 private:
   /**
    * Backend worker thread main function
@@ -107,28 +105,29 @@ private:
   QUILL_ATTRIBUTE_HOT inline void _main_loop();
 
   /**
-   * Logging thread exist function that flushes everything after stop() is called
+   * Logging thread exit function that flushes everything after stop() is called
    */
   QUILL_ATTRIBUTE_COLD inline void _exit();
 
   /**
    * Populate our local priority queue
    * @param cached_thread_contexts local thread context cache
+   * @param is_terminating
    */
   QUILL_ATTRIBUTE_HOT inline void _populate_priority_queue(
-    ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts);
+    ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts, bool is_terminating);
 
-#if defined(QUILL_DUAL_QUEUE_MODE)
+#if !defined(QUILL_DISABLE_DUAL_QUEUE_MODE)
   /**
    * Deserialize an log message from the raw SPSC queue and emplace them to priority queue
    */
-  QUILL_ATTRIBUTE_HOT inline void _deserialize_raw_queue(ThreadContext* thread_context);
+  QUILL_ATTRIBUTE_HOT inline void _deserialize_raw_queue(ThreadContext* thread_context, bool is_terminating);
 #endif
 
   /**
    * Read events from the Event SPSC queue and emplace them to the priority queue
    */
-  QUILL_ATTRIBUTE_HOT inline void _read_event_queue(ThreadContext* thread_context);
+  QUILL_ATTRIBUTE_HOT inline void _read_event_queue(ThreadContext* thread_context, bool is_terminating);
 
   /**
    * Checks for events in all queues and processes the one with the minimum timestamp
@@ -161,8 +160,8 @@ private:
   {
     /**
      * Constructor used when we are pulling event from the generic_queue
-     * @param in_thread_context
-     * @param base_event
+     * @param in_thread_context thread context
+     * @param in_base_event the base event
      */
     TransitEvent(ThreadContext* in_thread_context,
                  std::unique_ptr<BaseEvent, FreeListAllocatorDeleter<BaseEvent>> in_base_event)
@@ -173,11 +172,12 @@ private:
     }
 
     /**
-     * Constructor used for any events coming from the fast_queue
-     * @param in_thread_context
-     * @param in_timestamp
-     * @param in_log_data_node
-     * @param in_fmt_store
+     * Constructor used for any events coming from the raw queue
+     * @param in_thread_context thread context
+     * @param in_timestamp timestamp for log message
+     * @param in_serialization_metadata contains LogMacroMetadata and the deserialization info
+     * @param in_logger_details logger details
+     * @param in_fmt_store holds the arguments of the log message
      */
     TransitEvent(ThreadContext* in_thread_context, uint64_t in_timestamp,
                  detail::SerializationMetadata const* in_serialization_metadata,
@@ -221,7 +221,8 @@ private:
   std::unique_ptr<RdtscClock> _rdtsc_clock{nullptr}; /** rdtsc clock if enabled **/
 
   std::chrono::nanoseconds _backend_thread_sleep_duration; /** backend_thread_sleep_duration from config **/
-  std::once_flag _start_init_once_flag; /** flag to start the thread only once, in case start() is called multiple times */
+  size_t _max_transit_events; /** limit of transit events before start flushing, value from config */
+
   bool _has_unflushed_messages{false}; /** There are messages that are buffered by the OS, but not yet flushed */
   std::atomic<bool> _is_running{false}; /** The spawned backend thread status */
   std::priority_queue<TransitEvent, std::vector<TransitEvent>, std::greater<>> _transit_events;
@@ -244,18 +245,19 @@ bool BackendWorker::is_running() const noexcept
 /***/
 void BackendWorker::run()
 {
-  // protect init to be called only once
-  std::call_once(_start_init_once_flag, [this]() {
-    // We store the configuration here on our local variable since the config flag is not atomic
-    // and we don't want it to change after we have started - This is just for safety and to
-    // enforce the user to configure a variable before the thread has started
-    _backend_thread_sleep_duration = _config.backend_thread_sleep_duration();
+  // We store the configuration here on our local variable since the config flag is not atomic
+  // and we don't want it to change after we have started - This is just for safety and to
+  // enforce the user to configure a variable before the thread has started
+  _backend_thread_sleep_duration = _config.backend_thread_sleep_duration();
+  _max_transit_events = _config.backend_thread_max_transit_events();
 
-    std::thread worker([this]() {
+  std::thread worker(
+    [this]()
+    {
       QUILL_TRY
       {
         // On Start
-        if (_config.backend_thread_cpu_affinity() != (std::numeric_limits<uint16_t>::max()))
+        if (_config.backend_thread_cpu_affinity() != (std::numeric_limits<uint16_t>::max)())
         {
           // Set cpu affinity if requested to cpu _backend_thread_cpu_affinity
           set_cpu_affinity(_config.backend_thread_cpu_affinity());
@@ -313,60 +315,74 @@ void BackendWorker::run()
 #endif
     });
 
-    // Move the worker ownership to our class
-    _backend_worker_thread.swap(worker);
+  // Move the worker ownership to our class
+  _backend_worker_thread.swap(worker);
 
-    while (!_is_running.load(std::memory_order_seq_cst))
-    {
-      // wait for the thread to start
-      std::this_thread::sleep_for(std::chrono::microseconds{100});
-    }
-  });
+  while (!_is_running.load(std::memory_order_seq_cst))
+  {
+    // wait for the thread to start
+    std::this_thread::sleep_for(std::chrono::microseconds{100});
+  }
 }
 
 /***/
-void BackendWorker::_populate_priority_queue(ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts)
+void BackendWorker::_populate_priority_queue(ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts,
+                                             bool is_terminating)
 {
   // copy everything to a priority queue
   for (ThreadContext* thread_context : cached_thread_contexts)
   {
     // read the generic event queue
-    _read_event_queue(thread_context);
+    _read_event_queue(thread_context, is_terminating);
 
-#if defined(QUILL_DUAL_QUEUE_MODE)
+#if !defined(QUILL_DISABLE_DUAL_QUEUE_MODE)
     // read the fast raw spsc queue
-    _deserialize_raw_queue(thread_context);
+    _deserialize_raw_queue(thread_context, is_terminating);
 #endif
   }
 }
 
 /***/
-void BackendWorker::_read_event_queue(ThreadContext* thread_context)
+void BackendWorker::_read_event_queue(ThreadContext* thread_context, bool is_terminating)
 {
   // Read the generic queue
   ThreadContext::EventSPSCQueueT& object_spsc_queue = thread_context->event_spsc_queue();
 
   while (true)
   {
+    if (!is_terminating && (_transit_events.size() >= _max_transit_events))
+    {
+      // transit events queue is full
+      break;
+    }
+
     auto handle = object_spsc_queue.try_pop();
 
     if (!handle.is_valid())
     {
+      // keep reading until the queue is empty or we reached the transit events limit
       break;
     }
+
     _transit_events.emplace(thread_context, handle.data()->clone(_free_list_allocator));
   }
 }
 
-#if defined(QUILL_DUAL_QUEUE_MODE)
+#if !defined(QUILL_DISABLE_DUAL_QUEUE_MODE)
 /***/
-void BackendWorker::_deserialize_raw_queue(ThreadContext* thread_context)
+void BackendWorker::_deserialize_raw_queue(ThreadContext* thread_context, bool is_terminating)
 {
   // Read the fast queue
   ThreadContext::RawSPSCQueueT& raw_spsc_queue = thread_context->raw_spsc_queue();
 
   while (true)
   {
+    if (!is_terminating && (_transit_events.size() >= _max_transit_events))
+    {
+      // transit events queue is full
+      break;
+    }
+
     // Note: The producer will commit a write to this queue when one complete message is written.
     // This means that if we can read something from the queue it will be a full message
     // The producer will add items to the buffer :
@@ -379,20 +395,23 @@ void BackendWorker::_deserialize_raw_queue(ThreadContext* thread_context)
 
     if (bytes_available == 0)
     {
-      // nothing to read
+      // keep reading until the queue is empty or we reached the transit events limit
       break;
     }
 
     // read the next full message
-    auto const timestamp = *(reinterpret_cast<uint64_t const*>(read_buffer));
+    uint64_t timestamp;
+    std::memcpy(&timestamp, read_buffer, sizeof(uint64_t));
     read_buffer += sizeof(uint64_t);
 
-    auto const serialization_metadata_ptr = *(reinterpret_cast<uintptr_t const*>(read_buffer));
+    uintptr_t serialization_metadata_ptr;
+    std::memcpy(&serialization_metadata_ptr, read_buffer, sizeof(uintptr_t));
     auto const serialization_metadata =
       reinterpret_cast<detail::SerializationMetadata const*>(serialization_metadata_ptr);
     read_buffer += sizeof(uintptr_t);
 
-    auto const logger_details_ptr = *(reinterpret_cast<uintptr_t const*>(read_buffer));
+    uintptr_t logger_details_ptr;
+    std::memcpy(&logger_details_ptr, read_buffer, sizeof(uintptr_t));
     auto const logger_details = reinterpret_cast<detail::LoggerDetails const*>(logger_details_ptr);
     read_buffer += sizeof(uintptr_t);
 
@@ -433,9 +452,9 @@ void BackendWorker::_process_transit_event()
     if (transit_event.base_event)
     {
       // This is a transit event coming from the generic_spsc_event_queue
-      transit_event.base_event->backend_process(_backtrace_log_record_storage,
-                                                transit_event.thread_context->thread_id(),
-                                                obtain_active_handlers, get_real_ts);
+      transit_event.base_event->backend_process(
+        _backtrace_log_record_storage, transit_event.thread_context->thread_id(),
+        transit_event.thread_context->thread_name(), obtain_active_handlers, get_real_ts);
     }
     else
     {
@@ -455,7 +474,8 @@ void BackendWorker::_process_transit_event()
       for (auto& handler : transit_event.logger_details->handlers())
       {
         handler->formatter().format(
-          timestamp, transit_event.thread_context->thread_id(), transit_event.logger_details->name(),
+          timestamp, transit_event.thread_context->thread_id(),
+          transit_event.thread_context->thread_name(), transit_event.logger_details->name(),
           transit_event.serialization_metadata->log_macro_metadata, transit_event.fmt_store);
 
         // After calling format on the formatter we have to request the formatter record
@@ -488,11 +508,12 @@ void BackendWorker::_process_transit_event()
         // we only use the handlers of the logger, but we just have to pass it because of the API
         _backtrace_log_record_storage.process(
           transit_event.logger_details->name(),
-          [&obtain_active_handlers, &get_real_ts](std::string const& stored_thread_id,
-                                                  BaseEvent const* stored_backtrace_log_record) {
+          [&obtain_active_handlers, &get_real_ts](std::string const& stored_thread_id, std::string const& stored_thread_name,
+                                                  BaseEvent const* stored_backtrace_log_record)
+          {
             // call backend process on each stored record
             stored_backtrace_log_record->backend_process_backtrace_log_record(
-              stored_thread_id.data(), obtain_active_handlers, get_real_ts);
+              stored_thread_id.data(), stored_thread_name.data(), obtain_active_handlers, get_real_ts);
           });
       }
     }
@@ -544,12 +565,25 @@ void BackendWorker::_main_loop()
   ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts =
     _thread_context_collection.backend_thread_contexts_cache();
 
-  _populate_priority_queue(cached_thread_contexts);
+  _populate_priority_queue(cached_thread_contexts, false);
 
   if (QUILL_LIKELY(!_transit_events.empty()))
   {
-    // the queue is not empty
-    _process_transit_event();
+    // the queue is not empty,
+    if (_transit_events.size() >= _max_transit_events)
+    {
+      // process half transit events
+      for (size_t i = 0; i < static_cast<size_t>(_max_transit_events / 2); ++i)
+      {
+        _process_transit_event();
+      }
+    }
+    else
+    {
+      // process a single transit event, then populate priority queue again. This gives priority
+      // to emptying the spsc queue from the hot threads as soon as possible
+      _process_transit_event();
+    }
   }
   else
   {
@@ -600,17 +634,30 @@ void BackendWorker::_exit()
 
   while (true)
   {
-    _populate_priority_queue(cached_thread_contexts);
+    _populate_priority_queue(cached_thread_contexts, true);
 
     if (!_transit_events.empty())
     {
-      _process_transit_event();
+      // the queue is not empty,
+      if (_transit_events.size() >= _max_transit_events)
+      {
+        // process half transit events
+        for (size_t i = 0; i < static_cast<size_t>(_max_transit_events / 2); ++i)
+        {
+          _process_transit_event();
+        }
+      }
+      else
+      {
+        // process a single transit event, then populate priority queue again. This gives priority
+        // to emptying the spsc queue from the hot threads as soon as possible
+        _process_transit_event();
+      }
     }
     else
     {
       _check_dropped_messages(cached_thread_contexts);
-
-      // keep going until there are no events are found
+      _force_flush();
       break;
     }
   }

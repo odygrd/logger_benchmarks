@@ -44,8 +44,9 @@ ThreadContextCollection::ThreadContextWrapper::~ThreadContextWrapper() noexcept
 /***/
 void ThreadContextCollection::register_thread_context(std::shared_ptr<ThreadContext> const& thread_context)
 {
-  std::lock_guard<Spinlock> const lock(_spinlock);
+  _spinlock.lock();
   _thread_contexts.push_back(thread_context);
+  _spinlock.unlock();
   _set_new_thread_context();
 }
 
@@ -145,7 +146,7 @@ void ThreadContextCollection::_remove_shared_invalidated_thread_context(ThreadCo
   assert(thread_context_it->get()->event_spsc_queue().empty() &&
          "Attempting to remove a thread context with a non empty queue");
 
-#if defined(QUILL_DUAL_QUEUE_MODE)
+#if !defined(QUILL_DISABLE_DUAL_QUEUE_MODE)
   assert(thread_context_it->get()->raw_spsc_queue().empty() &&
          "Attempting to remove a thread context with a non empty queue");
 #endif
@@ -165,7 +166,7 @@ void ThreadContextCollection::_find_and_remove_invalidated_thread_contexts()
   // If the thread context is invalid it means the thread that created it has now died.
   // We also want to empty the queue from all LogRecords before removing the thread context
 
-#if defined(QUILL_DUAL_QUEUE_MODE)
+#if !defined(QUILL_DISABLE_DUAL_QUEUE_MODE)
       return !thread_context->is_valid() && thread_context->event_spsc_queue().empty() &&
         thread_context->raw_spsc_queue().empty();
 #else
@@ -192,7 +193,7 @@ void ThreadContextCollection::_find_and_remove_invalidated_thread_contexts()
     // If the thread context is invalid it means the thread that created it has now died.
     // We also want to empty the queue from all LogRecords before removing the thread context
 
-#if defined(QUILL_DUAL_QUEUE_MODE)
+#if !defined(QUILL_DISABLE_DUAL_QUEUE_MODE)
         return !thread_context->is_valid() && thread_context->event_spsc_queue().empty() &&
           thread_context->raw_spsc_queue().empty();
 #else

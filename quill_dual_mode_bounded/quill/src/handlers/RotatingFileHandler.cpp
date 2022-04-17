@@ -12,8 +12,11 @@ namespace quill
 {
 /***/
 RotatingFileHandler::RotatingFileHandler(filename_t const& base_filename, std::string const& mode,
-                                         size_t max_bytes, uint32_t backup_count)
-  : FileHandler(base_filename), _max_bytes(max_bytes), _backup_count(backup_count)
+                                         size_t max_bytes, uint32_t backup_count, bool overwrite_oldest_files)
+  : FileHandler(base_filename),
+    _max_bytes(max_bytes),
+    _backup_count(backup_count),
+    _overwrite_oldest_files(overwrite_oldest_files)
 {
   _file = detail::file_utilities::open(_filename, mode);
   _current_size = detail::file_utilities::file_size(_file);
@@ -38,9 +41,9 @@ void RotatingFileHandler::write(fmt::memory_buffer const& formatted_log_record,
 /***/
 void RotatingFileHandler::_rotate()
 {
-  if (_current_index >= _backup_count)
+  if ((_current_index == _backup_count) && !_overwrite_oldest_files)
   {
-    // we can not rotate anymore, do nothing
+    // we can not rotate anymore, do not rotate
     return;
   }
 
@@ -48,6 +51,8 @@ void RotatingFileHandler::_rotate()
   {
     // close the previous file
     int const res = fclose(_file);
+    _file = nullptr;
+
     if (QUILL_UNLIKELY(res != 0))
     {
       std::ostringstream error_msg;
@@ -62,18 +67,32 @@ void RotatingFileHandler::_rotate()
   {
     filename_t const previous_file = detail::file_utilities::append_index_to_filename(_filename, i);
     filename_t const new_file = detail::file_utilities::append_index_to_filename(_filename, i + 1);
-
     quill::detail::rename(previous_file, new_file);
   }
 
-  // then we will always rename the base filename to 1
-  filename_t const previous_file = _filename;
-  filename_t const new_file = detail::file_utilities::append_index_to_filename(_filename, 1);
+  if (_backup_count > 0)
+  {
+    // then we will always rename the base filename to 1
+    filename_t const previous_file = _filename;
+    filename_t const new_file = detail::file_utilities::append_index_to_filename(_filename, 1);
+    quill::detail::rename(previous_file, new_file);
 
-  quill::detail::rename(previous_file, new_file);
-
-  // Increment the rotation index
-  ++_current_index;
+    if (!_overwrite_oldest_files)
+    {
+      // always increment current index as we will break above. This is needed to avoid
+      // _backup_count - 1 contidion below when _backup_count == 1 and !_overwrite_oldest_files
+      ++_current_index;
+    }
+    else
+    {
+      // Increment the rotation index, -1 as we are counting _current_index from 0
+      if (_current_index < (_backup_count - 1))
+      {
+        // don't increment past _backup_count
+        ++_current_index;
+      }
+    }
+  }
 
   // Now reopen the base filename for writing again
   _file = detail::file_utilities::open(_filename, "w");

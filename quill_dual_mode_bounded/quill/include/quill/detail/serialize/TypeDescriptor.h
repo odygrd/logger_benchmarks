@@ -42,7 +42,6 @@ enum TypeDescriptor : char
 
 /**
  * We use a second typename for enable_if specialization
- * @tparam T
  */
 template <typename T, typename = void>
 struct type_descriptor_helper
@@ -172,25 +171,13 @@ struct type_descriptor_helper<std_string_view<char>>
 };
 #endif
 
-/**
- * Explicit enum specialization
- * @tparam T
- */
-template <typename T>
-struct type_descriptor_helper<T, std::enable_if_t<std::is_enum<T>::value>>
-{
-  // for enums we want to copy the underlying type
-  using enum_underlying_t = std::underlying_type_t<T>;
-  static constexpr char const value = type_descriptor_helper<enum_underlying_t>::value;
-};
-
 template <typename T>
 struct type_descriptor : public type_descriptor_helper<remove_cvref_t<std::decay_t<T>>>
 {
 };
 
 template <typename... Args>
-inline typename std::enable_if<sizeof...(Args) == 0>::type construct_type_descriptor_string(std::string&)
+inline std::enable_if_t<sizeof...(Args) == 0> construct_type_descriptor_string(std::string&)
 {
 }
 

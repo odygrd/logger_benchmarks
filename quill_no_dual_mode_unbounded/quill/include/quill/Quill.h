@@ -19,6 +19,7 @@
 #include <cstdint>                              // for uint16_t
 #include <initializer_list>                     // for initializer_list
 #include <string>                               // for string
+#include <unordered_map>                        // for unordered_map
 
 namespace quill
 {
@@ -64,7 +65,7 @@ QUILL_ATTRIBUTE_COLD inline void start(bool with_signal_handler = false,
 /**
  * Setups up a signal handler for the caller thread. This must be called by each new thread
  * on windows. On linux this is called automatically on quill::start().
- * When init_signal_handler() is not called on windows, the windows exception will be catched
+ * When init_signal_handler() is not called on windows, the windows exception will be caught
  * instead if start() was called with_signal_handler = true
  * @param catchable_signals List of the signals that the signal handler will catch
  */
@@ -182,10 +183,9 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* time_rotating_file_handler(
  * @param backup_count The maximum number of times we want to rollover
  * @return a pointer to a rotating file handler
  */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* rotating_file_handler(filename_t const& base_filename,
-                                                                    std::string const& mode = std::string{"a"},
-                                                                    size_t max_bytes = 0,
-                                                                    uint32_t backup_count = 0);
+QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* rotating_file_handler(
+  filename_t const& base_filename, std::string const& mode = std::string{"a"}, size_t max_bytes = 0,
+  uint32_t backup_count = 0, bool overwrite_oldest_files = true);
 
 #if defined(_WIN32)
 /**
@@ -217,7 +217,8 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* time_rotating_file_handler(
 QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* rotating_file_handler(std::string const& base_filename,
                                                                     std::string const& mode = std::string{"a"},
                                                                     size_t max_bytes = 0,
-                                                                    uint32_t backup_count = 0);
+                                                                    uint32_t backup_count = 0, 
+                                                                    bool overwrite_oldest_files = true);
 #endif
 
 /**
@@ -238,6 +239,12 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* rotating_file_handler(std::string 
  * @return A pointer to a thread-safe Logger object
  */
 QUILL_NODISCARD Logger* get_logger(char const* logger_name = nullptr);
+
+/**
+ * Returns all existing loggers and the pointers to them
+ * @return a map logger_name -> logger*
+ */
+QUILL_NODISCARD std::unordered_map<std::string, Logger*> get_all_loggers();
 
 /**
  * Creates a new Logger using the existing default logger's handler and formatter pattern
@@ -301,7 +308,9 @@ QUILL_ATTRIBUTE_COLD void set_default_logger_handler(Handler* handler);
 QUILL_ATTRIBUTE_COLD void set_default_logger_handler(std::initializer_list<Handler*> handlers);
 
 /**
- * If called then by default we are printing colour codes when console/terminal is used
+ * If called then by default we are printing colour codes when console/terminal is used.
+ *
+ * @warning Must be called before calling start()
  */
 QUILL_ATTRIBUTE_COLD void enable_console_colours();
 
@@ -394,6 +403,14 @@ QUILL_ATTRIBUTE_COLD void set_backend_thread_name(std::string const& name);
  * @param sleep_duration The sleep duration of the backend thread when idle
  */
 QUILL_ATTRIBUTE_COLD void set_backend_thread_sleep_duration(std::chrono::nanoseconds sleep_duration);
+
+/**
+ * Sets the maximum transit events number. When that number is reached then half of them
+ * will get flushed to the log files.
+ * @param max_transit_events
+ */
+QUILL_ATTRIBUTE_COLD void set_backend_thread_max_transit_events(size_t max_transit_events);
+
 } // namespace config
 
 } // namespace quill

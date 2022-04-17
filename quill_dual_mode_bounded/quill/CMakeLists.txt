@@ -3,7 +3,7 @@ if (NOT QUILL_MASTER_PROJECT)
 endif ()
 
 # library name
-set(TARGET_NAME quill_dual_mode_bounded)
+set(TARGET_NAME quill_dual_bounded)
 
 # header files
 set(HEADER_FILES
@@ -113,6 +113,7 @@ set(SOURCE_FILES
 if (NOT QUILL_FMT_EXTERNAL)
     # if not using external fmt, include the bundled version of libfmt
     list(APPEND HEADER_FILES
+            include/quill/bundled/fmt/args.h
             include/quill/bundled/fmt/chrono.h
             include/quill/bundled/fmt/color.h
             include/quill/bundled/fmt/compile.h
@@ -122,9 +123,9 @@ if (NOT QUILL_FMT_EXTERNAL)
             include/quill/bundled/fmt/locale.h
             include/quill/bundled/fmt/os.h
             include/quill/bundled/fmt/ostream.h
-            include/quill/bundled/fmt/posix.h
             include/quill/bundled/fmt/printf.h
-            include/quill/bundled/fmt/ranges.h)
+            include/quill/bundled/fmt/ranges.h
+            include/quill/bundled/fmt/xchar.h)
 
     list(APPEND SOURCE_FILES
             src/bundled/fmt/format.cc
@@ -186,15 +187,12 @@ target_include_directories(${TARGET_NAME}
 # Compiler options
 target_compile_options(${TARGET_NAME} PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
-        -Wall -Wextra -Wconversion -pedantic -Wfatal-errors -Wno-unused-private-field>
-        $<$<CXX_COMPILER_ID:MSVC>:/W4 /wd4324>)
-
-if (MSVC_VERSION GREATER 1900)  #Allow non fatal security warnings for msvc 2015
-    target_compile_options(${TARGET_NAME} PRIVATE /WX)
-endif ()
+        -Wall -Wextra -Wconversion -pedantic -Wfatal-errors -Wno-unused-private-field -Wno-gnu-zero-variadic-macro-arguments>
+        $<$<CXX_COMPILER_ID:MSVC>:/W4 /wd4324 /wd4189>)
 
 # TODO:: use MultiByteToWideChar() and WideCharToMultiByte() from <Windows.h> instead of covecvt
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(${TARGET_NAME} PRIVATE /WX /EHsc)
     target_compile_definitions(${TARGET_NAME} PRIVATE _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING)
 endif ()
 

@@ -32,11 +32,11 @@ QUILL_NODISCARD size_t get_value<char const*>(unsigned char const*& read_buffer,
                                               fmt::dynamic_format_arg_store<fmt::format_context>& fmt_store)
 {
   // string in buffer is null terminated
-  std::string value{reinterpret_cast<char const*>(read_buffer)};
-  fmt_store.push_back(value);
+  fmt_store.push_back(reinterpret_cast<char const*>(read_buffer));
 
-  read_buffer += value.length() + 1;
-  return value.length() + 1;
+  size_t len = std::strlen(reinterpret_cast<char const*>(read_buffer)) + 1;
+  read_buffer += len;
+  return len;
 }
 
 } // namespace
@@ -45,7 +45,7 @@ size_t deserialize_argument(unsigned char const*& read_buffer,
                             TypeDescriptor type_descriptor)
 {
   // size of argument we deserialized
-  size_t read_size{0};
+  size_t read_size;
 
   switch (type_descriptor)
   {

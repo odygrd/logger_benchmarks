@@ -15,7 +15,7 @@
 #if defined(_WIN32)
   #define WIN32_LEAN_AND_MEAN
 
-  #if !defined(__MINGW64__) || !defined(__MINGW32__)
+  #if !defined(NOMINMAX)
     // Mingw already defines this, so no need to redefine
     #define NOMINMAX
   #endif
@@ -24,7 +24,6 @@
   #include <malloc.h>
   #include <share.h>
   #include <windows.h>
-
   #include <processthreadsapi.h>
 #elif defined(__APPLE__)
   #include <mach/thread_act.h>
@@ -35,6 +34,11 @@
   #include <sys/sysctl.h>
   #include <sys/types.h>
   #include <unistd.h>
+#elif defined(__CYGWIN__)
+  #include <sched.h>
+  #include <sys/mman.h>
+  #include <sys/stat.h>
+  #include <unistd.h>
 #elif defined(__linux__)
   #include <sched.h>
   #include <sys/mman.h>
@@ -42,23 +46,6 @@
   #include <sys/stat.h>
   #include <syscall.h>
   #include <unistd.h>
-
-  /**
-   * Detect if _MAP_POPULATE is available for mmap
-   */
-  #include <linux/version.h>
-  #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 22)
-    #define _MAP_POPULATE_AVAILABLE
-  #endif
-#endif
-
-/**
- * MMAP Flags for linux/Macos only
- */
-#ifdef _MAP_POPULATE_AVAILABLE
-  #define MMAP_FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE)
-#else
-  #define MMAP_FLAGS (MAP_PRIVATE | MAP_ANONYMOUS)
 #endif
 
 namespace quill
@@ -121,7 +108,9 @@ tm* localtime_rs(time_t const* timer, tm* buf)
 /***/
 void set_cpu_affinity(uint16_t cpu_id)
 {
-#if defined(_WIN32)
+#if defined(__CYGWIN__)
+  // setting cpu affinity on cygwin is not supported
+#elif defined(_WIN32)
   // core number starts from 0
   auto mask = (static_cast<DWORD_PTR>(1) << cpu_id);
   auto ret = SetThreadAffinityMask(GetCurrentThread(), mask);
@@ -164,8 +153,8 @@ void set_cpu_affinity(uint16_t cpu_id)
 /***/
 void set_thread_name(char const* name)
 {
-#if defined(__MINGW32__) || defined(__MINGW64__)
-  // Disabled on MINGW.
+#if defined(__CYGWIN__) || defined(__MINGW32__) || defined(__MINGW64__) || defined(QUILL_NO_THREAD_NAME_SUPPORT)
+  // Disabled on MINGW / Cygwin.
   (void)name;
 #elif defined(_WIN32)
   std::wstring name_ws = s2ws(name);
@@ -195,9 +184,42 @@ void set_thread_name(char const* name)
 }
 
 /***/
+std::string get_thread_name()
+{
+#if defined(__CYGWIN__) || defined(__MINGW32__) || defined(__MINGW64__) || defined(QUILL_NO_THREAD_NAME_SUPPORT)
+  // Disabled on MINGW / Cygwin.
+  return std::string{};
+#elif defined(_WIN32)
+  PWSTR data;
+  HRESULT hr = GetThreadDescription(GetCurrentThread(), &data);
+  if (FAILED(hr))
+  {
+    QUILL_THROW(QuillError{"Failed to get thread name"});
+  }
+
+  std::wstring tname{&data[0], wcslen(&data[0])};
+  LocalFree(data);
+  return ws2s(tname);
+#else
+  // Apple, linux
+  std::array<char, 16> thread_name{'\0'};
+  pthread_t thread = pthread_self();
+  auto res = pthread_getname_np(thread, &thread_name[0], 16);
+  if (res != 0)
+  {
+    QUILL_THROW(QuillError{"Failed to get thread name. error: " + std::to_string(res)});
+  }
+  return std::string{&thread_name[0], strlen(&thread_name[0])};
+#endif
+}
+
+/***/
 uint32_t get_thread_id() noexcept
 {
-#if defined(_WIN32)
+#if defined(__CYGWIN__)
+  // get thread id on cygwin not supported
+  return 0;
+#elif defined(_WIN32)
   return static_cast<uint32_t>(GetCurrentThreadId());
 #elif defined(__linux__)
   return static_cast<uint32_t>(::syscall(SYS_gettid));
@@ -211,7 +233,10 @@ uint32_t get_thread_id() noexcept
 /***/
 uint32_t get_process_id() noexcept
 {
-#if defined(_WIN32)
+#if defined(__CYGWIN__)
+  // get pid on cygwin not supported
+  return 0;
+#elif defined(_WIN32)
   return static_cast<uint32_t>(GetCurrentProcessId());
 #else
   return static_cast<uint32_t>(getpid());
@@ -223,13 +248,18 @@ size_t get_page_size() noexcept
 {
   // thread local to avoid race condition when more than one threads are creating the queue at the same time
   static thread_local uint32_t page_size{0};
-#if defined(_WIN32)
-  SYSTEM_INFO system_info;
-  GetSystemInfo(&system_info);
-  page_size = std::max(system_info.dwPageSize, system_info.dwAllocationGranularity);
+  if (page_size == 0)
+  {
+#if defined(__CYGWIN__)
+    page_size = 4096;
+#elif defined(_WIN32)
+    SYSTEM_INFO system_info;
+    GetSystemInfo(&system_info);
+    page_size = std::max(system_info.dwPageSize, system_info.dwAllocationGranularity);
 #else
-  page_size = static_cast<uint32_t>(sysconf(_SC_PAGESIZE));
+    page_size = static_cast<uint32_t>(sysconf(_SC_PAGESIZE));
 #endif
+  }
   return page_size;
 }
 
@@ -267,10 +297,10 @@ void* aligned_alloc(size_t alignment, size_t size)
 /***/
 void aligned_free(void* ptr) noexcept
 {
-#ifdef WIN32
-  return _aligned_free(ptr);
+#if defined(_WIN32)
+  _aligned_free(ptr);
 #else
-  return free(ptr);
+  free(ptr);
 #endif
 }
 

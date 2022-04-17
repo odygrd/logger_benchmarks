@@ -20,10 +20,10 @@ namespace detail
 {
 /**
  * Deserializes a single argument from the buffer
- * @param read_buffer
- * @param fmt_store
- * @param type_descriptor
- * @return
+ * @param read_buffer current buffer to read
+ * @param fmt_store fmt_store reference to write the argument from the read_buffer
+ * @param type_descriptor type descriptor of the argument we are about to read
+ * @return the number of bytes read from the buffer
  */
 QUILL_NODISCARD size_t deserialize_argument(unsigned char const*& read_buffer,
                                             fmt::dynamic_format_arg_store<fmt::format_context>& fmt_store,

@@ -18,7 +18,7 @@ namespace detail
 /**
  * Default is based on std::is_fundamental type as all of them are supported if it is true
  *
- * We serialize pointers as strings, the the pointer is not a string we still serialize and
+ * We serialize pointers as strings, the pointer is not a string we still serialize and
  * print the pointer value. All this happens in the serialization logic, here we just pass it as true
  *
  * We also serialize enums to their underlying type
@@ -27,7 +27,7 @@ namespace detail
  */
 template <typename T>
 struct is_serializable_helper
-  : public disjunction<std::is_fundamental<T>, std::is_enum<T>, std::is_same<std::string, T>>
+  : public disjunction<std::is_fundamental<T>, std::is_same<std::string, T>>
 {
 };
 
@@ -58,8 +58,6 @@ struct is_serializable_helper<char const[N]> : public std::true_type
 
 /**
  * We won't be serializing arrays, expect char arrays
- * @tparam T
- * @tparam N
  */
 template <class T, size_t N>
 struct is_serializable_helper<T[N]> : public std::false_type
@@ -69,9 +67,7 @@ struct is_serializable_helper<T[N]> : public std::false_type
 /**
  * The below type traits are not supported for serialization, mixing character types is disallowed
  * when using fmt store
- * @tparam TArgs
  */
-
 template <size_t N>
 struct is_serializable_helper<wchar_t[N]> : public std::false_type
 {
@@ -104,6 +100,27 @@ template <typename... TArgs>
 struct is_all_serializable : conjunction<is_serializable<TArgs>...>
 {
 };
+
+template <typename T, typename... Args>
+struct contains;
+
+template <typename T>
+struct contains<T> : std::false_type
+{
+};
+
+template <typename T, typename... Args>
+struct contains<T, T, Args...> : std::true_type
+{
+};
+
+template <typename T, typename A, typename... Args>
+struct contains<T, A, Args...> : contains<T, Args...>
+{
+};
+
+template <typename T, typename... Args>
+constexpr bool contains_v = contains<T, Args...>::value;
 
 } // namespace detail
 } // namespace quill

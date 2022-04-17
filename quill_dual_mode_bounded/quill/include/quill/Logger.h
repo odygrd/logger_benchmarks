@@ -37,13 +37,22 @@ class LoggerCollection;
  * Check in compile time the correctness of a format string
  */
 template <typename S, typename... Args, typename Char = fmt::char_t<S>>
-constexpr void check_format(S const& format_str, Args&&...)
+constexpr std::enable_if_t<!detail::contains_v<wchar_t, detail::remove_cvref_t<std::remove_pointer_t<std::decay_t<Args>>>...>, void> check_format(
+  S const& format_str, Args&&...)
 {
 #if FMT_VERSION >= 70000
   fmt::detail::check_format_string<std::remove_reference_t<Args>...>(format_str);
 #else
   fmt::internal::check_format_string<std::remove_reference_t<Args>...>(format_str);
 #endif
+}
+
+template <typename S, typename... Args, typename Char = fmt::char_t<S>>
+  constexpr std::enable_if_t <detail::contains_v<wchar_t, detail::remove_cvref_t<std::remove_pointer_t<std::decay_t<Args>>>...>, void> check_format(
+  S const&, Args&&...)
+{
+    // in newer fmt versions we can not mix a narrow format string with wide chars and we have to disable this check in order to compile
+    // Quill does not support wide format strings at the moment, only wide format arguments are supported
 }
 
 /**
@@ -109,7 +118,7 @@ public:
     return log_statement_level >= log_level();
   }
 
-#if defined(QUILL_DUAL_QUEUE_MODE)
+#if !defined(QUILL_DISABLE_DUAL_QUEUE_MODE)
   /**
    * Push a log record event to the spsc queue to be logged by the backend thread.
    * One spsc queue per caller thread. This function is enabled only when all arguments are
@@ -186,12 +195,12 @@ public:
    * @note This function is thread-safe.
    * @param fmt_args format arguments
    */
-#if defined(QUILL_DUAL_QUEUE_MODE)
+#if !defined(QUILL_DISABLE_DUAL_QUEUE_MODE)
   template <bool TryFastQueue, bool IsBackTraceLogRecord, typename TLogMacroMetadata, typename TFormatString, typename... FmtArgs>
   QUILL_ALWAYS_INLINE_HOT std::enable_if_t<!detail::is_all_serializable<FmtArgs...>::value || IsBackTraceLogRecord || !TryFastQueue, void> log(
     TFormatString format_string, FmtArgs&&... fmt_args)
 #else
-  // If the QUILL_DUAL_QUEUE_MODE is not enabled, this is always enabled
+  // If the dual queue mode is not enabled, this is always enabled
   template <bool TryFastQueue, bool IsBackTraceLogRecord, typename TLogMacroMetadata, typename TFormatString, typename... FmtArgs>
   QUILL_ALWAYS_INLINE_HOT void log(TFormatString format_string, FmtArgs&&... fmt_args)
 #endif
@@ -207,7 +216,7 @@ public:
 
 #if !defined(QUILL_MODE_UNSAFE)
     static_assert(detail::is_copyable_v<typename log_record_event_t::RealTupleT>,
-                  "Trying to copy an unsafe to copy type. Either tag the object with as copy "
+                  "Trying to copy an unsafe to copy type. Either tag the object as copy "
                   "loggable or explicitly format to string before logging.");
 #endif
 

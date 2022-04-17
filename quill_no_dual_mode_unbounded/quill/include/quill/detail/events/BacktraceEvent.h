@@ -27,7 +27,7 @@ public:
    * @param backtrace_capacity provide backtrace_capacity only if we want to setup the backtrace
    */
   BacktraceEvent(LoggerDetails const* logger_details,
-                 uint32_t backtrace_capacity = (std::numeric_limits<uint32_t>::max()))
+                 uint32_t backtrace_capacity = (std::numeric_limits<uint32_t>::max)())
     : _logger_details(logger_details), _backtrace_capacity(backtrace_capacity)
   {
   }
@@ -55,10 +55,10 @@ public:
    * @param timestamp_callback a callback to obtain the timestamp
    */
   void backend_process(BacktraceLogRecordStorage& backtrace_log_record_storage, char const*,
-                       GetHandlersCallbackT const& obtain_active_handlers,
+                       char const*, GetHandlersCallbackT const& obtain_active_handlers,
                        GetRealTsCallbackT const& timestamp_callback) const noexcept override
   {
-    if (_backtrace_capacity != std::numeric_limits<uint32_t>::max())
+    if (_backtrace_capacity != (std::numeric_limits<uint32_t>::max)())
     {
       // If the _backtrace_capacity is set it means we are setting up the backtrace
       // We setup the backtrace like this with an event to the backend thread - that way we avoid any overcomplications
@@ -69,10 +69,11 @@ public:
       // process all records in backtrace for this logger_name and log them by calling backend_process_backtrace_log_record
       backtrace_log_record_storage.process(
         _logger_details->name(),
-        [&obtain_active_handlers, &timestamp_callback](
-          std::string const& stored_thread_id, BaseEvent const* stored_backtrace_log_record) {
+        [&obtain_active_handlers, &timestamp_callback](std::string const& stored_thread_id,
+                                                       std::string const& stored_thread_name,
+                                                       BaseEvent const* stored_backtrace_log_record) {
           stored_backtrace_log_record->backend_process_backtrace_log_record(
-            stored_thread_id.data(), obtain_active_handlers, timestamp_callback);
+            stored_thread_id.data(), stored_thread_name.data(), obtain_active_handlers, timestamp_callback);
         });
     }
   }
@@ -84,7 +85,7 @@ public:
 
 private:
   LoggerDetails const* _logger_details{nullptr};
-  uint32_t _backtrace_capacity{(std::numeric_limits<uint32_t>::max())};
+  uint32_t _backtrace_capacity{(std::numeric_limits<uint32_t>::max)()};
 };
 
 } // namespace detail
