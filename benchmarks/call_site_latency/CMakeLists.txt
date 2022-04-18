@@ -39,7 +39,12 @@ add_executable(benchmark_g3log_call_site_latency)
 target_sources(benchmark_g3log_call_site_latency PRIVATE benchmark_g3log_call_site_latency.cpp)
 target_link_libraries(benchmark_g3log_call_site_latency PRIVATE g3log)
 
-# g3log
+# ms binlog
 add_executable(benchmark_ms_binlog_call_site_latency)
 target_sources(benchmark_ms_binlog_call_site_latency PRIVATE benchmark_ms_binlog_call_site_latency.cpp)
 target_link_libraries(benchmark_ms_binlog_call_site_latency PRIVATE binlog Threads::Threads)
+
+# g3log
+add_executable(benchmark_fmtlog_call_site_latency)
+target_sources(benchmark_fmtlog_call_site_latency PRIVATE benchmark_fmtlog_call_site_latency.cpp)
+target_link_libraries(benchmark_fmtlog_call_site_latency PRIVATE fmtlog Threads::Threads)

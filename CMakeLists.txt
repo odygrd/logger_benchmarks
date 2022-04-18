@@ -36,5 +36,5 @@ add_subdirectory(third_party/reckless)
 add_subdirectory(third_party/platformlab_nanolog)
 add_subdirectory(third_party/g3log)
 add_subdirectory(third_party/binlog)
-
+add_subdirectory(third_party/fmtlog)
 add_subdirectory(benchmarks)

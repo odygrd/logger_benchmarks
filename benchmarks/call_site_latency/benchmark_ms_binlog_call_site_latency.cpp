@@ -19,7 +19,7 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
     std::ofstream logfile("binlog_call_site_latency_percentile_linux_benchmark.blog", std::ofstream::out | std::ofstream::binary);
 
     // pin to cpu
-    set_thread_affinity(0);
+    set_thread_affinity(6);
 
     binlog::Session::ConsumeResult consume_result;
     do

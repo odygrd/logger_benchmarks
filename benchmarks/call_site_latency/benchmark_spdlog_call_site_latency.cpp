@@ -16,7 +16,7 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
 
   auto on_backend_start = []() {
     // Set the spdlog backend thread cpu affinity to zero
-    set_thread_affinity(0);
+    set_thread_affinity(6);
   };
 
   spdlog::init_thread_pool(8388608, 1, on_backend_start);

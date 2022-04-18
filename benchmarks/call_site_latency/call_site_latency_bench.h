@@ -164,7 +164,7 @@ inline void run_benchmark(char const* benchmark_name,
 #endif
 {
   // main thread affinity
-  set_thread_affinity(0);
+  set_thread_affinity(6);
 
 #ifdef BENCH_WITHOUT_PERF
   // each thread gets a vector of latencies
