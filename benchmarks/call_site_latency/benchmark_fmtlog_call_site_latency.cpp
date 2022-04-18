@@ -13,8 +13,6 @@ void fmtlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   std::remove("fmtlog_call_site_latency_percentile_linux_benchmark.log");
   fmtlog::setLogFile("fmtlog_call_site_latency_percentile_linux_benchmark.log", true);
 
-  fmtlog::startPollingThread(1);
-
   std::atomic<bool> done{false};
 
   std::thread backend(
