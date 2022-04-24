@@ -37,7 +37,7 @@ void fmtlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   { FMTLOG(fmtlog::INF, "Logging int: {}, int: {}, double: {}", i, j, d); };
 #elif defined(BENCH_INT_INT_LARGESTR)
   auto log_func = [](uint64_t i, uint64_t j, std::string const& s)
-  { FMTLOG(fmtlog::INF, "Logging int: {}, int: {}, string: {}", i, j, s.data()); };
+  { FMTLOG(fmtlog::INF, "Logging int: {}, int: {}, string: {}", i, j, s); };
 #endif
 
   auto on_start = []() { fmtlog::preallocate(); };
