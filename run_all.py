@@ -2,33 +2,60 @@ import subprocess
 
 root_dir = ""
 
-benchmark_quill_no_dual_mode_unbounded = root_dir + "benchmark_quill_no_dual_mode_unbounded_call_site_latency"
-benchmark_quill_dual_mode_unbounded = root_dir + "benchmark_quill_dual_mode_unbounded_call_site_latency"
-benchmark_quill_dual_mode_bounded = root_dir + "benchmark_quill_dual_mode_bounded_call_site_latency"
-benchmark_g3log = root_dir + "benchmark_g3log_call_site_latency"
-benchmark_iyengar_nanolog = root_dir + "benchmark_iyengar_nanolog_call_site_latency"
-benchmark_ms_binlog = root_dir + "benchmark_ms_binlog_call_site_latency"
-benchmark_platformlab = root_dir + "benchmark_platformlab_call_site_latency"
-benchmark_reckless = root_dir + "benchmark_reckless_call_site_latency"
-benchmark_spdlog = root_dir + "benchmark_spdlog_call_site_latency"
+benchmark_quill_no_dual_mode_unbounded_int_int_double = root_dir + "benchmark_quill_no_dual_mode_unbounded_call_site_latency_int_int_double"
+benchmark_quill_dual_mode_unbounded_int_int_double = root_dir + "benchmark_quill_dual_mode_unbounded_call_site_latency_int_int_double"
+benchmark_quill_dual_mode_bounded_int_int_double = root_dir + "benchmark_quill_dual_mode_bounded_call_site_latency_int_int_double"
+benchmark_quill_v2_unbounded_int_int_double = root_dir + "benchmark_quill_v2_unbounded_call_site_latency_int_int_double"
+benchmark_g3log_int_int_double = root_dir + "benchmark_g3log_call_site_latency_int_int_double"
+benchmark_iyengar_nanolog_int_int_double = root_dir + "benchmark_iyengar_nanolog_call_site_latency_int_int_double"
+benchmark_ms_binlog_int_int_double = root_dir + "benchmark_ms_binlog_call_site_latency_int_int_double"
+benchmark_fmtlog_int_int_double = root_dir + "benchmark_fmtlog_call_site_latency_int_int_double"
+benchmark_platformlab_int_int_double = root_dir + "benchmark_platformlab_call_site_latency_int_int_double"
+benchmark_reckless_int_int_double = root_dir + "benchmark_reckless_call_site_latency_int_int_double"
+benchmark_spdlog_int_int_double = root_dir + "benchmark_spdlog_call_site_latency_int_int_double"
 
-benchmarks = [benchmark_quill_no_dual_mode_unbounded,
-              benchmark_quill_dual_mode_unbounded,
-              benchmark_quill_dual_mode_bounded,
-              benchmark_platformlab,
-              benchmark_ms_binlog,
-              benchmark_spdlog,
-              benchmark_g3log,
-              benchmark_iyengar_nanolog,
-              benchmark_reckless]
+benchmark_quill_no_dual_mode_unbounded_int_int_largestr = root_dir + "benchmark_quill_no_dual_mode_unbounded_call_site_latency_int_int_largestr"
+benchmark_quill_dual_mode_unbounded_int_int_largestr = root_dir + "benchmark_quill_dual_mode_unbounded_call_site_latency_int_int_largestr"
+benchmark_quill_dual_mode_bounded_int_int_largestr = root_dir + "benchmark_quill_dual_mode_bounded_call_site_latency_int_int_largestr"
+benchmark_quill_v2_unbounded_int_int_largestr = root_dir + "benchmark_quill_v2_unbounded_call_site_latency_int_int_largestr"
+benchmark_g3log_int_int_largestr = root_dir + "benchmark_g3log_call_site_latency_int_int_largestr"
+benchmark_iyengar_nanolog_int_int_largestr = root_dir + "benchmark_iyengar_nanolog_call_site_latency_int_int_largestr"
+benchmark_ms_binlog_int_int_largestr = root_dir + "benchmark_ms_binlog_call_site_latency_int_int_largestr"
+benchmark_fmtlog_int_int_largestr = root_dir + "benchmark_fmtlog_call_site_latency_int_int_largestr"
+benchmark_platformlab_int_int_largestr = root_dir + "benchmark_platformlab_call_site_latency_int_int_largestr"
+benchmark_reckless_int_int_largestr = root_dir + "benchmark_reckless_call_site_latency_int_int_largestr"
+benchmark_spdlog_int_int_largestr = root_dir + "benchmark_spdlog_call_site_latency_int_int_largestr"
+
+benchmarks = [benchmark_quill_no_dual_mode_unbounded_int_int_double,
+              benchmark_quill_dual_mode_unbounded_int_int_double,
+              benchmark_quill_dual_mode_bounded_int_int_double,
+              benchmark_quill_v2_unbounded_int_int_double,
+              benchmark_platformlab_int_int_double,
+              benchmark_ms_binlog_int_int_double,
+              benchmark_fmtlog_int_int_double,
+              benchmark_spdlog_int_int_double,
+              benchmark_g3log_int_int_double,
+              benchmark_iyengar_nanolog_int_int_double,
+              benchmark_reckless_int_int_double,
+              benchmark_quill_no_dual_mode_unbounded_int_int_largestr,
+              benchmark_quill_dual_mode_unbounded_int_int_largestr,
+              benchmark_quill_dual_mode_bounded_int_int_largestr,
+              benchmark_quill_v2_unbounded_int_int_largestr,
+              benchmark_platformlab_int_int_largestr,
+              benchmark_ms_binlog_int_int_largestr,
+              benchmark_fmtlog_int_int_largestr,
+              benchmark_spdlog_int_int_largestr,
+              benchmark_g3log_int_int_largestr,
+              benchmark_iyengar_nanolog_int_int_largestr,
+              benchmark_reckless_int_int_largestr]
 
 i = 0
 for bench in benchmarks:
-  s = "bench_results_{}.txt".format(i)
-  print("Writing to {} for {}".format(s, bench))
-  output = open(s, "w")
-  i = i + 1
+    s = "bench_results_{}.txt".format(i)
+    print("Writing to {} for {}".format(s, bench))
+    output = open(s, "w")
+    i = i + 1
 
-  for x in range(4):
-    print("Running {}".format(bench))
+    for x in range(4):
+        print("Running {}".format(bench))
     subprocess.call(bench, stdout=output)
