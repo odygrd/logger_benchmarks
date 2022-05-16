@@ -58,4 +58,4 @@ for bench in benchmarks:
 
     for x in range(4):
         print("Running {}".format(bench))
-    subprocess.call(bench, stdout=output)
+        subprocess.call(bench, stdout=output)

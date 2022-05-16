@@ -19,7 +19,7 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
 
   // Create a file handler to write to a file
   quill::Handler* file_handler =
-    quill::file_handler("benchmark_quill_no_dual_mode_unbounded_call_site_latency.log", "w");
+    quill::file_handler("benchmark_quill_v2_unbounded_call_site_latency.log", "w");
 
   quill::Logger* logger = quill::create_logger("bench_logger", file_handler);
 
@@ -41,8 +41,8 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   // Run the benchmark for n threads
   for (auto thread_count : thread_count_array)
   {
-    run_benchmark("Logger: Quill - Benchmark: Caller Thread Latency - No Dual Mode, Unbounded",
-                  thread_count, num_iterations_per_thread, on_start, log_func, on_exit);
+    run_benchmark("Logger: Quill - Benchmark: Caller Thread Latency - V2, Unbounded", thread_count,
+                  num_iterations_per_thread, on_start, log_func, on_exit);
   }
 }
 

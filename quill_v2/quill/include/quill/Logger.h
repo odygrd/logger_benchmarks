@@ -109,7 +109,8 @@ public:
     constexpr size_t c_string_count = fmt::detail::count<detail::is_type_of_c_string<FmtArgs>()...>();
     size_t c_string_sizes[(std::max)(c_string_count, static_cast<size_t>(1))];
 
-    size_t const total_size = sizeof(detail::Header) + detail::get_args_sizes<0>(c_string_sizes, fmt_args...);
+    size_t const total_size = sizeof(detail::Header) + alignof(detail::Header) +
+      detail::get_args_sizes<0>(c_string_sizes, fmt_args...);
 
     // request this size from the queue
     std::byte* write_buffer = thread_context->spsc_queue().prepare_write(total_size);
