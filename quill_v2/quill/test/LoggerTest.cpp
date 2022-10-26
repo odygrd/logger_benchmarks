@@ -1,7 +1,7 @@
 #include "doctest/doctest.h"
 
+#include "quill/Config.h"
 #include "quill/detail//HandlerCollection.h"
-#include "quill/detail/Config.h"
 #include "quill/detail/LoggerCollection.h"
 #include "quill/detail/ThreadContextCollection.h"
 #include "quill/handlers/Handler.h"
@@ -15,12 +15,12 @@ using namespace quill::detail;
 TEST_CASE("log_level")
 {
   Config cfg;
-  ThreadContextCollection tc{cfg};
+  ThreadContextCollection tc;
   HandlerCollection hc;
 
-  LoggerCollection logger_collection{tc, hc};
+  LoggerCollection logger_collection{cfg, tc, hc};
 
-  Logger* logger = logger_collection.create_logger("logger_1");
+  Logger* logger = logger_collection.create_logger("logger_1", TimestampClockType::Rdtsc, nullptr);
 
   // Check default log level
   REQUIRE_EQ(logger->log_level(), LogLevel::Info);
@@ -35,10 +35,10 @@ TEST_CASE("log_level")
 TEST_CASE("get_non_existent_logger")
 {
   Config cfg;
-  ThreadContextCollection tc{cfg};
+  ThreadContextCollection tc;
   HandlerCollection hc;
 
-  LoggerCollection logger_collection{tc, hc};
+  LoggerCollection logger_collection{cfg, tc, hc};
 
   REQUIRE_THROWS_AS((void)logger_collection.get_logger("logger_1"), quill::QuillError);
 }
@@ -47,12 +47,12 @@ TEST_CASE("get_non_existent_logger")
 TEST_CASE("throw_if_backtrace_log_level_is_used")
 {
   Config cfg;
-  ThreadContextCollection tc{cfg};
+  ThreadContextCollection tc;
   HandlerCollection hc;
 
-  LoggerCollection logger_collection{tc, hc};
+  LoggerCollection logger_collection{cfg, tc, hc};
 
-  Logger* logger_1 = logger_collection.create_logger("logger_1");
+  Logger* logger_1 = logger_collection.create_logger("logger_1", TimestampClockType::Rdtsc, nullptr);
 
   REQUIRE_THROWS_AS(logger_1->set_log_level(LogLevel::Backtrace), quill::QuillError);
 }
@@ -62,53 +62,27 @@ TEST_CASE("throw_if_backtrace_log_level_is_used")
 TEST_CASE("logger_should_log")
 {
   Config cfg;
-  ThreadContextCollection tc{cfg};
+  ThreadContextCollection tc;
   HandlerCollection hc;
 
-  LoggerCollection logger_collection{tc, hc};
+  LoggerCollection logger_collection{cfg, tc, hc};
 
-  QUILL_MAYBE_UNUSED Logger* logger_1 = logger_collection.create_logger("logger_1");
+  QUILL_MAYBE_UNUSED Logger* logger_1 =
+    logger_collection.create_logger("logger_1", TimestampClockType::Rdtsc, nullptr);
 
-  {
-    LogLevel log_statement_level{LogLevel::Debug};
-    REQUIRE_UNARY_FALSE(logger_collection.get_logger("logger_1")->should_log(log_statement_level));
-  }
-
-  {
-    LogLevel log_statement_level{LogLevel::Info};
-    REQUIRE(logger_collection.get_logger("logger_1")->should_log(log_statement_level));
-  }
-
-  {
-    LogLevel log_statement_level{LogLevel::Error};
-    REQUIRE(logger_collection.get_logger("logger_1")->should_log(log_statement_level));
-  }
+  REQUIRE_UNARY_FALSE(logger_collection.get_logger("logger_1")->should_log<LogLevel::Debug>());
+  REQUIRE(logger_collection.get_logger("logger_1")->should_log<LogLevel::Info>());
+  REQUIRE(logger_collection.get_logger("logger_1")->should_log<LogLevel::Error>());
 
   // change log level
   logger_collection.get_logger("logger_1")->set_log_level(LogLevel::TraceL3);
-
-  {
-    LogLevel log_statement_level{LogLevel::TraceL3};
-    REQUIRE(logger_collection.get_logger("logger_1")->should_log(log_statement_level));
-  }
-
-  {
-    LogLevel log_statement_level{LogLevel::Critical};
-    REQUIRE(logger_collection.get_logger("logger_1")->should_log(log_statement_level));
-  }
+  REQUIRE(logger_collection.get_logger("logger_1")->should_log<LogLevel::TraceL3>());
+  REQUIRE(logger_collection.get_logger("logger_1")->should_log<LogLevel::Critical>());
 
   // change log level
   logger_collection.get_logger("logger_1")->set_log_level(LogLevel::None);
-
-  {
-    LogLevel log_statement_level{LogLevel::TraceL3};
-    REQUIRE_UNARY_FALSE(logger_collection.get_logger("logger_1")->should_log(log_statement_level));
-  }
-
-  {
-    LogLevel log_statement_level{LogLevel::Critical};
-    REQUIRE_UNARY_FALSE(logger_collection.get_logger("logger_1")->should_log(log_statement_level));
-  }
+  REQUIRE_UNARY_FALSE(logger_collection.get_logger("logger_1")->should_log<LogLevel::TraceL3>());
+  REQUIRE_UNARY_FALSE(logger_collection.get_logger("logger_1")->should_log<LogLevel::Critical>());
 }
 
 TEST_SUITE_END();

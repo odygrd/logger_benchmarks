@@ -8,8 +8,7 @@ namespace quill
 namespace detail
 {
 /***/
-BackendWorker::BackendWorker(Config const& config,
-                             ThreadContextCollection& thread_context_collection,
+BackendWorker::BackendWorker(Config const& config, ThreadContextCollection& thread_context_collection,
                              HandlerCollection const& handler_collection)
   : _config(config),
     _thread_context_collection(thread_context_collection),
@@ -17,11 +16,8 @@ BackendWorker::BackendWorker(Config const& config,
     _process_id(fmt::format_int(get_process_id()).str())
 {
 #if !defined(QUILL_NO_EXCEPTIONS)
-  if (!_error_handler)
-  {
-    // set up the default error handler
-    _error_handler = [](std::string const& s) { std::cerr << s << std::endl; };
-  }
+  // set up the default error handler
+  _error_handler = [](std::string const& s) { std::cerr << s << std::endl; };
 #endif
 }
 
@@ -47,21 +43,6 @@ void BackendWorker::stop() noexcept
 
 /***/
 uint32_t BackendWorker::thread_id() const noexcept { return _backend_worker_thread_id; }
-
-#if !defined(QUILL_NO_EXCEPTIONS)
-/***/
-void BackendWorker::set_error_handler(backend_worker_error_handler_t error_handler)
-{
-  if (is_running())
-  {
-    QUILL_THROW(
-      QuillError{"The backend thread has already started. The error handler must be set before the "
-                 "thread starts."});
-  }
-
-  _error_handler = std::move(error_handler);
-}
-#endif
 
 /***/
 void BackendWorker::_check_dropped_messages(ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts) noexcept
@@ -90,6 +71,65 @@ void BackendWorker::_check_dropped_messages(ThreadContextCollection::backend_thr
     }
   }
 #endif
+}
+
+/***/
+std::pair<std::string, std::vector<std::string>> BackendWorker::_process_structured_log_template(std::string_view fmt_template) noexcept
+{
+  std::string fmt_str;
+  std::vector<std::string> keys;
+
+  size_t cur_pos = 0;
+
+  size_t open_bracket_pos = fmt_template.find_first_of('{');
+  while (open_bracket_pos != std::string::npos)
+  {
+    // found an open bracket
+    size_t const open_bracket_2_pos = fmt_template.find_first_of('{', open_bracket_pos + 1);
+
+    if (open_bracket_2_pos != std::string::npos)
+    {
+      // found another open bracket
+      if ((open_bracket_2_pos - 1) == open_bracket_pos)
+      {
+        open_bracket_pos = fmt_template.find_first_of('{', open_bracket_2_pos + 1);
+        continue;
+      }
+    }
+
+    // look for the next close bracket
+    size_t close_bracket_pos = fmt_template.find_first_of('}', open_bracket_pos + 1);
+    while (close_bracket_pos != std::string::npos)
+    {
+      // found closed bracket
+      size_t const close_bracket_2_pos = fmt_template.find_first_of('}', close_bracket_pos + 1);
+
+      if (close_bracket_2_pos != std::string::npos)
+      {
+        // found another open bracket
+        if ((close_bracket_2_pos - 1) == close_bracket_pos)
+        {
+          close_bracket_pos = fmt_template.find_first_of('}', close_bracket_2_pos + 1);
+          continue;
+        }
+      }
+
+      // construct a fmt string excluding the characters inside the brackets { }
+      fmt_str += std::string{fmt_template.substr(cur_pos, open_bracket_pos - cur_pos)} + "{}";
+      cur_pos = close_bracket_pos + 1;
+
+      // also add the keys to the vector
+      keys.emplace_back(fmt_template.substr(open_bracket_pos + 1, (close_bracket_pos - open_bracket_pos - 1)));
+
+      break;
+    }
+
+    open_bracket_pos = fmt_template.find_first_of('{', close_bracket_pos);
+  }
+
+  // add anything remaining after the last bracket
+  fmt_str += std::string{fmt_template.substr(cur_pos, fmt_template.length() - cur_pos)};
+  return std::make_pair(fmt_str, keys);
 }
 
 } // namespace detail

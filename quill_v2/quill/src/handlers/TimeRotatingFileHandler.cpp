@@ -14,13 +14,10 @@ namespace quill
 {
 
 /***/
-TimeRotatingFileHandler::TimeRotatingFileHandler(std::filesystem::path const& base_filename,
-                                                 std::string const& mode,
-                                                 std::string when,
-                                                 uint32_t interval,
-                                                 uint32_t backup_count,
-                                                 Timezone timezone,
-                                                 std::string const& at_time)
+TimeRotatingFileHandler::TimeRotatingFileHandler(fs::path const& base_filename,
+                                                 std::string const& mode, std::string when,
+                                                 uint32_t interval, uint32_t backup_count,
+                                                 Timezone timezone, std::string const& at_time)
   : FileHandler(base_filename),
     _when(std::move(when)),
     _interval(interval),
@@ -83,10 +80,10 @@ TimeRotatingFileHandler::TimeRotatingFileHandler(std::filesystem::path const& ba
 
 /***/
 void TimeRotatingFileHandler::write(fmt::memory_buffer const& formatted_log_message,
-                                    std::chrono::nanoseconds log_message_timestamp,
-                                    LogLevel log_message_severity)
+                                    quill::TransitEvent const& log_event)
 {
-  bool const should_rotate = (log_message_timestamp >= _next_rotation_time.time_since_epoch());
+  bool const should_rotate =
+    (std::chrono::nanoseconds{log_event.header.timestamp} >= _next_rotation_time.time_since_epoch());
 
   if (QUILL_UNLIKELY(should_rotate))
   {
@@ -106,9 +103,9 @@ void TimeRotatingFileHandler::write(fmt::memory_buffer const& formatted_log_mess
       }
     }
 
-    std::filesystem::path const previous_file = _filename;
+    fs::path const previous_file = _filename;
     bool const append_time_to_filename = true;
-    std::filesystem::path const new_file = detail::append_date_to_filename(
+    fs::path const new_file = detail::append_date_to_filename(
       _filename, _file_creation_time, append_time_to_filename, _using_timezone);
 
     detail::rename_file(previous_file, new_file);
@@ -133,16 +130,13 @@ void TimeRotatingFileHandler::write(fmt::memory_buffer const& formatted_log_mess
   }
 
   // write to file
-  StreamHandler::write(formatted_log_message, log_message_timestamp, log_message_severity);
+  StreamHandler::write(formatted_log_message, log_event);
 }
 
 /***/
 std::chrono::system_clock::time_point TimeRotatingFileHandler::_calculate_initial_rotation_tp(
-  std::chrono::system_clock::time_point time_now,
-  std::string const& when,
-  Timezone timezone,
-  std::chrono::hours at_time_hours,
-  std::chrono::minutes at_time_minutes) noexcept
+  std::chrono::system_clock::time_point time_now, std::string const& when, Timezone timezone,
+  std::chrono::hours at_time_hours, std::chrono::minutes at_time_minutes) noexcept
 {
   time_t tnow = std::chrono::system_clock::to_time_t(time_now);
   tm date;
@@ -186,9 +180,7 @@ std::chrono::system_clock::time_point TimeRotatingFileHandler::_calculate_initia
 
 /***/
 std::chrono::system_clock::time_point TimeRotatingFileHandler::_calculate_rotation_tp(
-  std::chrono::system_clock::time_point time_now,
-  std::string const& when,
-  uint32_t interval) noexcept
+  std::chrono::system_clock::time_point time_now, std::string const& when, uint32_t interval) noexcept
 {
   if (when == std::string{"M"})
   {

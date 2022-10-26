@@ -17,7 +17,7 @@ TEST_CASE("next_noon_or_midnight_timestamp")
 {
   // We do not test local because if we hardcode an expected_timestamp in our local timezone
   // it can be different in another system
-
+  
   {
     // Noon utc
     time_t timestamp{1599033200};
@@ -97,17 +97,16 @@ TEST_CASE("safe_strftime_empty")
 
 TEST_CASE("set_get_thread_name")
 {
-  std::thread t1{[]()
-                 {
+  std::thread t1{[](){
 #ifdef QUILL_NO_THREAD_NAME_SUPPORT
-                   std::string const tname{};
+    std::string const tname{};
 #else
-                   std::string const tname{"test_thread"};
+    std::string const tname{"test_thread"};
 #endif
-                   set_thread_name(tname.data());
-                   std::string const res = get_thread_name();
-                   REQUIRE_EQ(tname, res);
-                 }};
+    set_thread_name(tname.data());
+    std::string const res = get_thread_name();
+    REQUIRE_EQ(tname, res);
+  }};
 
   t1.join();
 }

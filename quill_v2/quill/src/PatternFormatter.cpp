@@ -15,8 +15,7 @@ constexpr void _store_named_args(std::array<fmt::detail::named_arg_info<char>, P
 /***/
 template <size_t Idx, size_t NamedIdx, typename Arg, typename... Args>
 constexpr void _store_named_args(std::array<fmt::detail::named_arg_info<char>, PatternFormatter::Attribute::ATTR_NR_ITEMS>& named_args_store,
-                                 const Arg& arg,
-                                 const Args&... args)
+                                 const Arg& arg, const Args&... args)
 {
   named_args_store[NamedIdx] = {arg.name, Idx};
   _store_named_args<Idx + 1, NamedIdx + 1>(named_args_store, args...);
@@ -42,15 +41,14 @@ constexpr void _store_named_args(std::array<fmt::detail::named_arg_info<char>, P
  *  i: 8 order idx[i] is: 1 - %(thread)
  *  i: 9 order idx[i] is: 10 - empty
  *  i: 10 order idx[i] is: 10 - empty
- * @tparam Args
- * @param pattern
- * @param args
- * @return
+ * @tparam Args Args
+ * @param pattern pattern
+ * @param args args
+ * @return processed pattern
  */
 template <typename... Args>
 QUILL_NODISCARD std::pair<std::string, std::array<size_t, PatternFormatter::Attribute::ATTR_NR_ITEMS>> _generate_fmt_format_string(
-  std::string pattern,
-  Args const&... args)
+  std::string pattern, Args const&... args)
 {
   // Attribute enum and the args we are passing here must be in sync
   static_assert(PatternFormatter::Attribute::ATTR_NR_ITEMS == sizeof...(Args));
@@ -156,15 +154,6 @@ QUILL_NODISCARD std::pair<std::string, std::array<size_t, PatternFormatter::Attr
 /***/
 void PatternFormatter::_set_pattern(std::string const& format_pattern)
 {
-  // parse and check the given pattern
-  constexpr std::string_view message{"%(message)"};
-  size_t const message_found = format_pattern.find(message);
-
-  if (message_found == std::string::npos)
-  {
-    QUILL_THROW(QuillError{"%(message) is required in the format pattern"});
-  }
-
   // the order we pass the arguments here must match with the order of Attribute enum
   using namespace fmt::literals;
   std::tie(_format, _order_index) = _generate_fmt_format_string(
@@ -188,14 +177,16 @@ void PatternFormatter::_set_pattern(std::string const& format_pattern)
 }
 
 /***/
-void PatternFormatter::format(std::chrono::nanoseconds timestamp,
-                              std::string_view thread_id,
-                              std::string_view thread_name,
-                              std::string_view process_id,
-                              std::string_view logger_name,
-                              MacroMetadata const& macro_metadata,
-                              fmt::memory_buffer const& log_msg)
+void PatternFormatter::format(std::chrono::nanoseconds timestamp, std::string_view thread_id,
+                              std::string_view thread_name, std::string_view process_id, std::string_view logger_name,
+                              MacroMetadata const& macro_metadata, fmt::memory_buffer const& log_msg)
 {
+  if (_format.empty())
+  {
+    // nothing to format when the given format is empty. This is useful e.g. in the JsonFileHandler
+    // if we want to skip formatting the main message
+    return;
+  }
   // clear out existing buffer
   _formatted_log_message.clear();
 
@@ -222,4 +213,9 @@ void PatternFormatter::format(std::chrono::nanoseconds timestamp,
   _formatted_log_message.push_back('\n');
 }
 
+/***/
+std::string_view PatternFormatter::format_timestamp(std::chrono::nanoseconds timestamp)
+{
+  return _timestamp_formatter.format_timestamp(timestamp);
+}
 } // namespace quill

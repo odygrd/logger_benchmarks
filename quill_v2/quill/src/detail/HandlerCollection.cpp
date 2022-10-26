@@ -1,14 +1,12 @@
 #include "quill/detail/HandlerCollection.h"
-#include "quill/QuillError.h"              // for QuillError
-#include "quill/detail/misc/Utilities.h"   // for s2ws
-#include "quill/handlers/ConsoleHandler.h" // for ConsoleHandler
-#include <algorithm>                       // for find_if
-#include <cstdio>                          // for stdout,stderr
-#include <utility>                         // for pair
+#include "quill/QuillError.h"                       // for QuillError
+#include "quill/detail/misc/Utilities.h"            // for s2ws
+#include "quill/handlers/ConsoleHandler.h"          // for ConsoleHandler
+#include <algorithm>                                // for find_if
+#include <cstdio>                                   // for stdout,stderr
+#include <utility>                                  // for pair
 
-namespace quill
-{
-namespace detail
+namespace quill::detail
 {
 /***/
 StreamHandler* HandlerCollection::stdout_console_handler(std::string const& stdout_handler_name /* = std::string{"stdout"} */,
@@ -56,8 +54,7 @@ std::vector<Handler*> HandlerCollection::active_handlers() const
 }
 
 /***/
-StreamHandler* HandlerCollection::_create_console_handler(std::string const& stream,
-                                                          FILE* file,
+StreamHandler* HandlerCollection::_create_console_handler(std::string const& stream, FILE* file,
                                                           ConsoleColours const& console_colours)
 {
   // Protect shared access
@@ -102,5 +99,4 @@ StreamHandler* HandlerCollection::_create_console_handler(std::string const& str
 
   return reinterpret_cast<StreamHandler*>((*emplace_result.first).second.get());
 }
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

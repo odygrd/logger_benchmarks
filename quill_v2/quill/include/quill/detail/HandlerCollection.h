@@ -62,8 +62,7 @@ public:
    */
   template <typename THandler, typename... Args>
   QUILL_NODISCARD QUILL_ATTRIBUTE_COLD std::enable_if_t<std::is_base_of<StreamHandler, THandler>::value, StreamHandler*> create_handler(
-    std::string const& handler_name,
-    Args&&... args)
+    std::string const& handler_name, Args&&... args)
   {
     // Protect shared access
     std::lock_guard<std::mutex> const lock{_mutex};
@@ -90,8 +89,7 @@ public:
    */
   template <typename THandler, typename... Args>
   QUILL_NODISCARD QUILL_ATTRIBUTE_COLD std::enable_if_t<!std::is_base_of<StreamHandler, THandler>::value, Handler*> create_handler(
-    std::string const& handler_name,
-    Args&&... args)
+    std::string const& handler_name, Args&&... args)
   {
     // Protect shared access
     std::lock_guard<std::mutex> const lock{_mutex};
@@ -134,8 +132,7 @@ public:
   // list Check if no other logger is using it first
 
 private:
-  QUILL_NODISCARD StreamHandler* _create_console_handler(std::string const& stream,
-                                                         FILE* file,
+  QUILL_NODISCARD StreamHandler* _create_console_handler(std::string const& stream, FILE* file,
                                                          ConsoleColours const& console_colours);
 
 private:

@@ -29,10 +29,11 @@ namespace quill::detail
  * buffer is created from the producer the consumer first consumes everything in the old
  * buffer and then moves to the new buffer.
  */
+template <size_t Capacity>
 class UnboundedQueue
 {
 public:
-  using bounded_queue_t = BoundedQueue;
+  using bounded_queue_t = BoundedQueue<Capacity>;
 
 private:
   /** Private Definitions **/
@@ -50,8 +51,8 @@ private:
 
     /**
      * Alignment requirement as we have bounded_queue as member
-     * @param i
-     * @return
+     * @param i i
+     * @return allocated memory pointer
      */
     void* operator new(size_t i) { return aligned_alloc(CACHELINE_SIZE, i); }
     void operator delete(void* p) { aligned_free(p); }
@@ -65,7 +66,6 @@ private:
 public:
   /**
    * Constructor
-   * @param capacity The starting capacity
    */
   UnboundedQueue() : _producer(new Node()), _consumer(_producer) {}
 
@@ -166,14 +166,14 @@ public:
    * Consumes the next nbytes in the buffer and frees it back
    * for the producer to reuse.
    */
-  QUILL_ALWAYS_INLINE_HOT void finish_read(uint64_t nbytes)
+  QUILL_ALWAYS_INLINE_HOT void finish_read(size_t nbytes)
   {
     _consumer->bounded_queue.finish_read(nbytes);
   }
 
   /**
    * Return the current buffer's capacity
-   * @return
+   * @return capacity
    */
   QUILL_NODISCARD std::size_t capacity() const noexcept
   {
@@ -182,7 +182,7 @@ public:
 
   /**
    * checks if the queue is empty
-   * @return
+   * @return true if empty, false otherwise
    */
   QUILL_NODISCARD bool empty() const noexcept
   {
@@ -191,7 +191,7 @@ public:
 
   /**
    * Gives a pointer to producer pos
-   * @return
+   * @return producer pos
    */
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::byte* producer_pos() const noexcept
   {

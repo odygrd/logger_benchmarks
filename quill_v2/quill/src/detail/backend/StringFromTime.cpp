@@ -33,7 +33,7 @@ std::pair<std::string, std::string> _split_timestamp_format_once(std::string& ti
     if (search != std::string::npos)
     {
       // Add the index and the modifier string to our map
-      found_format_modifiers.insert(std::make_pair(search, modifier));
+      found_format_modifiers.emplace(std::make_pair(search, modifier));
     }
   }
 
@@ -64,9 +64,7 @@ std::pair<std::string, std::string> _split_timestamp_format_once(std::string& ti
 }
 } // namespace
 
-namespace quill
-{
-namespace detail
+namespace quill::detail
 {
 
 /***/
@@ -148,7 +146,8 @@ std::string const& StringFromTime::format_timestamp(time_t timestamp)
     }
     else if (_time_zone == Timezone::GmtTime)
     {
-      _next_recalculation_timestamp = next_noon_or_midnight_timestamp(timestamp + 1, _time_zone);
+      _next_recalculation_timestamp =
+        next_noon_or_midnight_timestamp(timestamp + 1, _time_zone);
     }
   }
 
@@ -373,5 +372,4 @@ void StringFromTime::_populate_pre_formatted_string_and_cached_indexes(time_t ti
   }
 }
 
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

@@ -20,49 +20,6 @@
  */
 
 /**
- * If QUILL_CHRONO_CLOCK value is defined, Quill will use chrono system_clock for timestamps.
- *
- * QUILL RDTSC CLOCK mode :
- *
- * TSC clock gives better performance on the caller thread. However, the initialisation time of the application is higher as
- * we have to take multiple samples in the beginning to convert TSC to nanoseconds
- *
- * Consider reading https://stackoverflow.com/questions/42189976/calculate-system-time-using-rdtsc
- *
- * The backend thread is constantly keeping track of the difference between TSC and the system wall clock resulting
- * in accurate timestamps.
- *
- * When using the TSC counter the backend thread will also periodically call chrono::system_clock:now() and will
- * resync the TSC based on the system clock.
- *
- * @note: This should be switchable even after quill is already installed as a static or shared library.
- *
- * Usage:
- * Run cmake as e.g: cmake . -DCMAKE_CXX_FLAGS="-DQUILL_CHRONO_CLOCK=1"
- * or
- * In the root CMake file use: `add_definitions(-DQUILL_CHRONO_CLOCK=1)`
- *
- * By default RDTSC clock is enabled
- */
-// #define QUILL_CHRONO_CLOCK
-
-/**
- * This option is only applicable if the RDTSC clock is enabled.
- * When QUILL_CHRONO_CLOCK is defined this option can be ignored
- *
- * This value controls how frequently the backend thread will re-calculate and sync the TSC by
- * getting the system time from the system wall clock.
- * The TSC clock drifts slightly over time and is also not synchronised with the NTP server updates
- * Therefore the smaller this value is the more accurate the log timestamps will be.
- *
- * It is not recommended to change the default value unless there is a real reason.
- * The value is in milliseconds and the default value is 700.
- *
- * @note: This should be switchable even after quill is already installed as a static or shared library.
- */
-// #define QUILL_RDTSC_RESYNC_INTERVAL 700
-
-/**
  * Completely compiles out log level with zero cost.
  *
  * Macros like LOG_TRACE_L3(..), LOG_TRACE_L2(..) will expand to empty statements
@@ -181,4 +138,4 @@
  * of the page size (4096).
  * Look for an online Mebibyte to Byte converter to easily find a correct value.
  */
-#define QUILL_QUEUE_CAPACITY 262'144
+// #define QUILL_QUEUE_CAPACITY 131'072

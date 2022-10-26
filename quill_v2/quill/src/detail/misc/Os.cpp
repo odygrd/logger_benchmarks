@@ -7,10 +7,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring> // for strerror
 #include <cstring>
 #include <ctime>
 #include <sstream>
+#include <string>
 
 #if defined(_WIN32)
   #define WIN32_LEAN_AND_MEAN
@@ -22,9 +22,9 @@
 
   #include <io.h>
   #include <malloc.h>
-  #include <processthreadsapi.h>
   #include <share.h>
   #include <windows.h>
+  #include <processthreadsapi.h>
 #elif defined(__APPLE__)
   #include <mach/thread_act.h>
   #include <mach/thread_policy.h>
@@ -48,10 +48,23 @@
   #include <unistd.h>
 #endif
 
-namespace quill
+namespace quill::detail
 {
-namespace detail
+#if defined(_WIN32)
+/***/
+size_t get_wide_string_encoding_size(std::wstring_view s)
 {
+  return static_cast<size_t>(::WideCharToMultiByte(CP_UTF8, 0, s.data(), static_cast<int>(s.size()),
+                                                   nullptr, 0, nullptr, nullptr));
+}
+
+/***/
+void wide_string_to_narrow(void* dest, size_t required_bytes, std::wstring_view s)
+{
+  ::WideCharToMultiByte(CP_UTF8, 0, s.data(), static_cast<int>(s.size()),
+                        reinterpret_cast<char*>(dest), static_cast<int>(required_bytes), NULL, NULL);
+}
+#endif
 
 /***/
 tm* gmtime_rs(time_t const* timer, tm* buf)
@@ -368,5 +381,4 @@ bool is_in_terminal(FILE* file) noexcept
 #endif
 }
 
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

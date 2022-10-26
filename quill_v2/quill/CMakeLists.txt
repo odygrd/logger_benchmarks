@@ -3,7 +3,7 @@ if (NOT QUILL_MASTER_PROJECT)
 endif ()
 
 # library name
-set(TARGET_NAME quill_v2)
+set(TARGET_NAME quill)
 
 # header files
 set(HEADER_FILES
@@ -13,8 +13,6 @@ set(HEADER_FILES
         include/quill/detail/backend/FreeListAllocator.h
         include/quill/detail/backend/StringFromTime.h
         include/quill/detail/backend/TimestampFormatter.h
-        include/quill/detail/backend/TransitEvent.h
-
         include/quill/detail/misc/AlignedAllocator.h
         include/quill/detail/misc/Attributes.h
         include/quill/detail/misc/Common.h
@@ -24,11 +22,8 @@ set(HEADER_FILES
         include/quill/detail/misc/RdtscClock.h
         include/quill/detail/misc/TypeTraitsCopyable.h
         include/quill/detail/misc/Utilities.h
-
         include/quill/detail/spsc_queue/BoundedQueue.h
         include/quill/detail/spsc_queue/UnboundedQueue.h
-
-        include/quill/detail/Config.h
         include/quill/detail/HandlerCollection.h
         include/quill/detail/LoggerCollection.h
         include/quill/detail/LoggerDetails.h
@@ -38,13 +33,20 @@ set(HEADER_FILES
         include/quill/detail/ThreadContext.h
         include/quill/detail/ThreadContextCollection.h
         include/quill/detail/SignalHandler.h
+
+        include/quill/clock/TimestampClock.h
+
         include/quill/filters/FilterBase.h
+
         include/quill/handlers/ConsoleHandler.h
         include/quill/handlers/FileHandler.h
         include/quill/handlers/Handler.h
+        include/quill/handlers/JsonFileHandler.h
         include/quill/handlers/RotatingFileHandler.h
         include/quill/handlers/StreamHandler.h
         include/quill/handlers/TimeRotatingFileHandler.h
+
+        include/quill/Config.h
         include/quill/Fmt.h
         include/quill/Logger.h
         include/quill/LogLevel.h
@@ -52,6 +54,7 @@ set(HEADER_FILES
         include/quill/PatternFormatter.h
         include/quill/Quill.h
         include/quill/QuillError.h
+        include/quill/TransitEvent.h
         include/quill/TweakMe.h
         include/quill/Utility.h
         )
@@ -75,6 +78,7 @@ set(SOURCE_FILES
         src/handlers/ConsoleHandler.cpp
         src/handlers/FileHandler.cpp
         src/handlers/Handler.cpp
+        src/handlers/JsonFileHandler.cpp
         src/handlers/RotatingFileHandler.cpp
         src/handlers/StreamHandler.cpp
         src/handlers/TimeRotatingFileHandler.cpp
@@ -95,11 +99,11 @@ if (NOT QUILL_FMT_EXTERNAL)
             include/quill/bundled/fmt/core.h
             include/quill/bundled/fmt/format.h
             include/quill/bundled/fmt/format-inl.h
-            include/quill/bundled/fmt/locale.h
             include/quill/bundled/fmt/os.h
             include/quill/bundled/fmt/ostream.h
             include/quill/bundled/fmt/printf.h
             include/quill/bundled/fmt/ranges.h
+            include/quill/bundled/fmt/std.h
             include/quill/bundled/fmt/xchar.h)
 
     list(APPEND SOURCE_FILES
@@ -146,10 +150,10 @@ else ()
     set(PKG_CONFIG_REQUIRES fmt)
 endif ()
 
-if (MINGW)
+if(MINGW)
     # strftime requires this when using MinGw to correctly format the time ..
     target_link_libraries(${TARGET_NAME} PUBLIC ucrtbase)
-endif ()
+endif()
 
 if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
     target_link_libraries(${TARGET_NAME} PUBLIC stdc++fs)

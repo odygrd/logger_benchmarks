@@ -7,9 +7,7 @@
 #include <cstddef>                    // for size_t
 #include <iostream>
 
-namespace quill
-{
-namespace detail
+namespace quill::detail
 {
 
 namespace
@@ -21,7 +19,7 @@ QUILL_NODISCARD uint64_t fast_average(uint64_t x, uint64_t y) noexcept
 {
   return (x & y) + ((x ^ y) >> 1);
 }
-} // namespace
+}
 
 /***/
 RdtscClock::RdtscTicks::RdtscTicks()
@@ -83,10 +81,10 @@ RdtscClock::RdtscClock(std::chrono::nanoseconds resync_interval /* = std::chrono
 
 /**
  * Convert tsc cycles to nanoseconds
- * @param tsc
- * @return
+ * @param rdtsc_value rdtsc_value
+ * @return system clock time
  */
-std::chrono::nanoseconds RdtscClock::time_since_epoch(uint64_t rdtsc_value) const noexcept
+uint64_t RdtscClock::time_since_epoch(uint64_t rdtsc_value) const noexcept
 {
   // get rtsc current value and compare the diff then add it to base wall time
   auto diff = static_cast<int64_t>(rdtsc_value - _base_tsc);
@@ -98,10 +96,7 @@ std::chrono::nanoseconds RdtscClock::time_since_epoch(uint64_t rdtsc_value) cons
     diff = static_cast<int64_t>(rdtsc_value - _base_tsc);
   }
 
-  auto const duration_since_epoch =
-    std::chrono::nanoseconds{_base_time + static_cast<int64_t>(static_cast<double>(diff) * _ns_per_tick)};
-
-  return duration_since_epoch;
+  return static_cast<uint64_t>(_base_time + static_cast<int64_t>(static_cast<double>(diff) * _ns_per_tick));
 }
 
 /**
@@ -135,5 +130,4 @@ bool RdtscClock::resync(uint32_t lag) const noexcept
   _resync_interval_ticks = _resync_interval_ticks * 2;
   return false;
 }
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

@@ -5,7 +5,9 @@
 
 #pragma once
 
-#include "quill/Logger.h"                 // for Logger
+#include "quill/Config.h"
+#include "quill/Logger.h" // for Logger
+#include "quill/clock/TimestampClock.h"
 #include "quill/detail/misc/Attributes.h" // for QUILL_ATTRIBUTE_COLD
 #include "quill/detail/misc/Common.h"     // for CACHELINE_SIZE
 #include <initializer_list>               // for initializer_list
@@ -34,7 +36,8 @@ public:
   /**
    * Constructor
    */
-  LoggerCollection(ThreadContextCollection& thread_context_collection, HandlerCollection& handler_collection);
+  LoggerCollection(Config const& config, ThreadContextCollection& thread_context_collection,
+                   HandlerCollection& handler_collection);
 
   /**
    * Destructor
@@ -65,37 +68,45 @@ public:
   /**
    * Create a new logger using the same handlers and formatter as the default logger
    * @param logger_name the name of the logger to add
+   * @param timestamp_clock_type timestamp clock type
+   * @param timestamp_clock timestamp clock
    * @return a pointer to the logger
    */
-  Logger* create_logger(char const* logger_name);
+  QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, TimestampClockType timestamp_clock_type,
+                                        TimestampClock* timestamp_clock);
 
   /**
    * Creates a new logger
    * @param logger_name the name of the logger to add
    * @param handler The handler for the logger
+   * @param timestamp_clock_type timestamp clock type
+   * @param timestamp_clock timestamp clock
    * @return a pointer to the logger
    */
-  Logger* create_logger(char const* logger_name, Handler* handler);
+  QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, Handler* handler,
+                                        TimestampClockType timestamp_clock_type, TimestampClock* timestamp_clock);
 
   /**
    * Create a new logger with multiple handler
    * @param logger_name the name of the logger to add
    * @param handlers An initializer list of pointers to handlers that will be now used as a default handler
+   * @param timestamp_clock_type timestamp clock type
+   * @param timestamp_clock timestamp clock
    * @return a pointer to the logger
    */
-  Logger* create_logger(char const* logger_name, std::initializer_list<Handler*> handlers);
+  QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::initializer_list<Handler*> handlers,
+                                        TimestampClockType timestamp_clock_type, TimestampClock* timestamp_clock);
 
   /**
-   * Set a custom default logger with a single handler
-   * @param handler A pointer to a handler that will be now used as a default handler
+   * Create a new logger with multiple handler
+   * @param logger_name the name of the logger to add
+   * @param handlers An initializer list of pointers to handlers that will be now used as a default handler
+   * @param timestamp_clock_type timestamp clock type
+   * @param timestamp_clock timestamp clock
+   * @return a pointer to the logger
    */
-  QUILL_ATTRIBUTE_COLD void set_default_logger_handler(Handler* handler);
-
-  /**
-   * Set a custom default logger with multiple handlers
-   * @param handlers A vector of pointers to handlers that will be now used as a default handler
-   */
-  QUILL_ATTRIBUTE_COLD void set_default_logger_handler(std::initializer_list<Handler*> handlers);
+  QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::vector<Handler*> const& handlers,
+                                        TimestampClockType timestamp_clock_type, TimestampClock* timestamp_clock);
 
   /**
    * Used internally only to enable console colours on "stdout" default console handler
@@ -105,7 +116,19 @@ public:
    */
   QUILL_ATTRIBUTE_COLD void enable_console_colours() noexcept;
 
+  /**
+   * Get the default logger pointer
+   * @return default logger ptr
+   */
+  QUILL_NODISCARD Logger* default_logger() const noexcept;
+
+  /**
+   * Creates or resets the default logger
+   */
+  QUILL_ATTRIBUTE_COLD void create_default_logger();
+
 private:
+  Config const& _config;
   ThreadContextCollection& _thread_context_collection; /**< We need to pass this to each logger */
   HandlerCollection& _handler_collection;              /** Collection of al handlers **/
   Logger* _default_logger{nullptr}; /**< A pointer to the default logger to avoid lookup */

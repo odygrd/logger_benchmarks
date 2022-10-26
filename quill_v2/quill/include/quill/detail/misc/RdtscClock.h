@@ -6,13 +6,10 @@
 #pragma once
 
 #include "quill/detail/misc/Attributes.h" // for QUILL_NODISCARD
-#include "quill/detail/misc/Common.h"     // for QUILL_RDTSC_RESYNC_INTERVAL
 #include <chrono>                         // for nanoseconds, milliseconds
 #include <cstdint>                        // for int64_t, uint64_t
 
-namespace quill
-{
-namespace detail
+namespace quill::detail
 {
 /**
  * Converts tsc ticks to nanoseconds since epoch
@@ -32,7 +29,7 @@ class RdtscClock
     }
 
     /***/
-    double ns_per_tick() const noexcept { return _ns_per_tick; }
+    QUILL_NODISCARD double ns_per_tick() const noexcept { return _ns_per_tick; }
 
   private:
     /**
@@ -48,14 +45,14 @@ public:
    * Constructor
    * @param resync_interval the interval to resync the tsc clock with the real system wall clock
    */
-  explicit RdtscClock(std::chrono::nanoseconds resync_interval = std::chrono::milliseconds{QUILL_RDTSC_RESYNC_INTERVAL});
+  explicit RdtscClock(std::chrono::nanoseconds resync_interval);
 
   /**
    * Convert tsc cycles to nanoseconds
    * @param rdtsc_value the rdtsc timestamp to convert
    * @return the rdtsc timestamp converted to nanoseconds since epoch
    */
-  std::chrono::nanoseconds time_since_epoch(uint64_t rdtsc_value) const noexcept;
+  uint64_t time_since_epoch(uint64_t rdtsc_value) const noexcept;
 
   /**
    * Sync base wall time and base tsc.
@@ -76,5 +73,4 @@ private:
   int64_t _resync_interval_original{0}; /**< stores the initial interval value as as if we fail to resync we increase the timer */
   double _ns_per_tick{0};
 };
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

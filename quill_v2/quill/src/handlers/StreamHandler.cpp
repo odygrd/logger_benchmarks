@@ -6,7 +6,7 @@
 namespace quill
 {
 /***/
-StreamHandler::StreamHandler(std::filesystem::path stream, FILE* file /* = nullptr */)
+StreamHandler::StreamHandler(fs::path stream, FILE* file /* = nullptr */)
   : _filename(std::move(stream)), _file(file)
 {
   // reserve stdout and stderr as filenames
@@ -21,7 +21,7 @@ StreamHandler::StreamHandler(std::filesystem::path stream, FILE* file /* = nullp
 }
 
 /***/
-void StreamHandler::write(fmt::memory_buffer const& formatted_log_message, std::chrono::nanoseconds, LogLevel)
+void StreamHandler::write(fmt::memory_buffer const& formatted_log_message, quill::TransitEvent const& log_event)
 {
   detail::fwrite_fully(formatted_log_message.data(), sizeof(char), formatted_log_message.size(), _file);
 }
@@ -30,7 +30,7 @@ void StreamHandler::write(fmt::memory_buffer const& formatted_log_message, std::
 void StreamHandler::flush() noexcept { fflush(_file); }
 
 /***/
-std::filesystem::path const& StreamHandler::filename() const noexcept { return _filename; }
+fs::path const& StreamHandler::filename() const noexcept { return _filename; }
 
 /***/
 StreamHandler::StreamHandlerType StreamHandler::stream_handler_type() const noexcept

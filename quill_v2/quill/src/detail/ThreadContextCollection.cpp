@@ -5,9 +5,7 @@
 #include <mutex>                        // for lock_guard
 #include <type_traits>                  // for remove_extent<>::type
 
-namespace quill
-{
-namespace detail
+namespace quill::detail
 {
 /***/
 ThreadContextCollection::ThreadContextWrapper::ThreadContextWrapper(ThreadContextCollection& thread_context_collection)
@@ -156,9 +154,8 @@ void ThreadContextCollection::_remove_shared_invalidated_thread_context(ThreadCo
 void ThreadContextCollection::_find_and_remove_invalidated_thread_contexts()
 {
   // First we iterate our existing cache and we look for any invalidated contexts
-  auto found_invalid_and_empty_thread_context =
-    std::find_if(_thread_context_cache.begin(), _thread_context_cache.end(),
-                 [](ThreadContext* thread_context)
+  auto found_invalid_and_empty_thread_context = std::find_if(
+    _thread_context_cache.begin(), _thread_context_cache.end(), [](ThreadContext* thread_context)
                  {
                    // If the thread context is invalid it means the thread that created it has now died.
                    // We also want to empty the queue from all LogRecords before removing the thread context
@@ -180,9 +177,8 @@ void ThreadContextCollection::_find_and_remove_invalidated_thread_contexts()
     _thread_context_cache.erase(found_invalid_and_empty_thread_context);
 
     // And then look again
-    found_invalid_and_empty_thread_context =
-      std::find_if(_thread_context_cache.begin(), _thread_context_cache.end(),
-                   [](ThreadContext* thread_context)
+    found_invalid_and_empty_thread_context = std::find_if(
+      _thread_context_cache.begin(), _thread_context_cache.end(), [](ThreadContext* thread_context)
                    {
                      // If the thread context is invalid it means the thread that created it has now died.
                      // We also want to empty the queue from all LogRecords before removing the thread context
@@ -191,5 +187,4 @@ void ThreadContextCollection::_find_and_remove_invalidated_thread_contexts()
                    });
   }
 }
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

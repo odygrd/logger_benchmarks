@@ -13,10 +13,10 @@ void Handler::add_filter(std::unique_ptr<FilterBase> filter)
   std::lock_guard<std::recursive_mutex> const lock(_global_filters_lock);
 
   // Check if the same filter already exists
-  auto const search_filter_it =
-    std::find_if(_global_filters.cbegin(), _global_filters.cend(),
-                 [&filter](std::unique_ptr<FilterBase> const& elem_filter)
-                 { return elem_filter->get_filter_name() == filter->get_filter_name(); });
+  auto const search_filter_it = std::find_if(
+    _global_filters.cbegin(), _global_filters.cend(), [&filter](std::unique_ptr<FilterBase> const& elem_filter) {
+      return elem_filter->get_filter_name() == filter->get_filter_name();
+    });
 
   if (QUILL_UNLIKELY(search_filter_it != _global_filters.cend()))
   {
@@ -30,10 +30,8 @@ void Handler::add_filter(std::unique_ptr<FilterBase> filter)
 }
 
 /***/
-QUILL_NODISCARD bool Handler::apply_filters(char const* thread_id,
-                                            std::chrono::nanoseconds log_message_timestamp,
-                                            MacroMetadata const& metadata,
-                                            fmt::memory_buffer const& formatted_record)
+QUILL_NODISCARD bool Handler::apply_filters(char const* thread_id, std::chrono::nanoseconds log_message_timestamp,
+                                            MacroMetadata const& metadata, fmt::memory_buffer const& formatted_record)
 {
   if (metadata.level() < _log_level.load(std::memory_order_relaxed))
   {

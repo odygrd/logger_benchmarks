@@ -6,22 +6,33 @@
 #pragma once
 
 #include "quill/detail/misc/Attributes.h" // for QUILL_ATTRIBUTE_COLD, QUIL...
-#include "quill/detail/misc/Common.h"     // for std::filesystem::path
+#include "quill/detail/misc/Common.h"     // for fs::path
 #include <cstdint>                        // for uint32_t, uint16_t
 #include <cstdio>                         // for FILE
 #include <ctime>                          // for size_t, time_t
-#include <filesystem>
 #include <string>  // for string
 #include <utility> // for pair
 
 /** forward declarations **/
 struct tm;
 
-namespace quill
+namespace quill::detail
 {
-namespace detail
-{
+#if defined(_WIN32)
 /**
+ * Return the size required to encode a wide string
+ * @param s wide string to be encoded
+ * @return required size for encoding
+ */
+size_t get_wide_string_encoding_size(std::wstring_view s);
+
+/**
+ * Converts a wide string to a narrow string
+ */
+void wide_string_to_narrow(void* dest, size_t required_bytes, std::wstring_view s);
+#endif
+
+ /**
  * Portable gmtime_r or _s per operating system
  * @param timer to a time_t object to convert
  * @param buf to a struct tm object to store the result
@@ -116,5 +127,4 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD bool is_colour_terminal() noexcept;
  */
 QUILL_NODISCARD QUILL_ATTRIBUTE_COLD bool is_in_terminal(FILE* file) noexcept;
 
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

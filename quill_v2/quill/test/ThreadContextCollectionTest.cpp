@@ -1,6 +1,6 @@
 #include "doctest/doctest.h"
 
-#include "quill/detail/Config.h"
+#include "quill/Config.h"
 #include "quill/detail/ThreadContext.h"
 #include "quill/detail/ThreadContextCollection.h"
 #include <array>
@@ -8,6 +8,7 @@
 
 TEST_SUITE_BEGIN("ThreadContextCollection");
 
+using namespace quill;
 using namespace quill::detail;
 
 /***/
@@ -21,7 +22,7 @@ TEST_CASE("add_remove_thread_context_multithreaded_wait_for_threads_to_join")
 
   // run the test multiple times to create many thread contexts for the same thread context collection
   Config cfg;
-  ThreadContextCollection thread_context_collection{cfg};
+  ThreadContextCollection thread_context_collection;
 
   constexpr uint32_t tries = 4;
   for (int k = 0; k < tries; ++k)
@@ -37,18 +38,16 @@ TEST_CASE("add_remove_thread_context_multithreaded_wait_for_threads_to_join")
     for (size_t i = 0; i < threads.size(); ++i)
     {
       auto& thread_terminate_flag = terminate_flag[i];
-      threads[i] = std::thread(
-        [&thread_terminate_flag, &threads_started, &thread_context_collection]()
+      threads[i] = std::thread([&thread_terminate_flag, &threads_started, &thread_context_collection]() {
+        // create a context for that thread
+        QUILL_MAYBE_UNUSED auto tc = thread_context_collection.local_thread_context();
+        threads_started.fetch_add(1);
+        while (!thread_terminate_flag.load())
         {
-          // create a context for that thread
-          QUILL_MAYBE_UNUSED auto tc = thread_context_collection.local_thread_context();
-          threads_started.fetch_add(1);
-          while (!thread_terminate_flag.load())
-          {
-            // loop waiting for main to signal
-            std::this_thread::sleep_for(std::chrono::nanoseconds{10});
-          }
-        });
+          // loop waiting for main to signal
+          std::this_thread::sleep_for(std::chrono::nanoseconds{10});
+        }
+      });
     }
 
     // main wait for all of them to start
@@ -115,7 +114,7 @@ TEST_CASE("add_remove_thread_context_multithreaded_dont_wait_for_threads_to_join
 
   // run the test multiple times to create many thread contexts for the same thread context collection
   Config cfg;
-  ThreadContextCollection thread_context_collection{cfg};
+  ThreadContextCollection thread_context_collection;
 
   constexpr uint32_t tries = 4;
   for (int k = 0; k < tries; ++k)
@@ -130,18 +129,16 @@ TEST_CASE("add_remove_thread_context_multithreaded_dont_wait_for_threads_to_join
     for (size_t i = 0; i < threads.size(); ++i)
     {
       auto& thread_terminate_flag = terminate_flag[i];
-      threads[i] = std::thread(
-        [&thread_terminate_flag, &threads_started, &thread_context_collection]()
+      threads[i] = std::thread([&thread_terminate_flag, &threads_started, &thread_context_collection]() {
+        // create a context for that thread
+        QUILL_MAYBE_UNUSED auto tc = thread_context_collection.local_thread_context();
+        threads_started.fetch_add(1);
+        while (!thread_terminate_flag.load())
         {
-          // create a context for that thread
-          QUILL_MAYBE_UNUSED auto tc = thread_context_collection.local_thread_context();
-          threads_started.fetch_add(1);
-          while (!thread_terminate_flag.load())
-          {
-            // loop waiting for main to signal
-            std::this_thread::sleep_for(std::chrono::nanoseconds{10});
-          }
-        });
+          // loop waiting for main to signal
+          std::this_thread::sleep_for(std::chrono::nanoseconds{10});
+        }
+      });
     }
 
     // main wait for all of them to start

@@ -7,8 +7,8 @@
 
 #include "quill/TweakMe.h"
 
+#include "quill/Config.h"                   // for Config
 #include "quill/QuillError.h"               // for QUILL_CATCH, QUILL...
-#include "quill/detail/Config.h"            // for Config
 #include "quill/detail/HandlerCollection.h" // for HandlerCollection
 #include "quill/detail/LoggerDetails.h"
 #include "quill/detail/Serialize.h"
@@ -17,7 +17,6 @@
 #include "quill/detail/backend/BacktraceStorage.h" // for BacktraceStorage
 #include "quill/detail/backend/FreeListAllocator.h"
 #include "quill/detail/misc/Attributes.h" // for QUILL_ATTRIBUTE_HOT
-#include "quill/detail/misc/Common.h"     // for QUILL_RDTSC_RESYNC...
 #include "quill/detail/misc/Common.h"     // for QUILL_LIKELY
 #include "quill/detail/misc/Os.h"         // for set_cpu_affinity, get_thread_id
 #include "quill/detail/misc/RdtscClock.h" // for RdtscClock
@@ -38,11 +37,7 @@
 #include <utility>                  // for move
 #include <vector>                   // for vector
 
-namespace quill
-{
-using backend_worker_error_handler_t = std::function<void(std::string const&)>;
-
-namespace detail
+namespace quill::detail
 {
 
 class BackendWorker
@@ -51,8 +46,7 @@ public:
   /**
    * Constructor
    */
-  BackendWorker(Config const& config,
-                ThreadContextCollection& thread_context_collection,
+  BackendWorker(Config const& config, ThreadContextCollection& thread_context_collection,
                 HandlerCollection const& handler_collection);
 
   /**
@@ -89,15 +83,6 @@ public:
    */
   QUILL_ATTRIBUTE_COLD void stop() noexcept;
 
-#if !defined(QUILL_NO_EXCEPTIONS)
-  /**
-   * Set up a custom error handler that will be used if the backend thread has any error.
-   * If no error handler is set, the default one will print to std::cerr
-   * @param error_handler an error handler callback e.g [](std::string const& s) { std::cerr << s << std::endl; }
-   * @throws exception if it is called after the thread has started
-   */
-  QUILL_ATTRIBUTE_COLD void set_error_handler(backend_worker_error_handler_t error_handler);
-#endif
 private:
   /**
    * Backend worker thread main function
@@ -112,10 +97,10 @@ private:
   /**
    * Populate our local priority queue
    * @param cached_thread_contexts local thread context cache
-   * @param is_terminating
+   * @param is_terminating backend worker is terminating
    */
-  QUILL_ATTRIBUTE_HOT inline void _populate_priority_queue(ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts,
-                                                           bool is_terminating);
+  QUILL_ATTRIBUTE_HOT inline void _populate_priority_queue(
+    ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts, bool is_terminating);
 
   /**
    * Deserialize an log message from the raw SPSC queue and emplace them to priority queue
@@ -141,6 +126,14 @@ private:
   QUILL_ATTRIBUTE_HOT static void _check_dropped_messages(
     ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts) noexcept;
 
+  /**
+   * Process a structured log template message
+   * @param fmt_template a structured log template message containing named arguments
+   * @return first: fmt string without the named arguments, second: a vector extracted keys
+   */
+  QUILL_ATTRIBUTE_HOT static std::pair<std::string, std::vector<std::string>> _process_structured_log_template(
+    std::string_view fmt_template) noexcept;
+
 private:
   Config const& _config;
   ThreadContextCollection& _thread_context_collection;
@@ -160,6 +153,8 @@ private:
 
   BacktraceStorage _backtrace_log_message_storage; /** Stores a vector of backtrace messages per logger name */
   FreeListAllocator _free_list_allocator; /** A free list allocator with initial capacity, we store the TransitEvents that we pop from each SPSC queue here */
+
+  std::unordered_map<quill::Metadata const*, std::pair<std::string, std::vector<std::string>>> _slog_templates; /** Avoid re-formating the same structured template each time */
 
   /** Id of the current running process **/
   std::string _process_id;
@@ -184,35 +179,42 @@ void BackendWorker::run()
   // We store the configuration here on our local variable since the config flag is not atomic
   // and we don't want it to change after we have started - This is just for safety and to
   // enforce the user to configure a variable before the thread has started
-  _backend_thread_sleep_duration = _config.backend_thread_sleep_duration();
-  _max_transit_events = _config.backend_thread_max_transit_events();
+  _backend_thread_sleep_duration = _config.backend_thread_sleep_duration;
+  _max_transit_events = _config.backend_thread_max_transit_events;
+
+#if !defined(QUILL_NO_EXCEPTIONS)
+  if (_config.backend_thread_error_handler)
+  {
+    // set up the default error handler
+    _error_handler = _config.backend_thread_error_handler;
+  }
+#endif
 
   std::thread worker(
     [this]()
     {
       QUILL_TRY
       {
-        // On Start
-        if (_config.backend_thread_cpu_affinity() != (std::numeric_limits<uint16_t>::max)())
+        if (_config.backend_thread_cpu_affinity != (std::numeric_limits<uint16_t>::max)())
         {
           // Set cpu affinity if requested to cpu _backend_thread_cpu_affinity
-          set_cpu_affinity(_config.backend_thread_cpu_affinity());
+          set_cpu_affinity(_config.backend_thread_cpu_affinity);
         }
-
-        // Set the thread name to the desired name
-        set_thread_name(_config.backend_thread_name().data());
       }
 #if !defined(QUILL_NO_EXCEPTIONS)
       QUILL_CATCH(std::exception const& e) { _error_handler(e.what()); }
       QUILL_CATCH_ALL() { _error_handler(std::string{"Caught unhandled exception."}); }
 #endif
 
-      if constexpr (std::is_same<detail::Header::using_rdtsc, std::true_type>::value)
+      QUILL_TRY
       {
-        // Use rdtsc clock based on config. The clock requires a few seconds to init as it is
-        // taking samples first
-        _rdtsc_clock = std::make_unique<RdtscClock>(std::chrono::milliseconds{QUILL_RDTSC_RESYNC_INTERVAL});
+        // Set the thread name to the desired name
+        set_thread_name(_config.backend_thread_name.data());
       }
+#if !defined(QUILL_NO_EXCEPTIONS)
+      QUILL_CATCH(std::exception const& e) { _error_handler(e.what()); }
+      QUILL_CATCH_ALL() { _error_handler(std::string{"Caught unhandled exception."}); }
+#endif
 
       // Cache this thread's id
       _backend_worker_thread_id = get_thread_id();
@@ -315,12 +317,89 @@ void BackendWorker::_read_queue_and_decode(ThreadContext* thread_context, bool i
     transit_event->header = *(reinterpret_cast<detail::Header*>(read_buffer));
     read_buffer += sizeof(detail::Header);
 
+    // if we are using rdtsc clock then here we will convert the value to nanoseconds since epoch
+    // doing the conversion here ensures that every transit that is inserted in the priority queue
+    // below has a header timestamp of nanoseconds since epoch and makes it even possible to
+    // have Logger objects using different clocks
+    if (transit_event->header.logger_details->timestamp_clock_type() == TimestampClockType::Rdtsc)
+    {
+      if (!_rdtsc_clock)
+      {
+        // Here we lazy initialise rdtsc clock on the backend thread only if the user decides to use it
+        // Use rdtsc clock based on config. The clock requires a few seconds to init as it is
+        // taking samples first
+        _rdtsc_clock = std::make_unique<RdtscClock>(_config.rdtsc_resync_interval);
+      }
+
+      // convert the rdtsc value to nanoseconds since epoch
+      transit_event->header.timestamp = _rdtsc_clock->time_since_epoch(transit_event->header.timestamp);
+    }
+
     // we need to check and do not try to format the flush events as that wouldn't be valid
     if (transit_event->header.metadata->macro_metadata.event() != MacroMetadata::Event::Flush)
     {
-      read_buffer = transit_event->header.metadata->format_to_fn(
-        transit_event->header.metadata->macro_metadata.message_format(), read_buffer,
-        transit_event->formatted_msg, _args);
+#if defined(_WIN32)
+      if (transit_event->header.metadata->macro_metadata.has_wide_char())
+      {
+        // convert the format string to a narrow string
+        size_t const size_needed =
+          get_wide_string_encoding_size(transit_event->header.metadata->macro_metadata.wmessage_format());
+        std::string format_str(size_needed, 0);
+        wide_string_to_narrow(format_str.data(), size_needed,
+                              transit_event->header.metadata->macro_metadata.wmessage_format());
+
+        assert(!transit_event->header.metadata->macro_metadata.is_structured_log_template() &&
+               "structured log templates are not supported for wide characters");
+
+        read_buffer = transit_event->header.metadata->format_to_fn(
+            format_str, read_buffer, transit_event->formatted_msg, _args);
+      }
+      else
+      {
+#endif
+        if (transit_event->header.metadata->macro_metadata.is_structured_log_template())
+        {
+          // for messages containing named arguments threat them as structured logs
+          auto const search = _slog_templates.find(transit_event->header.metadata);
+          if (search != std::cend(_slog_templates))
+          {
+            auto const& [fmt_str, structured_keys] = search->second;
+
+            transit_event->structured_keys = structured_keys;
+
+            read_buffer = transit_event->header.metadata->format_to_fn(
+              fmt_str, read_buffer, transit_event->formatted_msg, _args);
+          }
+          else
+          {
+            auto [fmt_str, structured_keys] = _process_structured_log_template(
+              transit_event->header.metadata->macro_metadata.message_format());
+
+            // insert the results
+            _slog_templates[transit_event->header.metadata] = std::make_pair(fmt_str, structured_keys);
+
+            transit_event->structured_keys = std::move(structured_keys);
+
+            read_buffer = transit_event->header.metadata->format_to_fn(
+              fmt_str, read_buffer, transit_event->formatted_msg, _args);
+          }
+
+          // formatted values for any given keys
+          for (auto const& arg : _args)
+          {
+            transit_event->structured_values.emplace_back(fmt::vformat("{}", fmt::basic_format_args(&arg, 1)));
+          }
+        }
+        else
+        {
+          // regular logs
+          read_buffer = transit_event->header.metadata->format_to_fn(
+            transit_event->header.metadata->macro_metadata.message_format(), read_buffer,
+            transit_event->formatted_msg, _args);
+        }
+#if defined(_WIN32)
+      }
+#endif
     }
     else
     {
@@ -333,9 +412,9 @@ void BackendWorker::_read_queue_and_decode(ThreadContext* thread_context, bool i
     }
 
     // Finish reading
-    spsc_queue.finish_read(static_cast<uint64_t>(read_buffer - read_begin));
+    assert((read_buffer >= read_begin) && "read_buffer should be greater or equal to read_begin");
+    spsc_queue.finish_read(static_cast<size_t>(read_buffer - read_begin));
 
-    // We have the timestamp and the data node ptr, we can construct a transit event out of them
     _transit_events.emplace(transit_event);
   }
 }
@@ -393,7 +472,7 @@ void BackendWorker::_process_transit_event()
     {
       _force_flush();
 
-      // this is a flush event so we need to notify the caller to continue now
+      // this is a flush event, so we need to notify the caller to continue now
       transit_event->flush_flag->store(true);
     }
 
@@ -428,37 +507,25 @@ void BackendWorker::_process_transit_event()
 /***/
 void BackendWorker::_write_transit_event(TransitEvent const& transit_event)
 {
-  std::chrono::nanoseconds timestamp;
-  if constexpr (std::is_same<detail::Header::using_rdtsc, std::true_type>::value)
-  {
-    timestamp = _rdtsc_clock->time_since_epoch(transit_event.header.timestamp);
-  }
-  else
-  {
-    // Then the timestamp() will be already in epoch no need to convert it like above
-    // The precision of system_clock::time-point is not portable across platforms.
-    std::chrono::system_clock::duration const timestamp_duration{transit_event.header.timestamp};
-    timestamp = std::chrono::nanoseconds{timestamp_duration};
-  }
-
-  // Forward the record to all of the logger handlers
+  // Forward the record to all the logger handlers
   for (auto& handler : transit_event.header.logger_details->handlers())
   {
-    handler->formatter().format(timestamp, transit_event.thread_id.data(), transit_event.thread_name.data(),
-                                _process_id, transit_event.header.logger_details->name(),
-                                transit_event.header.metadata->macro_metadata, transit_event.formatted_msg);
+    handler->formatter().format(
+      std::chrono::nanoseconds{transit_event.header.timestamp}, transit_event.thread_id.data(),
+      transit_event.thread_name.data(), _process_id, transit_event.header.logger_details->name(),
+      transit_event.header.metadata->macro_metadata, transit_event.formatted_msg);
 
     // After calling format on the formatter we have to request the formatter record
     auto const& formatted_log_message_buffer = handler->formatter().formatted_log_message();
 
     // If all filters are okay we write this message to the file
-    if (handler->apply_filters(transit_event.thread_id.data(), timestamp,
-                               transit_event.header.metadata->macro_metadata, formatted_log_message_buffer))
+    if (handler->apply_filters(
+          transit_event.thread_id.data(), std::chrono::nanoseconds{transit_event.header.timestamp},
+          transit_event.header.metadata->macro_metadata, formatted_log_message_buffer))
     {
       // log to the handler, also pass the log_message_timestamp this is only needed in some
       // cases like daily file rotation
-      handler->write(formatted_log_message_buffer, timestamp,
-                     transit_event.header.metadata->macro_metadata.level());
+      handler->write(formatted_log_message_buffer, transit_event);
     }
   }
 }
@@ -562,5 +629,4 @@ void BackendWorker::_exit()
     }
   }
 }
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

@@ -6,7 +6,6 @@
 #include "quill/detail/misc/Common.h"
 #include <algorithm>
 #include <cstring>
-#include <filesystem>
 #include <fstream>
 #include <string>
 #include <system_error>
@@ -17,9 +16,10 @@ namespace quill
 namespace testing
 {
 // Convert the given file to a vector
-std::vector<std::string> file_contents(std::filesystem::path const& filename);
+std::vector<std::string> file_contents(fs::path const& filename);
+std::vector<std::wstring> wfile_contents(fs::path const& filename);
 
 // Search a vector for the given string
-bool file_contains(std::vector<std::string> const& file_vector, std::string search_string);
+bool file_contains(std::vector<std::string> const& file_vector, std::string const& search_string);
 } // namespace testing
 } // namespace quill

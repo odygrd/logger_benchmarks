@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "quill/detail/misc/Common.h"
 #include "quill/detail/misc/Utilities.h"
 #include <atomic>
 #include <memory>
@@ -19,26 +20,27 @@ class Handler;
 
 namespace detail
 {
+
+class LoggerCollection;
+
 class LoggerDetails
 {
 public:
   /**
    * Constructor
-   * @param name
    */
-  LoggerDetails(char const* name, Handler* handler)
+  LoggerDetails(std::string name, Handler* handler, TimestampClockType timestamp_clock_type)
+    : _name(std::move(name)), _timestamp_clock_type(timestamp_clock_type)
   {
-    safe_strncpy(_name, name);
     _handlers.push_back(handler);
   }
 
   /**
    * Constructor
-   * @param name
    */
-  LoggerDetails(char const* name, std::vector<Handler*> handlers)
+  LoggerDetails(std::string name, std::vector<Handler*> handlers, TimestampClockType timestamp_clock_type)
+    : _name(std::move(name)), _timestamp_clock_type(timestamp_clock_type)
   {
-    safe_strncpy(_name, name);
     _handlers = std::move(handlers);
   }
 
@@ -56,12 +58,20 @@ public:
   /**
    * @return The name of the logger
    */
-  QUILL_NODISCARD char const* name() const noexcept { return _name.data(); }
+  QUILL_NODISCARD std::string const& name() const noexcept { return _name; }
 
   /**
    * @return a vector of all handlers of this logger, called by the backend worker thread
    */
   QUILL_NODISCARD std::vector<Handler*> const& handlers() const noexcept { return _handlers; }
+
+  /**
+   * @return a vector of all handlers of this logger, called by the backend worker thread
+   */
+  QUILL_NODISCARD_ALWAYS_INLINE_HOT TimestampClockType timestamp_clock_type() const noexcept
+  {
+    return _timestamp_clock_type;
+  }
 
   /**
    * Set the backtrace_flush_log_level.
@@ -82,9 +92,12 @@ public:
   }
 
 private:
-  std::array<char, 22> _name; /** Because size of string in gcc is 32 we use an array here as we need the Logger object to fit all in a single cache line */
-  std::atomic<LogLevel> _backtrace_flush_level{LogLevel::None}; /** Updated by the caller thread and read by the backend worker thread */
+  friend class detail::LoggerCollection;
+
+  std::string _name;
   std::vector<Handler*> _handlers;
+  std::atomic<LogLevel> _backtrace_flush_level{LogLevel::None}; /** Updated by the caller thread and read by the backend worker thread */
+  TimestampClockType _timestamp_clock_type;
 };
 } // namespace detail
 } // namespace quill

@@ -28,9 +28,9 @@ class ThreadContext
 {
 public:
 #if defined(QUILL_USE_BOUNDED_QUEUE)
-  using SPSCQueueT = BoundedQueue;
+  using SPSCQueueT = BoundedQueue<QUILL_QUEUE_CAPACITY>;
 #else
-  using SPSCQueueT = UnboundedQueue;
+  using SPSCQueueT = UnboundedQueue<QUILL_QUEUE_CAPACITY>;
 #endif
 
   /**
@@ -130,4 +130,4 @@ private:
   char _pad0[detail::CACHELINE_SIZE - sizeof(std::atomic<size_t>)] = "\0";
 #endif
 };
-} // namespace quill::detail
+} // namespace detail

@@ -11,26 +11,24 @@
 namespace quill
 {
 /***/
-RotatingFileHandler::RotatingFileHandler(std::filesystem::path const& base_filename,
-                                         std::string const& mode,
-                                         size_t max_bytes,
-                                         uint32_t backup_count,
-                                         bool overwrite_oldest_files)
+RotatingFileHandler::RotatingFileHandler(fs::path const& base_filename,
+                                         std::string const& mode, size_t max_bytes, uint32_t backup_count,
+                                         bool overwrite_oldest_files, bool clean_old_files /*=false*/)
   : FileHandler(base_filename),
     _max_bytes(max_bytes),
     _backup_count(backup_count),
     _overwrite_oldest_files(overwrite_oldest_files)
 {
   // if we are starting in w mode, then we also should clean all previous log files of the previous run
-  if (mode == "w")
+  if (clean_old_files && (mode == "w"))
   {
     for (const auto& entry :
-         std::filesystem::directory_iterator(std::filesystem::current_path() / base_filename.parent_path()))
+         fs::directory_iterator(fs::current_path() / base_filename.parent_path()))
     {
       std::size_t found = entry.path().string().find(base_filename.stem().string() + ".");
       if (found != std::string::npos)
       {
-        std::filesystem::remove(entry);
+        fs::remove(entry);
       }
     }
   }
@@ -38,22 +36,21 @@ RotatingFileHandler::RotatingFileHandler(std::filesystem::path const& base_filen
   {
     // Since we are appending, we need to find the current index
     for (const auto& entry :
-         std::filesystem::directory_iterator(std::filesystem::current_path() / base_filename.parent_path()))
+         fs::directory_iterator(fs::current_path() / base_filename.parent_path()))
     {
       std::size_t found = entry.path().string().find(base_filename.stem().string() + ".");
       if (found != std::string::npos)
       {
         // stem will be something like `logfile.1`
-        size_t pos = entry.path().stem().string().find_last_of(".");
+        size_t pos = entry.path().stem().string().find_last_of('.');
         if (pos != std::string::npos)
         {
-          std::string index =
-            entry.path().stem().string().substr(pos + 1, entry.path().stem().string().length());
-
+          std::string index = entry.path().stem().string().substr(pos + 1, entry.path().stem().string().length());
+          
           // Attempt to convert the index to a number
           QUILL_TRY
           {
-            uint32_t index_num = static_cast<uint32_t>(std::stoul(index));
+            auto index_num = static_cast<uint32_t>(std::stoul(index));
             _current_index = (std::max)(_current_index, index_num);
             if (_current_index > (_backup_count - 1))
             {
@@ -61,20 +58,21 @@ RotatingFileHandler::RotatingFileHandler(std::filesystem::path const& base_filen
               _current_index = (_backup_count - 1);
             }
           }
-          QUILL_CATCH_ALL() { continue; }
+          QUILL_CATCH_ALL()
+          {
+            continue;
+          }
         }
       }
     }
   }
 
-  _file = detail::open_file(_filename, mode);
+    _file = detail::open_file(_filename, mode);
   _current_size = detail::file_size(_filename);
 }
 
 /***/
-void RotatingFileHandler::write(fmt::memory_buffer const& formatted_log_message,
-                                std::chrono::nanoseconds log_message_timestamp,
-                                LogLevel log_message_severity)
+void RotatingFileHandler::write(fmt::memory_buffer const& formatted_log_message, quill::TransitEvent const& log_event)
 {
   _current_size += formatted_log_message.size();
 
@@ -85,7 +83,7 @@ void RotatingFileHandler::write(fmt::memory_buffer const& formatted_log_message,
   }
 
   // write to file
-  StreamHandler::write(formatted_log_message, log_message_timestamp, log_message_severity);
+  StreamHandler::write(formatted_log_message, log_event);
 }
 
 /***/
@@ -115,16 +113,16 @@ void RotatingFileHandler::_rotate()
   // if we have more than 2 files we need to start renaming recursively
   for (uint32_t i = _current_index; i >= 1; --i)
   {
-    std::filesystem::path const previous_file = detail::append_index_to_filename(_filename, i);
-    std::filesystem::path const new_file = detail::append_index_to_filename(_filename, i + 1);
+    fs::path const previous_file = detail::append_index_to_filename(_filename, i);
+    fs::path const new_file = detail::append_index_to_filename(_filename, i + 1);
     quill::detail::rename_file(previous_file, new_file);
   }
 
   if (_backup_count > 0)
   {
     // then we will always rename_file the base filename to 1
-    std::filesystem::path const previous_file = _filename;
-    std::filesystem::path const new_file = detail::append_index_to_filename(_filename, 1);
+    fs::path const previous_file = _filename;
+    fs::path const new_file = detail::append_index_to_filename(_filename, 1);
     quill::detail::rename_file(previous_file, new_file);
 
     if (!_overwrite_oldest_files)

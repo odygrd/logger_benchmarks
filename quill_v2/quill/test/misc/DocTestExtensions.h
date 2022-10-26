@@ -2,9 +2,9 @@
 
 #include "doctest/doctest.h"
 
+#include <string>
 #include <cstring>
 #include <memory>
-#include <string>
 
 #define REQUIRE_STREQ(str1, str2)                                                                  \
   do                                                                                               \
