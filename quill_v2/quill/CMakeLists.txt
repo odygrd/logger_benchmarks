@@ -3,7 +3,7 @@ if (NOT QUILL_MASTER_PROJECT)
 endif ()
 
 # library name
-set(TARGET_NAME quill)
+set(TARGET_NAME quill_v2)
 
 # header files
 set(HEADER_FILES

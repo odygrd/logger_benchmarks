@@ -8,10 +8,12 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   std::remove("benchmark_quill_no_dual_mode_unbounded_call_site_latency.log");
 
   // Setup
-  quill::config::set_backend_thread_sleep_duration(std::chrono::nanoseconds{0});
-  quill::config::set_backend_thread_cpu_affinity(6);
+  quill::Config cfg;
+  cfg.backend_thread_sleep_duration = std::chrono::nanoseconds{0};
+  cfg.backend_thread_cpu_affinity = 6;
 
   // Start the logging backend thread
+  quill::configure(cfg);
   quill::start();
 
   // wait for the backend thread to start
