@@ -27,7 +27,13 @@ SOFTWARE.
 #include <type_traits>
 #include <vector>
 #include <chrono>
+#include <atomic>
+#include <thread>
 #include <memory>
+
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
 
 #ifdef _WIN32
 #define FAST_THREAD_LOCAL thread_local
@@ -48,7 +54,7 @@ SOFTWARE.
 
 // define FMTLOG_ACTIVE_LEVEL to turn off low log level in compile time
 #ifndef FMTLOG_ACTIVE_LEVEL
-#define FMTLOG_ACTIVE_LEVEL FMTLOG_LEVEL_INF
+#define FMTLOG_ACTIVE_LEVEL FMTLOG_LEVEL_DBG
 #endif
 
 namespace fmtlogdetail {
@@ -91,13 +97,8 @@ public:
     OFF
   };
 
-  // If you know the exact tsc frequency(in ghz) in the os, tell fmtlog!
-  // But how can I know the frequency? Check below link(for Linux only):
-  // https://github.com/MengRao/tscns#i-dont-wanna-wait-a-long-time-for-calibration-can-i-cheat
-  static void setTscGhz(double tscGhz) FMT_NOEXCEPT;
-
   // Preallocate thread queue for current thread
-  static void preallocate() FMT_NOEXCEPT;
+  static void preallocate() noexcept;
 
   // Set the file for logging
   static void setLogFile(const char* filename, bool truncate = false);
@@ -113,13 +114,13 @@ public:
 
   // Set flush delay in nanosecond
   // If there's msg older than ns in the buffer, flush will be triggered
-  static void setFlushDelay(int64_t ns) FMT_NOEXCEPT;
+  static void setFlushDelay(int64_t ns) noexcept;
 
   // If current msg has level >= flushLogLevel, flush will be triggered
-  static void flushOn(LogLevel flushLogLevel) FMT_NOEXCEPT;
+  static void flushOn(LogLevel flushLogLevel) noexcept;
 
   // If file buffer has more than specified bytes, flush will be triggered
-  static void setFlushBufSize(uint32_t bytes) FMT_NOEXCEPT;
+  static void setFlushBufSize(uint32_t bytes) noexcept;
 
   // callback signature user can register
   // ns: nanosecond timestamp
@@ -135,33 +136,36 @@ public:
                           size_t logFilePos);
 
   // Set a callback function for all log msgs with a mininum log level
-  static void setLogCB(LogCBFn cb, LogLevel minCBLogLevel) FMT_NOEXCEPT;
+  static void setLogCB(LogCBFn cb, LogLevel minCBLogLevel) noexcept;
+
+  typedef void (*LogQFullCBFn)(void* userData);
+  static void setLogQFullCB(LogQFullCBFn cb, void* userData) noexcept;
 
   // Close the log file and subsequent msgs will not be written into the file,
   // but callback function can still be used
-  static void closeLogFile() FMT_NOEXCEPT;
+  static void closeLogFile() noexcept;
 
   // Set log header pattern with fmt named arguments
   static void setHeaderPattern(const char* pattern);
 
   // Set a name for current thread, it'll be shown in {t} part in header pattern
-  static void setThreadName(const char* name) FMT_NOEXCEPT;
+  static void setThreadName(const char* name) noexcept;
 
   // Set current log level, lower level log msgs will be discarded
-  static inline void setLogLevel(LogLevel logLevel) FMT_NOEXCEPT;
+  static inline void setLogLevel(LogLevel logLevel) noexcept;
 
   // Get current log level
-  static inline LogLevel getLogLevel() FMT_NOEXCEPT;
+  static inline LogLevel getLogLevel() noexcept;
 
   // return true if passed log level is not lower than current log level
-  static inline bool checkLogLevel(LogLevel logLevel) FMT_NOEXCEPT;
+  static inline bool checkLogLevel(LogLevel logLevel) noexcept;
 
   // Run a polling thread in the background with a polling interval
   // Note that user must not call poll() himself when the thread is running
-  static void startPollingThread(int64_t pollInterval = 1000000) FMT_NOEXCEPT;
+  static void startPollingThread(int64_t pollInterval = 1000000) noexcept;
 
   // Stop the polling thread
-  static void stopPollingThread() FMT_NOEXCEPT;
+  static void stopPollingThread() noexcept;
 
   // https://github.com/MengRao/SPSC_Queue
   class SPSCVarQueueOPT
@@ -176,7 +180,7 @@ public:
     };
     static constexpr uint32_t BLK_CNT = (1 << 20) / sizeof(MsgHeader);
 
-    MsgHeader* allocMsg(uint32_t size) FMT_NOEXCEPT;
+    MsgHeader* allocMsg(uint32_t size) noexcept;
 
     MsgHeader* alloc(uint32_t size) {
       size += sizeof(MsgHeader);
@@ -241,35 +245,35 @@ public:
   class TSCNS
   {
   public:
-    double init(double tsc_ghz = 0.0) {
+    static const int64_t NsPerSec = 1000000000;
+
+    void init(int64_t init_calibrate_ns = 20000000, int64_t calibrate_interval_ns = 3 * NsPerSec) {
+      calibate_interval_ns_ = calibrate_interval_ns;
+      int64_t base_tsc, base_ns;
       syncTime(base_tsc, base_ns);
-      if (tsc_ghz > 0) {
-        tsc_ghz_inv = 1.0 / tsc_ghz;
-        adjustOffset();
-        return tsc_ghz;
-      }
-      else {
-#ifdef _WIN32
-        return calibrate(1000000 *
-                         100); // wait more time as Windows' system time is in 100ns precision
-#else
-        return calibrate(1000000 * 10); //
-#endif
-      }
+      int64_t expire_ns = base_ns + init_calibrate_ns;
+      while (rdsysns() < expire_ns) std::this_thread::yield();
+      int64_t delayed_tsc, delayed_ns;
+      syncTime(delayed_tsc, delayed_ns);
+      double init_ns_per_tsc = (double)(delayed_ns - base_ns) / (delayed_tsc - base_tsc);
+      saveParam(base_tsc, base_ns, base_ns, init_ns_per_tsc);
     }
 
-    double calibrate(int64_t min_wait_ns) {
-      int64_t delayed_tsc, delayed_ns;
-      do {
-        syncTime(delayed_tsc, delayed_ns);
-      } while ((delayed_ns - base_ns) < min_wait_ns);
-      tsc_ghz_inv = (double)(delayed_ns - base_ns) / (delayed_tsc - base_tsc);
-      adjustOffset();
-      return 1.0 / tsc_ghz_inv;
+    void calibrate() {
+      if (rdtsc() < next_calibrate_tsc_) return;
+      int64_t tsc, ns;
+      syncTime(tsc, ns);
+      int64_t calulated_ns = tsc2ns(tsc);
+      int64_t ns_err = calulated_ns - ns;
+      int64_t expected_err_at_next_calibration =
+        ns_err + (ns_err - base_ns_err_) * calibate_interval_ns_ / (ns - base_ns_ + base_ns_err_);
+      double new_ns_per_tsc =
+        ns_per_tsc_ * (1.0 - (double)expected_err_at_next_calibration / calibate_interval_ns_);
+      saveParam(tsc, calulated_ns, ns, new_ns_per_tsc);
     }
 
     static inline int64_t rdtsc() {
-#ifdef _WIN32
+#ifdef _MSC_VER
       return __rdtsc();
 #elif defined(__i386__) || defined(__x86_64__) || defined(__amd64__)
       return __builtin_ia32_rdtsc();
@@ -278,46 +282,85 @@ public:
 #endif
     }
 
-    inline int64_t tsc2ns(int64_t tsc) const { return ns_offset + (int64_t)(tsc * tsc_ghz_inv); }
+    inline int64_t tsc2ns(int64_t tsc) const {
+      while (true) {
+        uint32_t before_seq = param_seq_.load(std::memory_order_acquire) & ~1;
+        std::atomic_signal_fence(std::memory_order_acq_rel);
+        int64_t ns = base_ns_ + (int64_t)((tsc - base_tsc_) * ns_per_tsc_);
+        std::atomic_signal_fence(std::memory_order_acq_rel);
+        uint32_t after_seq = param_seq_.load(std::memory_order_acquire);
+        if (before_seq == after_seq) return ns;
+      }
+    }
 
     inline int64_t rdns() const { return tsc2ns(rdtsc()); }
 
-    static int64_t rdsysns() {
+    static inline int64_t rdsysns() {
       using namespace std::chrono;
       return duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
     }
 
-    // For checking purposes, see test.cc
-    int64_t rdoffset() const { return ns_offset; }
+    double getTscGhz() const { return 1.0 / ns_per_tsc_; }
 
-  private:
-    // Linux kernel sync time by finding the first try with tsc diff < 50000
-    // We do better: we find the try with the mininum tsc diff
-    void syncTime(int64_t& tsc, int64_t& ns) {
-      const int N = 10;
-      int64_t tscs[N + 1];
-      int64_t nses[N + 1];
+    // Linux kernel sync time by finding the first trial with tsc diff < 50000
+    // We try several times and return the one with the mininum tsc diff.
+    // Note that MSVC has a 100ns resolution clock, so we need to combine those ns with the same
+    // value, and drop the first and the last value as they may not scan a full 100ns range
+    static void syncTime(int64_t& tsc_out, int64_t& ns_out) {
+#ifdef _MSC_VER
+      const int N = 15;
+#else
+      const int N = 3;
+#endif
+      int64_t tsc[N + 1];
+      int64_t ns[N + 1];
 
-      tscs[0] = rdtsc();
+      tsc[0] = rdtsc();
       for (int i = 1; i <= N; i++) {
-        nses[i] = rdsysns();
-        tscs[i] = rdtsc();
+        ns[i] = rdsysns();
+        tsc[i] = rdtsc();
       }
+
+#ifdef _MSC_VER
+      int j = 1;
+      for (int i = 2; i <= N; i++) {
+        if (ns[i] == ns[i - 1]) continue;
+        tsc[j - 1] = tsc[i - 1];
+        ns[j++] = ns[i];
+      }
+      j--;
+#else
+      int j = N + 1;
+#endif
 
       int best = 1;
-      for (int i = 2; i <= N; i++) {
-        if (tscs[i] - tscs[i - 1] < tscs[best] - tscs[best - 1]) best = i;
+      for (int i = 2; i < j; i++) {
+        if (tsc[i] - tsc[i - 1] < tsc[best] - tsc[best - 1]) best = i;
       }
-      tsc = (tscs[best] + tscs[best - 1]) >> 1;
-      ns = nses[best];
+      tsc_out = (tsc[best] + tsc[best - 1]) >> 1;
+      ns_out = ns[best];
     }
 
-    void adjustOffset() { ns_offset = base_ns - (int64_t)(base_tsc * tsc_ghz_inv); }
+    void saveParam(int64_t base_tsc, int64_t base_ns, int64_t sys_ns, double new_ns_per_tsc) {
+      base_ns_err_ = base_ns - sys_ns;
+      next_calibrate_tsc_ = base_tsc + (int64_t)((calibate_interval_ns_ - 1000) / new_ns_per_tsc);
+      uint32_t seq = param_seq_.load(std::memory_order_relaxed);
+      param_seq_.store(++seq, std::memory_order_release);
+      std::atomic_signal_fence(std::memory_order_acq_rel);
+      base_tsc_ = base_tsc;
+      base_ns_ = base_ns;
+      ns_per_tsc_ = new_ns_per_tsc;
+      std::atomic_signal_fence(std::memory_order_acq_rel);
+      param_seq_.store(++seq, std::memory_order_release);
+    }
 
-    alignas(64) double tsc_ghz_inv;
-    int64_t ns_offset;
-    int64_t base_tsc;
-    int64_t base_ns;
+    alignas(64) std::atomic<uint32_t> param_seq_ = 0;
+    double ns_per_tsc_;
+    int64_t base_tsc_;
+    int64_t base_ns_;
+    int64_t calibate_interval_ns_;
+    int64_t base_ns_err_;
+    int64_t next_calibrate_tsc_;
   };
 
   void init() {
@@ -331,7 +374,7 @@ public:
                                     int& argIdx, std::vector<fmt::basic_format_arg<Context>>& args);
 
   static void registerLogInfo(uint32_t& logId, FormatToFn fn, const char* location, LogLevel level,
-                              fmt::string_view fmtString) FMT_NOEXCEPT;
+                              fmt::string_view fmtString) noexcept;
 
   static void vformat_to(MemoryBuffer& out, fmt::string_view fmt, fmt::format_args args);
 
@@ -339,7 +382,7 @@ public:
 
   static void vformat_to(char* out, fmt::string_view fmt, fmt::format_args args);
 
-  static typename SPSCVarQueueOPT::MsgHeader* allocMsg(uint32_t size) FMT_NOEXCEPT;
+  static typename SPSCVarQueueOPT::MsgHeader* allocMsg(uint32_t size, bool logQFullCB) noexcept;
 
   TSCNS tscns;
 
@@ -359,7 +402,7 @@ public:
   struct unNamedType<fmt::detail::named_arg<char, Arg>>
   { using type = Arg; };
 
-#if FMT_USE_NONTYPE_TEMPLATE_PARAMETERS
+#if FMT_USE_NONTYPE_TEMPLATE_ARGS
   template<typename Arg, size_t N, fmt::detail_exported::fixed_string<char, N> Str>
   struct unNamedType<fmt::detail::statically_named_arg<Arg, char, N, Str>>
   { using type = Arg; };
@@ -625,7 +668,7 @@ public:
   inline void log(
     uint32_t& logId, int64_t tsc, const char* location, LogLevel level,
     fmt::format_string<typename fmtlogdetail::UnrefPtr<fmt::remove_cvref_t<Args>>::type...> format,
-    Args&&... args) FMT_NOEXCEPT {
+    Args&&... args) noexcept {
     if (!logId) {
       auto unnamed_format = unNameFormat<false>(fmt::string_view(format), nullptr, args...);
       registerLogInfo(logId, formatTo<Args...>, location, level, unnamed_format);
@@ -633,8 +676,9 @@ public:
     constexpr size_t num_cstring = fmt::detail::count<isCstring<Args>()...>();
     size_t cstringSizes[std::max(num_cstring, (size_t)1)];
     uint32_t alloc_size = 8 + (uint32_t)getArgSizes<0>(cstringSizes, args...);
+    bool q_full_cb = true;
     do {
-      if (auto header = allocMsg(alloc_size)) {
+      if (auto header = allocMsg(alloc_size, q_full_cb)) {
         header->logId = logId;
         char* out = (char*)(header + 1);
         *(int64_t*)out = tsc;
@@ -643,6 +687,7 @@ public:
         header->push(alloc_size);
         break;
       }
+      q_full_cb = false;
     } while (FMTLOG_BLOCK);
   }
 
@@ -653,8 +698,9 @@ public:
     auto&& fmt_args = fmt::make_format_args(args...);
     uint32_t fmt_size = formatted_size(sv, fmt_args);
     uint32_t alloc_size = 8 + 8 + fmt_size;
+    bool q_full_cb = true;
     do {
-      if (auto header = allocMsg(alloc_size)) {
+      if (auto header = allocMsg(alloc_size, q_full_cb)) {
         header->logId = (uint32_t)level;
         char* out = (char*)(header + 1);
         *(int64_t*)out = tscns.rdtsc();
@@ -665,6 +711,7 @@ public:
         header->push(alloc_size);
         break;
       }
+      q_full_cb = false;
     } while (FMTLOG_BLOCK);
   }
 };
@@ -682,17 +729,17 @@ template<int _>
 fmtlog fmtlogWrapper<_>::impl;
 
 template<int _>
-inline void fmtlogT<_>::setLogLevel(LogLevel logLevel) FMT_NOEXCEPT {
+inline void fmtlogT<_>::setLogLevel(LogLevel logLevel) noexcept {
   fmtlogWrapper<>::impl.currentLogLevel = logLevel;
 }
 
 template<int _>
-inline typename fmtlogT<_>::LogLevel fmtlogT<_>::getLogLevel() FMT_NOEXCEPT {
+inline typename fmtlogT<_>::LogLevel fmtlogT<_>::getLogLevel() noexcept {
   return fmtlogWrapper<>::impl.currentLogLevel;
 }
 
 template<int _>
-inline bool fmtlogT<_>::checkLogLevel(LogLevel logLevel) FMT_NOEXCEPT {
+inline bool fmtlogT<_>::checkLogLevel(LogLevel logLevel) noexcept {
 #ifdef FMTLOG_NO_CHECK_LEVEL
   return true;
 #else
