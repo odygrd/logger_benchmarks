@@ -97,15 +97,24 @@ private:
   /**
    * Populate our local priority queue
    * @param cached_thread_contexts local thread context cache
-   * @param is_terminating backend worker is terminating
    */
   QUILL_ATTRIBUTE_HOT inline void _populate_priority_queue(
-    ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts, bool is_terminating);
+    ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts);
+
+  /**
+   * Reads all available bytes from the queue
+   * @param thread_context
+   * @param ts_now
+   */
+  QUILL_ATTRIBUTE_HOT inline void _read_from_queue(ThreadContext* thread_context, uint64_t ts_now);
 
   /**
    * Deserialize an log message from the raw SPSC queue and emplace them to priority queue
    */
-  QUILL_ATTRIBUTE_HOT inline void _read_queue_and_decode(ThreadContext* thread_context, bool is_terminating);
+  QUILL_ATTRIBUTE_HOT inline bool _read_queue_messages_and_decode(ThreadContext* thread_context,
+                                                                  ThreadContext::SPSCQueueT& queue,
+                                                                  std::byte* read_buffer,
+                                                                  size_t bytes_available, uint64_t ts_now);
 
   /**
    * Checks for events in all queues and processes the one with the minimum timestamp
@@ -134,6 +143,12 @@ private:
   QUILL_ATTRIBUTE_HOT static std::pair<std::string, std::vector<std::string>> _process_structured_log_template(
     std::string_view fmt_template) noexcept;
 
+  /**
+   * Gets or creates a new TransitEvent
+   * @return
+   */
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline TransitEvent* _get_transit_event();
+
 private:
   Config const& _config;
   ThreadContextCollection& _thread_context_collection;
@@ -147,12 +162,13 @@ private:
   std::chrono::nanoseconds _backend_thread_sleep_duration; /** backend_thread_sleep_duration from config **/
   size_t _max_transit_events; /** limit of transit events before start flushing, value from config */
 
-  std::priority_queue<TransitEvent*, std::vector<TransitEvent*>, TransitEventComparator> _transit_events;
+  std::priority_queue<std::pair<uint64_t, TransitEvent*>, std::vector<std::pair<uint64_t, TransitEvent*>>, TransitEventComparator> _transit_events;
 
   std::vector<fmt::basic_format_arg<fmt::format_context>> _args; /** Format args tmp storage as member to avoid reallocation */
 
   BacktraceStorage _backtrace_log_message_storage; /** Stores a vector of backtrace messages per logger name */
   FreeListAllocator _free_list_allocator; /** A free list allocator with initial capacity, we store the TransitEvents that we pop from each SPSC queue here */
+  std::vector<TransitEvent*> _transit_event_factory; /** Stores transit events to reuse them **/
 
   std::unordered_map<quill::Metadata const*, std::pair<std::string, std::vector<std::string>>> _slog_templates; /** Avoid re-formating the same structured template each time */
 
@@ -160,6 +176,8 @@ private:
   std::string _process_id;
 
   bool _has_unflushed_messages{false}; /** There are messages that are buffered by the OS, but not yet flushed */
+  bool _strict_log_timestamp_order{true};
+  bool _empty_all_queues_before_exit{true};
   std::atomic<bool> _is_running{false}; /** The spawned backend thread status */
 
 #if !defined(QUILL_NO_EXCEPTIONS)
@@ -181,6 +199,8 @@ void BackendWorker::run()
   // enforce the user to configure a variable before the thread has started
   _backend_thread_sleep_duration = _config.backend_thread_sleep_duration;
   _max_transit_events = _config.backend_thread_max_transit_events;
+  _empty_all_queues_before_exit = _config.backend_thread_empty_all_queues_before_exit;
+  _strict_log_timestamp_order = _config.backend_thread_strict_log_timestamp_order;
 
 #if !defined(QUILL_NO_EXCEPTIONS)
   if (_config.backend_thread_error_handler)
@@ -219,12 +239,32 @@ void BackendWorker::run()
       // Cache this thread's id
       _backend_worker_thread_id = get_thread_id();
 
+      auto next_pow2 = [](size_t x)
+      {
+        size_t p = 1;
+        while (p < x)
+        {
+          p *= 2;
+        }
+        return p;
+      };
+
       // Initialise memory for our free list allocator. We reserve the same size as a full
       // size of 1 caller thread queue
-      _free_list_allocator.reserve(QUILL_QUEUE_CAPACITY);
+      _free_list_allocator.reserve(next_pow2(sizeof(TransitEvent) * _max_transit_events * 2));
 
       // Also configure our allocator to request bigger chunks from os
-      _free_list_allocator.set_minimum_allocation(QUILL_QUEUE_CAPACITY);
+      _free_list_allocator.set_minimum_allocation(next_pow2(sizeof(TransitEvent) * _max_transit_events * 2));
+
+      // Reverse some TransitEvents in advance
+      _transit_event_factory.reserve(_max_transit_events * 2);
+
+      for (uint32_t i = 0; i < _max_transit_events * 2; ++i)
+      {
+        void* transit_event_buffer = _free_list_allocator.allocate(sizeof(TransitEvent));
+        auto* transit_event = new (transit_event_buffer) TransitEvent{};
+        _transit_event_factory.emplace_back(transit_event);
+      }
 
       // All okay, set the backend worker thread running flag
       _is_running.store(true, std::memory_order_seq_cst);
@@ -265,50 +305,64 @@ void BackendWorker::run()
 }
 
 /***/
-void BackendWorker::_populate_priority_queue(ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts,
-                                             bool is_terminating)
+void BackendWorker::_populate_priority_queue(ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts)
 {
-  // copy everything to a priority queue
+  uint64_t const ts_now = _strict_log_timestamp_order
+    ? static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                              std::chrono::system_clock::now().time_since_epoch())
+                              .count())
+    : 0;
+
   for (ThreadContext* thread_context : cached_thread_contexts)
   {
-    _read_queue_and_decode(thread_context, is_terminating);
+    // copy everything to a priority queue
+    _read_from_queue(thread_context, ts_now);
   }
 }
 
 /***/
-void BackendWorker::_read_queue_and_decode(ThreadContext* thread_context, bool is_terminating)
+void BackendWorker::_read_from_queue(ThreadContext* thread_context, uint64_t ts_now)
 {
-  // Read the fast queue
   ThreadContext::SPSCQueueT& spsc_queue = thread_context->spsc_queue();
 
-  while (true)
+  // Note: The producer will commit to this queue when one complete message is written.
+  // This means that if we can read something from the queue it will be a full message
+  // The producer will add items to the buffer :
+  // |timestamp|metadata*|logger_details*|args...|
+
+  auto [read_buffer, bytes_available, has_more] = spsc_queue.prepare_read();
+
+  // here we read all the messages until the end of the buffer
+  bool const read_all =
+    _read_queue_messages_and_decode(thread_context, spsc_queue, read_buffer, bytes_available, ts_now);
+
+  if (read_all && has_more)
   {
-    if (!is_terminating && (_transit_events.size() >= _max_transit_events))
-    {
-      // transit events queue is full
-      break;
-    }
+    // if there are more bytes to read it is because we need to wrap around the ring buffer,
+    // and we will perform one more read
+    std::tie(read_buffer, bytes_available, has_more) = spsc_queue.prepare_read();
+    _read_queue_messages_and_decode(thread_context, spsc_queue, read_buffer, bytes_available, ts_now);
 
-    // Note: The producer will commit a write to this queue when one complete message is written.
-    // This means that if we can read something from the queue it will be a full message
-    // The producer will add items to the buffer :
-    // |timestamp|metadata*|logger_details*|args...|
+    assert(!has_more && "It is not possible to have more bytes to read");
+  }
 
-    auto read = spsc_queue.prepare_read();
-    std::byte* read_buffer = read.first;
-    size_t bytes_available = read.second;
+  // Note: If the bounded queue gets filled it will allocate a new bounded queue and will have
+  // more bytes to read. The case where the queue gets reallocated is not handled and we will
+  // read the new queue the next time we call this function
+}
+
+/***/
+bool BackendWorker::_read_queue_messages_and_decode(ThreadContext* thread_context,
+                                                    ThreadContext::SPSCQueueT& queue, std::byte* read_buffer,
+                                                    size_t bytes_available, uint64_t ts_now)
+{
+  while (bytes_available > 0)
+  {
     std::byte* const read_begin = read_buffer;
 
-    if (bytes_available == 0)
-    {
-      // keep reading until the queue is empty or we reached the transit events limit
-      break;
-    }
-
-    // The queue is empty. First we want to allocate a new TransitEvent to store the message
-    // from the queue
-    void* transit_event_buffer = _free_list_allocator.allocate(sizeof(TransitEvent));
-    auto* transit_event = new (transit_event_buffer) TransitEvent{};
+    // First we want to allocate a new TransitEvent or use an existing one
+    // to store the message from the queue
+    auto* transit_event = _get_transit_event();
     transit_event->thread_id = thread_context->thread_id();
     transit_event->thread_name = thread_context->thread_name();
 
@@ -333,7 +387,36 @@ void BackendWorker::_read_queue_and_decode(ThreadContext* thread_context, bool i
 
       // convert the rdtsc value to nanoseconds since epoch
       transit_event->header.timestamp = _rdtsc_clock->time_since_epoch(transit_event->header.timestamp);
+
+      // Now check if the message has a timestamp greater than our ts_now
+      if QUILL_UNLIKELY ((ts_now != 0) && ((transit_event->header.timestamp / 1'000) >= ts_now))
+      {
+        // We are reading the queues sequentially and to be fair when ordering the messages
+        // we are trying to avoid the situation when we already read the first queue,
+        // and then we missed it when reading the last queue
+
+        // if the message timestamp is greater than our timestamp then we stop reading this queue
+        // for now and we will continue in the next circle
+        _transit_event_factory.emplace_back(transit_event);
+        return false;
+      }
     }
+    else if (transit_event->header.logger_details->timestamp_clock_type() == TimestampClockType::System)
+    {
+      if QUILL_UNLIKELY ((ts_now != 0) && ((transit_event->header.timestamp / 1'000) >= ts_now))
+      {
+        // We are reading the queues sequentially and to be fair when ordering the messages
+        // we are trying to avoid the situation when we already read the first queue,
+        // and then we missed it when reading the last queue
+
+        // if the message timestamp is greater than our timestamp then we stop reading this queue
+        // for now and we will continue in the next circle
+        _transit_event_factory.emplace_back(transit_event);
+        return false;
+      }
+    }
+    // else we skip that check, we can not compare a custom timestamp by
+    // the user (TimestampClockType::Custom) against ours
 
     // we need to check and do not try to format the flush events as that wouldn't be valid
     if (transit_event->header.metadata->macro_metadata.event() != MacroMetadata::Event::Flush)
@@ -352,7 +435,7 @@ void BackendWorker::_read_queue_and_decode(ThreadContext* thread_context, bool i
                "structured log templates are not supported for wide characters");
 
         read_buffer = transit_event->header.metadata->format_to_fn(
-            format_str, read_buffer, transit_event->formatted_msg, _args);
+          format_str, read_buffer, transit_event->formatted_msg, _args);
       }
       else
       {
@@ -385,6 +468,7 @@ void BackendWorker::_read_queue_and_decode(ThreadContext* thread_context, bool i
           }
 
           // formatted values for any given keys
+          transit_event->structured_values.clear();
           for (auto const& arg : _args)
           {
             transit_event->structured_values.emplace_back(fmt::vformat("{}", fmt::basic_format_args(&arg, 1)));
@@ -413,16 +497,21 @@ void BackendWorker::_read_queue_and_decode(ThreadContext* thread_context, bool i
 
     // Finish reading
     assert((read_buffer >= read_begin) && "read_buffer should be greater or equal to read_begin");
-    spsc_queue.finish_read(static_cast<size_t>(read_buffer - read_begin));
+    auto const read_size = static_cast<size_t>(read_buffer - read_begin);
+    queue.finish_read(read_size);
+    bytes_available -= read_size;
 
-    _transit_events.emplace(transit_event);
+    _transit_events.emplace(std::make_pair(transit_event->header.timestamp, transit_event));
   }
+
+  // read everything
+  return true;
 }
 
 /***/
 void BackendWorker::_process_transit_event()
 {
-  TransitEvent const* transit_event = _transit_events.top();
+  TransitEvent* transit_event = _transit_events.top().second;
 
   // If backend_process(...) throws we want to skip this event and move to the next so we catch the
   // error here instead of catching it in the parent try/catch block of main_loop
@@ -450,7 +539,7 @@ void BackendWorker::_process_transit_event()
       else
       {
         // this is a backtrace log and we will store it
-        _backtrace_log_message_storage.store(*transit_event);
+        _backtrace_log_message_storage.store(std::move(*transit_event));
       }
     }
     else if (transit_event->header.metadata->macro_metadata.event() == MacroMetadata::Event::InitBacktrace)
@@ -479,8 +568,9 @@ void BackendWorker::_process_transit_event()
     // Remove this event and move to the next. We also need to remove that event from the
     // free list allocator
     _transit_events.pop();
-    const_cast<TransitEvent*>(transit_event)->~TransitEvent();
-    _free_list_allocator.deallocate(const_cast<TransitEvent*>(transit_event));
+
+    // we will reuse this transit event later, we do not delete it
+    _transit_event_factory.emplace_back(transit_event);
 
     // Since after processing an event we never force flush but leave it up to the OS instead,
     // set this to true to keep track of unflushed messages we have
@@ -493,6 +583,9 @@ void BackendWorker::_process_transit_event()
 
     // Remove this event and move to the next
     _transit_events.pop();
+
+    // we will reuse this transit event later, we do not delete it
+    _transit_event_factory.emplace_back(transit_event);
   }
   QUILL_CATCH_ALL()
   {
@@ -500,6 +593,9 @@ void BackendWorker::_process_transit_event()
 
     // Remove this event and move to the next
     _transit_events.pop();
+
+    // we will reuse this transit event later, we do not delete it
+    _transit_event_factory.emplace_back(transit_event);
   } // clang-format on
 #endif
 }
@@ -553,7 +649,7 @@ void BackendWorker::_main_loop()
   ThreadContextCollection::backend_thread_contexts_cache_t const& cached_thread_contexts =
     _thread_context_collection.backend_thread_contexts_cache();
 
-  _populate_priority_queue(cached_thread_contexts, false);
+  _populate_priority_queue(cached_thread_contexts);
 
   if (QUILL_LIKELY(!_transit_events.empty()))
   {
@@ -601,7 +697,7 @@ void BackendWorker::_exit()
 
   while (true)
   {
-    _populate_priority_queue(cached_thread_contexts, true);
+    _populate_priority_queue(cached_thread_contexts);
 
     if (!_transit_events.empty())
     {
@@ -623,10 +719,48 @@ void BackendWorker::_exit()
     }
     else
     {
-      _check_dropped_messages(cached_thread_contexts);
-      _force_flush();
-      break;
+      bool all_empty{true};
+
+      if (_empty_all_queues_before_exit)
+      {
+        for (ThreadContext* thread_context : cached_thread_contexts)
+        {
+          all_empty &= thread_context->spsc_queue().empty();
+        }
+      }
+
+      if (all_empty)
+      {
+        // we are done, all queues are now empty
+        _check_dropped_messages(cached_thread_contexts);
+        _force_flush();
+        break;
+      }
     }
   }
+
+  // Finally clear the transit event factor memory
+  for (TransitEvent* transit_event : _transit_event_factory)
+  {
+    transit_event->~TransitEvent();
+    _free_list_allocator.deallocate(transit_event);
+  }
+}
+
+/***/
+TransitEvent* BackendWorker::_get_transit_event()
+{
+  if (_transit_event_factory.empty())
+  {
+    // we do not have anything to reuse, we will create a new one
+    void* transit_event_buffer = _free_list_allocator.allocate(sizeof(TransitEvent));
+    auto* transit_event = new (transit_event_buffer) TransitEvent{};
+    return transit_event;
+  }
+
+  auto* transit_event = _transit_event_factory.back();
+  _transit_event_factory.pop_back();
+  transit_event->flush_flag = nullptr;
+  return transit_event;
 }
 } // namespace quill::detail
