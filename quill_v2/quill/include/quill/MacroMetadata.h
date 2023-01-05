@@ -135,12 +135,14 @@ private:
     char const* file = path;
     while (*path)
     {
-      if (*path++ == fs::path::preferred_separator)
+      char cur = *path++;
+      if (cur == '/' || cur == fs::path::preferred_separator)
       {
         file = path;
       }
     }
-    return file;  }
+    return file;
+  }
 
   QUILL_NODISCARD static constexpr std::string_view _log_level_to_string(LogLevel log_level)
   {
