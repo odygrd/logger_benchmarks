@@ -13,8 +13,8 @@
 #include "quill/detail/misc/TypeTraitsCopyable.h"
 #include <cstdint>
 #include <cstring>
-#include <string>
 #include <string_view>
+#include <string>
 #include <type_traits>
 
 namespace quill
@@ -28,51 +28,51 @@ class LoggerDetails;
 template <typename Arg>
 QUILL_NODISCARD constexpr bool is_type_of_c_string()
 {
-  using arg_t = std::decay_t<Arg>;
-  return std::disjunction_v<std::is_same<arg_t, char const*>, std::is_same<arg_t, char*>>;
+  using ArgType = std::decay_t<Arg>;
+  return std::disjunction_v<std::is_same<ArgType, char const*>, std::is_same<ArgType, char*>>;
 }
 
 template <typename Arg>
 QUILL_NODISCARD constexpr bool is_type_of_string()
 {
-  using arg_t = std::decay_t<Arg>;
-  return std::disjunction_v<std::is_same<arg_t, std::string>, std::is_same<arg_t, std::string_view>>;
+  using ArgType = std::decay_t<Arg>;
+  return std::disjunction_v<std::is_same<ArgType, std::string>, std::is_same<ArgType, std::string_view>>;
 }
 
 #if defined(_WIN32)
 template <typename Arg>
 QUILL_NODISCARD constexpr bool is_type_of_wide_c_string()
 {
-  using arg_t = std::decay_t<Arg>;
-  return std::disjunction_v<std::is_same<arg_t, wchar_t const*>, std::is_same<arg_t, wchar_t*>>;
+  using ArgType = std::decay_t<Arg>;
+  return std::disjunction_v<std::is_same<ArgType, wchar_t const*>, std::is_same<ArgType, wchar_t*>>;
 }
 
 template <typename Arg>
 QUILL_NODISCARD constexpr bool is_type_of_wide_string()
 {
-  using arg_t = std::decay_t<Arg>;
-  return std::disjunction_v<std::is_same<arg_t, std::wstring>, std::is_same<arg_t, std::wstring_view>>;
+  using ArgType = std::decay_t<Arg>;
+  return std::disjunction_v<std::is_same<ArgType, std::wstring>, std::is_same<ArgType, std::wstring_view>>;
 }
 #endif
 
 template <typename Arg>
 QUILL_NODISCARD inline constexpr bool need_call_dtor_for()
 {
-  using arg_t = detail::remove_cvref_t<Arg>;
+  using ArgType = detail::remove_cvref_t<Arg>;
 
 #if defined(_WIN32)
-  if constexpr (is_type_of_wide_string<arg_t>())
+  if constexpr (is_type_of_wide_string<Arg>())
   {
     return false;
   }
 #endif
 
-  if constexpr (is_type_of_string<arg_t>())
+  if constexpr (is_type_of_string<Arg>())
   {
     return false;
   }
 
-  return !std::is_trivially_destructible<arg_t>::value;
+  return !std::is_trivially_destructible<ArgType>::value;
 }
 
 template <size_t DestructIdx>
@@ -86,7 +86,7 @@ template <size_t DestructIdx, typename Arg, typename... Args>
 QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline std::byte* decode_args(
   std::byte* in, std::vector<fmt::basic_format_arg<fmt::format_context>>& args, std::byte** destruct_args)
 {
-  using arg_t = detail::remove_cvref_t<Arg>;
+  using ArgType = detail::remove_cvref_t<Arg>;
 
   if constexpr (is_type_of_c_string<Arg>())
   {
@@ -127,18 +127,18 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline std::byte* decode_args(
   else
   {
     // no need to align for chars, but align for any other type
-    in = detail::align_pointer<alignof(arg_t), std::byte>(in);
+    in = detail::align_pointer<alignof(Arg), std::byte>(in);
 
-    args.emplace_back(fmt::detail::make_arg<fmt::format_context>(*reinterpret_cast<arg_t*>(in)));
+    args.emplace_back(fmt::detail::make_arg<fmt::format_context>(*reinterpret_cast<ArgType*>(in)));
 
     if constexpr (need_call_dtor_for<Arg>())
     {
       destruct_args[DestructIdx] = in;
-      return decode_args<DestructIdx + 1, Args...>(in + sizeof(arg_t), args, destruct_args);
+      return decode_args<DestructIdx + 1, Args...>(in + sizeof(ArgType), args, destruct_args);
     }
     else
     {
-      return decode_args<DestructIdx, Args...>(in + sizeof(arg_t), args, destruct_args);
+      return decode_args<DestructIdx, Args...>(in + sizeof(ArgType), args, destruct_args);
     }
   }
 }
@@ -151,11 +151,10 @@ QUILL_ATTRIBUTE_HOT inline void destruct_args(std::byte**)
 template <size_t DestructIdx, typename Arg, typename... Args>
 QUILL_ATTRIBUTE_HOT inline void destruct_args(std::byte** args)
 {
-  using arg_t = detail::remove_cvref_t<Arg>;
-
+  using ArgType = detail::remove_cvref_t<Arg>;
   if constexpr (need_call_dtor_for<Arg>())
   {
-    (reinterpret_cast<arg_t*>(args[DestructIdx]))->~arg_t();
+    (reinterpret_cast<ArgType*>(args[DestructIdx]))->~ArgType();
     destruct_args<DestructIdx + 1, Args...>(args);
   }
   else
@@ -164,16 +163,24 @@ QUILL_ATTRIBUTE_HOT inline void destruct_args(std::byte** args)
   }
 }
 
-template <typename Arg>
-QUILL_ATTRIBUTE_HOT void get_args_size(size_t& result_sum, size_t* c_string_sizes, size_t& c_str_index, Arg&& arg)
+template <size_t CstringIdx>
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT constexpr size_t get_args_sizes(size_t*)
 {
-  using arg_t = detail::remove_cvref_t<Arg>;
+  return 0;
+}
 
+/**
+ * Get the size of all arguments
+ */
+template <size_t CstringIdx, typename Arg, typename... Args>
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT constexpr size_t get_args_sizes(size_t* c_string_sizes,
+                                                                  Arg const& arg, Args const&... args)
+{
   if constexpr (is_type_of_c_string<Arg>())
   {
     size_t const len = strlen(arg) + 1;
-    c_string_sizes[c_str_index++] = len;
-    result_sum += len;
+    c_string_sizes[CstringIdx] = len;
+    return len + get_args_sizes<CstringIdx + 1>(c_string_sizes, args...);
   }
   else if constexpr (is_type_of_string<Arg>())
   {
@@ -181,66 +188,49 @@ QUILL_ATTRIBUTE_HOT void get_args_size(size_t& result_sum, size_t* c_string_size
     // the reason for this is that if we create e.g:
     // std::string msg = fmt::format("{} {} {} {} {}", (char)0, (char)0, (char)0, (char)0,
     // "sssssssssssssssssssssss"); then strlen(msg.data()) = 0 but msg.size() = 31
-    result_sum += arg.size() + sizeof(size_t) + alignof(size_t);
+    return (arg.size() + sizeof(size_t)) + alignof(size_t) +
+      get_args_sizes<CstringIdx>(c_string_sizes, args...);
   }
 #if defined(_WIN32)
   else if constexpr (is_type_of_wide_c_string<Arg>())
   {
-    size_t const len = get_wide_string_encoding_size(std::wstring_view{arg, wcslen(arg)});
-    c_string_sizes[c_str_index++] = len;
-    result_sum += len + sizeof(size_t) + alignof(size_t);
+    size_t const len = get_wide_string_encoding_size(std::wstring_view {arg, wcslen(arg)});
+    c_string_sizes[CstringIdx] = len;
+    return len + sizeof(size_t) + alignof(size_t) + get_args_sizes<CstringIdx + 1>(c_string_sizes, args...);
   }
   else if constexpr (is_type_of_wide_string<Arg>())
   {
     size_t const len = get_wide_string_encoding_size(arg);
-    c_string_sizes[c_str_index++] = len;
-    result_sum += len + sizeof(size_t) + alignof(size_t);
+    c_string_sizes[CstringIdx] = len;
+    return len + sizeof(size_t) + alignof(size_t) + get_args_sizes<CstringIdx + 1>(c_string_sizes, args...);
   }
 #endif
   else
   {
-    result_sum += alignof(arg_t) + sizeof(arg_t);
-  }
-}
-
-/**
- * Get the size of all arguments
- */
-template <typename... Args>
-QUILL_NODISCARD QUILL_ATTRIBUTE_HOT size_t get_args_sizes(size_t* c_string_sizes, Args&&... args)
-{
-  if constexpr (sizeof...(args) != 0)
-  {
-    size_t c_string_index{0};
-    size_t result{0};
-
-    // we use ',' operator here instead of '+' to guarantee it will be evaluated from left-to-right
-    (get_args_size(result, c_string_sizes, c_string_index, std::forward<Args>(args)), ...);
-
-    return result;
-  }
-  else
-  {
-    // no variadic args
-    return 0;
+    return alignof(Arg) + sizeof(Arg) + get_args_sizes<CstringIdx>(c_string_sizes, args...);
   }
 }
 
 /**
  * Encode args to the buffer
  */
-template <typename Arg>
-QUILL_ATTRIBUTE_HOT constexpr void encode_arg(std::byte*& out, size_t const* c_string_sizes,
-                                              size_t& c_str_index, Arg&& arg)
+template <size_t CstringIdx>
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT constexpr std::byte* encode_args(size_t*, std::byte* out)
 {
-  using arg_t = detail::remove_cvref_t<Arg>;
+  return out;
+}
 
-  if constexpr (is_type_of_c_string<arg_t>())
+template <size_t CstringIdx, typename Arg, typename... Args>
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT constexpr std::byte* encode_args(size_t* c_string_sizes, std::byte* out,
+                                                                   Arg&& arg, Args&&... args)
+{
+  if constexpr (is_type_of_c_string<Arg>())
   {
-    std::memcpy(out, arg, c_string_sizes[c_str_index]);
-    out += c_string_sizes[c_str_index++];
+    std::memcpy(out, arg, c_string_sizes[CstringIdx]);
+    return encode_args<CstringIdx + 1>(c_string_sizes, out + c_string_sizes[CstringIdx],
+                                       std::forward<Args>(args)...);
   }
-  else if constexpr (is_type_of_string<arg_t>())
+  else if constexpr (is_type_of_string<Arg>())
   {
     // for std::string we store the size first, in order to correctly retrieve it
     out = detail::align_pointer<alignof(size_t), std::byte>(out);
@@ -250,57 +240,50 @@ QUILL_ATTRIBUTE_HOT constexpr void encode_arg(std::byte*& out, size_t const* c_s
 
     // copy the string, no need to zero terminate it as we got the length
     std::memcpy(out, arg.data(), arg.length());
-    out += arg.length();
+    return encode_args<CstringIdx>(c_string_sizes, out + arg.length(), std::forward<Args>(args)...);
   }
 #if defined(_WIN32)
-  else if constexpr (is_type_of_wide_c_string<arg_t>())
+  else if constexpr (is_type_of_wide_c_string<Arg>())
   {
     out = detail::align_pointer<alignof(size_t), std::byte>(out);
-    size_t const len = c_string_sizes[c_str_index];
+    size_t const len = c_string_sizes[CstringIdx];
     std::memcpy(out, &len, sizeof(size_t));
 
     out += sizeof(size_t);
-    wide_string_to_narrow(out, c_string_sizes[c_str_index], std::wstring_view{arg, wcslen(arg)});
-    out += c_string_sizes[c_str_index++];
+    wide_string_to_narrow(out, c_string_sizes[CstringIdx], std::wstring_view{arg, wcslen(arg)});
+    return encode_args<CstringIdx + 1>(c_string_sizes, out + c_string_sizes[CstringIdx],
+                                       std::forward<Args>(args)...);
   }
-  else if constexpr (is_type_of_wide_string<arg_t>())
+  else if constexpr (is_type_of_wide_string<Arg>())
   {
     // for std::wstring we store the size first, in order to correctly retrieve it
     out = detail::align_pointer<alignof(size_t), std::byte>(out);
-    size_t const len = c_string_sizes[c_str_index];
+    size_t const len = c_string_sizes[CstringIdx];
     std::memcpy(out, &len, sizeof(size_t));
     out += sizeof(size_t);
 
-    wide_string_to_narrow(out, c_string_sizes[c_str_index], arg);
-    out += c_string_sizes[c_str_index++];
+    wide_string_to_narrow(out, c_string_sizes[CstringIdx], arg);
+    return encode_args<CstringIdx + 1>(c_string_sizes, out + c_string_sizes[CstringIdx],
+                                       std::forward<Args>(args)...);
   }
 #endif
   else
   {
     // no need to align for chars, but align for any other type
-    out = detail::align_pointer<alignof(arg_t), std::byte>(out);
+    out = detail::align_pointer<alignof(Arg), std::byte>(out);
 
     // use memcpy when possible
-    if constexpr (std::is_trivially_copyable_v<arg_t>)
+    if constexpr (std::is_trivially_copyable_v<detail::remove_cvref_t<Arg>>)
     {
-      std::memcpy(out, &arg, sizeof(arg_t));
+      std::memcpy(out, &arg, sizeof(Arg));
     }
     else
     {
-      new (out) arg_t(std::forward<Arg>(arg));
+      new (out) detail::remove_cvref_t<Arg>(std::forward<Arg>(arg));
     }
 
-    out += sizeof(arg_t);
+    return encode_args<CstringIdx>(c_string_sizes, out + sizeof(Arg), std::forward<Args>(args)...);
   }
-}
-
-template <typename... Args>
-QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::byte* encode_args(size_t const* c_string_sizes,
-                                                           std::byte* out, Args&&... args)
-{
-  size_t c_string_index{0};
-  (encode_arg(out, c_string_sizes, c_string_index, std::forward<Args>(args)), ...);
-  return out;
 }
 
 /**
@@ -310,9 +293,9 @@ using FormatToFn = std::byte* (*)(std::string_view format, std::byte* data, fmt_
                                   std::vector<fmt::basic_format_arg<fmt::format_context>>& args);
 
 template <typename... Args>
-QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline std::byte* format_to(
-  std::string_view format, std::byte* data, fmt_buffer_t& out,
-  std::vector<fmt::basic_format_arg<fmt::format_context>>& args)
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::byte* format_to(std::string_view format, std::byte* data,
+                                                         fmt_buffer_t& out,
+                                                         std::vector<fmt::basic_format_arg<fmt::format_context>>& args)
 {
   constexpr size_t num_dtors = fmt::detail::count<need_call_dtor_for<Args>()...>();
   std::byte* dtor_args[(std::max)(num_dtors, (size_t)1)];
