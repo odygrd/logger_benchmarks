@@ -146,13 +146,13 @@ public:
       constexpr quill::MacroMetadata operator()() const noexcept
       {
         return quill::MacroMetadata{
-          QUILL_STRINGIFY(__LINE__),          __FILE__, __FUNCTION__, "", LogLevel::Critical,
-          quill::MacroMetadata::Event::Flush, false};
+          "", "", "", "", LogLevel::Critical, quill::MacroMetadata::Event::Flush, false};
       }
     } anonymous_log_message_info;
 
     detail::ThreadContext* const thread_context = _thread_context_collection.local_thread_context();
-    uint32_t total_size = sizeof(detail::Header) + sizeof(uintptr_t);
+    int32_t total_size =
+      static_cast<int32_t>(sizeof(detail::Header)) + static_cast<int32_t>(sizeof(uintptr_t));
 
     // request this size from the queue
     std::byte* write_buffer = thread_context->spsc_queue().prepare_write(total_size);
@@ -167,7 +167,7 @@ public:
         ? static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count())
         : default_logger->_custom_timestamp_clock->now());
 
-    write_buffer += sizeof(detail::Header);
+    write_buffer += static_cast<int32_t>(sizeof(detail::Header));
 
     // encode the pointer to atomic bool
     std::atomic<bool>* flush_ptr = std::addressof(backend_thread_flushed);
@@ -176,7 +176,7 @@ public:
 
     assert((write_buffer >= write_begin) &&
            "write_buffer should be greater or equal to write_begin");
-    thread_context->spsc_queue().commit_write(static_cast<size_t>(write_buffer - write_begin));
+    thread_context->spsc_queue().commit_write(static_cast<int32_t>(write_buffer - write_begin));
 
     // The caller thread keeps checking the flag until the backend thread flushes
     do
@@ -254,12 +254,12 @@ private:
   }
 
 private:
+  std::once_flag _start_init_once_flag; /** flag to start the thread only once, in case start() is called multiple times */
   Config _config;
   HandlerCollection _handler_collection;
   ThreadContextCollection _thread_context_collection{_config};
   LoggerCollection _logger_collection{_config, _thread_context_collection, _handler_collection};
   BackendWorker _backend_worker{_config, _thread_context_collection, _handler_collection};
-  std::once_flag _start_init_once_flag; /** flag to start the thread only once, in case start() is called multiple times */
 };
 
 /**
@@ -275,7 +275,7 @@ public:
    * Access to singleton instance
    * @return a reference to the singleton
    */
-  static LogManagerSingleton& instance() noexcept
+  QUILL_EXPORT static LogManagerSingleton& instance() noexcept
   {
     static LogManagerSingleton instance;
     return instance;
