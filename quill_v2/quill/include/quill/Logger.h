@@ -34,7 +34,7 @@ class LogManager;
  * Thread safe logger.
  * Logger must be obtained from LoggerCollection get_logger(), therefore constructors are private
  */
-class alignas(detail::CACHELINE_SIZE) Logger
+class alignas(detail::CACHE_LINE_ALIGNED) Logger
 {
 public:
   /**
@@ -47,7 +47,7 @@ public:
    * We align the logger object to it's own cache line. It shouldn't make much difference as the
    * logger object size is exactly 1 cache line
    */
-  void* operator new(size_t i) { return detail::aligned_alloc(detail::CACHELINE_SIZE, i); }
+  void* operator new(size_t i) { return detail::aligned_alloc(detail::CACHE_LINE_ALIGNED, i); }
   void operator delete(void* p) { detail::aligned_free(p); }
 
   /**
@@ -94,7 +94,8 @@ public:
    * fundamental types.
    * This is the fastest way possible to log
    * @note This function is thread-safe.
-   * @param fmt_args format arguments
+   * @param format_string format
+   * @param fmt_args arguments
    */
   template <typename TMacroMetadata, typename TFormatString, typename... FmtArgs>
   QUILL_ALWAYS_INLINE_HOT void log(TFormatString format_string, FmtArgs&&... fmt_args)
@@ -146,7 +147,7 @@ public:
       detail::get_args_sizes<0>(c_string_sizes, fmt_args...);
 
     // request this size from the queue
-    std::byte* write_buffer = thread_context->spsc_queue().prepare_write(total_size);
+    std::byte* write_buffer = thread_context->spsc_queue().prepare_write(static_cast<uint32_t>(total_size));
 
 #if defined(QUILL_USE_BOUNDED_QUEUE)
     if (QUILL_UNLIKELY(write_buffer == nullptr))
@@ -178,11 +179,12 @@ public:
 
     // encode remaining arguments
     write_buffer = detail::encode_args<0>(c_string_sizes, write_buffer, std::forward<FmtArgs>(fmt_args)...);
-    assert(total_size >= (static_cast<size_t>(write_buffer - write_begin)) &&
+    assert(total_size >= (static_cast<uint32_t>(write_buffer - write_begin)) &&
            "The committed write bytes can not be greater than the requested bytes");
     assert((write_buffer >= write_begin) &&
            "write_buffer should be greater or equal to write_begin");
-    thread_context->spsc_queue().commit_write(static_cast<size_t>(write_buffer - write_begin));
+    thread_context->spsc_queue().finish_write(static_cast<uint32_t>(write_buffer - write_begin));
+    thread_context->spsc_queue().commit_write();
   }
 
   /**
@@ -199,13 +201,8 @@ public:
     {
       constexpr quill::MacroMetadata operator()() const noexcept
       {
-        return quill::MacroMetadata{QUILL_STRINGIFY(__LINE__),
-                                    __FILE__,
-                                    __FUNCTION__,
-                                    "{}",
-                                    LogLevel::Critical,
-                                    quill::MacroMetadata::Event::InitBacktrace,
-                                    false};
+        return quill::MacroMetadata{
+          "", "", "", "{}", LogLevel::Critical, quill::MacroMetadata::Event::InitBacktrace, false};
       }
     } anonymous_log_message_info;
 
@@ -227,7 +224,7 @@ public:
       constexpr quill::MacroMetadata operator()() const noexcept
       {
         return quill::MacroMetadata{
-          QUILL_STRINGIFY(__LINE__), __FILE__, __FUNCTION__, "", LogLevel::Critical, quill::MacroMetadata::Event::FlushBacktrace, false};
+          "", "", "", "", LogLevel::Critical, quill::MacroMetadata::Event::FlushBacktrace, false};
       }
     } anonymous_log_message_info;
 

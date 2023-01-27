@@ -7,22 +7,27 @@
 #include "quill/detail/ThreadContextCollection.h"   // for ThreadContextColle...
 #include "quill/handlers/ConsoleHandler.h"          // for ConsoleHandler
 #include "quill/handlers/FileHandler.h"             // for FileHandler, Filenam...
+#include "quill/handlers/JsonFileHandler.h"         // for JsonFileHandler
 #include "quill/handlers/RotatingFileHandler.h"     // for RotatingFileHandler
 #include "quill/handlers/StreamHandler.h"           // for StreamHandler
 #include "quill/handlers/TimeRotatingFileHandler.h" // for TimeRotatingFileHandler
-#include <utility>                                  // for move
+#include <cassert>
+#include <utility> // for move
 
 namespace quill
 {
+
+Logger* _g_root_logger = nullptr;
+
 /***/
 void preallocate()
 {
-  QUILL_MAYBE_UNUSED size_t const volatile x = detail::LogManagerSingleton::instance()
-                                                 .log_manager()
-                                                 .thread_context_collection()
-                                                 .local_thread_context()
-                                                 ->spsc_queue()
-                                                 .capacity();
+  QUILL_MAYBE_UNUSED uint32_t const volatile x = detail::LogManagerSingleton::instance()
+                                                  .log_manager()
+                                                  .thread_context_collection()
+                                                  .local_thread_context()
+                                                  ->spsc_queue()
+                                                  .capacity();
 }
 
 /***/
@@ -63,9 +68,11 @@ Handler* stderr_handler(std::string const& stderr_handler_name /* = "stderr" */)
 
 /***/
 Handler* file_handler(fs::path const& filename, std::string const& mode, /* = std::string{} */
-                      FilenameAppend append_to_filename /* = FilenameAppend::None */)
+                      FilenameAppend append_to_filename /* = FilenameAppend::None */,
+                      FileEventNotifier file_event_notifier /* = FileEventNotifier{} */, bool do_fsync /* = false */)
 {
-  return create_handler<FileHandler>(filename.string(), mode, append_to_filename);
+  return create_handler<FileHandler>(filename.string(), mode, append_to_filename,
+                                     std::move(file_event_notifier), do_fsync);
 }
 
 /***/
@@ -74,25 +81,60 @@ Handler* time_rotating_file_handler(fs::path const& base_filename,
                                     std::string const& when /* = std::string{"H"} */,
                                     uint32_t interval /* = 1 */, uint32_t backup_count /* = 0 */,
                                     Timezone timezone /* = Timezone::LocalTime */,
-                                    std::string const& at_time /* = std::string{} */)
+                                    std::string const& at_time /* = std::string{} */,
+                                    FileEventNotifier file_event_notifier /* = FileEventNotifier{} */,
+                                    bool do_fsync /* = false */)
 {
   return create_handler<TimeRotatingFileHandler>(base_filename.string(), mode, when, interval,
-                                                 backup_count, timezone, at_time);
+                                                 backup_count, timezone, at_time,
+                                                 std::move(file_event_notifier), do_fsync);
 }
 
 /***/
-Handler* rotating_file_handler(fs::path const& base_filename,
-                               std::string const& mode /* = std::string {"a"} */, size_t max_bytes /* = 0 */,
-                               uint32_t backup_count /* = 0 */, bool overwrite_oldest_files /* = true */)
+Handler* rotating_file_handler(fs::path const& base_filename, std::string const& mode /* = std::string {"a"} */,
+                               size_t max_bytes /* = 0 */, uint32_t backup_count /* = 0 */,
+                               bool overwrite_oldest_files /* = true */, bool clean_old_files /* = false */,
+                               FileEventNotifier file_event_notifier /* = FileEventNotifier{} */,
+                               bool do_fsync /* = false */)
 {
   return create_handler<RotatingFileHandler>(base_filename.string(), mode, max_bytes, backup_count,
-                                             overwrite_oldest_files);
+                                             overwrite_oldest_files, clean_old_files,
+                                             std::move(file_event_notifier), do_fsync);
+}
+
+/***/
+Handler* json_file_handler(fs::path const& filename, std::string const& mode, FilenameAppend append_to_filename,
+                           FileEventNotifier file_event_notifier /* = FileEventNotifier{} */,
+                           bool do_fsync /* = false */)
+{
+  return create_handler<JsonFileHandler>(filename.string(), mode, append_to_filename,
+                                         std::move(file_event_notifier), do_fsync);
 }
 
 /***/
 Logger* get_logger(char const* logger_name /* = nullptr */)
 {
+  if (!logger_name)
+  {
+    if (!_g_root_logger)
+    {
+      // this means the LoggerCollection has not been constructed yet, someone called this
+      // before quill::start();
+      return detail::LogManagerSingleton::instance().log_manager().logger_collection().get_logger(logger_name);
+    }
+
+    return _g_root_logger;
+  }
+
   return detail::LogManagerSingleton::instance().log_manager().logger_collection().get_logger(logger_name);
+}
+
+/***/
+Logger* get_root_logger() noexcept
+{
+  assert(_g_root_logger &&
+         "_g_root_logger is nullptr, this function must be called after quill::start()");
+  return _g_root_logger;
 }
 
 /***/

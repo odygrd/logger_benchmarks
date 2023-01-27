@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "quill/TweakMe.h"
+
 #include "quill/Fmt.h"
 #include "quill/detail/misc/Common.h"
 #include "quill/detail/misc/Os.h"
@@ -36,7 +38,7 @@ public:
   /**
    * Constructor
    */
-  explicit ThreadContext(size_t default_queue_capacity) : _spsc_queue(default_queue_capacity) {}
+  explicit ThreadContext(uint32_t default_queue_capacity) : _spsc_queue(default_queue_capacity) {}
 
   /**
    * Deleted
@@ -51,7 +53,7 @@ public:
    * @param i size of object
    * @return a pointer to the allocated object
    */
-  void* operator new(size_t i) { return aligned_alloc(CACHELINE_SIZE, i); }
+  void* operator new(size_t i) { return aligned_alloc(CACHE_LINE_ALIGNED, i); }
 
   /**
    * Operator delete
@@ -95,6 +97,17 @@ public:
    */
   QUILL_NODISCARD bool is_valid() const noexcept { return _valid.load(std::memory_order_relaxed); }
 
+  /**
+   * Returns the current seq num and increments it.
+   * @return seq num
+   */
+  QUILL_NODISCARD uint32_t get_seq_num() noexcept { return _seq_num++; }
+
+  /**
+   * Resets custom clock seq
+   */
+  void reset_seq_num() noexcept { _seq_num = 0; }
+
 #if defined(QUILL_USE_BOUNDED_QUEUE)
   /**
    * Increments the dropped message counter
@@ -123,11 +136,11 @@ private:
   SPSCQueueT _spsc_queue; /** queue for this thread, events are pushed here */
   std::string _thread_id = fmt::format_int(get_thread_id()).str(); /**< cache this thread pid */
   std::string _thread_name = get_thread_name();                    /**< cache this thread name */
+  uint32_t _seq_num{0}; /**< used by the backend thread as seq num */
   std::atomic<bool> _valid{true}; /**< is this context valid, set by the caller, read by the backend worker thread */
 
 #if defined(QUILL_USE_BOUNDED_QUEUE)
-  alignas(CACHELINE_SIZE) std::atomic<size_t> _dropped_message_counter{0};
-  char _pad0[detail::CACHELINE_SIZE - sizeof(std::atomic<size_t>)] = "\0";
+  alignas(CACHE_LINE_ALIGNED) std::atomic<size_t> _dropped_message_counter{0};
 #endif
 };
 } // namespace detail

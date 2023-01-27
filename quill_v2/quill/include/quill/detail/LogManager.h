@@ -132,7 +132,7 @@ public:
       return;
     }
 
-    // get the default logger - this is needed for the logger_details struct, in order to figure out
+    // get the root logger - this is needed for the logger_details struct, in order to figure out
     // the clock type later on the backend thread
     Logger* default_logger = logger_collection().get_logger(nullptr);
     LoggerDetails* logger_details = std::addressof(default_logger->_logger_details);
@@ -146,16 +146,14 @@ public:
       constexpr quill::MacroMetadata operator()() const noexcept
       {
         return quill::MacroMetadata{
-          QUILL_STRINGIFY(__LINE__),          __FILE__, __FUNCTION__, "", LogLevel::Critical,
-          quill::MacroMetadata::Event::Flush, false};
+          "", "", "", "", LogLevel::Critical, quill::MacroMetadata::Event::Flush, false};
       }
     } anonymous_log_message_info;
 
     detail::ThreadContext* const thread_context = _thread_context_collection.local_thread_context();
-    uint32_t total_size = sizeof(detail::Header) + sizeof(uintptr_t);
+    size_t const total_size = sizeof(detail::Header) + sizeof(uintptr_t);
 
-    // request this size from the queue
-    std::byte* write_buffer = thread_context->spsc_queue().prepare_write(total_size);
+    std::byte* write_buffer = thread_context->spsc_queue().prepare_write(static_cast<uint32_t>(total_size));
     std::byte* const write_begin = write_buffer;
 
     write_buffer = detail::align_pointer<alignof(detail::Header), std::byte>(write_buffer);
@@ -176,7 +174,9 @@ public:
 
     assert((write_buffer >= write_begin) &&
            "write_buffer should be greater or equal to write_begin");
-    thread_context->spsc_queue().commit_write(static_cast<size_t>(write_buffer - write_begin));
+
+    thread_context->spsc_queue().finish_write(static_cast<uint32_t>(write_buffer - write_begin));
+    thread_context->spsc_queue().commit_write();
 
     // The caller thread keeps checking the flag until the backend thread flushes
     do
@@ -249,17 +249,17 @@ public:
 private:
   void _configure()
   {
-    // re-create the default logger with the given config
-    _logger_collection.create_default_logger();
+    // re-create the root logger with the given config
+    _logger_collection.create_root_logger();
   }
 
 private:
+  std::once_flag _start_init_once_flag; /** flag to start the thread only once, in case start() is called multiple times */
   Config _config;
   HandlerCollection _handler_collection;
   ThreadContextCollection _thread_context_collection{_config};
   LoggerCollection _logger_collection{_config, _thread_context_collection, _handler_collection};
   BackendWorker _backend_worker{_config, _thread_context_collection, _handler_collection};
-  std::once_flag _start_init_once_flag; /** flag to start the thread only once, in case start() is called multiple times */
 };
 
 /**
@@ -275,7 +275,7 @@ public:
    * Access to singleton instance
    * @return a reference to the singleton
    */
-  static LogManagerSingleton& instance() noexcept
+  QUILL_EXPORT static LogManagerSingleton& instance() noexcept
   {
     static LogManagerSingleton instance;
     return instance;

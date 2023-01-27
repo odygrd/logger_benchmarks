@@ -28,7 +28,7 @@ namespace quill
 
 /** Version Info **/
 constexpr uint32_t VersionMajor{2};
-constexpr uint32_t VersionMinor{6};
+constexpr uint32_t VersionMinor{7};
 constexpr uint32_t VersionPatch{0};
 constexpr uint32_t Version{VersionMajor * 10000 + VersionMinor * 100 + VersionPatch};
 
@@ -130,15 +130,18 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* create_handler(std::string const& 
  * Creates or returns an existing handler to a file.
  * If the file is already opened the existing handler for this file is returned instead
  * @param filename the name of the file
- * @param append_to_filename additional info to append to the name of the file.
- * FilenameAppend::None, FilenameAppend::Date, FilenameAppend::DateTime
  * @param mode Used only when the file is opened for the first time. Otherwise the value is ignored
  * If no value is specified during the file creation "a" is used as default.
+ * @param append_to_filename additional info to append to the name of the file.
+ * FilenameAppend::None, FilenameAppend::Date, FilenameAppend::DateTime
+ * @param file_event_notifier a FileEventNotifier to get callbacks to file events such as before_open, after_open etc
+ * @param do_fsync calls fsync in addition to fflush when flushing the file
  * @return A handler to a file
  */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* file_handler(fs::path const& filename,
-                                                           std::string const& mode = std::string{"a"},
-                                                           FilenameAppend append_to_filename = FilenameAppend::None);
+QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* file_handler(
+  fs::path const& filename, std::string const& mode = std::string{"a"},
+  FilenameAppend append_to_filename = FilenameAppend::None,
+  FileEventNotifier file_event_notifier = FileEventNotifier{}, bool do_fsync = false);
 
 /**
  * Creates a new instance of the TimeRotatingFileHandler class or looks up an existing instance.
@@ -163,12 +166,15 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* file_handler(fs::path const& filen
  * @param backup_count maximum backup files to keep
  * @param timezone if true times in UTC will be used; otherwise local time is used
  * @param at_time specifies the time of day when rollover occurs if 'daily' is passed
+ * @param file_event_notifier a FileEventNotifier to get callbacks to file events such as before_open, after_open etc
+ * @param do_fsync calls fsync in addition to fflush when flushing the file
  * @return a pointer to a time rotating file handler
  */
 QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* time_rotating_file_handler(
   fs::path const& base_filename, std::string const& mode = std::string{"a"},
   std::string const& when = std::string{"H"}, uint32_t interval = 1, uint32_t backup_count = 0,
-  Timezone timezone = Timezone::LocalTime, std::string const& at_time = std::string{"00:00"});
+  Timezone timezone = Timezone::LocalTime, std::string const& at_time = std::string{"00:00"},
+  FileEventNotifier file_event_notifier = FileEventNotifier{}, bool do_fsync = false);
 
 /**
  * Creates a new instance of the RotatingFileHandler class or looks up an existing instance.
@@ -197,30 +203,64 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* time_rotating_file_handler(
  * @param mode file mode to open_file file
  * @param max_bytes The max_bytes of the file, when the size is exceeded the file will rollover
  * @param backup_count The maximum number of times we want to rollover
+ * @param overwrite_oldest_files overwrite oldest files
+ * @param clean_old_files delete old files
+ * @param file_event_notifier a FileEventNotifier to get callbacks to file events such as before_open, after_open etc
+ * @param do_fsync calls fsync in addition to fflush when flushing the file
  * @return a pointer to a rotating file handler
  */
 QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* rotating_file_handler(
   fs::path const& base_filename, std::string const& mode = std::string{"a"}, size_t max_bytes = 0,
-  uint32_t backup_count = 0, bool overwrite_oldest_files = true);
+  uint32_t backup_count = 0, bool overwrite_oldest_files = true, bool clean_old_files = false,
+  FileEventNotifier file_event_notifier = FileEventNotifier{}, bool do_fsync = false);
 
 /**
- * Returns an existing logger given the logger name or the default logger if no arguments logger_name is passed
+ * Creates a new instance of the JsonFileHandler class or looks up an existing instance.
+ * If the file is already opened the existing handler for this file is returned instead.
+ *
+ * When the JsonFileHandler is used named arguments need to be passed as the format string
+ * to the loggers. See examples/example_json_structured_log.cpp
+ *
+ * @param filename the name of the file
+ * @param mode Used only when the file is opened for the first time. Otherwise the value is ignored
+ * If no value is specified during the file creation "a" is used as default.
+ * @param append_to_filename additional info to append to the name of the file.
+ * FilenameAppend::None, FilenameAppend::Date, FilenameAppend::DateTime
+ * @param file_event_notifier a FileEventNotifier to get callbacks to file events such as before_open, after_open etc
+ * @param do_fsync calls fsync in addition to fflush when flushing the file
+ * @return A handler to a file
+ */
+QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* json_file_handler(
+  fs::path const& filename, std::string const& mode, FilenameAppend append_to_filename,
+  FileEventNotifier file_event_notifier = FileEventNotifier{}, bool do_fsync = false);
+
+/**
+ * Returns an existing logger given the logger name or the root logger if no arguments logger_name is passed.
+ * This function is also thread safe.
  *
  * @warning the logger MUST have been created first by a call to create_logger.
  *
- * It is safe calling create_logger("my_logger) and get_logger("my_logger"); in different threads but the user has
+ * It is safe calling create_logger("my_logger) and get_logger("my_logger") in different threads but the user has
  * to make sure that the call to create_logger has returned in thread A before calling get_logger in thread B
  *
- * It is safe calling get_logger(...) in multiple threads as the same time
+ * @note: for efficiency prefer storing the returned Logger* when get_logger("...") is used. Multiple calls to ``get_logger(name)`` will slow your code down since it will first use a lock mutex lock and then perform a look up. The advise is to store a ``quill::Logger*`` and use that pointer directly, at least in code hot paths.
  *
- * @note: for efficiency prefer storing the returned Logger object pointer
+ * @note: safe to call even before even calling `quill:start()` unlike using `get_root_logger()`
  *
  * @throws when the requested logger does not exist
  *
- * @param logger_name The name of the logger, or no argument for the default logger
+ * @param logger_name The name of the logger, or no argument for the root logger
  * @return A pointer to a thread-safe Logger object
  */
 QUILL_NODISCARD Logger* get_logger(char const* logger_name = nullptr);
+
+/**
+ * Provides fast access to the root logger.
+ * @note: This function can be used in the hot path and is more efficient than calling get_logger(nullptr)
+ * @warning This should be used only after calling quill::start(); if you need the root logger earlier then call get_logger() instead
+ * @return pointer to the root logger
+ */
+QUILL_NODISCARD Logger* get_root_logger() noexcept;
 
 /**
  * Returns all existing loggers and the pointers to them
@@ -229,11 +269,13 @@ QUILL_NODISCARD Logger* get_logger(char const* logger_name = nullptr);
 QUILL_NODISCARD std::unordered_map<std::string, Logger*> get_all_loggers();
 
 /**
- * Creates a new Logger using the existing default logger's handler and formatter pattern
+ * Creates a new Logger using the existing root logger's handler and formatter pattern
  *
  * @note: If the user does not want to store the logger pointer, the same logger can be obtained later by calling get_logger(logger_name);
  *
  * @param logger_name The name of the logger to add
+ * @param timestamp_clock_type rdtsc, chrono or custom clock
+ * @param timestamp_clock custom user clock
  * @return A pointer to a thread-safe Logger object
  */
 QUILL_NODISCARD Logger* create_logger(std::string const& logger_name,
@@ -249,6 +291,8 @@ QUILL_NODISCARD Logger* create_logger(std::string const& logger_name,
  *
  * @param logger_name The name of the logger to add
  * @param handler A pointer the a handler for this logger
+ * @param timestamp_clock_type rdtsc, chrono or custom clock
+ * @param timestamp_clock custom user clock
  * @return A pointer to a thread-safe Logger object
  */
 QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, Handler* handler,
@@ -263,6 +307,8 @@ QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, Handler* h
  *
  * @param logger_name The name of the logger to add
  * @param handlers An initializer list of pointers to handlers for this logger
+ * @param timestamp_clock_type rdtsc, chrono or custom clock
+ * @param timestamp_clock custom user clock
  * @return A pointer to a thread-safe Logger object
  */
 QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::initializer_list<Handler*> handlers,
@@ -277,6 +323,8 @@ QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::initi
  *
  * @param logger_name The name of the logger to add
  * @param handlers A vector of pointers to handlers for this logger
+ * @param timestamp_clock_type rdtsc, chrono or custom clock
+ * @param timestamp_clock custom user clock
  * @return A pointer to a thread-safe Logger object
  */
 QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::vector<Handler*> const& handlers,
