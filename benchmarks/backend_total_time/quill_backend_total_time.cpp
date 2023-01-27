@@ -33,7 +33,7 @@ int main()
   auto const start_time = std::chrono::steady_clock::now();
   for (size_t iteration = 0; iteration < total_iterations; ++iteration)
   {
-    LOG_INFO(logger, "Iteration: {}, int: {}, double: {}", iteration, iteration * 2,
+    LOG_INFO(logger, "Iteration: {} int: {} double: {}", iteration, iteration * 2,
              static_cast<double>(iteration) / 2);
   }
   LOG_ERROR(logger, "End");
