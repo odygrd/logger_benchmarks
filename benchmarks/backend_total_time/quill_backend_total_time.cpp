@@ -1,7 +1,7 @@
 #include "quill/Quill.h"
 #include <chrono>
 
-static constexpr size_t total_iterations = 100'000;
+static constexpr size_t total_iterations = 4'000'000;
 
 /**
  * The backend worker just spins, so we just measure the total time elapsed for total_iterations
@@ -24,7 +24,7 @@ int main()
 
   // Create a file handler to write to a file
   quill::Handler* file_handler = quill::file_handler("quill_backend_total_time.log", "w");
-
+  file_handler->set_pattern("%(ascii_time) [%(thread)] %(fileline) %(level_name) %(message)");
   quill::Logger* logger = quill::create_logger("bench_logger", file_handler);
 
   quill::preallocate();
