@@ -183,11 +183,11 @@ inline void run_benchmark(char const* benchmark_name,
 #ifdef BENCH_WITHOUT_PERF
     // Spawn num threads
     threads.emplace_back(run_log_benchmark, num_iterations, on_thread_start, log_func, on_thread_exit,
-                         thread_num + 1, std::ref(latencies[thread_num]), rdtsc_ticks());
+                         thread_num + 7, std::ref(latencies[thread_num]), rdtsc_ticks());
 #else
     // Spawn num threads
     threads.emplace_back(run_log_benchmark, num_iterations, on_thread_start, log_func,
-                         on_thread_exit, thread_num + 1);
+                         on_thread_exit, thread_num + 7);
 #endif
   }
 

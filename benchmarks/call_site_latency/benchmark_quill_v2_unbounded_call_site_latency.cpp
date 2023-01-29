@@ -9,7 +9,7 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
 
   // Setup
   quill::Config cfg;
-  cfg.backend_thread_sleep_duration = std::chrono::nanoseconds{0};
+  cfg.backend_thread_yield = false;
   cfg.backend_thread_cpu_affinity = 6;
 
   // Start the logging backend thread

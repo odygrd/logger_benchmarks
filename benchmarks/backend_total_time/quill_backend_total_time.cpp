@@ -9,12 +9,12 @@ static constexpr size_t total_iterations = 4'000'000;
 int main()
 {
   // main thread affinity
-  quill::detail::set_cpu_affinity(0);
+  quill::detail::set_cpu_affinity(4);
 
   /** - Setup Quill **/
   quill::Config cfg;
-  cfg.backend_thread_sleep_duration = std::chrono::nanoseconds{0};
-  cfg.backend_thread_cpu_affinity = 1;
+  cfg.backend_thread_yield = false;
+  cfg.backend_thread_cpu_affinity = 3;
 
   quill::configure(cfg);
 
