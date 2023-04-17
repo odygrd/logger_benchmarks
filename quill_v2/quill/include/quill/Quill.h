@@ -19,16 +19,18 @@
 #include <cstddef>                              // for size_t
 #include <cstdint>                              // for uint16_t
 #include <initializer_list>                     // for initializer_list
-#include <optional>                             // for optional
-#include <string>                               // for string
-#include <unordered_map>                        // for unordered_map
+#include <limits>
+#include <memory>
+#include <optional>      // for optional
+#include <string>        // for string
+#include <unordered_map> // for unordered_map
 
 namespace quill
 {
 
 /** Version Info **/
 constexpr uint32_t VersionMajor{2};
-constexpr uint32_t VersionMinor{7};
+constexpr uint32_t VersionMinor{8};
 constexpr uint32_t VersionPatch{0};
 constexpr uint32_t Version{VersionMajor * 10000 + VersionMinor * 100 + VersionPatch};
 
@@ -41,7 +43,15 @@ class Logger;
  * Although optional, it is recommended to invoke this function during the thread initialisation
  * phase before the first log message.
  */
-QUILL_ATTRIBUTE_COLD void preallocate();
+QUILL_ATTRIBUTE_COLD inline void preallocate()
+{
+  QUILL_MAYBE_UNUSED uint32_t const volatile x = detail::LogManagerSingleton::instance()
+                                                   .log_manager()
+                                                   .thread_context_collection()
+                                                   .local_thread_context<QUILL_QUEUE_TYPE>()
+                                                   ->spsc_queue<QUILL_QUEUE_TYPE>()
+                                                   .capacity();
+}
 
 /**
  * Applies the given config to the logger
@@ -97,7 +107,7 @@ QUILL_ATTRIBUTE_COLD inline void init_signal_handler(std::initializer_list<int> 
  *  @param console_colours a console colours configuration class
  * @return a handler to the standard output stream
  */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* stdout_handler(
+QUILL_NODISCARD QUILL_ATTRIBUTE_COLD std::shared_ptr<Handler> stdout_handler(
   std::string const& stdout_handler_name = std::string{"stdout"},
   ConsoleColours const& console_colours = ConsoleColours{});
 
@@ -106,7 +116,8 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* stdout_handler(
  * have multiple formats in the stderr. See example_stdout_multiple_formatters.cpp example
  * @return a handler to the standard error stream
  */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* stderr_handler(std::string const& stderr_handler_name = std::string{"stderr"});
+QUILL_NODISCARD QUILL_ATTRIBUTE_COLD std::shared_ptr<Handler> stderr_handler(
+  std::string const& stderr_handler_name = std::string{"stderr"});
 
 /**
  * Creates new handler and registers it internally.
@@ -120,7 +131,8 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* stderr_handler(std::string const& 
  * @return A pointer to a new or existing handler
  */
 template <typename THandler, typename... Args>
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* create_handler(std::string const& handler_name, Args&&... args)
+QUILL_NODISCARD QUILL_ATTRIBUTE_COLD std::shared_ptr<Handler> create_handler(std::string const& handler_name,
+                                                                             Args&&... args)
 {
   return detail::LogManagerSingleton::instance().log_manager().handler_collection().create_handler<THandler>(
     handler_name, std::forward<Args>(args)...);
@@ -138,7 +150,7 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* create_handler(std::string const& 
  * @param do_fsync calls fsync in addition to fflush when flushing the file
  * @return A handler to a file
  */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* file_handler(
+QUILL_NODISCARD QUILL_ATTRIBUTE_COLD std::shared_ptr<Handler> file_handler(
   fs::path const& filename, std::string const& mode = std::string{"a"},
   FilenameAppend append_to_filename = FilenameAppend::None,
   FileEventNotifier file_event_notifier = FileEventNotifier{}, bool do_fsync = false);
@@ -161,6 +173,8 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* file_handler(
  *
  * @param base_filename the filename
  * @param mode mode to open_file the file 'a' or 'w'
+ * @param append_to_filename additional info to append to the name of the file.
+ * FilenameAppend::None, FilenameAppend::Date, FilenameAppend::DateTime
  * @param when 'M' for minutes, 'H' for hours or 'daily'
  * @param interval The interval used for rotation.
  * @param backup_count maximum backup files to keep
@@ -170,9 +184,10 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* file_handler(
  * @param do_fsync calls fsync in addition to fflush when flushing the file
  * @return a pointer to a time rotating file handler
  */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* time_rotating_file_handler(
+QUILL_NODISCARD QUILL_ATTRIBUTE_COLD std::shared_ptr<Handler> time_rotating_file_handler(
   fs::path const& base_filename, std::string const& mode = std::string{"a"},
-  std::string const& when = std::string{"H"}, uint32_t interval = 1, uint32_t backup_count = 0,
+  FilenameAppend append_to_filename = FilenameAppend::None, std::string const& when = std::string{"H"},
+  uint32_t interval = 1, uint32_t backup_count = std::numeric_limits<std::uint32_t>::max(),
   Timezone timezone = Timezone::LocalTime, std::string const& at_time = std::string{"00:00"},
   FileEventNotifier file_event_notifier = FileEventNotifier{}, bool do_fsync = false);
 
@@ -201,6 +216,8 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* time_rotating_file_handler(
  *
  * @param base_filename the base file name
  * @param mode file mode to open_file file
+ * @param append_to_filename additional info to append to the name of the file.
+ * FilenameAppend::None, FilenameAppend::Date, FilenameAppend::DateTime
  * @param max_bytes The max_bytes of the file, when the size is exceeded the file will rollover
  * @param backup_count The maximum number of times we want to rollover
  * @param overwrite_oldest_files overwrite oldest files
@@ -209,9 +226,11 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* time_rotating_file_handler(
  * @param do_fsync calls fsync in addition to fflush when flushing the file
  * @return a pointer to a rotating file handler
  */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* rotating_file_handler(
-  fs::path const& base_filename, std::string const& mode = std::string{"a"}, size_t max_bytes = 0,
-  uint32_t backup_count = 0, bool overwrite_oldest_files = true, bool clean_old_files = false,
+QUILL_NODISCARD QUILL_ATTRIBUTE_COLD std::shared_ptr<Handler> rotating_file_handler(
+  fs::path const& base_filename, std::string const& mode = std::string{"a"},
+  FilenameAppend append_to_filename = FilenameAppend::None, size_t max_bytes = 0,
+  uint32_t backup_count = std::numeric_limits<std::uint32_t>::max(),
+  bool overwrite_oldest_files = true, bool clean_old_files = false,
   FileEventNotifier file_event_notifier = FileEventNotifier{}, bool do_fsync = false);
 
 /**
@@ -230,7 +249,7 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* rotating_file_handler(
  * @param do_fsync calls fsync in addition to fflush when flushing the file
  * @return A handler to a file
  */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD Handler* json_file_handler(
+QUILL_NODISCARD QUILL_ATTRIBUTE_COLD std::shared_ptr<Handler> json_file_handler(
   fs::path const& filename, std::string const& mode, FilenameAppend append_to_filename,
   FileEventNotifier file_event_notifier = FileEventNotifier{}, bool do_fsync = false);
 
@@ -295,7 +314,7 @@ QUILL_NODISCARD Logger* create_logger(std::string const& logger_name,
  * @param timestamp_clock custom user clock
  * @return A pointer to a thread-safe Logger object
  */
-QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, Handler* handler,
+QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::shared_ptr<Handler>&& handler,
                                       std::optional<TimestampClockType> timestamp_clock_type = std::nullopt,
                                       std::optional<TimestampClock*> timestamp_clock = std::nullopt);
 
@@ -311,7 +330,8 @@ QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, Handler* h
  * @param timestamp_clock custom user clock
  * @return A pointer to a thread-safe Logger object
  */
-QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::initializer_list<Handler*> handlers,
+QUILL_NODISCARD Logger* create_logger(std::string const& logger_name,
+                                      std::initializer_list<std::shared_ptr<Handler>> handlers,
                                       std::optional<TimestampClockType> timestamp_clock_type = std::nullopt,
                                       std::optional<TimestampClock*> timestamp_clock = std::nullopt);
 
@@ -327,9 +347,20 @@ QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::initi
  * @param timestamp_clock custom user clock
  * @return A pointer to a thread-safe Logger object
  */
-QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::vector<Handler*> const& handlers,
+QUILL_NODISCARD Logger* create_logger(std::string const& logger_name,
+                                      std::vector<std::shared_ptr<Handler>>&& handlers,
                                       std::optional<TimestampClockType> timestamp_clock_type = std::nullopt,
                                       std::optional<TimestampClock*> timestamp_clock = std::nullopt);
+
+/**
+ * Removes the logger. The logger is async removed by the backend logging thread after
+ * all pending messages are processed.
+ * @warning This function is thread safe but the user has to make sure they do not log
+ * anything else from that logger after calling this function. There is no check on the hot
+ * path that the logger is invalidated other than an assertion.
+ * @param logger the pointer to the logger to remove
+ */
+void remove_logger(Logger* logger);
 
 /**
  * Blocks the caller thread until all log messages up to the current timestamp are flushed
@@ -340,4 +371,15 @@ QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::vecto
  * @note This function will not do anything if called while the backend worker is not running
  */
 void flush();
+
+/**
+ * Wakes up the backend logging thread on demand.
+ * The backend logging thread busy waits by design.
+ * A use case for this is when you do want the backend logging thread to consume too much CPU
+ * you can configure it to sleep for a long amount of time and wake it up on demand to log.
+ * (e.g. cfg.backend_thread_sleep_duration = = std::chrono::hours {240};)
+ * This is thread safe and can be called from any thread.
+ */
+void wake_up_logging_thread();
+
 } // namespace quill

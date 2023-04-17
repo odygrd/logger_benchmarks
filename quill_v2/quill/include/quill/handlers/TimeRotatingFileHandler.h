@@ -9,7 +9,7 @@
 #include "quill/detail/misc/Attributes.h" // for QUILL_ATTRIBUTE_COLD, QUIL...
 #include "quill/handlers/FileHandler.h"   // for FileHandler
 #include <chrono>                         // for hours, minutes, nanoseconds
-#include <queue>
+#include <deque>
 
 namespace quill
 {
@@ -24,6 +24,7 @@ public:
    * Constructor
    * @param base_filename base filename
    * @param mode mode to open_file file
+   * @param append_to_filename appends extra info to the file
    * @param when 'M', 'H' or 'daily'
    * @param interval Used when 'M' is 'H' is specified
    * @param backup_count Maximum files to keep
@@ -32,7 +33,8 @@ public:
    * @param file_event_notifier notifies on file events
    * @param do_fsync also fsync when flushing
    */
-  TimeRotatingFileHandler(fs::path const& base_filename, std::string const& mode, std::string when,
+  TimeRotatingFileHandler(fs::path const& base_filename, std::string const& mode,
+                          FilenameAppend append_to_filename, std::string when,
                           uint32_t interval, uint32_t backup_count, Timezone timezone,
                           std::string const& at_time, FileEventNotifier file_event_notifier, bool do_fsync);
 
@@ -55,12 +57,13 @@ private:
     std::chrono::system_clock::time_point time_now, std::string const& when, uint32_t interval) noexcept;
 
 private:
-  std::queue<fs::path> _created_files; /**< We store in a queue the filenames we created, in order to remove_file them if we exceed _backup_count limit */
-  std::string _when;                                /**< 'M', 'H' or 'daily' */
+  std::deque<std::pair<uint32_t, fs::path>> _created_files; /**< We store in a queue the filenames we created, in order to remove_file them if we exceed _backup_count limit */
+  std::string _when;                                        /**< 'M', 'H' or 'daily' */
   std::chrono::system_clock::time_point _file_creation_time; /**< The time we create the file we are writing */
   std::chrono::system_clock::time_point _next_rotation_time; /**< The next rotation time point */
   uint32_t _interval;       /**< Interval when 'M' or 'H' is used */
   uint32_t _backup_count;   /**< Maximum files to keep after rotation */
   Timezone _using_timezone; /**< The timezone used */
+  FilenameAppend _append_to_filename;
 };
 } // namespace quill

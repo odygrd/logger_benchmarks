@@ -20,10 +20,10 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Create a file handler to write to a file
-  quill::Handler* file_handler =
+  auto file_handler =
     quill::file_handler("benchmark_quill_v2_unbounded_call_site_latency.log", "w");
 
-  quill::Logger* logger = quill::create_logger("bench_logger", file_handler);
+  quill::Logger* logger = quill::create_logger("bench_logger", std::move(file_handler));
 
   // Define a logging lambda
 #ifdef BENCH_INT_INT_DOUBLE

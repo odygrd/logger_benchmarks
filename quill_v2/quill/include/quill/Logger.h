@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "quill/detail/misc/Common.h"
+
 #include "quill/Fmt.h"
 #include "quill/LogLevel.h"
 #include "quill/QuillError.h"
@@ -13,7 +15,6 @@
 #include "quill/detail/Serialize.h"
 #include "quill/detail/ThreadContext.h"
 #include "quill/detail/ThreadContextCollection.h"
-#include "quill/detail/misc/Common.h"
 #include "quill/detail/misc/Rdtsc.h"
 #include "quill/detail/misc/TypeTraitsCopyable.h"
 #include "quill/detail/misc/Utilities.h"
@@ -100,6 +101,8 @@ public:
   template <typename TMacroMetadata, typename TFormatString, typename... FmtArgs>
   QUILL_ALWAYS_INLINE_HOT void log(TFormatString format_string, FmtArgs&&... fmt_args)
   {
+    assert(!_is_invalidated.load(std::memory_order_acquire) && "Invalidated loggers can not log");
+
 #if FMT_VERSION >= 90000
     static_assert(
       !detail::has_fmt_stream_view_v<FmtArgs...>,
@@ -129,7 +132,8 @@ public:
       fmt::detail::check_format_string<std::remove_reference_t<FmtArgs>...>(format_string);
     }
 
-    detail::ThreadContext* const thread_context = _thread_context_collection.local_thread_context();
+    detail::ThreadContext* const thread_context =
+      _thread_context_collection.local_thread_context<QUILL_QUEUE_TYPE>();
 
     // For windows also take wide strings into consideration.
 #if defined(_WIN32)
@@ -147,16 +151,27 @@ public:
       detail::get_args_sizes<0>(c_string_sizes, fmt_args...);
 
     // request this size from the queue
-    std::byte* write_buffer = thread_context->spsc_queue().prepare_write(static_cast<uint32_t>(total_size));
+    std::byte* write_buffer =
+      thread_context->spsc_queue<QUILL_QUEUE_TYPE>().prepare_write(static_cast<uint32_t>(total_size));
 
-#if defined(QUILL_USE_BOUNDED_QUEUE)
-    if (QUILL_UNLIKELY(write_buffer == nullptr))
+    if constexpr (QUILL_QUEUE_TYPE == detail::QueueType::BoundedNonBlocking)
     {
-      // not enough space to push to queue message is dropped
-      thread_context->increment_dropped_message_counter();
-      return;
+      if (QUILL_UNLIKELY(write_buffer == nullptr))
+      {
+        // not enough space to push to queue message is dropped
+        thread_context->increment_dropped_message_counter();
+        return;
+      }
     }
-#endif
+    else if constexpr (QUILL_QUEUE_TYPE == detail::QueueType::BoundedBlocking)
+    {
+      while (write_buffer == nullptr)
+      {
+        // not enough space to push to queue, keep trying
+        write_buffer =
+          thread_context->spsc_queue<QUILL_QUEUE_TYPE>().prepare_write(static_cast<uint32_t>(total_size));
+      }
+    }
 
     // we have enough space in this buffer, and we will write to the buffer
 
@@ -170,7 +185,7 @@ public:
 
     new (write_buffer) detail::Header(
       detail::get_metadata_and_format_fn<TMacroMetadata, FmtArgs...>, std::addressof(_logger_details),
-      (_logger_details.timestamp_clock_type() == TimestampClockType::Rdtsc) ? quill::detail::rdtsc()
+      (_logger_details.timestamp_clock_type() == TimestampClockType::Tsc) ? quill::detail::rdtsc()
         : (_logger_details.timestamp_clock_type() == TimestampClockType::System)
         ? static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count())
         : _custom_timestamp_clock->now());
@@ -183,8 +198,8 @@ public:
            "The committed write bytes can not be greater than the requested bytes");
     assert((write_buffer >= write_begin) &&
            "write_buffer should be greater or equal to write_begin");
-    thread_context->spsc_queue().finish_write(static_cast<uint32_t>(write_buffer - write_begin));
-    thread_context->spsc_queue().commit_write();
+    thread_context->spsc_queue<QUILL_QUEUE_TYPE>().finish_write(static_cast<uint32_t>(write_buffer - write_begin));
+    thread_context->spsc_queue<QUILL_QUEUE_TYPE>().commit_write();
   }
 
   /**
@@ -196,13 +211,17 @@ public:
    */
   void init_backtrace(uint32_t capacity, LogLevel backtrace_flush_level = LogLevel::None)
   {
+    assert(!_is_invalidated.load(std::memory_order_acquire) &&
+           "Invalidated loggers can not be used");
+
     // we do not care about the other fields, except quill::MacroMetadata::Event::InitBacktrace
     struct
     {
       constexpr quill::MacroMetadata operator()() const noexcept
       {
         return quill::MacroMetadata{
-          "", "", "", "", "{}", LogLevel::Critical, quill::MacroMetadata::Event::InitBacktrace, false};
+          "",   "", "", "", "{}", LogLevel::Critical, quill::MacroMetadata::Event::InitBacktrace,
+          false};
       }
     } anonymous_log_message_info;
 
@@ -218,13 +237,16 @@ public:
    */
   void flush_backtrace()
   {
+    assert(!_is_invalidated.load(std::memory_order_acquire) &&
+           "Invalidated loggers can not be used");
+
     // we do not care about the other fields, except quill::MacroMetadata::Event::Flush
     struct
     {
       constexpr quill::MacroMetadata operator()() const noexcept
       {
         return quill::MacroMetadata{
-          "", "", "", "", "", LogLevel::Critical, quill::MacroMetadata::Event::FlushBacktrace,
+          "",   "", "", "", "", LogLevel::Critical, quill::MacroMetadata::Event::FlushBacktrace,
           false};
       }
     } anonymous_log_message_info;
@@ -245,9 +267,9 @@ private:
    * @param custom_timestamp_clock custom timestamp clock
    * @param thread_context_collection thread context collection reference
    */
-  Logger(std::string const& name, Handler* handler, TimestampClockType timestamp_clock_type,
+  Logger(std::string const& name, std::shared_ptr<Handler> handler, TimestampClockType timestamp_clock_type,
          TimestampClock* custom_timestamp_clock, detail::ThreadContextCollection& thread_context_collection)
-    : _logger_details(name, handler, timestamp_clock_type),
+    : _logger_details(name, std::move(handler), timestamp_clock_type),
       _custom_timestamp_clock(custom_timestamp_clock),
       _thread_context_collection(thread_context_collection)
   {
@@ -262,8 +284,9 @@ private:
   /**
    * Constructs a new logger object with multiple handlers
    */
-  Logger(std::string const& name, std::vector<Handler*> const& handlers, TimestampClockType timestamp_clock_type,
-         TimestampClock* custom_timestamp_clock, detail::ThreadContextCollection& thread_context_collection)
+  Logger(std::string const& name, std::vector<std::shared_ptr<Handler>> const& handlers,
+         TimestampClockType timestamp_clock_type, TimestampClock* custom_timestamp_clock,
+         detail::ThreadContextCollection& thread_context_collection)
     : _logger_details(name, handlers, timestamp_clock_type),
       _custom_timestamp_clock(custom_timestamp_clock),
       _thread_context_collection(thread_context_collection)
@@ -276,11 +299,19 @@ private:
     }
   }
 
+  void invalidate() { _is_invalidated.store(true, std::memory_order_release); }
+
+  QUILL_NODISCARD bool is_invalidated() const noexcept
+  {
+    return _is_invalidated.load(std::memory_order_acquire);
+  }
+
 private:
   detail::LoggerDetails _logger_details;
   TimestampClock* _custom_timestamp_clock{nullptr}; /* A non owned pointer to a custom timestamp clock, valid only when provided */
   detail::ThreadContextCollection& _thread_context_collection;
   std::atomic<LogLevel> _log_level{LogLevel::Info};
+  std::atomic<bool> _is_invalidated{false};
 };
 
 } // namespace quill

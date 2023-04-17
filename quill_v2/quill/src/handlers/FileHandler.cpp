@@ -36,8 +36,9 @@ FileHandler::FileHandler(fs::path const& filename, std::string const& mode, File
 }
 
 /***/
-FileHandler::FileHandler(fs::path const& filename, FileEventNotifier file_event_notifier, bool do_fsync)
-  : StreamHandler(filename, nullptr, std::move(file_event_notifier)), _fsync(do_fsync)
+FileHandler::FileHandler(fs::path const& filename, FilenameAppend append_to_filename,
+                         FileEventNotifier file_event_notifier, bool do_fsync)
+  : StreamHandler(get_filename(append_to_filename, filename), nullptr, std::move(file_event_notifier)), _fsync(do_fsync)
 {
 }
 
@@ -91,6 +92,16 @@ void FileHandler::flush() noexcept
   if (_fsync)
   {
     detail::fsync(_file);
+  }
+  
+  if (!fs::exists(_filename))
+  {
+    // after flushing the file we can check if the file still exists. If not we reopen it.
+    // This can happen if a user deletes a file while the application is running
+    close_file();
+
+    // now reopen the file for writing again, it will be a new file
+    open_file(_filename, "w");
   }
 }
 

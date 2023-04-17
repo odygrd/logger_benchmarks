@@ -85,18 +85,19 @@ public:
   }
 
   /***/
-  QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, Handler* handler,
+  QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::shared_ptr<Handler> handler,
                                         std::optional<TimestampClockType> timestamp_clock_type,
                                         std::optional<TimestampClock*> timestamp_clock)
   {
     return _logger_collection.create_logger(
-      logger_name, handler,
+      logger_name, std::move(handler),
       timestamp_clock_type.has_value() ? *timestamp_clock_type : _config.default_timestamp_clock_type,
       timestamp_clock.has_value() ? *timestamp_clock : _config.default_custom_timestamp_clock);
   }
 
   /***/
-  QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::initializer_list<Handler*> handlers,
+  QUILL_NODISCARD Logger* create_logger(std::string const& logger_name,
+                                        std::initializer_list<std::shared_ptr<Handler>> handlers,
                                         std::optional<TimestampClockType> timestamp_clock_type,
                                         std::optional<TimestampClock*> timestamp_clock)
   {
@@ -107,12 +108,13 @@ public:
   }
 
   /***/
-  QUILL_NODISCARD Logger* create_logger(std::string const& logger_name, std::vector<Handler*> const& handlers,
+  QUILL_NODISCARD Logger* create_logger(std::string const& logger_name,
+                                        std::vector<std::shared_ptr<Handler>> handlers,
                                         std::optional<TimestampClockType> timestamp_clock_type,
                                         std::optional<TimestampClock*> timestamp_clock)
   {
     return _logger_collection.create_logger(
-      logger_name, handlers,
+      logger_name, std::move(handlers),
       timestamp_clock_type.has_value() ? *timestamp_clock_type : _config.default_timestamp_clock_type,
       timestamp_clock.has_value() ? *timestamp_clock : _config.default_custom_timestamp_clock);
   }
@@ -150,17 +152,19 @@ public:
       }
     } anonymous_log_message_info;
 
-    detail::ThreadContext* const thread_context = _thread_context_collection.local_thread_context();
+    detail::ThreadContext* const thread_context =
+      _thread_context_collection.local_thread_context<QUILL_QUEUE_TYPE>();
     size_t const total_size = sizeof(detail::Header) + sizeof(uintptr_t);
 
-    std::byte* write_buffer = thread_context->spsc_queue().prepare_write(static_cast<uint32_t>(total_size));
+    std::byte* write_buffer =
+      thread_context->spsc_queue<QUILL_QUEUE_TYPE>().prepare_write(static_cast<uint32_t>(total_size));
     std::byte* const write_begin = write_buffer;
 
     write_buffer = detail::align_pointer<alignof(detail::Header), std::byte>(write_buffer);
 
     new (write_buffer) detail::Header(
       detail::get_metadata_and_format_fn<decltype(anonymous_log_message_info)>, logger_details,
-      (logger_details->timestamp_clock_type() == TimestampClockType::Rdtsc) ? quill::detail::rdtsc()
+      (logger_details->timestamp_clock_type() == TimestampClockType::Tsc) ? quill::detail::rdtsc()
         : (logger_details->timestamp_clock_type() == TimestampClockType::System)
         ? static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count())
         : default_logger->_custom_timestamp_clock->now());
@@ -175,8 +179,8 @@ public:
     assert((write_buffer >= write_begin) &&
            "write_buffer should be greater or equal to write_begin");
 
-    thread_context->spsc_queue().finish_write(static_cast<uint32_t>(write_buffer - write_begin));
-    thread_context->spsc_queue().commit_write();
+    thread_context->spsc_queue<QUILL_QUEUE_TYPE>().finish_write(static_cast<uint32_t>(write_buffer - write_begin));
+    thread_context->spsc_queue<QUILL_QUEUE_TYPE>().commit_write();
 
     // The caller thread keeps checking the flag until the backend thread flushes
     do
@@ -239,11 +243,21 @@ public:
   QUILL_ATTRIBUTE_COLD void stop_backend_worker() noexcept { _backend_worker.stop(); }
 
   /**
+   * Wakes up the backend worker thread
+   */
+  QUILL_ATTRIBUTE_COLD void wake_up_backend_worker() noexcept { _backend_worker.wake_up(); }
+
+  /**
    * @return true if backend worker has started
    */
   QUILL_NODISCARD QUILL_ATTRIBUTE_COLD bool backend_worker_is_running() noexcept
   {
     return _backend_worker.is_running();
+  }
+
+  QUILL_NODISCARD uint64_t time_since_epoch(uint64_t rdtsc_value) const noexcept
+  {
+    return _backend_worker.time_since_epoch(rdtsc_value);
   }
 
 private:
@@ -259,7 +273,7 @@ private:
   HandlerCollection _handler_collection;
   ThreadContextCollection _thread_context_collection{_config};
   LoggerCollection _logger_collection{_config, _thread_context_collection, _handler_collection};
-  BackendWorker _backend_worker{_config, _thread_context_collection, _handler_collection};
+  BackendWorker _backend_worker{_config, _thread_context_collection, _handler_collection, _logger_collection};
 };
 
 /**
