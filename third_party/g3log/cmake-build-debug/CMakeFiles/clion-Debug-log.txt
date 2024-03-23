@@ -1,0 +1,163 @@
+/home/odygrd/clion-2023.3.4/bin/cmake/linux/x64/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/home/odygrd/clion-2023.3.4/bin/ninja/linux/x64/ninja -DCMAKE_CXX_COMPILER=clang++ -G Ninja -S /home/odygrd/CLionProjects/g3log -B /home/odygrd/CLionProjects/g3log/cmake-build-debug
+CMake Deprecation Warning at CMakeLists.txt:42 (cmake_minimum_required):
+  Compatibility with CMake < 3.5 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value or use a ...<max> suffix to tell
+  CMake that the project does not need compatibility with older versions.
+
+
+-- The CXX compiler identification is Clang 16.0.6
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/clang++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Build type: Debug
+-- Configuration types: 
+-- A 64-bit OS detected
+-- nix: Extracting git software version
+-- git build version: 
+-- version base: 
+-- version remainder: 
+-- Software Version: 2.4-9
+-- -DUSE_DYNAMIC_LOGGING_LEVELS=OFF
+-- -DCHANGE_G3LOG_DEBUG_TO_DBUG=OFF 	(Debuggin logging level is 'DEBUG')
+-- -DWINDOWS_FUNCSIG=OFF
+-- -DPRETTY_FUNCTION=OFF
+-- -DUSE_G3_DYNAMIC_MAX_MESSAGE_SIZE=OFF
+-- -DG3_LOG_FULL_FILENAME=OFF
+-- -DENABLE_FATAL_SIGNALHANDLING=ON	Fatal signal handler is enabled
+-- -DG3_SHARED_LIB=ON	Build shared library
+-- -DG3_SHARED_RUNTIME=ON	Build shared runtime library
+-- 
+
+
+
+-- 
+-- COMPILE_DEFINITIONS:
+	[G3LOG_DEBUG DEBUG]
+-- 
+-- Generated /home/odygrd/CLionProjects/g3log/cmake-build-debug/include/g3log/generated_definitions.hpp
+-- ******************** START *************************
+// AUTO GENERATED MACRO DEFINITIONS FOR G3LOG
+
+
+/** ==========================================================================
+* 2015 by KjellKod.cc. This is PUBLIC DOMAIN to use at your own risk and comes
+* with no warranties. This code is yours to share, use and modify with no
+* strings attached and no restrictions or obligations.
+* 
+* For more information see g3log/LICENSE or refer refer to http://unlicense.org
+* ============================================================================*/
+
+#pragma once
+
+
+// CMake induced definitions below. See g3log/Options.cmake for details.
+
+
+#define G3LOG_DEBUG DEBUG
+
+-- ******************** END *************************
+CMAKE_INSTALL_PREFIX: /usr/local
+Install rpath location: /usr/local
+-- Creating g3log VERSION: 2.4-9
+-- Creating g3log SOVERSION: 2
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Looking for backtrace
+-- Looking for backtrace - found
+-- backtrace facility detected in default set of libraries
+-- Found Backtrace: /usr/include  
+-- Looking for abi::__cxa_demangle
+-- Looking for abi::__cxa_demangle - found
+-- -DADD_FATAL_EXAMPLE=ON
+-- 		[contract][sigsegv][fatal choice] are examples of when g3log comes in handy
+
+-- -DADD_G3LOG_BENCH_PERFORMANCE=OFF
+CMake Deprecation Warning at CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.5 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value or use a ...<max> suffix to tell
+  CMake that the project does not need compatibility with older versions.
+
+
+CMake Warning (dev) at /home/odygrd/clion-2023.3.4/bin/cmake/linux/x64/share/cmake-3.27/Modules/ExternalProject.cmake:3136 (message):
+  The DOWNLOAD_EXTRACT_TIMESTAMP option was not given and policy CMP0135 is
+  not set.  The policy's OLD behavior will be used.  When using a URL
+  download, the timestamps of extracted files should preferably be that of
+  the time of extraction, otherwise code that depends on the extracted
+  contents might not be rebuilt if the URL changes.  The OLD behavior
+  preserves the timestamps from the archive instead, but this is usually not
+  what you want.  Update your project to the NEW behavior or specify the
+  DOWNLOAD_EXTRACT_TIMESTAMP option with a value of true to avoid this
+  robustness issue.
+Call Stack (most recent call first):
+  /home/odygrd/clion-2023.3.4/bin/cmake/linux/x64/share/cmake-3.27/Modules/ExternalProject.cmake:4345 (_ep_add_download_command)
+  CMakeLists.txt:6 (ExternalProject_Add)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/odygrd/CLionProjects/g3log/cmake-build-debug/googletest-download
+[1/9] Creating directories for 'googletest'
+[2/9] Performing download step (download, verify and extract) for 'googletest'
+-- Downloading...
+   dst='/home/odygrd/CLionProjects/g3log/cmake-build-debug/googletest-download/googletest-prefix/src/main.zip'
+   timeout='none'
+   inactivity timeout='none'
+-- Using src='https://github.com/google/googletest/archive/refs/heads/main.zip'
+-- Downloading... done
+-- extracting...
+     src='/home/odygrd/CLionProjects/g3log/cmake-build-debug/googletest-download/googletest-prefix/src/main.zip'
+     dst='/home/odygrd/CLionProjects/g3log/cmake-build-debug/googletest-src'
+-- extracting... [tar xfz]
+-- extracting... [analysis]
+-- extracting... [rename]
+-- extracting... [clean up]
+-- extracting... done
+[3/9] No update step for 'googletest'
+[4/9] No patch step for 'googletest'
+[5/9] No configure step for 'googletest'
+[6/9] No build step for 'googletest'
+[7/9] No install step for 'googletest'
+[8/9] No test step for 'googletest'
+[9/9] Completed 'googletest'
+-- The C compiler identification is GNU 11.4.1
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- -DADD_G3LOG_UNIT_TEST=ON
+-- 
+To create installation package: 
+-- make package
+-- 
+Option to install using 'make install'
+-- Installation locations: 
+-- ====================
+-- Headers: /usr/local/include/g3log
+-- Library installation directory: /usr/local/lib64
+-- For more information please see g3log/CPackLists.txt
+
+
+-- To install: sudo dpkg -i g3log-***Linux.deb
+-- To list package contents: sudo dpkg --contents g3log-***Linux.deb
+-- List content of the installed package: sudo dpkg -L g3log
+-- To remove: sudo dpkg -r g3log
+-- 
+
+
+      *******************************************************************
+      Please do 'make clean-cmake' before next cmake generation.
+         It is a good idea to purge your build directory of CMake
+         generated cache files
+      *******************************************************************
+       
+-- Configuring done (1.1s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/odygrd/CLionProjects/g3log/cmake-build-debug

@@ -1,0 +1,78 @@
+{
+	"kind" : "toolchains",
+	"toolchains" : 
+	[
+		{
+			"compiler" : 
+			{
+				"implicit" : {},
+				"path" : "/usr/bin/cc"
+			},
+			"language" : "C"
+		},
+		{
+			"compiler" : 
+			{
+				"id" : "Clang",
+				"implicit" : 
+				{
+					"includeDirectories" : 
+					[
+						"/opt/rh/gcc-toolset-13/root/usr/include/c++/13",
+						"/opt/rh/gcc-toolset-13/root/usr/include/c++/13/x86_64-redhat-linux",
+						"/opt/rh/gcc-toolset-13/root/usr/include/c++/13/backward",
+						"/usr/lib64/clang/16/include",
+						"/usr/local/include",
+						"/usr/include"
+					],
+					"linkDirectories" : 
+					[
+						"/opt/rh/gcc-toolset-13/root/usr/lib/gcc/x86_64-redhat-linux/13",
+						"/opt/rh/gcc-toolset-13/root/usr/lib64",
+						"/lib64",
+						"/usr/lib64",
+						"/lib",
+						"/usr/lib"
+					],
+					"linkFrameworkDirectories" : [],
+					"linkLibraries" : 
+					[
+						"stdc++",
+						"m",
+						"gcc_s",
+						"gcc",
+						"c",
+						"gcc_s",
+						"gcc"
+					]
+				},
+				"path" : "/usr/bin/clang++",
+				"version" : "16.0.6"
+			},
+			"language" : "CXX",
+			"sourceFileExtensions" : 
+			[
+				"C",
+				"M",
+				"c++",
+				"cc",
+				"cpp",
+				"cxx",
+				"m",
+				"mm",
+				"mpp",
+				"CPP",
+				"ixx",
+				"cppm",
+				"ccm",
+				"cxxm",
+				"c++m"
+			]
+		}
+	],
+	"version" : 
+	{
+		"major" : 1,
+		"minor" : 0
+	}
+}

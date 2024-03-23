@@ -1,0 +1,14 @@
+site_name: G3log, an asynchronous "crash-safe" logger
+site_author: 'Kjell Hedström'
+docs_dir: docs/
+theme: 
+  name: material
+nav: 
+  - Introduction to G3log: index.md
+  - G3log usage: g3log.md 
+  - API description: API.md
+  - API for custom log formatting: API_custom_formatting.md
+  - Configure, Build, Package, Install and Test: building.md
+  - License and contribution: contributing.md
+
+
