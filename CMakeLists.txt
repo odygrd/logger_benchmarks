@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.1.0)
 project(logger_benchmarks)
 
-set(CMAKE_CXX_FLAGS "-m64 -std=c++17 -march=native" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS "-m64 -march=native" CACHE STRING "" FORCE)
 set(CMAKE_VERBOSE_MAKEFILE TRUE CACHE BOOL "Verbose output" FORCE)
 set(BUILD_SHARED_LIBS "OFF")
 
@@ -28,10 +28,7 @@ find_package(Threads REQUIRED)
 #---------------------------------------------------------------------------------------
 # Subdirectories
 #-------------------------------------------------------------------------------------------------------
-add_subdirectory(quill_dual_mode_bounded)
-add_subdirectory(quill_dual_mode_unbounded)
-add_subdirectory(quill_no_dual_mode_unbounded)
-add_subdirectory(quill_v2)
+add_subdirectory(quill)
 add_subdirectory(third_party/Iyengar_NanoLog)
 add_subdirectory(third_party/reckless)
 add_subdirectory(third_party/platformlab_nanolog)

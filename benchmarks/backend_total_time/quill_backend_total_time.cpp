@@ -10,12 +10,12 @@ static constexpr size_t total_iterations = 4'000'000;
 int main()
 {
   // main thread affinity
-  quill::detail::set_cpu_affinity(4);
+  quill::detail::set_cpu_affinity(0);
 
   /** - Setup Quill **/
   quill::Config cfg;
   cfg.backend_thread_yield = false;
-  cfg.backend_thread_cpu_affinity = 3;
+  cfg.backend_thread_cpu_affinity = 5;
 
   quill::configure(cfg);
 
@@ -24,8 +24,17 @@ int main()
   std::this_thread::sleep_for(std::chrono::milliseconds{100});
 
   // Create a file handler to write to a file
-  auto file_handler = quill::file_handler("quill_backend_total_time.log", "w");
-  file_handler->set_pattern("%(ascii_time) [%(thread)] %(fileline) %(level_name) %(message)");
+  std::shared_ptr<quill::Handler> file_handler =
+    quill::file_handler("quill_backend_total_time.log",
+                        []()
+                        {
+                          quill::FileHandlerConfig cfg;
+                          cfg.set_open_mode('w');
+                          return cfg;
+                        }());
+
+  file_handler->set_pattern("%(time) [%(thread_id)] %(short_source_location) %(log_level) %(message)");
+
   quill::Logger* logger = quill::create_logger("bench_logger", std::move(file_handler));
 
   quill::preallocate();
@@ -46,6 +55,6 @@ int main()
 
   auto delta_d =  std::chrono::duration_cast<std::chrono::duration<double>>(delta).count();
 
-  std::cout << fmt::format("throughput  is {:.2f} million msgs/sec average, total time elapsed: {} ms \n", total_iterations / delta_d / 1e6, std::chrono::duration_cast<std::chrono::milliseconds>(delta).count()) << std::endl;
+  std::cout << fmtquill::format("throughput  is {:.2f} million msgs/sec average, total time elapsed: {} ms \n", total_iterations / delta_d / 1e6, std::chrono::duration_cast<std::chrono::milliseconds>(delta).count()) << std::endl;
 
 }

@@ -1,54 +1,17 @@
 # include spdlog
 include_directories(${CMAKE_SOURCE_DIR}/third_party)
 
-# quill
-set(TARGET_NAME benchmark_quill_dual_mode_bounded_call_site_latency_int_int_double)
+set(TARGET_NAME benchmark_quill_unbounded_call_site_latency_int_int_double)
 add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_dual_mode_bounded_call_site_latency.cpp)
+target_sources(${TARGET_NAME} PRIVATE benchmark_quill_unbounded_call_site_latency.cpp)
 target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-target_link_libraries(${TARGET_NAME} PRIVATE quill_dual_bounded)
+target_link_libraries(${TARGET_NAME} PRIVATE quill)
 
-set(TARGET_NAME benchmark_quill_dual_mode_bounded_call_site_latency_int_int_largestr)
+set(TARGET_NAME benchmark_quill_unbounded_call_site_latency_int_int_largestr)
 add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_dual_mode_bounded_call_site_latency.cpp)
+target_sources(${TARGET_NAME} PRIVATE benchmark_quill_unbounded_call_site_latency.cpp)
 target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE quill_dual_bounded)
-
-set(TARGET_NAME benchmark_quill_dual_mode_unbounded_call_site_latency_int_int_double)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_dual_mode_unbounded_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-target_link_libraries(${TARGET_NAME} PRIVATE quill_dual_unbounded)
-
-set(TARGET_NAME benchmark_quill_dual_mode_unbounded_call_site_latency_int_int_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_dual_mode_unbounded_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE quill_dual_unbounded)
-
-set(TARGET_NAME benchmark_quill_no_dual_mode_unbounded_call_site_latency_int_int_double)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_no_dual_mode_unbounded_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-target_link_libraries(${TARGET_NAME} PRIVATE quill_dual_disabled)
-
-set(TARGET_NAME benchmark_quill_no_dual_mode_unbounded_call_site_latency_int_int_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_no_dual_mode_unbounded_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE quill_dual_disabled)
-
-set(TARGET_NAME benchmark_quill_v2_unbounded_call_site_latency_int_int_double)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_v2_unbounded_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-target_link_libraries(${TARGET_NAME} PRIVATE quill_v2)
-
-set(TARGET_NAME benchmark_quill_v2_unbounded_call_site_latency_int_int_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_v2_unbounded_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE quill_v2)
+target_link_libraries(${TARGET_NAME} PRIVATE quill)
 
 # platform lab
 set(TARGET_NAME benchmark_platformlab_call_site_latency_int_int_double)

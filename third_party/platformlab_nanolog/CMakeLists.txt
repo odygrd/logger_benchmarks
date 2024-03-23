@@ -3,8 +3,8 @@ set(TARGET_NAME platformlab_nanolog)
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/GeneratedCode.cc
         COMMAND "/usr/bin/g++" "-std=c++17" "-g" "-O3" "-E" "-I" "include/" "src/testHelper/client.cc" "-o" "src/testHelper/client.cc.i"
-        COMMAND "python2.7" "${CMAKE_CURRENT_SOURCE_DIR}/preprocessor/parser.py" "--mapOutput=${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.map" "${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.cc.i"
-        COMMAND "python2.7" "${CMAKE_CURRENT_SOURCE_DIR}/preprocessor/parser.py" "--combinedOutput=${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/GeneratedCode.cc" "${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.map"
+        COMMAND "python" "${CMAKE_CURRENT_SOURCE_DIR}/preprocessor/parser.py" "--mapOutput=${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.map" "${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.cc.i"
+        COMMAND "python" "${CMAKE_CURRENT_SOURCE_DIR}/preprocessor/parser.py" "--combinedOutput=${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/GeneratedCode.cc" "${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.map"
         #COMMAND "rm" "-f" "${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.map" "${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.cc.i"  "${CMAKE_CURRENT_SOURCE_DIR}/src/testHelper/client.cc.ii"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         COMMENT "Generating GeneratedCode.cc")
