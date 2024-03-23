@@ -56,7 +56,7 @@ inline void run_log_benchmark(size_t num_iterations,
                               std::function<void()> on_thread_exit,
                               size_t current_thread_num,
                               std::vector<uint64_t>& latencies,
-                              double rdtsc_ticks_per_ns)
+                              double ns_rdtsc_tick)
   #elif defined(BENCH_INT_INT_LARGESTR)
 inline void run_log_benchmark(size_t num_iterations,
                               std::function<void()> on_thread_start,
@@ -64,7 +64,7 @@ inline void run_log_benchmark(size_t num_iterations,
                               std::function<void()> on_thread_exit,
                               size_t current_thread_num,
                               std::vector<uint64_t>& latencies,
-                              double rdtsc_ticks_per_ns)
+                              double ns_rdtsc_tick)
   #endif
 {
   // running thread affinity
@@ -102,7 +102,7 @@ inline void run_log_benchmark(size_t num_iterations,
     }
     auto const end = __rdtscp(&aux);
 
-    uint64_t const latency{static_cast<uint64_t>((end - start) / MESSAGES / rdtsc_ticks_per_ns)};
+    uint64_t const latency{static_cast<uint64_t>((end - start) / MESSAGES * ns_rdtsc_tick)};
     latencies.push_back(latency);
 
     // send the next log after x time
@@ -166,6 +166,8 @@ inline void run_benchmark(char const* benchmark_name,
   // main thread affinity
   set_thread_affinity(0);
 
+  double const ns_rdtsc_tick = ns_per_rdtsc_tick();
+
 #ifdef BENCH_WITHOUT_PERF
   // each thread gets a vector of latencies
   std::vector<std::vector<uint64_t>> latencies;
@@ -183,11 +185,11 @@ inline void run_benchmark(char const* benchmark_name,
 #ifdef BENCH_WITHOUT_PERF
     // Spawn num threads
     threads.emplace_back(run_log_benchmark, num_iterations, on_thread_start, log_func, on_thread_exit,
-                         thread_num + 1, std::ref(latencies[thread_num]), rdtsc_ticks());
+                         thread_num + 1, std::ref(latencies[thread_num]), ns_rdtsc_tick);
 #else
     // Spawn num threads
     threads.emplace_back(run_log_benchmark, num_iterations, on_thread_start, log_func,
-                         on_thread_exit, thread_num + 7);
+                         on_thread_exit, thread_num + 1);
 #endif
   }
 

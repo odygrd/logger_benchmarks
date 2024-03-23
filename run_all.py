@@ -13,7 +13,7 @@ benchmark_reckless_int_int_double = root_dir + "benchmark_reckless_call_site_lat
 benchmark_spdlog_int_int_double = root_dir + "benchmark_spdlog_call_site_latency_int_int_double"
 
 benchmark_quill_unbounded_int_int_largestr = root_dir + "benchmark_quill_unbounded_call_site_latency_int_int_largestr"
-benchmark_quill_x86_unbounded_int_int_largestr = root_dir + "benchmark_quill_86_unbounded_call_site_latency_int_int_largestr"
+benchmark_quill_x86_unbounded_int_int_largestr = root_dir + "benchmark_quill_x86_unbounded_call_site_latency_int_int_largestr"
 benchmark_g3log_int_int_largestr = root_dir + "benchmark_g3log_call_site_latency_int_int_largestr"
 benchmark_iyengar_nanolog_int_int_largestr = root_dir + "benchmark_iyengar_nanolog_call_site_latency_int_int_largestr"
 benchmark_ms_binlog_int_int_largestr = root_dir + "benchmark_ms_binlog_call_site_latency_int_int_largestr"

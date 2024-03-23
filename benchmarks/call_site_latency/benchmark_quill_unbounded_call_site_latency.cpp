@@ -11,6 +11,7 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   quill::Config cfg;
   cfg.backend_thread_yield = false;
   cfg.backend_thread_cpu_affinity = 5;
+  cfg.enable_huge_pages_hot_path = true;
 
   // Start the logging backend thread
   quill::configure(cfg);
@@ -33,13 +34,23 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
 
   // Define a logging lambda
 #ifdef BENCH_INT_INT_DOUBLE
+  char const* benchmark_type = "[benchmark_type: int_int_double]";
+
   auto log_func = [logger](uint64_t i, uint64_t j, double d)
   { LOG_INFO(logger, "Logging int: {}, int: {}, double: {}", i, j, d); };
 #elif defined(BENCH_INT_INT_LARGESTR)
+  char const* benchmark_type = "[benchmark_type: int_int_largestr]";
+
   auto log_func = [logger](uint64_t i, uint64_t j, std::string const& s)
   { LOG_INFO(logger, "Logging int: {}, int: {}, string: {}", i, j, s); };
 #else
   static_assert(false, "define BENCH_INT_INT_DOUBLE or BENCH_INT_INT_LARGESTR");
+#endif
+
+#ifdef QUILL_X86ARCH
+  char const* quill_x86_arch = "[quill_x86_arch: on]";
+#else
+  char const* quill_x86_arch = "[quill_x86_arch: off]";
 #endif
 
   auto on_start = []() { quill::preallocate(); };
@@ -47,9 +58,15 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   auto on_exit = []() { quill::flush(); };
 
   // Run the benchmark for n threads
+  std::string benchmark_name = "Logger: Quill - Benchmark: Caller Thread Latency, Unbounded";
+  benchmark_name += " - ";
+  benchmark_name += quill_x86_arch;
+  benchmark_name += " - ";
+  benchmark_name += benchmark_type;
+
   for (auto thread_count : thread_count_array)
   {
-    run_benchmark("Logger: Quill - Benchmark: Caller Thread Latency - V2, Unbounded", thread_count,
+    run_benchmark(benchmark_name.c_str(), thread_count,
                   num_iterations_per_thread, on_start, log_func, on_exit);
   }
 }
