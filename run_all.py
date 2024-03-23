@@ -1,6 +1,6 @@
 import subprocess
 
-root_dir = ""
+root_dir = "/home/odygrd/CLionProjects/logger_benchmarks/cmake-build-release/benchmarks/call_site_latency/"
 
 benchmark_quill_unbounded_int_int_double = root_dir + "benchmark_quill_unbounded_call_site_latency_int_int_double"
 benchmark_quill_x86_unbounded_int_int_double = root_dir + "benchmark_quill_x86_unbounded_call_site_latency_int_int_double"
@@ -23,17 +23,19 @@ benchmark_reckless_int_int_largestr = root_dir + "benchmark_reckless_call_site_l
 benchmark_spdlog_int_int_largestr = root_dir + "benchmark_spdlog_call_site_latency_int_int_largestr"
 
 benchmarks = [benchmark_quill_unbounded_int_int_double,
+              benchmark_quill_x86_unbounded_int_int_double,
+              benchmark_fmtlog_int_int_double,
               benchmark_platformlab_int_int_double,
               benchmark_ms_binlog_int_int_double,
-              benchmark_fmtlog_int_int_double,
               benchmark_spdlog_int_int_double,
               benchmark_g3log_int_int_double,
               benchmark_iyengar_nanolog_int_int_double,
               benchmark_reckless_int_int_double,
               benchmark_quill_unbounded_int_int_largestr,
+              benchmark_quill_x86_unbounded_int_int_double,
+              benchmark_fmtlog_int_int_largestr,
               benchmark_platformlab_int_int_largestr,
               benchmark_ms_binlog_int_int_largestr,
-              benchmark_fmtlog_int_int_largestr,
               benchmark_spdlog_int_int_largestr,
               benchmark_g3log_int_int_largestr,
               benchmark_iyengar_nanolog_int_int_largestr,
