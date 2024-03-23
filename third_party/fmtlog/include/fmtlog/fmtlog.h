@@ -57,6 +57,10 @@ SOFTWARE.
 #define FMTLOG_ACTIVE_LEVEL FMTLOG_LEVEL_DBG
 #endif
 
+#ifndef FMTLOG_QUEUE_SIZE
+#define FMTLOG_QUEUE_SIZE (1 << 20)
+#endif
+
 namespace fmtlogdetail {
 template<typename Arg>
 struct UnrefPtr : std::false_type
@@ -160,9 +164,9 @@ public:
   // return true if passed log level is not lower than current log level
   static inline bool checkLogLevel(LogLevel logLevel) noexcept;
 
-  // Run a polling thread in the background with a polling interval
+  // Run a polling thread in the background with a polling interval in ns
   // Note that user must not call poll() himself when the thread is running
-  static void startPollingThread(int64_t pollInterval = 1000000) noexcept;
+  static void startPollingThread(int64_t pollInterval = 1000000000) noexcept;
 
   // Stop the polling thread
   static void stopPollingThread() noexcept;
@@ -178,7 +182,7 @@ public:
       uint32_t size;
       uint32_t logId;
     };
-    static constexpr uint32_t BLK_CNT = (1 << 20) / sizeof(MsgHeader);
+    static constexpr uint32_t BLK_CNT = FMTLOG_QUEUE_SIZE / sizeof(MsgHeader);
 
     MsgHeader* allocMsg(uint32_t size) noexcept;
 

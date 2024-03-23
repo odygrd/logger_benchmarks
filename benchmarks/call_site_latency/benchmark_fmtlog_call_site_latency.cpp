@@ -19,7 +19,7 @@ void fmtlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
     [&done]()
     {
       // pin to cpu backend logging thread.
-      set_thread_affinity(6);
+      set_thread_affinity(5);
 
       do
       {
