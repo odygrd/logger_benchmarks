@@ -13,16 +13,16 @@ target_sources(${TARGET_NAME} PRIVATE benchmark_quill_unbounded_call_site_latenc
 target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
 target_link_libraries(${TARGET_NAME} PRIVATE quill)
 
-set(TARGET_NAME benchmark_quill_x86_unbounded_call_site_latency_int_int_double)
+set(TARGET_NAME benchmark_quill_bounded_call_site_latency_int_int_double)
 add_executable(${TARGET_NAME})
 target_sources(${TARGET_NAME} PRIVATE benchmark_quill_unbounded_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE QUILL_X86ARCH)
+target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE QUILL_USE_BOUNDED_QUEUE)
 target_link_libraries(${TARGET_NAME} PRIVATE quill)
 
-set(TARGET_NAME benchmark_quill_x86_unbounded_call_site_latency_int_int_largestr)
+set(TARGET_NAME benchmark_quill_bounded_call_site_latency_int_int_largestr)
 add_executable(${TARGET_NAME})
 target_sources(${TARGET_NAME} PRIVATE benchmark_quill_unbounded_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR QUILL_X86ARCH)
+target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR QUILL_USE_BOUNDED_QUEUE)
 target_link_libraries(${TARGET_NAME} PRIVATE quill)
 
 # platform lab

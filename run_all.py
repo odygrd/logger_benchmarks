@@ -3,7 +3,7 @@ import subprocess
 root_dir = "/home/odygrd/CLionProjects/logger_benchmarks/cmake-build-release/benchmarks/call_site_latency/"
 
 benchmark_quill_unbounded_int_int_double = root_dir + "benchmark_quill_unbounded_call_site_latency_int_int_double"
-benchmark_quill_x86_unbounded_int_int_double = root_dir + "benchmark_quill_x86_unbounded_call_site_latency_int_int_double"
+benchmark_quill_bounded_int_int_double = root_dir + "benchmark_quill_bounded_call_site_latency_int_int_double"
 benchmark_g3log_int_int_double = root_dir + "benchmark_g3log_call_site_latency_int_int_double"
 benchmark_iyengar_nanolog_int_int_double = root_dir + "benchmark_iyengar_nanolog_call_site_latency_int_int_double"
 benchmark_ms_binlog_int_int_double = root_dir + "benchmark_ms_binlog_call_site_latency_int_int_double"
@@ -13,7 +13,7 @@ benchmark_reckless_int_int_double = root_dir + "benchmark_reckless_call_site_lat
 benchmark_spdlog_int_int_double = root_dir + "benchmark_spdlog_call_site_latency_int_int_double"
 
 benchmark_quill_unbounded_int_int_largestr = root_dir + "benchmark_quill_unbounded_call_site_latency_int_int_largestr"
-benchmark_quill_x86_unbounded_int_int_largestr = root_dir + "benchmark_quill_x86_unbounded_call_site_latency_int_int_largestr"
+benchmark_quill_bounded_int_int_largestr = root_dir + "benchmark_quill_bounded_call_site_latency_int_int_largestr"
 benchmark_g3log_int_int_largestr = root_dir + "benchmark_g3log_call_site_latency_int_int_largestr"
 benchmark_iyengar_nanolog_int_int_largestr = root_dir + "benchmark_iyengar_nanolog_call_site_latency_int_int_largestr"
 benchmark_ms_binlog_int_int_largestr = root_dir + "benchmark_ms_binlog_call_site_latency_int_int_largestr"
@@ -23,7 +23,7 @@ benchmark_reckless_int_int_largestr = root_dir + "benchmark_reckless_call_site_l
 benchmark_spdlog_int_int_largestr = root_dir + "benchmark_spdlog_call_site_latency_int_int_largestr"
 
 benchmarks = [benchmark_quill_unbounded_int_int_double,
-              benchmark_quill_x86_unbounded_int_int_double,
+              benchmark_quill_bounded_int_int_double,
               benchmark_fmtlog_int_int_double,
               benchmark_platformlab_int_int_double,
               benchmark_ms_binlog_int_int_double,
@@ -32,7 +32,7 @@ benchmarks = [benchmark_quill_unbounded_int_int_double,
               benchmark_iyengar_nanolog_int_int_double,
               benchmark_reckless_int_int_double,
               benchmark_quill_unbounded_int_int_largestr,
-              benchmark_quill_x86_unbounded_int_int_double,
+              benchmark_quill_bounded_int_int_largestr,
               benchmark_fmtlog_int_int_largestr,
               benchmark_platformlab_int_int_largestr,
               benchmark_ms_binlog_int_int_largestr,
@@ -48,6 +48,6 @@ for bench in benchmarks:
     output = open(s, "w")
     i = i + 1
 
-    for x in range(4):
+    for x in range(1):
         print("Running {}".format(bench))
         subprocess.call(bench, stdout=output)
