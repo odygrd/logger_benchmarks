@@ -8,7 +8,9 @@
 #include <iostream>
 #include <numeric>
 #include <random>
+#include <string>
 #include <thread>
+#include <vector>
 
 // Instead of sleep
 inline void wait(std::chrono::nanoseconds min, std::chrono::nanoseconds max)
@@ -65,6 +67,14 @@ inline void run_log_benchmark(size_t num_iterations,
                               size_t current_thread_num,
                               std::vector<uint64_t>& latencies,
                               double ns_rdtsc_tick)
+  #elif defined(BENCH_VECTOR_LARGESTR)
+inline void run_log_benchmark(size_t num_iterations,
+                              std::function<void()> on_thread_start,
+                              std::function<void(uint64_t, uint64_t, std::vector<std::string> const&)> log_func,
+                              std::function<void()> on_thread_exit,
+                              size_t current_thread_num,
+                              std::vector<uint64_t>& latencies,
+                              double ns_rdtsc_tick)
   #endif
 {
   // running thread affinity
@@ -79,6 +89,13 @@ inline void run_log_benchmark(size_t num_iterations,
   log_func(100, 100, 1.1);
   #elif defined(BENCH_INT_INT_LARGESTR)
   log_func(100, 100, "init");
+  #elif defined(BENCH_VECTOR_LARGESTR)
+  log_func(100, 100, std::vector<std::string>{});
+
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<int> length_dist(50, 60); // large strings
+  std::uniform_int_distribution<int> char_dist(65, 90);   // ASCII uppercase letters
   #endif
 
   unsigned int aux;
@@ -86,13 +103,24 @@ inline void run_log_benchmark(size_t num_iterations,
   // Main Benchmark
   for (int i = 0; i < num_iterations; ++i)
   {
-
   #ifdef BENCH_INT_INT_DOUBLE
     // generate a double from i
     double const v = i + (0.1 * i);
   #elif defined(BENCH_INT_INT_LARGESTR)
     std::string v{"Lorem ipsum dolor sit amet, consectetur "};
     v += std::to_string(i);
+  #elif defined(BENCH_VECTOR_LARGESTR)
+    std::vector<std::string> v(16);
+
+    for (std::string& str : v)
+    {
+      int length = length_dist(gen);
+      str.reserve(length); // reserve space for efficiency
+      for (int i = 0; i < length; ++i)
+      {
+        str.push_back(static_cast<char>(char_dist(gen)));
+      }
+    }
   #endif
 
     auto const start = __rdtscp(&aux);
@@ -160,6 +188,13 @@ inline void run_benchmark(char const* benchmark_name,
                           size_t num_iterations,
                           std::function<void()> on_thread_start,
                           std::function<void(uint64_t, uint64_t, std::string const&)> log_func,
+                          std::function<void()> on_thread_exit)
+#elif defined(BENCH_VECTOR_LARGESTR)
+inline void run_benchmark(char const* benchmark_name,
+                          int32_t thread_count,
+                          size_t num_iterations,
+                          std::function<void()> on_thread_start,
+                          std::function<void(uint64_t, uint64_t, std::vector<std::string> const&)> log_func,
                           std::function<void()> on_thread_exit)
 #endif
 {

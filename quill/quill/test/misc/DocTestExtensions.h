@@ -1,10 +1,11 @@
 #pragma once
 
 #include "doctest/doctest.h"
-#include "quill/detail/misc/Attributes.h"
+#include "quill/core/Attributes.h"
 
+#include <cstdio>
 #include <cstring>
-#include <memory>
+#include <iostream>
 #include <string>
 #include <string_view>
 
