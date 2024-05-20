@@ -43,9 +43,11 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
     BINLOG_INFO("Logging int: {}, int: {}, double: {}", i, j, d);
   };
 #elif defined(BENCH_INT_INT_LARGESTR)
-  auto log_func = [](uint64_t i, uint64_t j, std::string const& s) {
-    BINLOG_INFO("Logging int: {}, int: {}, string: {}", i, j, s);
-  };
+  auto log_func = [](uint64_t i, uint64_t j, std::string const& s)
+  { BINLOG_INFO("Logging int: {}, int: {}, string: {}", i, j, s); };
+#elif defined(BENCH_VECTOR_LARGESTR)
+  auto log_func = [](uint64_t i, uint64_t j, std::vector<std::string> const& s)
+  { BINLOG_INFO("Logging int: {}, int: {}, vector: {}", i, j, s); };
 #endif
 
   auto on_start = []() {};

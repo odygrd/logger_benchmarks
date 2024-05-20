@@ -1,11 +1,12 @@
 #include "call_site_latency_bench.h"
+#include "fmtlog/fmtlog.h"
+#include "fmtlog/include/fmt/ranges.h"
+#include <atomic>
 #include <fstream>
 #include <iostream>
-#include <thread>
-#include <atomic>
-#include "fmtlog/fmtlog.h"
-
 #include <string>
+#include <thread>
+#include <vector>
 
 /***/
 void fmtlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterations_per_thread)
@@ -38,6 +39,9 @@ void fmtlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
 #elif defined(BENCH_INT_INT_LARGESTR)
   auto log_func = [](uint64_t i, uint64_t j, std::string const& s)
   { FMTLOG(fmtlog::INF, "Logging int: {}, int: {}, string: {}", i, j, s); };
+#elif defined(BENCH_VECTOR_LARGESTR)
+  auto log_func = [](uint64_t i, uint64_t j, std::vector<std::string> const& s)
+  { FMTLOG(fmtlog::INF, "Logging int: {}, int: {}, vector: {}", i, j, s); };
 #endif
 
   auto on_start = []() { fmtlog::preallocate(); };

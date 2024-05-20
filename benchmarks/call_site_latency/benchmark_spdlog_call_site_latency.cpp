@@ -1,10 +1,12 @@
 #include "call_site_latency_bench.h"
 
 #include "spdlog/async.h"
+#include "spdlog/fmt/ranges.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/spdlog.h"
 
 #include <string>
+#include <vector>
 
 /***/
 void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterations_per_thread)
@@ -14,7 +16,8 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   // Setup
   spdlog::set_automatic_registration(false);
 
-  auto on_backend_start = []() {
+  auto on_backend_start = []()
+  {
     // Set the spdlog backend thread cpu affinity to zero
     set_thread_affinity(5);
   };
@@ -32,13 +35,14 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
 
   // Define a logging lambda
 #ifdef BENCH_INT_INT_DOUBLE
-  auto log_func = [logger](uint64_t i, uint64_t j, double d) {
-    SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, double: {}", i, j, d);
-  };
+  auto log_func = [logger](uint64_t i, uint64_t j, double d)
+  { SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, double: {}", i, j, d); };
 #elif defined(BENCH_INT_INT_LARGESTR)
-  auto log_func = [logger](uint64_t i, uint64_t j, std::string const& s) {
-    SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, string: {}", i, j, s);
-  };
+  auto log_func = [logger](uint64_t i, uint64_t j, std::string const& s)
+  { SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, string: {}", i, j, s); };
+#elif defined(BENCH_VECTOR_LARGESTR)
+  auto log_func = [logger](uint64_t i, uint64_t j, std::vector<std::string> const& s)
+  { SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, string: {}", i, j, s); };
 #endif
 
   auto on_start = []() {};

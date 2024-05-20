@@ -1,6 +1,7 @@
 # include spdlog
 include_directories(${CMAKE_SOURCE_DIR}/third_party)
 
+# ------- #
 set(TARGET_NAME benchmark_quillv3_unbounded_call_site_latency_int_int_double)
 add_executable(${TARGET_NAME})
 target_sources(${TARGET_NAME} PRIVATE benchmark_quillv3_unbounded_call_site_latency.cpp)
@@ -19,7 +20,7 @@ target_sources(${TARGET_NAME} PRIVATE benchmark_quillv3_unbounded_call_site_late
 target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
 target_link_libraries(${TARGET_NAME} PRIVATE quillv3)
 
-
+# ------- #
 set(TARGET_NAME benchmark_quill_unbounded_call_site_latency_int_int_double)
 add_executable(${TARGET_NAME})
 target_sources(${TARGET_NAME} PRIVATE benchmark_quill_unbounded_call_site_latency.cpp)
@@ -38,6 +39,7 @@ target_sources(${TARGET_NAME} PRIVATE benchmark_quill_unbounded_call_site_latenc
 target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
 target_link_libraries(${TARGET_NAME} PRIVATE quill)
 
+# ------- #
 # platform lab
 set(TARGET_NAME benchmark_platformlab_call_site_latency_int_int_double)
 add_executable(${TARGET_NAME})
@@ -90,6 +92,12 @@ target_sources(${TARGET_NAME} PRIVATE benchmark_spdlog_call_site_latency.cpp)
 target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
 target_link_libraries(${TARGET_NAME} PRIVATE Threads::Threads)
 
+set(TARGET_NAME benchmark_spdlog_call_site_latency_int_vector_largestr)
+add_executable(${TARGET_NAME})
+target_sources(${TARGET_NAME} PRIVATE benchmark_spdlog_call_site_latency.cpp)
+target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
+target_link_libraries(${TARGET_NAME} PRIVATE Threads::Threads)
+
 # g3log
 set(TARGET_NAME benchmark_g3log_call_site_latency_int_int_double)
 add_executable(${TARGET_NAME})
@@ -116,6 +124,12 @@ target_sources(${TARGET_NAME} PRIVATE benchmark_ms_binlog_call_site_latency.cpp)
 target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
 target_link_libraries(${TARGET_NAME} PRIVATE binlog Threads::Threads)
 
+set(TARGET_NAME benchmark_ms_binlog_call_site_latency_int_vector_largestr)
+add_executable(${TARGET_NAME})
+target_sources(${TARGET_NAME} PRIVATE benchmark_ms_binlog_call_site_latency.cpp)
+target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
+target_link_libraries(${TARGET_NAME} PRIVATE binlog Threads::Threads)
+
 # fmtlog
 set(TARGET_NAME benchmark_fmtlog_call_site_latency_int_int_double)
 add_executable(${TARGET_NAME})
@@ -127,4 +141,10 @@ set(TARGET_NAME benchmark_fmtlog_call_site_latency_int_int_largestr)
 add_executable(${TARGET_NAME})
 target_sources(${TARGET_NAME} PRIVATE benchmark_fmtlog_call_site_latency.cpp)
 target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
+target_link_libraries(${TARGET_NAME} PRIVATE fmtlog Threads::Threads)
+
+set(TARGET_NAME benchmark_fmtlog_call_site_latency_int_vector_largestr)
+add_executable(${TARGET_NAME})
+target_sources(${TARGET_NAME} PRIVATE benchmark_fmtlog_call_site_latency.cpp)
+target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
 target_link_libraries(${TARGET_NAME} PRIVATE fmtlog Threads::Threads)
