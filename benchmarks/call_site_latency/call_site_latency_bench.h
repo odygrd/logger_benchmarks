@@ -115,7 +115,7 @@ inline void run_log_benchmark(size_t num_iterations,
     for (std::string& str : v)
     {
       int length = length_dist(gen);
-      str.reserve(length); // reserve space for efficiency
+      str.reserve(length);
       for (int i = 0; i < length; ++i)
       {
         str.push_back(static_cast<char>(char_dist(gen)));

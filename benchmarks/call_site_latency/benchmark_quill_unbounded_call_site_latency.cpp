@@ -13,15 +13,20 @@ struct CustomFrontendOptions
 {
 #ifdef QUILL_USE_BOUNDED_DROPPING_QUEUE
   static constexpr quill::QueueType queue_type = quill::QueueType::BoundedDropping;
+  static constexpr uint32_t initial_queue_capacity = 262'144;
 #else
   static constexpr quill::QueueType queue_type = quill::QueueType::UnboundedBlocking;
+  static constexpr uint32_t initial_queue_capacity = 131'072;
 #endif
 
   // Set small capacity to demonstrate dropping messages in this example
-  static constexpr uint32_t initial_queue_capacity = 131'072;
   static constexpr uint32_t blocking_queue_retry_interval_ns = 800;
 
+#ifdef QUILL_USE_HUGE_PAGES
+  static constexpr bool huge_pages_enabled = true;
+#else
   static constexpr bool huge_pages_enabled = false;
+#endif
 };
 
 using frontend_t = quill::FrontendImpl<CustomFrontendOptions>;
@@ -34,6 +39,7 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   // Setup
   quill::BackendOptions backend_options;
   backend_options.backend_cpu_affinity = 5;
+  backend_options.sleep_duration = std::chrono::nanoseconds{500};
   quill::Backend::start(backend_options);
 
   // wait for the backend thread to start
