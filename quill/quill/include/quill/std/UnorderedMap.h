@@ -82,10 +82,19 @@ struct Encoder<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>,
 
 /***/
 template <template <typename...> class UnorderedMapType, typename Key, typename T, typename Hash, typename KeyEqual, typename Allocator>
+#if defined(_WIN32)
+struct Decoder<
+  UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>,
+  std::enable_if_t<std::conjunction_v<
+    std::disjunction<std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_map<Key, T, Hash, KeyEqual, Allocator>>,
+                     std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_multimap<Key, T, Hash, KeyEqual, Allocator>>>,
+    std::negation<std::disjunction<std::is_same<Key, wchar_t*>, std::is_same<Key, wchar_t const*>, std::is_same<Key, std::wstring>, std::is_same<Key, std::wstring_view>, std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>>
+#else
 struct Decoder<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>,
                std::enable_if_t<std::disjunction_v<
                  std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_map<Key, T, Hash, KeyEqual, Allocator>>,
                  std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_multimap<Key, T, Hash, KeyEqual, Allocator>>>>>
+#endif
 {
   static UnorderedMapType<Key, T, Hash, KeyEqual, Allocator> decode(
     std::byte*& buffer,
@@ -110,4 +119,84 @@ struct Decoder<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>,
     return arg;
   }
 };
+
+#if defined(_WIN32)
+/***/
+template <template <typename...> class UnorderedMapType, typename Key, typename T, typename Hash, typename KeyEqual, typename Allocator>
+struct Decoder<
+  UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>,
+  std::enable_if_t<std::conjunction_v<
+    std::disjunction<std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_map<Key, T, Hash, KeyEqual, Allocator>>,
+                     std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_multimap<Key, T, Hash, KeyEqual, Allocator>>>,
+    std::disjunction<std::is_same<Key, wchar_t*>, std::is_same<Key, wchar_t const*>, std::is_same<Key, std::wstring>, std::is_same<Key, std::wstring_view>, std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>
+{
+  /**
+   * Chaining stl types not supported for wstrings so we do not return anything
+   */
+  static void decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  {
+    if (args_store)
+    {
+      // Read the size of the vector
+      size_t const number_of_elements = Decoder<size_t>::decode(buffer, nullptr);
+
+      constexpr bool wide_key_t = std::is_same_v<Key, wchar_t*> || std::is_same_v<Key, wchar_t const*> ||
+        std::is_same_v<Key, std::wstring> || std::is_same_v<Key, std::wstring_view>;
+
+      constexpr bool wide_value_t = std::is_same_v<T, wchar_t*> || std::is_same_v<T, wchar_t const*> ||
+        std::is_same_v<T, std::wstring> || std::is_same_v<T, std::wstring_view>;
+
+      if constexpr (wide_key_t && !wide_value_t)
+      {
+        std::vector<std::pair<std::string, T>> encoded_values;
+        encoded_values.reserve(number_of_elements);
+
+        for (size_t i = 0; i < number_of_elements; ++i)
+        {
+          std::pair<std::string, T> elem;
+          std::wstring_view v = Decoder<Key>::decode(buffer, nullptr);
+          elem.first = utf8_encode(v);
+          elem.second = Decoder<T>::decode(buffer, nullptr);
+          encoded_values.emplace_back(elem);
+        }
+
+        args_store->push_back(encoded_values);
+      }
+      else if constexpr (!wide_key_t && wide_value_t)
+      {
+        std::vector<std::pair<Key, std::string>> encoded_values;
+        encoded_values.reserve(number_of_elements);
+
+        for (size_t i = 0; i < number_of_elements; ++i)
+        {
+          std::pair<Key, std::string> elem;
+          elem.first = Decoder<Key>::decode(buffer, nullptr);
+          std::wstring_view v = Decoder<T>::decode(buffer, nullptr);
+          elem.second = utf8_encode(v);
+          encoded_values.emplace_back(elem);
+        }
+
+        args_store->push_back(encoded_values);
+      }
+      else
+      {
+        std::vector<std::pair<std::string, std::string>> encoded_values;
+        encoded_values.reserve(number_of_elements);
+
+        for (size_t i = 0; i < number_of_elements; ++i)
+        {
+          std::pair<std::string, std::string> elem;
+          std::wstring_view v1 = Decoder<Key>::decode(buffer, nullptr);
+          elem.first = utf8_encode(v1);
+          std::wstring_view v2 = Decoder<T>::decode(buffer, nullptr);
+          elem.second = utf8_encode(v2);
+          encoded_values.emplace_back(elem);
+        }
+
+        args_store->push_back(encoded_values);
+      }
+    }
+  }
+};
+#endif
 } // namespace quill::detail

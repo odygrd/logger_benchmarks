@@ -32,6 +32,7 @@
     #define NOMINMAX
   #endif
 
+  #include <memory>
   #include <windows.h>
 #endif
 
@@ -62,23 +63,57 @@ constexpr auto strnlen =
 
 #if defined(_WIN32)
 /**
- * Return the size required to encode a wide string
- * @param s wide string to be encoded
- * @return required size for encoding
+ * @brief Convert a wide Unicode string to a UTF-8 encoded string.
+ *
+ * @param input_string_data Pointer to the wide string data.
+ * @param input_string_length Length of the wide string.
+ * @return The UTF-8 encoded string.
+ *
+ * @remarks If the input string is empty or the conversion fails, an empty string is returned.
  */
-size_t inline get_wide_string_encoding_size(std::wstring_view s)
+inline std::string utf8_encode(std::byte const* data, size_t wide_str_len)
 {
-  return static_cast<size_t>(WideCharToMultiByte(CP_UTF8, 0, s.data(), static_cast<int>(s.size()),
-                                                 nullptr, 0, nullptr, nullptr));
+  // Check if the input is empty
+  if (wide_str_len == 0)
+  {
+    return std::string{};
+  }
+
+  // Create a unique_ptr to hold the buffer and one for the null terminator
+  std::unique_ptr<wchar_t[]> wide_buffer{new wchar_t[wide_str_len + 1]};
+
+  // Because we are using a std::byte* buffer and the data are coming from there we will cast
+  // back the data to char* and then copy them to a wide string buffer before accessing them
+  std::memcpy(wide_buffer.get(), data, wide_str_len * sizeof(wchar_t));
+  wide_buffer[wide_str_len] = L'\0';
+
+  // Calculate the size needed for the UTF-8 string
+  int const size_needed = WideCharToMultiByte(
+    CP_UTF8, 0, wide_buffer.get(), static_cast<int>(wide_str_len), nullptr, 0, nullptr, nullptr);
+
+  // Check for conversion failure
+  if (size_needed == 0)
+  {
+    return std::string{};
+  }
+
+  // Create a buffer to hold the UTF-8 string
+  std::string ret_val(static_cast<size_t>(size_needed), 0);
+
+  // Convert the wide string to UTF-8
+  if (WideCharToMultiByte(CP_UTF8, 0, wide_buffer.get(), static_cast<int>(wide_str_len),
+                          &ret_val[0], size_needed, nullptr, nullptr) == 0)
+  {
+    // conversion failure
+    return std::string{};
+  }
+
+  return ret_val;
 }
 
-/**
- * Converts a wide string to a narrow string
- */
-void inline wide_string_to_narrow(void* dest, size_t required_bytes, std::wstring_view s)
+inline std::string utf8_encode(std::wstring_view str)
 {
-  WideCharToMultiByte(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), static_cast<char*>(dest),
-                      static_cast<int>(required_bytes), nullptr, nullptr);
+  return utf8_encode(reinterpret_cast<std::byte const*>(str.data()), str.size());
 }
 #endif
 
@@ -97,7 +132,7 @@ struct ArgSizeCalculator
 template <typename Arg>
 struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_arithmetic<Arg>, std::is_enum<Arg>>>>
 {
-  QUILL_ALWAYS_INLINE_HOT static size_t calculate(std::vector<size_t>&, Arg) noexcept
+  QUILL_ATTRIBUTE_HOT static size_t calculate(std::vector<size_t>&, Arg) noexcept
   {
     return static_cast<size_t>(sizeof(Arg));
   }
@@ -107,8 +142,7 @@ struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_arithm
 template <typename Arg>
 struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, char*>, std::is_same<Arg, char const*>>>>
 {
-  QUILL_ALWAYS_INLINE_HOT static size_t calculate(std::vector<size_t>& conditional_arg_size_cache,
-                                                  char const* arg) noexcept
+  QUILL_ATTRIBUTE_HOT static size_t calculate(std::vector<size_t>& conditional_arg_size_cache, char const* arg) noexcept
   {
     // include one extra for the zero termination
     conditional_arg_size_cache.push_back(static_cast<size_t>(strlen(arg) + 1u));
@@ -120,8 +154,8 @@ struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<A
 template <size_t N>
 struct ArgSizeCalculator<char[N]>
 {
-  QUILL_ALWAYS_INLINE_HOT static size_t calculate(std::vector<size_t>& conditional_arg_size_cache,
-                                                  char const (&arg)[N]) noexcept
+  QUILL_ATTRIBUTE_HOT static size_t calculate(std::vector<size_t>& conditional_arg_size_cache,
+                                              char const (&arg)[N]) noexcept
   {
     conditional_arg_size_cache.push_back(static_cast<size_t>(strnlen(arg, N) + 1u));
     return conditional_arg_size_cache.back();
@@ -132,7 +166,7 @@ struct ArgSizeCalculator<char[N]>
 template <typename Arg>
 struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::string>, std::is_same<Arg, std::string_view>>>>
 {
-  QUILL_ALWAYS_INLINE_HOT static size_t calculate(std::vector<size_t>&, Arg const& arg) noexcept
+  QUILL_ATTRIBUTE_HOT static size_t calculate(std::vector<size_t>&, Arg const& arg) noexcept
   {
     // for std::string we also need to store the size in order to correctly retrieve it
     // the reason for this is that if we create e.g:
@@ -147,13 +181,17 @@ struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<A
 template <typename Arg>
 struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>>>
 {
-  QUILL_ALWAYS_INLINE_HOT static size_t calculate(std::vector<size_t>& conditional_arg_size_cache,
-                                                  wchar_t const* arg) noexcept
+  QUILL_ATTRIBUTE_HOT static size_t calculate(std::vector<size_t>& conditional_arg_size_cache,
+                                              wchar_t const* arg) noexcept
   {
-    // Those strings won't be zero terminated after encoding, we will zero terminate them ourselves
-    // so we add + 1 to the size
-    conditional_arg_size_cache.push_back(get_wide_string_encoding_size(std::wstring_view{arg, wcslen(arg)}) + 1u);
-    return static_cast<size_t>(conditional_arg_size_cache.back());
+    // Calculate the size of the string in bytes
+    size_t const len = wcslen(arg);
+    conditional_arg_size_cache.push_back(len);
+
+    // to be safe we also store the size of the string in the buffer as a separate variable
+    // we can retrieve it when we decode. We also store the null terminator in the buffer to
+    // be able to return the value as wchar_t*
+    return static_cast<size_t>(sizeof(size_t) + ((len + 1) * sizeof(wchar_t)));
   }
 };
 
@@ -161,11 +199,15 @@ struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<A
 template <typename Arg>
 struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>>>
 {
-  QUILL_ALWAYS_INLINE_HOT static size_t calculate(std::vector<size_t>& conditional_arg_size_cache,
-                                                  Arg const& arg) noexcept
+  QUILL_ATTRIBUTE_HOT static size_t calculate(std::vector<size_t>& conditional_arg_size_cache, Arg const& arg) noexcept
   {
-    conditional_arg_size_cache.push_back(get_wide_string_encoding_size(arg));
-    return static_cast<size_t>(sizeof(size_t) + conditional_arg_size_cache.back());
+    // Calculate the size of the string in bytes
+    size_t const len = arg.size();
+    conditional_arg_size_cache.push_back(len);
+
+    // to be safe we also store the size of the string in the buffer as a separate variable
+    // we can retrieve it when we decode. We do not store the null terminator in the buffer
+    return static_cast<size_t>(sizeof(size_t) + (len * sizeof(wchar_t)));
   }
 };
 #endif
@@ -178,7 +220,7 @@ struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<A
  * @return The total size required to encode the arguments.
  */
 template <typename... Args>
-QUILL_NODISCARD QUILL_ALWAYS_INLINE_HOT size_t calculate_args_size_and_populate_string_lengths(
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT size_t calculate_args_size_and_populate_string_lengths(
   QUILL_MAYBE_UNUSED std::vector<size_t>& conditional_arg_size_cache,
   Args const&... args) noexcept
 {
@@ -192,7 +234,7 @@ QUILL_NODISCARD QUILL_ALWAYS_INLINE_HOT size_t calculate_args_size_and_populate_
 template <typename Arg, typename = void>
 struct Encoder
 {
-  QUILL_ALWAYS_INLINE_HOT static void encode(std::byte*&, std::vector<size_t> const&, uint32_t&, Arg const&) noexcept
+  QUILL_ATTRIBUTE_HOT static void encode(std::byte*&, std::vector<size_t> const&, uint32_t&, Arg const&) noexcept
   {
     static_assert(always_false_v<Arg>, "Unsupported type");
   }
@@ -202,7 +244,7 @@ struct Encoder
 template <typename Arg>
 struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_arithmetic<Arg>, std::is_enum<Arg>>>>
 {
-  QUILL_ALWAYS_INLINE_HOT static void encode(std::byte*& buffer, std::vector<size_t> const&, uint32_t&, Arg arg) noexcept
+  QUILL_ATTRIBUTE_HOT static void encode(std::byte*& buffer, std::vector<size_t> const&, uint32_t&, Arg arg) noexcept
   {
     std::memcpy(buffer, &arg, sizeof(arg));
     buffer += sizeof(arg);
@@ -213,10 +255,10 @@ struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_arithmetic<Arg>,
 template <typename Arg>
 struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, char*>, std::is_same<Arg, char const*>>>>
 {
-  QUILL_ALWAYS_INLINE_HOT static void encode(std::byte*& buffer,
-                                             std::vector<size_t> const& conditional_arg_size_cache,
-                                             uint32_t& conditional_arg_size_cache_index,
-                                             char const* arg) noexcept
+  QUILL_ATTRIBUTE_HOT static void encode(std::byte*& buffer,
+                                         std::vector<size_t> const& conditional_arg_size_cache,
+                                         uint32_t& conditional_arg_size_cache_index,
+                                         char const* arg) noexcept
   {
     // null terminator is included in the len for c style strings
     size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
@@ -229,7 +271,7 @@ struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, char*>
 template <typename Arg>
 struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::string>, std::is_same<Arg, std::string_view>>>>
 {
-  QUILL_ALWAYS_INLINE_HOT static void encode(std::byte*& buffer, std::vector<size_t> const&, uint32_t&, Arg const& arg) noexcept
+  QUILL_ATTRIBUTE_HOT static void encode(std::byte*& buffer, std::vector<size_t> const&, uint32_t&, Arg const& arg) noexcept
   {
     // for std::string we store the size first, in order to correctly retrieve it
     // Copy the length first and then the actual string
@@ -250,10 +292,10 @@ struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::s
 template <size_t N>
 struct Encoder<char[N]>
 {
-  QUILL_ALWAYS_INLINE_HOT static void encode(std::byte*& buffer,
-                                             std::vector<size_t> const& conditional_arg_size_cache,
-                                             uint32_t& conditional_arg_size_cache_index,
-                                             char const (&arg)[N]) noexcept
+  QUILL_ATTRIBUTE_HOT static void encode(std::byte*& buffer,
+                                         std::vector<size_t> const& conditional_arg_size_cache,
+                                         uint32_t& conditional_arg_size_cache_index,
+                                         char const (&arg)[N]) noexcept
   {
     size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
 
@@ -278,23 +320,20 @@ struct Encoder<char[N]>
 template <typename Arg>
 struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>>>
 {
-  QUILL_ALWAYS_INLINE_HOT static void encode(std::byte*& buffer,
-                                             std::vector<size_t> const& conditional_arg_size_cache,
-                                             uint32_t& conditional_arg_size_cache_index,
-                                             wchar_t const* arg) noexcept
+  QUILL_ATTRIBUTE_HOT static void encode(std::byte*& buffer,
+                                         std::vector<size_t> const& conditional_arg_size_cache,
+                                         uint32_t& conditional_arg_size_cache_index,
+                                         wchar_t const* arg) noexcept
   {
-    size_t const total_len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
-    size_t const str_len = total_len - 1; // excluding the zero termination
+    // The wide string size in bytes
+    size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
+    std::memcpy(buffer, &len, sizeof(len));
+    buffer += sizeof(len);
 
-    if (str_len != 0)
-    {
-      wide_string_to_narrow(buffer, str_len, std::wstring_view{arg, wcslen(arg)});
-      buffer += str_len;
-    }
-
-    constexpr char zero_term = '\0';
-    std::memcpy(buffer, &zero_term, sizeof(zero_term));
-    buffer += sizeof(zero_term);
+    // copy the string including the null terminator
+    size_t const size_in_bytes = (len + 1) * sizeof(wchar_t);
+    std::memcpy(buffer, arg, size_in_bytes);
+    buffer += size_in_bytes;
   }
 };
 
@@ -302,21 +341,24 @@ struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, wchar_
 template <typename Arg>
 struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>>>
 {
-  QUILL_ALWAYS_INLINE_HOT static void encode(std::byte*& buffer,
-                                             std::vector<size_t> const& conditional_arg_size_cache,
-                                             uint32_t& conditional_arg_size_cache_index,
-                                             Arg const& arg) noexcept
+  QUILL_ATTRIBUTE_HOT static void encode(std::byte*& buffer,
+                                         std::vector<size_t> const& conditional_arg_size_cache,
+                                         uint32_t& conditional_arg_size_cache_index,
+                                         Arg const& arg) noexcept
   {
-    // for std::wstring we store the size first, in order to correctly retrieve it
+    // The wide string size in bytes
     size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
     std::memcpy(buffer, &len, sizeof(len));
+    buffer += sizeof(len);
 
     if (len != 0)
     {
-      wide_string_to_narrow(buffer + sizeof(size_t), len, arg);
+      // copy the string, no need to zero terminate it as we got the length and e.g a wstring_view
+      // might not always be zero terminated
+      size_t const size_in_bytes = len * sizeof(wchar_t);
+      std::memcpy(buffer, arg.data(), size_in_bytes);
+      buffer += size_in_bytes;
     }
-
-    buffer += sizeof(size_t) + len;
   }
 };
 #endif
@@ -328,9 +370,9 @@ struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::w
  * @param args The arguments to be encoded.
  */
 template <typename... Args>
-QUILL_ALWAYS_INLINE_HOT void encode(std::byte*& buffer,
-                                    std::vector<size_t> const& conditional_arg_size_cache,
-                                    Args const&... args) noexcept
+QUILL_ATTRIBUTE_HOT void encode(std::byte*& buffer,
+                                std::vector<size_t> const& conditional_arg_size_cache,
+                                Args const&... args) noexcept
 {
   QUILL_MAYBE_UNUSED uint32_t conditional_arg_size_cache_index{0};
   (Encoder<Args>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, args), ...);
@@ -433,18 +475,26 @@ struct Decoder<char[N]>
 template <typename Arg>
 struct Decoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>>>
 {
-  static char const* decode(std::byte*& buffer,
-                            fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static std::wstring_view decode(std::byte*& buffer,
+                                  fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
   {
-    char const* str = reinterpret_cast<char const*>(buffer);
-    buffer += strlen(str) + 1; // include the zero terminator
+    // we first need to retrieve the length
+    size_t len;
+    std::memcpy(&len, buffer, sizeof(len));
+    buffer += sizeof(len);
+
+    std::wstring_view wstr{reinterpret_cast<wchar_t const*>(buffer), len};
 
     if (args_store)
     {
-      args_store->push_back(str);
+      std::string str = utf8_encode(buffer, len);
+      args_store->push_back(static_cast<std::string&&>(str));
     }
 
-    return str;
+    // For wchar_t* we also copy the null terminator
+    size_t const size_bytes = (len + 1) * sizeof(wchar_t);
+    buffer += size_bytes;
+    return wstr;
   }
 };
 
@@ -452,23 +502,25 @@ struct Decoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, wchar_
 template <typename Arg>
 struct Decoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>>>
 {
-  static std::string_view decode(std::byte*& buffer,
-                                 fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static std::wstring_view decode(std::byte*& buffer,
+                                  fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
   {
-    // for std::wstring we first need to retrieve the length
+    // we first need to retrieve the length
     size_t len;
     std::memcpy(&len, buffer, sizeof(len));
+    buffer += sizeof(len);
 
-    char const* str = reinterpret_cast<char const*>(buffer + sizeof(size_t));
-    std::string_view v{str, len};
-    buffer += sizeof(len) + v.length();
+    std::wstring_view wstr{reinterpret_cast<wchar_t const*>(buffer), len};
 
     if (args_store)
     {
-      args_store->push_back(v);
+      std::string str = utf8_encode(buffer, len);
+      args_store->push_back(static_cast<std::string&&>(str));
     }
 
-    return v;
+    size_t const size_bytes = len * sizeof(wchar_t);
+    buffer += size_bytes;
+    return wstr;
   }
 };
 #endif

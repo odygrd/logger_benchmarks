@@ -70,7 +70,7 @@ class BoundedSPSCQueueImpl
 public:
   using integer_type = T;
 
-  QUILL_ALWAYS_INLINE explicit BoundedSPSCQueueImpl(integer_type capacity,
+  QUILL_ATTRIBUTE_HOT explicit BoundedSPSCQueueImpl(integer_type capacity,
                                                     bool huges_pages_enabled = false,
                                                     integer_type reader_store_percent = 5)
     : _capacity(next_power_of_2(capacity)),
@@ -115,7 +115,7 @@ public:
   BoundedSPSCQueueImpl(BoundedSPSCQueueImpl const&) = delete;
   BoundedSPSCQueueImpl& operator=(BoundedSPSCQueueImpl const&) = delete;
 
-  QUILL_NODISCARD_ALWAYS_INLINE_HOT std::byte* prepare_write(integer_type n) noexcept
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::byte* prepare_write(integer_type n) noexcept
   {
     if ((_capacity - static_cast<integer_type>(_writer_pos - _reader_pos_cache)) < n)
     {
@@ -131,9 +131,9 @@ public:
     return _storage + (_writer_pos & _mask);
   }
 
-  QUILL_ALWAYS_INLINE_HOT void finish_write(integer_type n) noexcept { _writer_pos += n; }
+  QUILL_ATTRIBUTE_HOT void finish_write(integer_type n) noexcept { _writer_pos += n; }
 
-  QUILL_ALWAYS_INLINE_HOT void commit_write() noexcept
+  QUILL_ATTRIBUTE_HOT void commit_write() noexcept
   {
     // set the atomic flag so the reader can see write
     _atomic_writer_pos.store(_writer_pos, std::memory_order_release);
@@ -148,7 +148,7 @@ public:
 #endif
   }
 
-  QUILL_NODISCARD_ALWAYS_INLINE_HOT std::byte* prepare_read() noexcept
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::byte* prepare_read() noexcept
   {
     if (_writer_pos_cache == _reader_pos)
     {
@@ -163,9 +163,9 @@ public:
     return _storage + (_reader_pos & _mask);
   }
 
-  QUILL_ALWAYS_INLINE_HOT void finish_read(integer_type n) noexcept { _reader_pos += n; }
+  QUILL_ATTRIBUTE_HOT void finish_read(integer_type n) noexcept { _reader_pos += n; }
 
-  QUILL_ALWAYS_INLINE_HOT void commit_read() noexcept
+  QUILL_ATTRIBUTE_HOT void commit_read() noexcept
   {
     if (static_cast<integer_type>(_reader_pos - _atomic_reader_pos.load(std::memory_order_relaxed)) >= _bytes_per_batch)
     {
@@ -195,7 +195,7 @@ public:
 
 private:
 #if defined(QUILL_X86ARCH)
-  QUILL_ALWAYS_INLINE_HOT void _flush_cachelines(integer_type& last, integer_type offset)
+  QUILL_ATTRIBUTE_HOT void _flush_cachelines(integer_type& last, integer_type offset)
   {
     integer_type last_diff = last - (last & CACHELINE_MASK);
     integer_type const cur_diff = offset - (offset & CACHELINE_MASK);

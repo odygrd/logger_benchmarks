@@ -16,6 +16,10 @@
 #include <optional>
 #include <vector>
 
+#if defined(_WIN32)
+  #include <string>
+#endif
+
 namespace quill::detail
 {
 /***/
@@ -57,7 +61,13 @@ struct Encoder<std::optional<T>>
 
 /***/
 template <typename T>
+#if defined(_WIN32)
+struct Decoder<std::optional<T>,
+               std::enable_if_t<std::negation_v<
+                 std::disjunction<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>
+#else
 struct Decoder<std::optional<T>>
+#endif
 {
   static std::optional<T> decode(std::byte*& buffer,
                                  fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
@@ -78,4 +88,34 @@ struct Decoder<std::optional<T>>
     return arg;
   }
 };
+
+#if defined(_WIN32)
+/***/
+template <typename T>
+struct Decoder<std::optional<T>,
+               std::enable_if_t<std::disjunction_v<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>
+{
+  /**
+   * Chaining stl types not supported for wstrings so we do not return anything
+   */
+  static void decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  {
+    if (args_store)
+    {
+      std::string encoded_value{"none"};
+
+      bool const has_value = Decoder<bool>::decode(buffer, nullptr);
+      if (has_value)
+      {
+        std::wstring_view arg = Decoder<T>::decode(buffer, nullptr);
+        encoded_value = "optional(\"";
+        encoded_value += utf8_encode(arg);
+        encoded_value += "\")";
+      }
+
+      args_store->push_back(encoded_value);
+    }
+  }
+};
+#endif
 } // namespace quill::detail

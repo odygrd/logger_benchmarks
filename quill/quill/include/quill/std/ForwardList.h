@@ -16,6 +16,10 @@
 #include <forward_list>
 #include <vector>
 
+#if defined(_WIN32)
+  #include <string>
+#endif
+
 namespace quill::detail
 {
 /***/
@@ -69,7 +73,13 @@ struct Encoder<std::forward_list<T, Allocator>>
 
 /***/
 template <typename T, typename Allocator>
+#if defined(_WIN32)
+struct Decoder<std::forward_list<T, Allocator>,
+               std::enable_if_t<std::negation_v<
+                 std::disjunction<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>
+#else
 struct Decoder<std::forward_list<T, Allocator>>
+#endif
 {
   static std::forward_list<T, Allocator> decode(std::byte*& buffer,
                                                 fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
@@ -104,4 +114,35 @@ struct Decoder<std::forward_list<T, Allocator>>
     return arg;
   }
 };
+
+#if defined(_WIN32)
+/***/
+template <typename T, typename Allocator>
+struct Decoder<std::forward_list<T, Allocator>,
+               std::enable_if_t<std::disjunction_v<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>
+{
+  /**
+   * Chaining stl types not supported for wstrings so we do not return anything
+   */
+  static void decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  {
+    if (args_store)
+    {
+      // Read the size of the vector
+      size_t const number_of_elements = Decoder<size_t>::decode(buffer, nullptr);
+
+      std::vector<std::string> encoded_values;
+      encoded_values.reserve(number_of_elements);
+
+      for (size_t i = 0; i < number_of_elements; ++i)
+      {
+        std::wstring_view v = Decoder<T>::decode(buffer, nullptr);
+        encoded_values.emplace_back(utf8_encode(v));
+      }
+
+      args_store->push_back(encoded_values);
+    }
+  }
+};
+#endif
 } // namespace quill::detail

@@ -17,6 +17,10 @@
 #include <type_traits>
 #include <vector>
 
+#if defined(_WIN32)
+  #include <string>
+#endif
+
 namespace quill::detail
 {
 /***/
@@ -65,7 +69,13 @@ struct Encoder<std::array<T, N>>
 
 /***/
 template <typename T, size_t N>
+#if defined(_WIN32)
+struct Decoder<std::array<T, N>,
+               std::enable_if_t<std::negation_v<
+                 std::disjunction<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>
+#else
 struct Decoder<std::array<T, N>>
+#endif
 {
   static std::array<T, N> decode(std::byte*& buffer,
                                  fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
@@ -85,4 +95,32 @@ struct Decoder<std::array<T, N>>
     return arg;
   }
 };
+
+#if defined(_WIN32)
+/***/
+template <typename T, size_t N>
+struct Decoder<std::array<T, N>,
+               std::enable_if_t<std::disjunction_v<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>
+{
+  /**
+   * Chaining stl types not supported for wstrings so we do not return anything
+   */
+  static void decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  {
+    if (args_store)
+    {
+      std::vector<std::string> encoded_values;
+      encoded_values.reserve(N);
+
+      for (size_t i = 0; i < N; ++i)
+      {
+        std::wstring_view v = Decoder<T>::decode(buffer, nullptr);
+        encoded_values.emplace_back(utf8_encode(v));
+      }
+
+      args_store->push_back(encoded_values);
+    }
+  }
+};
+#endif
 } // namespace quill::detail

@@ -76,9 +76,18 @@ struct Encoder<SetType<Key, Compare, Allocator>,
 
 /***/
 template <template <typename...> class SetType, typename Key, typename Compare, typename Allocator>
+#if defined(_WIN32)
+struct Decoder<
+  SetType<Key, Compare, Allocator>,
+  std::enable_if_t<std::conjunction_v<
+    std::disjunction<std::is_same<SetType<Key, Compare, Allocator>, std::set<Key, Compare, Allocator>>,
+                     std::is_same<SetType<Key, Compare, Allocator>, std::multiset<Key, Compare, Allocator>>>,
+    std::negation<std::disjunction<std::is_same<Key, wchar_t*>, std::is_same<Key, wchar_t const*>, std::is_same<Key, std::wstring>, std::is_same<Key, std::wstring_view>>>>>>
+#else
 struct Decoder<SetType<Key, Compare, Allocator>,
                std::enable_if_t<std::disjunction_v<std::is_same<SetType<Key, Compare, Allocator>, std::set<Key, Compare, Allocator>>,
                                                    std::is_same<SetType<Key, Compare, Allocator>, std::multiset<Key, Compare, Allocator>>>>>
+#endif
 {
   static SetType<Key, Compare, Allocator> decode(std::byte*& buffer,
                                                  fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
@@ -101,4 +110,39 @@ struct Decoder<SetType<Key, Compare, Allocator>,
     return arg;
   }
 };
+
+#if defined(_WIN32)
+/***/
+template <template <typename...> class SetType, typename Key, typename Compare, typename Allocator>
+struct Decoder<
+  SetType<Key, Compare, Allocator>,
+  std::enable_if_t<std::conjunction_v<
+    std::disjunction<std::is_same<SetType<Key, Compare, Allocator>, std::set<Key, Compare, Allocator>>,
+                     std::is_same<SetType<Key, Compare, Allocator>, std::multiset<Key, Compare, Allocator>>>,
+    std::disjunction<std::is_same<Key, wchar_t*>, std::is_same<Key, wchar_t const*>, std::is_same<Key, std::wstring>, std::is_same<Key, std::wstring_view>>>>>
+{
+  /**
+   * Chaining stl types not supported for wstrings so we do not return anything
+   */
+  static void decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  {
+    if (args_store)
+    {
+      // Read the size of the vector
+      size_t const number_of_elements = Decoder<size_t>::decode(buffer, nullptr);
+
+      std::vector<std::string> encoded_values;
+      encoded_values.reserve(number_of_elements);
+
+      for (size_t i = 0; i < number_of_elements; ++i)
+      {
+        std::wstring_view v = Decoder<Key>::decode(buffer, nullptr);
+        encoded_values.emplace_back(utf8_encode(v));
+      }
+
+      args_store->push_back(encoded_values);
+    }
+  }
+};
+#endif
 } // namespace quill::detail

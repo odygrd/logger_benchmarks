@@ -651,32 +651,126 @@ private:
     // we need to check and do not try to format the flush events as that wouldn't be valid
     if (transit_event->macro_metadata->event() != MacroMetadata::Event::Flush)
     {
-#if defined(_WIN32)
-      if (transit_event->macro_metadata->is_wide_char_format())
+      // lib fmt style logs
+      auto format_args_decoder = reinterpret_cast<detail::FormatArgsDecoder>(transit_event->format_args_decoder);
+      assert(format_args_decoder);
+
+      if (transit_event->macro_metadata->is_structured_log_template())
       {
-        // convert the format string to a narrow string
-        size_t const size_needed =
-          get_wide_string_encoding_size(transit_event->macro_metadata->wmessage_format());
+        if (!transit_event->structured_kvs)
+        {
+          transit_event->structured_kvs =
+            std::make_unique<std::vector<std::pair<std::string, std::string>>>();
+        }
+        else
+        {
+          transit_event->structured_kvs->clear();
+        }
 
-        std::string format_str(size_needed, 0);
-        wide_string_to_narrow(format_str.data(), size_needed, transit_event->macro_metadata->wmessage_format());
+        // using the message_format as key for lookups
+        _structured_fmt_str.assign(transit_event->macro_metadata->message_format());
 
-        assert(!transit_event->macro_metadata->is_structured_log_template() &&
-               "structured log templates are not supported for wide characters");
+        // for messages containing named arguments threat them as structured logs
+        if (auto const search = _structured_log_templates.find(_structured_fmt_str);
+            search != std::cend(_structured_log_templates))
+        {
+          // process structured log that structured keys exist in our map
+          auto const& [fmt_str, structured_keys] = search->second;
 
-        auto format_args_decoder =
-          reinterpret_cast<detail::FormatArgsDecoder>(transit_event->format_args_decoder);
-        assert(format_args_decoder);
+          transit_event->structured_kvs->resize(structured_keys.size());
 
+          // We first populate the structured keys in the transit buffer
+          for (size_t i = 0; i < structured_keys.size(); ++i)
+          {
+            (*transit_event->structured_kvs)[i].first = structured_keys[i];
+          }
+
+          format_args_decoder(read_pos, _format_args_store);
+
+          transit_event->formatted_msg.clear();
+
+          QUILL_TRY
+          {
+            fmtquill::vformat_to(std::back_inserter(transit_event->formatted_msg), fmt_str, _format_args_store);
+
+            // format the values of each key
+            _format_and_split_arguments(*transit_event->structured_kvs, _format_args_store);
+          }
+#if !defined(QUILL_NO_EXCEPTIONS)
+          QUILL_CATCH(std::exception const& e)
+          {
+            transit_event->formatted_msg.clear();
+            std::string const error = fmtquill::format(
+              "[Could not format log statement. message: \"{}\", location: \"{}\", error: "
+              "\"{}\"]",
+              transit_event->macro_metadata->message_format(),
+              transit_event->macro_metadata->short_source_location(), e.what());
+
+            transit_event->formatted_msg.append(error);
+            _backend_options.error_notifier(error);
+          }
+#endif
+        }
+        else
+        {
+          // process structured log that structured keys are processed for the first time
+          // parse structured keys and stored them to our lookup map
+          auto const [res_it, inserted] = _structured_log_templates.try_emplace(
+            _structured_fmt_str,
+            _process_structured_log_template(transit_event->macro_metadata->message_format()));
+
+          // suppress unused warning
+          (void)inserted;
+
+          auto const& [fmt_str, structured_keys] = res_it->second;
+
+          transit_event->structured_kvs->resize(structured_keys.size());
+
+          // We first populate the structured keys in the transit buffer
+          for (size_t i = 0; i < structured_keys.size(); ++i)
+          {
+            (*transit_event->structured_kvs)[i].first = structured_keys[i];
+          }
+
+          format_args_decoder(read_pos, _format_args_store);
+
+          transit_event->formatted_msg.clear();
+
+          QUILL_TRY
+          {
+            fmtquill::vformat_to(std::back_inserter(transit_event->formatted_msg), fmt_str, _format_args_store);
+
+            // format the values of each key
+            _format_and_split_arguments(*transit_event->structured_kvs, _format_args_store);
+          }
+#if !defined(QUILL_NO_EXCEPTIONS)
+          QUILL_CATCH(std::exception const& e)
+          {
+            transit_event->formatted_msg.clear();
+            std::string const error = fmtquill::format(
+              "[Could not format log statement. message: \"{}\", location: \"{}\", error: "
+              "\"{}\"]",
+              transit_event->macro_metadata->message_format(),
+              transit_event->macro_metadata->short_source_location(), e.what());
+
+            transit_event->formatted_msg.append(error);
+            _backend_options.error_notifier(error);
+          }
+#endif
+        }
+      }
+      else
+      {
         format_args_decoder(read_pos, _format_args_store);
 
         transit_event->formatted_msg.clear();
 
         QUILL_TRY
         {
-          fmtquill::vformat_to(std::back_inserter(transit_event->formatted_msg), format_str, _format_args_store);
+          fmtquill::vformat_to(std::back_inserter(transit_event->formatted_msg),
+                               transit_event->macro_metadata->message_format(), _format_args_store);
         }
-  #if !defined(QUILL_NO_EXCEPTIONS)
+#if !defined(QUILL_NO_EXCEPTIONS)
         QUILL_CATCH(std::exception const& e)
         {
           transit_event->formatted_msg.clear();
@@ -688,167 +782,27 @@ private:
           transit_event->formatted_msg.append(error);
           _backend_options.error_notifier(error);
         }
-  #endif
+#endif
+      }
+
+      if (transit_event->macro_metadata->log_level() == LogLevel::Dynamic)
+      {
+        // if this is a dynamic log level we need to read the log level from the buffer
+        LogLevel dynamic_log_level;
+        std::memcpy(&dynamic_log_level, read_pos, sizeof(dynamic_log_level));
+        read_pos += sizeof(LogLevel);
+
+        // Also set the dynamic log level to the transit event
+        transit_event->log_level_override = dynamic_log_level;
       }
       else
       {
-#endif
-        // lib fmt style logs
-        auto format_args_decoder =
-          reinterpret_cast<detail::FormatArgsDecoder>(transit_event->format_args_decoder);
-        assert(format_args_decoder);
-
-        if (transit_event->macro_metadata->is_structured_log_template())
-        {
-          if (!transit_event->structured_kvs)
-          {
-            transit_event->structured_kvs =
-              std::make_unique<std::vector<std::pair<std::string, std::string>>>();
-          }
-          else
-          {
-            transit_event->structured_kvs->clear();
-          }
-
-          // using the message_format as key for lookups
-          _structured_fmt_str.assign(transit_event->macro_metadata->message_format());
-
-          // for messages containing named arguments threat them as structured logs
-          if (auto const search = _structured_log_templates.find(_structured_fmt_str);
-              search != std::cend(_structured_log_templates))
-          {
-            // process structured log that structured keys exist in our map
-            auto const& [fmt_str, structured_keys] = search->second;
-
-            transit_event->structured_kvs->resize(structured_keys.size());
-
-            // We first populate the structured keys in the transit buffer
-            for (size_t i = 0; i < structured_keys.size(); ++i)
-            {
-              (*transit_event->structured_kvs)[i].first = structured_keys[i];
-            }
-
-            format_args_decoder(read_pos, _format_args_store);
-
-            transit_event->formatted_msg.clear();
-
-            QUILL_TRY
-            {
-              fmtquill::vformat_to(std::back_inserter(transit_event->formatted_msg), fmt_str, _format_args_store);
-
-              // format the values of each key
-              _format_and_split_arguments(*transit_event->structured_kvs, _format_args_store);
-            }
-#if !defined(QUILL_NO_EXCEPTIONS)
-            QUILL_CATCH(std::exception const& e)
-            {
-              transit_event->formatted_msg.clear();
-              std::string const error = fmtquill::format(
-                "[Could not format log statement. message: \"{}\", location: \"{}\", error: "
-                "\"{}\"]",
-                transit_event->macro_metadata->message_format(),
-                transit_event->macro_metadata->short_source_location(), e.what());
-
-              transit_event->formatted_msg.append(error);
-              _backend_options.error_notifier(error);
-            }
-#endif
-          }
-          else
-          {
-            // process structured log that structured keys are processed for the first time
-            // parse structured keys and stored them to our lookup map
-            auto const [res_it, inserted] = _structured_log_templates.try_emplace(
-              _structured_fmt_str,
-              _process_structured_log_template(transit_event->macro_metadata->message_format()));
-
-            // suppress unused warning
-            (void)inserted;
-
-            auto const& [fmt_str, structured_keys] = res_it->second;
-
-            transit_event->structured_kvs->resize(structured_keys.size());
-
-            // We first populate the structured keys in the transit buffer
-            for (size_t i = 0; i < structured_keys.size(); ++i)
-            {
-              (*transit_event->structured_kvs)[i].first = structured_keys[i];
-            }
-
-            format_args_decoder(read_pos, _format_args_store);
-
-            transit_event->formatted_msg.clear();
-
-            QUILL_TRY
-            {
-              fmtquill::vformat_to(std::back_inserter(transit_event->formatted_msg), fmt_str, _format_args_store);
-
-              // format the values of each key
-              _format_and_split_arguments(*transit_event->structured_kvs, _format_args_store);
-            }
-#if !defined(QUILL_NO_EXCEPTIONS)
-            QUILL_CATCH(std::exception const& e)
-            {
-              transit_event->formatted_msg.clear();
-              std::string const error = fmtquill::format(
-                "[Could not format log statement. message: \"{}\", location: \"{}\", error: "
-                "\"{}\"]",
-                transit_event->macro_metadata->message_format(),
-                transit_event->macro_metadata->short_source_location(), e.what());
-
-              transit_event->formatted_msg.append(error);
-              _backend_options.error_notifier(error);
-            }
-#endif
-          }
-        }
-        else
-        {
-          format_args_decoder(read_pos, _format_args_store);
-
-          transit_event->formatted_msg.clear();
-
-          QUILL_TRY
-          {
-            fmtquill::vformat_to(std::back_inserter(transit_event->formatted_msg),
-                                 transit_event->macro_metadata->message_format(), _format_args_store);
-          }
-#if !defined(QUILL_NO_EXCEPTIONS)
-          QUILL_CATCH(std::exception const& e)
-          {
-            transit_event->formatted_msg.clear();
-            std::string const error = fmtquill::format(
-              "[Could not format log statement. message: \"{}\", location: \"{}\", error: \"{}\"]",
-              transit_event->macro_metadata->message_format(),
-              transit_event->macro_metadata->short_source_location(), e.what());
-
-            transit_event->formatted_msg.append(error);
-            _backend_options.error_notifier(error);
-          }
-#endif
-        }
-
-        if (transit_event->macro_metadata->log_level() == LogLevel::Dynamic)
-        {
-          // if this is a dynamic log level we need to read the log level from the buffer
-          LogLevel dynamic_log_level;
-          std::memcpy(&dynamic_log_level, read_pos, sizeof(dynamic_log_level));
-          read_pos += sizeof(LogLevel);
-
-          // Also set the dynamic log level to the transit event
-          transit_event->log_level_override = dynamic_log_level;
-        }
-        else
-        {
-          // Important: if a dynamic log level is not being used, then this must
-          // not have a value, otherwise the wrong log level may be used later.
-          // We can't assume that this member (or any member of TransitEvent) has
-          // its default value because TransitEvents may be reused.
-          transit_event->log_level_override = std::nullopt;
-        }
-#if defined(_WIN32)
+        // Important: if a dynamic log level is not being used, then this must
+        // not have a value, otherwise the wrong log level may be used later.
+        // We can't assume that this member (or any member of TransitEvent) has
+        // its default value because TransitEvents may be reused.
+        transit_event->log_level_override = std::nullopt;
       }
-#endif
     }
     else
     {

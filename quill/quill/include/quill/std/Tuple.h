@@ -62,8 +62,7 @@ struct Encoder<std::tuple<Types...>>
 template <typename... Types>
 struct Decoder<std::tuple<Types...>>
 {
-  static std::tuple<Types...> decode(std::byte*& buffer,
-                                     fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static auto decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
   {
     std::tuple<Types...> arg{};
 
