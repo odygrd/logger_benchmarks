@@ -23,11 +23,8 @@
 #include <type_traits>
 #include <vector>
 
-namespace quill
+namespace quill::detail
 {
-namespace detail
-{
-
 /** Forward Declarations **/
 class UnboundedTransitEventBuffer;
 class BackendWorker;
@@ -85,9 +82,8 @@ public:
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT
     std::conditional_t<(queue_type == QueueType::UnboundedBlocking) || (queue_type == QueueType::UnboundedUnlimited) ||
                          (queue_type == QueueType::UnboundedDropping),
-                       UnboundedSPSCQueue,
-                       BoundedSPSCQueue>&
-    get_spsc_queue() noexcept
+                                                       UnboundedSPSCQueue, BoundedSPSCQueue>&
+  get_spsc_queue() noexcept
   {
     if constexpr ((queue_type == QueueType::UnboundedBlocking) ||
                   (queue_type == QueueType::UnboundedUnlimited) || (queue_type == QueueType::UnboundedDropping))
@@ -105,9 +101,8 @@ public:
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT
     std::conditional_t<(queue_type == QueueType::UnboundedBlocking) || (queue_type == QueueType::UnboundedUnlimited) ||
                          (queue_type == QueueType::UnboundedDropping),
-                       UnboundedSPSCQueue,
-                       BoundedSPSCQueue> const&
-    get_spsc_queue() const noexcept
+                                                       UnboundedSPSCQueue, BoundedSPSCQueue> const&
+  get_spsc_queue() const noexcept
   {
     if constexpr ((queue_type == QueueType::UnboundedBlocking) ||
                   (queue_type == QueueType::UnboundedUnlimited) || (queue_type == QueueType::UnboundedDropping))
@@ -384,5 +379,4 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT extern ThreadContext* get_local_thread_conte
 
   return scoped_thread_context.get_thread_context();
 }
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

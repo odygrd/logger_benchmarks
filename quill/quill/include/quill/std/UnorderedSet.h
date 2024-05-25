@@ -6,8 +6,8 @@
 #pragma once
 
 #include "quill/core/Codec.h"
+#include "quill/core/DynamicFormatArgStore.h"
 
-#include "quill/bundled/fmt/args.h"
 #include "quill/bundled/fmt/core.h"
 #include "quill/bundled/fmt/ranges.h"
 
@@ -60,8 +60,7 @@ struct Encoder<UnorderedSetType<Key, Hash, KeyEqual, Allocator>,
                  std::is_same<UnorderedSetType<Key, Hash, KeyEqual, Allocator>, std::unordered_set<Key, Hash, KeyEqual, Allocator>>,
                  std::is_same<UnorderedSetType<Key, Hash, KeyEqual, Allocator>, std::unordered_multiset<Key, Hash, KeyEqual, Allocator>>>>>
 {
-  static void encode(std::byte*& buffer,
-                     std::vector<size_t> const& conditional_arg_size_cache,
+  static void encode(std::byte*& buffer, std::vector<size_t> const& conditional_arg_size_cache,
                      uint32_t& conditional_arg_size_cache_index,
                      UnorderedSetType<Key, Hash, KeyEqual, Allocator> const& arg) noexcept
   {
@@ -91,9 +90,7 @@ struct Decoder<UnorderedSetType<Key, Hash, KeyEqual, Allocator>,
                  std::is_same<UnorderedSetType<Key, Hash, KeyEqual, Allocator>, std::unordered_multiset<Key, Hash, KeyEqual, Allocator>>>>>
 #endif
 {
-  static UnorderedSetType<Key, Hash, KeyEqual, Allocator> decode(
-    std::byte*& buffer,
-    fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static UnorderedSetType<Key, Hash, KeyEqual, Allocator> decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
   {
     UnorderedSetType<Key, Hash, KeyEqual, Allocator> arg;
 
@@ -128,7 +125,7 @@ struct Decoder<
   /**
    * Chaining stl types not supported for wstrings so we do not return anything
    */
-  static auto decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static auto decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
   {
     if (args_store)
     {

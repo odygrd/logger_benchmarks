@@ -6,8 +6,8 @@
 #pragma once
 
 #include "quill/core/Codec.h"
+#include "quill/core/DynamicFormatArgStore.h"
 
-#include "quill/bundled/fmt/args.h"
 #include "quill/bundled/fmt/core.h"
 #include "quill/bundled/fmt/ranges.h"
 
@@ -57,10 +57,8 @@ struct ArgSizeCalculator<std::deque<T, Allocator>>
 template <typename T, typename Allocator>
 struct Encoder<std::deque<T, Allocator>>
 {
-  static void encode(std::byte*& buffer,
-                     std::vector<size_t> const& conditional_arg_size_cache,
-                     uint32_t& conditional_arg_size_cache_index,
-                     std::deque<T, Allocator> const& arg) noexcept
+  static void encode(std::byte*& buffer, std::vector<size_t> const& conditional_arg_size_cache,
+                     uint32_t& conditional_arg_size_cache_index, std::deque<T, Allocator> const& arg) noexcept
   {
     Encoder<size_t>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index,
                             arg.size());
@@ -76,14 +74,13 @@ struct Encoder<std::deque<T, Allocator>>
 template <typename T, typename Allocator>
 #if defined(_WIN32)
 struct Decoder<std::deque<T, Allocator>,
-               std::enable_if_t<std::negation_v<
-                 std::disjunction<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>
+               std::enable_if_t<std::negation_v<std::disjunction<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
+                                                                 std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>
 #else
 struct Decoder<std::deque<T, Allocator>>
 #endif
 {
-  static std::deque<T, Allocator> decode(std::byte*& buffer,
-                                         fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static std::deque<T, Allocator> decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
   {
     std::deque<T, Allocator> arg;
 
@@ -109,12 +106,13 @@ struct Decoder<std::deque<T, Allocator>>
 /***/
 template <typename T, typename Allocator>
 struct Decoder<std::deque<T, Allocator>,
-               std::enable_if_t<std::disjunction_v<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>
+               std::enable_if_t<std::disjunction_v<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
+                                                   std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>
 {
   /**
    * Chaining stl types not supported for wstrings so we do not return anything
    */
-  static void decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static void decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
   {
     if (args_store)
     {

@@ -6,8 +6,8 @@
 #pragma once
 
 #include "quill/core/Codec.h"
+#include "quill/core/DynamicFormatArgStore.h"
 
-#include "quill/bundled/fmt/args.h"
 #include "quill/bundled/fmt/core.h"
 #include "quill/bundled/fmt/ranges.h"
 
@@ -42,10 +42,8 @@ struct ArgSizeCalculator<std::tuple<Types...>>
 template <typename... Types>
 struct Encoder<std::tuple<Types...>>
 {
-  static void encode(std::byte*& buffer,
-                     std::vector<size_t> const& conditional_arg_size_cache,
-                     uint32_t& conditional_arg_size_cache_index,
-                     std::tuple<Types...> const& arg) noexcept
+  static void encode(std::byte*& buffer, std::vector<size_t> const& conditional_arg_size_cache,
+                     uint32_t& conditional_arg_size_cache_index, std::tuple<Types...> const& arg) noexcept
   {
     std::apply(
       [&conditional_arg_size_cache, &conditional_arg_size_cache_index, &buffer](auto const&... elems)
@@ -62,7 +60,7 @@ struct Encoder<std::tuple<Types...>>
 template <typename... Types>
 struct Decoder<std::tuple<Types...>>
 {
-  static auto decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static auto decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
   {
     std::tuple<Types...> arg{};
 

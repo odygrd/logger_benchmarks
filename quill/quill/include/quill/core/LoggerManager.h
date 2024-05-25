@@ -91,13 +91,9 @@ public:
 
   /***/
   template <typename TLogger>
-  LoggerBase* create_or_get_logger(std::string const& logger_name,
-                                   std::shared_ptr<Sink> sink,
-                                   std::string const& format_pattern,
-                                   std::string const& time_pattern,
-                                   Timezone timestamp_timezone,
-                                   ClockSourceType clock_source,
-                                   UserClockSource* user_clock)
+  LoggerBase* create_or_get_logger(std::string const& logger_name, std::shared_ptr<Sink> sink, std::string const& format_pattern,
+                                                   std::string const& time_pattern, Timezone timestamp_timezone,
+                                                   ClockSourceType clock_source, UserClockSource* user_clock)
   {
     std::lock_guard<std::recursive_mutex> const lock{_mutex};
 
@@ -127,11 +123,9 @@ public:
   template <typename TLogger>
   LoggerBase* create_or_get_logger(std::string const& logger_name,
                                    std::initializer_list<std::shared_ptr<Sink>> sinks,
-                                   std::string const& format_pattern,
-                                   std::string const& time_pattern,
-                                   Timezone timestamp_timezone,
-                                   ClockSourceType clock_source,
-                                   UserClockSource* user_clock)
+                                                   std::string const& format_pattern,
+                                                   std::string const& time_pattern, Timezone timestamp_timezone,
+                                                   ClockSourceType clock_source, UserClockSource* user_clock)
   {
     std::lock_guard<std::recursive_mutex> const lock{_mutex};
 

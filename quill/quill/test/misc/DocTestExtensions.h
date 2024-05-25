@@ -3,9 +3,10 @@
 #include "doctest/doctest.h"
 #include "quill/core/Attributes.h"
 
+
+#include <iostream>
 #include <cstdio>
 #include <cstring>
-#include <iostream>
 #include <string>
 #include <string_view>
 

@@ -5,17 +5,12 @@
 
 #pragma once
 
+#include "quill/backend/BackendOptions.h"
 #include "quill/backend/BackendWorker.h"
 #include "quill/core/Attributes.h"
 
 #include <cstdint>
 #include <mutex>
-
-// Forward declaration
-namespace quill
-{
-struct BackendOptions;
-}
 
 namespace quill::detail
 {
@@ -59,10 +54,10 @@ public:
   }
 
   /***/
-  QUILL_ATTRIBUTE_COLD void notify_backend_thread() noexcept { _backend_worker.notify(); }
+  void notify_backend_thread() noexcept { _backend_worker.notify(); }
 
   /***/
-  QUILL_NODISCARD QUILL_ATTRIBUTE_COLD bool is_backend_thread_running() const noexcept
+  QUILL_NODISCARD bool is_backend_thread_running() const noexcept
   {
     return _backend_worker.is_running();
   }

@@ -257,8 +257,7 @@ public:
    * @param file_event_notifier file event notifier
    * @param start_time start time
    */
-  RotatingFileSink(fs::path const& filename,
-                   RotatingFileSinkConfig const& config,
+  RotatingFileSink(fs::path const& filename, RotatingFileSinkConfig const& config,
                    FileEventNotifier file_event_notifier = FileEventNotifier{},
                    std::chrono::system_clock::time_point start_time = std::chrono::system_clock::now())
     : FileSink(filename, static_cast<FileSinkConfig const&>(config), std::move(file_event_notifier), false),
@@ -301,22 +300,19 @@ public:
    * @param thread_name The name of the thread that generated the log message
    * @param logger_name The name of the logger
    * @param log_level The log level of the message
-   * @param structured_keys_values Structured key-value pairs associated with the log message
+   * @param named_args Structured key-value pairs associated with the log message
    * @param log_message The log message to write
    */
-  QUILL_ATTRIBUTE_HOT void write_log_message(MacroMetadata const* log_metadata,
-                                             uint64_t log_timestamp,
-                                             std::string_view thread_id,
-                                             std::string_view thread_name,
-                                             std::string_view logger_name,
-                                             LogLevel log_level,
-                                             std::vector<std::pair<std::string, std::string>> const* structured_keys_values,
+  QUILL_ATTRIBUTE_HOT void write_log_message(MacroMetadata const* log_metadata, uint64_t log_timestamp,
+                                             std::string_view thread_id, std::string_view thread_name,
+                                             std::string_view logger_name, LogLevel log_level,
+                                             std::vector<std::pair<std::string, std::string>> const* named_args,
                                              std::string_view log_message) override
   {
     if (is_null())
     {
       StreamSink::write_log_message(log_metadata, log_timestamp, thread_id, thread_name,
-                                    logger_name, log_level, structured_keys_values, log_message);
+                                    logger_name, log_level, named_args, log_message);
       return;
     }
 
@@ -336,7 +332,7 @@ public:
 
     // write to file
     StreamSink::write_log_message(log_metadata, log_timestamp, thread_id, thread_name, logger_name,
-                                  log_level, structured_keys_values, log_message);
+                                  log_level, named_args, log_message);
 
     _file_size += log_message.size();
   }
@@ -625,13 +621,13 @@ private:
   }
 
   /***/
-  QUILL_NODISCARD QUILL_ATTRIBUTE_COLD static size_t _get_file_size(fs::path const& filename)
+  QUILL_NODISCARD static size_t _get_file_size(fs::path const& filename)
   {
     return static_cast<size_t>(fs::file_size(filename));
   }
 
   /***/
-  QUILL_ATTRIBUTE_COLD static bool _remove_file(fs::path const& filename) noexcept
+  static bool _remove_file(fs::path const& filename) noexcept
   {
     std::error_code ec;
     fs::remove(filename, ec);
@@ -659,8 +655,7 @@ private:
   }
 
   /***/
-  QUILL_NODISCARD QUILL_ATTRIBUTE_COLD static fs::path _append_index_to_filename(fs::path const& filename,
-                                                                                 uint32_t index) noexcept
+  QUILL_NODISCARD static fs::path _append_index_to_filename(fs::path const& filename, uint32_t index) noexcept
   {
     if (index == 0u)
     {
@@ -673,8 +668,7 @@ private:
   }
 
   /***/
-  QUILL_NODISCARD QUILL_ATTRIBUTE_COLD static fs::path _append_string_to_filename(fs::path const& filename,
-                                                                                  std::string const& text) noexcept
+  QUILL_NODISCARD static fs::path _append_string_to_filename(fs::path const& filename, std::string const& text) noexcept
   {
     if (text.empty())
     {

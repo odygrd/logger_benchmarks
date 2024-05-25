@@ -14,6 +14,8 @@ function(quill_add_test TEST_NAME SOURCES)
     # Create a test executable
     add_executable(${TEST_NAME} "")
 
+    set_common_compile_options(${TEST_NAME})
+
     # Add sources
     target_sources(${TEST_NAME} PRIVATE ${SOURCES} ${HEADER_FILES})
 
@@ -42,6 +44,7 @@ endfunction()
 include(${PROJECT_SOURCE_DIR}/cmake/doctest.cmake)
 
 quill_add_test(TEST_BoundedQueueTest BoundedQueueTest.cpp)
+quill_add_test(TEST_DynamicFormatArgStore DynamicFormatArgStoreTest.cpp)
 quill_add_test(TEST_FileUtilities FileUtilitiesTest.cpp)
 quill_add_test(TEST_LoggerManager LoggerManagerTest.cpp)
 quill_add_test(TEST_Logger LoggerTest.cpp)

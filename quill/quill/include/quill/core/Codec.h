@@ -9,9 +9,10 @@
   #define __STDC_WANT_LIB_EXT1__ 1
 #endif
 
-#include "quill/bundled/fmt/args.h"
 #include "quill/bundled/fmt/core.h"
+
 #include "quill/core/Attributes.h"
+#include "quill/core/DynamicFormatArgStore.h"
 
 #include <cassert>
 #include <cstddef>
@@ -121,96 +122,62 @@ inline std::string utf8_encode(std::wstring_view str)
 template <typename Arg, typename = void>
 struct ArgSizeCalculator
 {
-  static size_t calculate(std::vector<size_t>&, Arg const&) noexcept
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT static size_t calculate(QUILL_MAYBE_UNUSED std::vector<size_t>& conditional_arg_size_cache,
+                                                              QUILL_MAYBE_UNUSED Arg const& arg) noexcept
   {
-    static_assert(always_false_v<Arg>, "Unsupported type");
-    return 0;
-  }
-};
-
-/***/
-template <typename Arg>
-struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_arithmetic<Arg>, std::is_enum<Arg>>>>
-{
-  QUILL_ATTRIBUTE_HOT static size_t calculate(std::vector<size_t>&, Arg) noexcept
-  {
-    return static_cast<size_t>(sizeof(Arg));
-  }
-};
-
-/***/
-template <typename Arg>
-struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, char*>, std::is_same<Arg, char const*>>>>
-{
-  QUILL_ATTRIBUTE_HOT static size_t calculate(std::vector<size_t>& conditional_arg_size_cache, char const* arg) noexcept
-  {
-    // include one extra for the zero termination
-    conditional_arg_size_cache.push_back(static_cast<size_t>(strlen(arg) + 1u));
-    return conditional_arg_size_cache.back();
-  }
-};
-
-/***/
-template <size_t N>
-struct ArgSizeCalculator<char[N]>
-{
-  QUILL_ATTRIBUTE_HOT static size_t calculate(std::vector<size_t>& conditional_arg_size_cache,
-                                              char const (&arg)[N]) noexcept
-  {
-    conditional_arg_size_cache.push_back(static_cast<size_t>(strnlen(arg, N) + 1u));
-    return conditional_arg_size_cache.back();
-  }
-};
-
-/***/
-template <typename Arg>
-struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::string>, std::is_same<Arg, std::string_view>>>>
-{
-  QUILL_ATTRIBUTE_HOT static size_t calculate(std::vector<size_t>&, Arg const& arg) noexcept
-  {
-    // for std::string we also need to store the size in order to correctly retrieve it
-    // the reason for this is that if we create e.g:
-    // std::string msg = fmtquill::format("{} {} {} {} {}", (char)0, (char)0, (char)0, (char)0,
-    // "sssssssssssssssssssssss"); then strlen(msg.data()) = 0 but msg.size() = 31
-    return static_cast<size_t>(sizeof(size_t) + arg.length());
-  }
-};
-
+    if constexpr (std::disjunction_v<std::is_arithmetic<Arg>, std::is_enum<Arg>>)
+    {
+      return sizeof(Arg);
+    }
+    else if constexpr (std::conjunction_v<std::is_array<Arg>, std::is_same<remove_cvref_t<std::remove_extent_t<Arg>>, char>>)
+    {
+      size_t constexpr N = std::extent_v<Arg>;
+      conditional_arg_size_cache.push_back(static_cast<size_t>(strnlen(arg, N) + 1u));
+      return conditional_arg_size_cache.back();
+    }
+    else if constexpr (std::disjunction_v<std::is_same<Arg, char*>, std::is_same<Arg, char const*>>)
+    {
+      // include one extra for the zero termination
+      conditional_arg_size_cache.push_back(static_cast<size_t>(strlen(arg) + 1u));
+      return conditional_arg_size_cache.back();
+    }
+    else if constexpr (std::disjunction_v<std::is_same<Arg, std::string>, std::is_same<Arg, std::string_view>>)
+    {
+      // for std::string we also need to store the size in order to correctly retrieve it
+      // the reason for this is that if we create e.g:
+      // std::string msg = fmtquill::format("{} {} {} {} {}", (char)0, (char)0, (char)0, (char)0,
+      // "sssssssssssssssssssssss"); then strlen(msg.data()) = 0 but msg.size() = 31
+      return sizeof(size_t) + arg.length();
+    }
 #if defined(_WIN32)
-/***/
-template <typename Arg>
-struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>>>
-{
-  QUILL_ATTRIBUTE_HOT static size_t calculate(std::vector<size_t>& conditional_arg_size_cache,
-                                              wchar_t const* arg) noexcept
-  {
-    // Calculate the size of the string in bytes
-    size_t const len = wcslen(arg);
-    conditional_arg_size_cache.push_back(len);
+    else if constexpr (std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>)
+    {
+      // Calculate the size of the string in bytes
+      size_t const len = wcslen(arg);
+      conditional_arg_size_cache.push_back(len);
 
-    // to be safe we also store the size of the string in the buffer as a separate variable
-    // we can retrieve it when we decode. We also store the null terminator in the buffer to
-    // be able to return the value as wchar_t*
-    return static_cast<size_t>(sizeof(size_t) + ((len + 1) * sizeof(wchar_t)));
-  }
-};
+      // to be safe we also store the size of the string in the buffer as a separate variable
+      // we can retrieve it when we decode. We also store the null terminator in the buffer to
+      // be able to return the value as wchar_t*
+      return static_cast<size_t>(sizeof(size_t) + ((len + 1u) * sizeof(wchar_t)));
+    }
+    else if constexpr (std::disjunction_v<std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>)
+    {
+      // Calculate the size of the string in bytes
+      size_t const len = arg.size();
+      conditional_arg_size_cache.push_back(len);
 
-/***/
-template <typename Arg>
-struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>>>
-{
-  QUILL_ATTRIBUTE_HOT static size_t calculate(std::vector<size_t>& conditional_arg_size_cache, Arg const& arg) noexcept
-  {
-    // Calculate the size of the string in bytes
-    size_t const len = arg.size();
-    conditional_arg_size_cache.push_back(len);
-
-    // to be safe we also store the size of the string in the buffer as a separate variable
-    // we can retrieve it when we decode. We do not store the null terminator in the buffer
-    return static_cast<size_t>(sizeof(size_t) + (len * sizeof(wchar_t)));
-  }
-};
+      // to be safe we also store the size of the string in the buffer as a separate variable
+      // we can retrieve it when we decode. We do not store the null terminator in the buffer
+      return static_cast<size_t>(sizeof(size_t) + (len * sizeof(wchar_t)));
+    }
 #endif
+    else
+    {
+      static_assert(always_false_v<Arg>, "Unsupported type");
+    }
+  }
+};
 
 /**
  * @brief Calculates the total size required to encode the provided arguments and populates the c_style_string_lengths array.
@@ -221,8 +188,7 @@ struct ArgSizeCalculator<Arg, std::enable_if_t<std::disjunction_v<std::is_same<A
  */
 template <typename... Args>
 QUILL_NODISCARD QUILL_ATTRIBUTE_HOT size_t calculate_args_size_and_populate_string_lengths(
-  QUILL_MAYBE_UNUSED std::vector<size_t>& conditional_arg_size_cache,
-  Args const&... args) noexcept
+  QUILL_MAYBE_UNUSED std::vector<size_t>& conditional_arg_size_cache, Args const&... args) noexcept
 {
   // Do not use fold expression with '+ ...' as we need a guaranteed sequence for the args here
   size_t total_sum{0};
@@ -234,134 +200,93 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT size_t calculate_args_size_and_populate_stri
 template <typename Arg, typename = void>
 struct Encoder
 {
-  QUILL_ATTRIBUTE_HOT static void encode(std::byte*&, std::vector<size_t> const&, uint32_t&, Arg const&) noexcept
-  {
-    static_assert(always_false_v<Arg>, "Unsupported type");
-  }
-};
-
-/***/
-template <typename Arg>
-struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_arithmetic<Arg>, std::is_enum<Arg>>>>
-{
-  QUILL_ATTRIBUTE_HOT static void encode(std::byte*& buffer, std::vector<size_t> const&, uint32_t&, Arg arg) noexcept
-  {
-    std::memcpy(buffer, &arg, sizeof(arg));
-    buffer += sizeof(arg);
-  }
-};
-
-/***/
-template <typename Arg>
-struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, char*>, std::is_same<Arg, char const*>>>>
-{
   QUILL_ATTRIBUTE_HOT static void encode(std::byte*& buffer,
-                                         std::vector<size_t> const& conditional_arg_size_cache,
-                                         uint32_t& conditional_arg_size_cache_index,
-                                         char const* arg) noexcept
-  {
-    // null terminator is included in the len for c style strings
-    size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
-    std::memcpy(buffer, arg, len);
-    buffer += len;
-  }
-};
-
-/***/
-template <typename Arg>
-struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::string>, std::is_same<Arg, std::string_view>>>>
-{
-  QUILL_ATTRIBUTE_HOT static void encode(std::byte*& buffer, std::vector<size_t> const&, uint32_t&, Arg const& arg) noexcept
-  {
-    // for std::string we store the size first, in order to correctly retrieve it
-    // Copy the length first and then the actual string
-    size_t const len = arg.length();
-    std::memcpy(buffer, &len, sizeof(len));
-
-    if (len != 0)
-    {
-      // copy the string, no need to zero terminate it as we got the length
-      std::memcpy(buffer + sizeof(len), arg.data(), arg.length());
-    }
-
-    buffer += sizeof(len) + len;
-  }
-};
-
-/***/
-template <size_t N>
-struct Encoder<char[N]>
-{
-  QUILL_ATTRIBUTE_HOT static void encode(std::byte*& buffer,
-                                         std::vector<size_t> const& conditional_arg_size_cache,
-                                         uint32_t& conditional_arg_size_cache_index,
-                                         char const (&arg)[N]) noexcept
-  {
-    size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
-
-    if (QUILL_UNLIKELY(len > N))
-    {
-      // no '\0' in c array
-      assert(len == N + 1);
-      std::memcpy(buffer, arg, N);
-      buffer[len - 1] = std::byte{'\0'};
-    }
-    else
-    {
-      std::memcpy(buffer, arg, len);
-    }
-
-    buffer += len;
-  }
-};
-
-#if defined(_WIN32)
-/***/
-template <typename Arg>
-struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>>>
-{
-  QUILL_ATTRIBUTE_HOT static void encode(std::byte*& buffer,
-                                         std::vector<size_t> const& conditional_arg_size_cache,
-                                         uint32_t& conditional_arg_size_cache_index,
-                                         wchar_t const* arg) noexcept
-  {
-    // The wide string size in bytes
-    size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
-    std::memcpy(buffer, &len, sizeof(len));
-    buffer += sizeof(len);
-
-    // copy the string including the null terminator
-    size_t const size_in_bytes = (len + 1) * sizeof(wchar_t);
-    std::memcpy(buffer, arg, size_in_bytes);
-    buffer += size_in_bytes;
-  }
-};
-
-/***/
-template <typename Arg>
-struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>>>
-{
-  QUILL_ATTRIBUTE_HOT static void encode(std::byte*& buffer,
-                                         std::vector<size_t> const& conditional_arg_size_cache,
-                                         uint32_t& conditional_arg_size_cache_index,
+                                         QUILL_MAYBE_UNUSED std::vector<size_t> const& conditional_arg_size_cache,
+                                         QUILL_MAYBE_UNUSED uint32_t& conditional_arg_size_cache_index,
                                          Arg const& arg) noexcept
   {
-    // The wide string size in bytes
-    size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
-    std::memcpy(buffer, &len, sizeof(len));
-    buffer += sizeof(len);
-
-    if (len != 0)
+    if constexpr (std::disjunction_v<std::is_arithmetic<Arg>, std::is_enum<Arg>>)
     {
-      // copy the string, no need to zero terminate it as we got the length and e.g a wstring_view
-      // might not always be zero terminated
-      size_t const size_in_bytes = len * sizeof(wchar_t);
-      std::memcpy(buffer, arg.data(), size_in_bytes);
+      std::memcpy(buffer, &arg, sizeof(Arg));
+      buffer += sizeof(Arg);
+    }
+    else if constexpr (std::conjunction_v<std::is_array<Arg>, std::is_same<remove_cvref_t<std::remove_extent_t<Arg>>, char>>)
+    {
+      size_t constexpr N = std::extent_v<Arg>;
+      size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
+
+      if (QUILL_UNLIKELY(len > N))
+      {
+        // no '\0' in c array
+        assert(len == N + 1);
+        std::memcpy(buffer, arg, N);
+        buffer[len - 1] = std::byte{'\0'};
+      }
+      else
+      {
+        std::memcpy(buffer, arg, len);
+      }
+
+      buffer += len;
+    }
+    else if constexpr (std::disjunction_v<std::is_same<Arg, char*>, std::is_same<Arg, char const*>>)
+    {
+      // null terminator is included in the len for c style strings
+      size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
+      std::memcpy(buffer, arg, len);
+      buffer += len;
+    }
+    else if constexpr (std::disjunction_v<std::is_same<Arg, std::string>, std::is_same<Arg, std::string_view>>)
+    {
+      // for std::string we store the size first, in order to correctly retrieve it
+      // Copy the length first and then the actual string
+      size_t const len = arg.length();
+      std::memcpy(buffer, &len, sizeof(len));
+
+      if (len != 0)
+      {
+        // copy the string, no need to zero terminate it as we got the length
+        std::memcpy(buffer + sizeof(len), arg.data(), arg.length());
+      }
+
+      buffer += sizeof(len) + len;
+    }
+#if defined(_WIN32)
+    else if constexpr (std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>)
+    {
+      // The wide string size in bytes
+      size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
+      std::memcpy(buffer, &len, sizeof(len));
+      buffer += sizeof(len);
+
+      // copy the string including the null terminator
+      size_t const size_in_bytes = (len + 1) * sizeof(wchar_t);
+      std::memcpy(buffer, arg, size_in_bytes);
       buffer += size_in_bytes;
+    }
+    else if constexpr (std::disjunction_v<std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>)
+    {
+      // The wide string size in bytes
+      size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
+      std::memcpy(buffer, &len, sizeof(len));
+      buffer += sizeof(len);
+
+      if (len != 0)
+      {
+        // copy the string, no need to zero terminate it as we got the length and e.g a wstring_view
+        // might not always be zero terminated
+        size_t const size_in_bytes = len * sizeof(wchar_t);
+        std::memcpy(buffer, arg.data(), size_in_bytes);
+        buffer += size_in_bytes;
+      }
+    }
+#endif
+    else
+    {
+      static_assert(always_false_v<Arg>, "Unsupported type");
     }
   }
 };
-#endif
 
 /**
  * @brief Encoders multiple arguments into a buffer.
@@ -370,164 +295,129 @@ struct Encoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::w
  * @param args The arguments to be encoded.
  */
 template <typename... Args>
-QUILL_ATTRIBUTE_HOT void encode(std::byte*& buffer,
-                                std::vector<size_t> const& conditional_arg_size_cache,
+QUILL_ATTRIBUTE_HOT void encode(std::byte*& buffer, std::vector<size_t> const& conditional_arg_size_cache,
                                 Args const&... args) noexcept
 {
   QUILL_MAYBE_UNUSED uint32_t conditional_arg_size_cache_index{0};
-  (Encoder<Args>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, args), ...);
+  (Encoder<remove_cvref_t<Args>>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, args),
+   ...);
 }
 
 /** typename = void for specializations with enable_if **/
 template <typename Arg, typename = void>
 struct Decoder
 {
-  static void decode(std::byte*&, fmtquill::dynamic_format_arg_store<fmtquill::format_context>*)
+  static auto decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
   {
-    static_assert(always_false_v<Arg>, "Unsupported type");
-  }
-};
-
-/***/
-template <typename Arg>
-struct Decoder<Arg, std::enable_if_t<std::disjunction_v<std::is_arithmetic<Arg>, std::is_enum<Arg>>>>
-{
-  static Arg decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
-  {
-    Arg arg;
-    std::memcpy(&arg, buffer, sizeof(arg));
-    buffer += sizeof(Arg);
-
-    if (args_store)
+    if constexpr (std::disjunction_v<std::is_arithmetic<Arg>, std::is_enum<Arg>>)
     {
-      args_store->push_back(arg);
+      Arg arg;
+      std::memcpy(&arg, buffer, sizeof(Arg));
+      buffer += sizeof(Arg);
+
+      if (args_store)
+      {
+        args_store->push_back(arg);
+      }
+
+      return arg;
     }
-
-    return arg;
-  }
-};
-
-/***/
-template <typename Arg>
-struct Decoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, char*>, std::is_same<Arg, char const*>>>>
-{
-  static char const* decode(std::byte*& buffer,
-                            fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
-  {
-    char const* str = reinterpret_cast<char const*>(buffer);
-    buffer += strlen(str) + 1; // for c_strings we add +1 to the length as we also want to copy the null terminated char
-
-    if (args_store)
+    else if constexpr (std::conjunction_v<std::is_array<Arg>, std::is_same<remove_cvref_t<std::remove_extent_t<Arg>>, char>>)
     {
-      args_store->push_back(str);
+      char const* str = reinterpret_cast<char const*>(buffer);
+      size_t const len = strlen(str);
+      buffer += len + 1; // for c_strings we add +1 to the length as we also want to copy the null terminated char
+
+      if (args_store)
+      {
+        // pass the std::string_view to args_store to avoid the dynamic allocation
+        args_store->push_back(std::string_view{str, len});
+      }
+
+      return str;
     }
-
-    return str;
-  }
-};
-
-/***/
-template <typename Arg>
-struct Decoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::string>, std::is_same<Arg, std::string_view>>>>
-{
-  static std::string_view decode(std::byte*& buffer,
-                                 fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
-  {
-    // for std::string we first need to retrieve the length
-    size_t len;
-    std::memcpy(&len, buffer, sizeof(len));
-
-    // retrieve the rest of the string
-    char const* str = reinterpret_cast<char const*>(buffer + sizeof(size_t));
-    std::string_view v{str, len};
-    buffer += sizeof(len) + v.length();
-
-    if (args_store)
+    else if constexpr (std::disjunction_v<std::is_same<Arg, char*>, std::is_same<Arg, char const*>>)
     {
-      args_store->push_back(v);
+      char const* str = reinterpret_cast<char const*>(buffer);
+      size_t const len = strlen(str);
+      buffer += len + 1; // for c_strings we add +1 to the length as we also want to copy the null terminated char
+
+      if (args_store)
+      {
+        // pass the std::string_view to args_store to avoid the dynamic allocation
+        args_store->push_back(std::string_view{str, len});
+      }
+
+      return str;
     }
-
-    return v;
-  }
-};
-
-/***/
-template <size_t N>
-struct Decoder<char[N]>
-{
-  static char const* decode(std::byte*& buffer,
-                            fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
-  {
-    char const* str = reinterpret_cast<char const*>(buffer);
-    buffer += strlen(str) + 1; // for c_strings we add +1 to the length as we also want to copy the null terminated char
-
-    if (args_store)
+    else if constexpr (std::disjunction_v<std::is_same<Arg, std::string>, std::is_same<Arg, std::string_view>>)
     {
-      args_store->push_back(str);
+      // for std::string we first need to retrieve the length
+      size_t len;
+      std::memcpy(&len, buffer, sizeof(len));
+
+      // retrieve the rest of the string
+      char const* str = reinterpret_cast<char const*>(buffer + sizeof(size_t));
+      std::string_view v{str, len};
+      buffer += sizeof(len) + v.length();
+
+      if (args_store)
+      {
+        args_store->push_back(v);
+      }
+
+      return v;
     }
-
-    return str;
-  }
-};
-
 #if defined(_WIN32)
-/***/
-template <typename Arg>
-struct Decoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>>>
-{
-  static std::wstring_view decode(std::byte*& buffer,
-                                  fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
-  {
-    // we first need to retrieve the length
-    size_t len;
-    std::memcpy(&len, buffer, sizeof(len));
-    buffer += sizeof(len);
-
-    std::wstring_view wstr{reinterpret_cast<wchar_t const*>(buffer), len};
-
-    if (args_store)
+    else if constexpr (std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>)
     {
-      std::string str = utf8_encode(buffer, len);
-      args_store->push_back(static_cast<std::string&&>(str));
+      // we first need to retrieve the length
+      size_t len;
+      std::memcpy(&len, buffer, sizeof(len));
+      buffer += sizeof(len);
+
+      std::wstring_view wstr{reinterpret_cast<wchar_t const*>(buffer), len};
+
+      if (args_store)
+      {
+        std::string str = utf8_encode(buffer, len);
+        args_store->push_back(static_cast<std::string&&>(str));
+      }
+
+      // For wchar_t* we also copy the null terminator
+      size_t const size_bytes = (len + 1) * sizeof(wchar_t);
+      buffer += size_bytes;
+      return wstr;
     }
-
-    // For wchar_t* we also copy the null terminator
-    size_t const size_bytes = (len + 1) * sizeof(wchar_t);
-    buffer += size_bytes;
-    return wstr;
-  }
-};
-
-/***/
-template <typename Arg>
-struct Decoder<Arg, std::enable_if_t<std::disjunction_v<std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>>>
-{
-  static std::wstring_view decode(std::byte*& buffer,
-                                  fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
-  {
-    // we first need to retrieve the length
-    size_t len;
-    std::memcpy(&len, buffer, sizeof(len));
-    buffer += sizeof(len);
-
-    std::wstring_view wstr{reinterpret_cast<wchar_t const*>(buffer), len};
-
-    if (args_store)
+    else if constexpr (std::disjunction_v<std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>)
     {
-      std::string str = utf8_encode(buffer, len);
-      args_store->push_back(static_cast<std::string&&>(str));
-    }
+      // we first need to retrieve the length
+      size_t len;
+      std::memcpy(&len, buffer, sizeof(len));
+      buffer += sizeof(len);
 
-    size_t const size_bytes = len * sizeof(wchar_t);
-    buffer += size_bytes;
-    return wstr;
-  }
-};
+      std::wstring_view wstr{reinterpret_cast<wchar_t const*>(buffer), len};
+
+      if (args_store)
+      {
+        std::string str = utf8_encode(buffer, len);
+        args_store->push_back(static_cast<std::string&&>(str));
+      }
+
+      size_t const size_bytes = len * sizeof(wchar_t);
+      buffer += size_bytes;
+      return wstr;
+    }
 #endif
+    else
+    {
+      static_assert(always_false_v<Arg>, "Unsupported type");
+    }
+  }
+};
 
 template <typename... Args>
-void decode(std::byte*& buffer,
-            QUILL_MAYBE_UNUSED fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store) noexcept
+void decode(std::byte*& buffer, QUILL_MAYBE_UNUSED DynamicFormatArgStore* args_store) noexcept
 {
   (Decoder<Args>::decode(buffer, args_store), ...);
 }
@@ -535,12 +425,10 @@ void decode(std::byte*& buffer,
 /**
  * Decoder functions
  */
-using FormatArgsDecoder = void (*)(std::byte*& data,
-                                   fmtquill::dynamic_format_arg_store<fmtquill::format_context>& args_store);
+using FormatArgsDecoder = void (*)(std::byte*& data, DynamicFormatArgStore& args_store);
 
 template <typename... Args>
-void decode_and_populate_format_args(std::byte*& buffer,
-                                     fmtquill::dynamic_format_arg_store<fmtquill::format_context>& args_store)
+void decode_and_populate_format_args(std::byte*& buffer, DynamicFormatArgStore& args_store)
 {
   args_store.clear();
   decode<Args...>(buffer, &args_store);
@@ -558,10 +446,8 @@ size_t calculate_total_size(std::vector<size_t>& conditional_arg_size_cache, TMe
 
 /***/
 template <typename... TMembers>
-void encode_members(std::byte*& buffer,
-                    std::vector<size_t> const& conditional_arg_size_cache,
-                    uint32_t& conditional_arg_size_cache_index,
-                    TMembers const&... members)
+void encode_members(std::byte*& buffer, std::vector<size_t> const& conditional_arg_size_cache,
+                    uint32_t& conditional_arg_size_cache_index, TMembers const&... members)
 {
   ((Encoder<remove_cvref_t<TMembers>>::encode(buffer, conditional_arg_size_cache,
                                               conditional_arg_size_cache_index, members)),
@@ -570,10 +456,7 @@ void encode_members(std::byte*& buffer,
 
 /***/
 template <typename T, typename... TMembers>
-void decode_and_assign_members(std::byte*& buffer,
-                               fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store,
-                               T& arg,
-                               TMembers&... members)
+void decode_and_assign_members(std::byte*& buffer, DynamicFormatArgStore* args_store, T& arg, TMembers&... members)
 {
   ((members = Decoder<remove_cvref_t<TMembers>>::decode(buffer, nullptr)), ...);
 

@@ -138,15 +138,11 @@ public:
    * @param file_event_notifier Notifies on file events.
    * @param do_fopen If false, the file will not be opened.
    */
-  explicit FileSink(fs::path const& filename,
-                    FileSinkConfig const& config = FileSinkConfig{},
-                    FileEventNotifier file_event_notifier = FileEventNotifier{},
-                    bool do_fopen = true)
-    : StreamSink(_get_updated_filename_with_appended_datetime(filename,
-                                                              config.append_to_filename_option(),
-                                                              config.timezone()),
-                 nullptr,
-                 std::move(file_event_notifier)),
+  explicit FileSink(fs::path const& filename, FileSinkConfig const& config = FileSinkConfig{},
+                    FileEventNotifier file_event_notifier = FileEventNotifier{}, bool do_fopen = true)
+    : StreamSink(_get_updated_filename_with_appended_datetime(
+                   filename, config.append_to_filename_option(), config.timezone()),
+                 nullptr, std::move(file_event_notifier)),
       _config(config)
   {
     if (do_fopen)
@@ -194,9 +190,7 @@ protected:
    * @param with_time Include time in the string if true.
    * @return Formatted datetime string.
    */
-  QUILL_NODISCARD QUILL_ATTRIBUTE_COLD static std::string format_datetime_string(uint64_t timestamp_ns,
-                                                                                 Timezone timezone,
-                                                                                 bool with_time)
+  QUILL_NODISCARD static std::string format_datetime_string(uint64_t timestamp_ns, Timezone timezone, bool with_time)
   {
     // convert to seconds
     auto const time_now = static_cast<time_t>(timestamp_ns / 1000000000);
@@ -215,12 +209,13 @@ protected:
     char buffer[32];
     if (with_time)
     {
-      std::sprintf(buffer, "%04d%02d%02d_%02d%02d%02d", now_tm.tm_year + 1900, now_tm.tm_mon + 1,
-                   now_tm.tm_mday, now_tm.tm_hour, now_tm.tm_min, now_tm.tm_sec);
+      std::snprintf(buffer, sizeof(buffer), "%04d%02d%02d_%02d%02d%02d", now_tm.tm_year + 1900,
+                    now_tm.tm_mon + 1, now_tm.tm_mday, now_tm.tm_hour, now_tm.tm_min, now_tm.tm_sec);
     }
     else
     {
-      std::sprintf(buffer, "%04d%02d%02d", now_tm.tm_year + 1900, now_tm.tm_mon + 1, now_tm.tm_mday);
+      std::snprintf(buffer, sizeof(buffer), "%04d%02d%02d", now_tm.tm_year + 1900,
+                    now_tm.tm_mon + 1, now_tm.tm_mday);
     }
 
     return std::string{buffer};
@@ -231,8 +226,7 @@ protected:
    * @param filename Path to the file.
    * @return Pair containing stem and extension.
    */
-  QUILL_NODISCARD QUILL_ATTRIBUTE_COLD static std::pair<std::string, std::string> extract_stem_and_extension(
-    fs::path const& filename) noexcept
+  QUILL_NODISCARD static std::pair<std::string, std::string> extract_stem_and_extension(fs::path const& filename) noexcept
   {
     // filename and extension
     return std::make_pair((filename.parent_path() / filename.stem()).string(), filename.extension().string());
@@ -246,10 +240,8 @@ protected:
    * @param timestamp Timestamp to use.
    * @return Updated filename.
    */
-  QUILL_NODISCARD QUILL_ATTRIBUTE_COLD static fs::path append_datetime_to_filename(
-    fs::path const& filename,
-    bool with_time = false,
-    Timezone timezone = Timezone::LocalTime,
+  QUILL_NODISCARD static fs::path append_datetime_to_filename(
+    fs::path const& filename, bool with_time = false, Timezone timezone = Timezone::LocalTime,
     std::chrono::system_clock::time_point timestamp = {}) noexcept
   {
     // Get base file and extension
@@ -351,9 +343,8 @@ private:
    * @param timezone Timezone to use.
    * @return Updated filename.
    */
-  QUILL_NODISCARD quill::fs::path _get_updated_filename_with_appended_datetime(quill::fs::path const& filename,
-                                                                               quill::FilenameAppendOption append_to_filename_option,
-                                                                               quill::Timezone timezone)
+  QUILL_NODISCARD quill::fs::path _get_updated_filename_with_appended_datetime(
+    quill::fs::path const& filename, quill::FilenameAppendOption append_to_filename_option, quill::Timezone timezone)
   {
     if ((append_to_filename_option == quill::FilenameAppendOption::None) || (filename == "/dev/null"))
     {

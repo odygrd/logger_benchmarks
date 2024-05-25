@@ -54,17 +54,13 @@ public:
    * @param thread_name Name of the thread.
    * @param logger_name Name of the logger.
    * @param log_level Log level of the message.
-   * @param structured_keys_values Vector of key-value pairs for structured logging.
+   * @param named_args Vector of key-value pairs of named args
    * @param log_message The log message.
    */
-  QUILL_ATTRIBUTE_HOT virtual void write_log_message(MacroMetadata const* log_metadata,
-                                                     uint64_t log_timestamp,
-                                                     std::string_view thread_id,
-                                                     std::string_view thread_name,
-                                                     std::string_view logger_name,
-                                                     LogLevel log_level,
-                                                     std::vector<std::pair<std::string, std::string>> const* structured_keys_values,
-                                                     std::string_view log_message) = 0;
+  QUILL_ATTRIBUTE_HOT virtual void write_log_message(
+    MacroMetadata const* log_metadata, uint64_t log_timestamp, std::string_view thread_id,
+    std::string_view thread_name, std::string_view logger_name, LogLevel log_level,
+    std::vector<std::pair<std::string, std::string>> const* named_args, std::string_view log_message) = 0;
 
   /**
    * @brief Flushes the sink, synchronizing the associated sink with its controlled output sequence.
@@ -110,8 +106,8 @@ public:
     std::lock_guard<std::recursive_mutex> const lock{_global_filters_lock};
 
     // Check if the same filter already exists
-    auto const search_filter_it = std::find_if(
-      _global_filters.cbegin(), _global_filters.cend(), [&filter](std::unique_ptr<Filter> const& elem_filter)
+    auto const search_filter_it =
+      std::find_if(_global_filters.cbegin(), _global_filters.cend(), [&filter](std::unique_ptr<Filter> const& elem_filter)
       { return elem_filter->get_filter_name() == filter->get_filter_name(); });
 
     if (QUILL_UNLIKELY(search_filter_it != _global_filters.cend()))
@@ -137,12 +133,9 @@ public:
    * @param log_message The log message.
    * @return True if the log record passes all filters, false otherwise.
    */
-  QUILL_NODISCARD bool apply_all_filters(MacroMetadata const* log_metadata,
-                                         uint64_t log_timestamp,
-                                         std::string_view thread_id,
-                                         std::string_view thread_name,
-                                         std::string_view logger_name,
-                                         LogLevel log_level,
+  QUILL_NODISCARD bool apply_all_filters(MacroMetadata const* log_metadata, uint64_t log_timestamp,
+                                         std::string_view thread_id, std::string_view thread_name,
+                                         std::string_view logger_name, LogLevel log_level,
                                          std::string_view log_message)
   {
     if (log_level < _log_level.load(std::memory_order_relaxed))
@@ -166,13 +159,20 @@ public:
       _new_filter.store(false, std::memory_order_relaxed);
     }
 
-    return std::all_of(_local_filters.begin(), _local_filters.end(),
-                       [log_metadata, log_timestamp, thread_id, thread_name, logger_name, log_level,
-                        log_message](Filter* filter_elem)
-                       {
-                         return filter_elem->filter(log_metadata, log_timestamp, thread_id,
-                                                    thread_name, logger_name, log_level, log_message);
-                       });
+    if (_local_filters.empty())
+    {
+      return true;
+    }
+    else
+    {
+      return std::all_of(_local_filters.begin(), _local_filters.end(),
+                         [log_metadata, log_timestamp, thread_id, thread_name, logger_name,
+                          log_level, log_message](Filter* filter_elem)
+                         {
+                           return filter_elem->filter(log_metadata, log_timestamp, thread_id,
+                                                      thread_name, logger_name, log_level, log_message);
+                         });
+    }
   }
 
 private:

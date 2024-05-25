@@ -19,7 +19,7 @@
 
 /** Version Info **/
 constexpr uint32_t VersionMajor{4};
-constexpr uint32_t VersionMinor{0};
+constexpr uint32_t VersionMinor{1};
 constexpr uint32_t VersionPatch{0};
 constexpr uint32_t Version{VersionMajor * 10000 + VersionMinor * 100 + VersionPatch};
 
@@ -115,8 +115,7 @@ public:
    *
    * @note thread-safe
    */
-  QUILL_ATTRIBUTE_COLD static void notify() noexcept
-  {
+  static void notify() noexcept {
     detail::BackendManager::instance().notify_backend_thread();
   }
 
@@ -124,7 +123,7 @@ public:
    * Checks if the backend is currently running.
    * @return True if the backend is running, false otherwise.
    */
-  QUILL_NODISCARD QUILL_ATTRIBUTE_COLD static bool is_running() noexcept
+  QUILL_NODISCARD static bool is_running() noexcept
   {
     return detail::BackendManager::instance().is_backend_thread_running();
   }

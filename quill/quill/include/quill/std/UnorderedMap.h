@@ -6,9 +6,9 @@
 #pragma once
 
 #include "quill/core/Codec.h"
+#include "quill/core/DynamicFormatArgStore.h"
 #include "quill/std/Pair.h"
 
-#include "quill/bundled/fmt/args.h"
 #include "quill/bundled/fmt/core.h"
 #include "quill/bundled/fmt/ranges.h"
 
@@ -64,8 +64,7 @@ struct Encoder<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>,
                  std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_map<Key, T, Hash, KeyEqual, Allocator>>,
                  std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_multimap<Key, T, Hash, KeyEqual, Allocator>>>>>
 {
-  static void encode(std::byte*& buffer,
-                     std::vector<size_t> const& conditional_arg_size_cache,
+  static void encode(std::byte*& buffer, std::vector<size_t> const& conditional_arg_size_cache,
                      uint32_t& conditional_arg_size_cache_index,
                      UnorderedMapType<Key, T, Hash, KeyEqual, Allocator> const& arg) noexcept
   {
@@ -88,7 +87,9 @@ struct Decoder<
   std::enable_if_t<std::conjunction_v<
     std::disjunction<std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_map<Key, T, Hash, KeyEqual, Allocator>>,
                      std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_multimap<Key, T, Hash, KeyEqual, Allocator>>>,
-    std::negation<std::disjunction<std::is_same<Key, wchar_t*>, std::is_same<Key, wchar_t const*>, std::is_same<Key, std::wstring>, std::is_same<Key, std::wstring_view>, std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>>
+    std::negation<std::disjunction<std::is_same<Key, wchar_t*>, std::is_same<Key, wchar_t const*>, std::is_same<Key, std::wstring>,
+                                   std::is_same<Key, std::wstring_view>, std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
+                                   std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>>
 #else
 struct Decoder<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>,
                std::enable_if_t<std::disjunction_v<
@@ -96,9 +97,8 @@ struct Decoder<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>,
                  std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_multimap<Key, T, Hash, KeyEqual, Allocator>>>>>
 #endif
 {
-  static UnorderedMapType<Key, T, Hash, KeyEqual, Allocator> decode(
-    std::byte*& buffer,
-    fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static UnorderedMapType<Key, T, Hash, KeyEqual, Allocator> decode(std::byte*& buffer,
+                                                                    DynamicFormatArgStore* args_store)
   {
     UnorderedMapType<Key, T, Hash, KeyEqual, Allocator> arg;
 
@@ -128,12 +128,13 @@ struct Decoder<
   std::enable_if_t<std::conjunction_v<
     std::disjunction<std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_map<Key, T, Hash, KeyEqual, Allocator>>,
                      std::is_same<UnorderedMapType<Key, T, Hash, KeyEqual, Allocator>, std::unordered_multimap<Key, T, Hash, KeyEqual, Allocator>>>,
-    std::disjunction<std::is_same<Key, wchar_t*>, std::is_same<Key, wchar_t const*>, std::is_same<Key, std::wstring>, std::is_same<Key, std::wstring_view>, std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>
+    std::disjunction<std::is_same<Key, wchar_t*>, std::is_same<Key, wchar_t const*>, std::is_same<Key, std::wstring>, std::is_same<Key, std::wstring_view>,
+                     std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>
 {
   /**
    * Chaining stl types not supported for wstrings so we do not return anything
    */
-  static void decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static void decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
   {
     if (args_store)
     {

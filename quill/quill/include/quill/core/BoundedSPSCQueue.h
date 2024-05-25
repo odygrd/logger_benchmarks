@@ -70,14 +70,13 @@ class BoundedSPSCQueueImpl
 public:
   using integer_type = T;
 
-  QUILL_ATTRIBUTE_HOT explicit BoundedSPSCQueueImpl(integer_type capacity,
-                                                    bool huges_pages_enabled = false,
+  QUILL_ATTRIBUTE_HOT explicit BoundedSPSCQueueImpl(integer_type capacity, bool huges_pages_enabled = false,
                                                     integer_type reader_store_percent = 5)
     : _capacity(next_power_of_2(capacity)),
       _mask(_capacity - 1),
       _bytes_per_batch(static_cast<integer_type>(_capacity * static_cast<double>(reader_store_percent) / 100.0)),
-      _storage(static_cast<std::byte*>(
-        _alloc_aligned(2ull * static_cast<uint64_t>(_capacity), CACHE_LINE_ALIGNED, huges_pages_enabled))),
+      _storage(static_cast<std::byte*>(_alloc_aligned(2ull * static_cast<uint64_t>(_capacity),
+                                                      CACHE_LINE_ALIGNED, huges_pages_enabled))),
       _huge_pages_enabled(huges_pages_enabled)
   {
     std::memset(_storage, 0, 2ull * static_cast<uint64_t>(_capacity));

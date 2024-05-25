@@ -69,7 +69,8 @@ public:
    * @return true if the message is written to the queue, false if it is dropped (when a dropping queue is used)
    */
   template <typename... Args>
-  QUILL_ATTRIBUTE_HOT bool log_message(LogLevel dynamic_log_level, MacroMetadata const* macro_metadata, Args&&... fmt_args)
+  QUILL_ATTRIBUTE_HOT bool log_message(LogLevel dynamic_log_level,
+                                       MacroMetadata const* macro_metadata, Args&&... fmt_args)
   {
     assert(valid.load(std::memory_order_acquire) && "Invalidated loggers can not log");
 
@@ -188,6 +189,7 @@ public:
     if (dynamic_log_level != LogLevel::None)
     {
       // write the dynamic log level
+      // The reason we write it last is that is less likely to break the alignment in the buffer
       std::memcpy(write_buffer, &dynamic_log_level, sizeof(dynamic_log_level));
       write_buffer += sizeof(dynamic_log_level);
     }
@@ -284,20 +286,12 @@ private:
   friend class detail::BackendWorker;
 
   /***/
-  LoggerImpl(std::string logger_name,
-             std::shared_ptr<Sink> sink,
-             std::string format_pattern,
-             std::string time_pattern,
-             Timezone timestamp_timezone,
-             ClockSourceType clock_source,
+  LoggerImpl(std::string logger_name, std::shared_ptr<Sink> sink, std::string format_pattern,
+             std::string time_pattern, Timezone timestamp_timezone, ClockSourceType clock_source,
              UserClockSource* user_clock)
-    : detail::LoggerBase(static_cast<std::string&&>(logger_name),
-                         static_cast<std::shared_ptr<Sink>&&>(sink),
+    : detail::LoggerBase(static_cast<std::string&&>(logger_name), static_cast<std::shared_ptr<Sink>&&>(sink),
                          static_cast<std::string&&>(format_pattern),
-                         static_cast<std::string&&>(time_pattern),
-                         timestamp_timezone,
-                         clock_source,
-                         user_clock)
+                         static_cast<std::string&&>(time_pattern), timestamp_timezone, clock_source, user_clock)
   {
     if (this->user_clock)
     {
@@ -307,20 +301,12 @@ private:
   }
 
   /***/
-  LoggerImpl(std::string logger_name,
-             std::vector<std::shared_ptr<Sink>> const& sinks,
-             std::string format_pattern,
-             std::string time_pattern,
-             Timezone timestamp_timezone,
-             ClockSourceType clock_source,
-             UserClockSource* user_clock)
-    : detail::LoggerBase(static_cast<std::string&&>(logger_name),
-                         sinks,
-                         static_cast<std::string&&>(format_pattern),
-                         static_cast<std::string&&>(time_pattern),
-                         timestamp_timezone,
-                         clock_source,
-                         user_clock)
+  LoggerImpl(std::string logger_name, std::vector<std::shared_ptr<Sink>> const& sinks,
+             std::string format_pattern, std::string time_pattern, Timezone timestamp_timezone,
+             ClockSourceType clock_source, UserClockSource* user_clock)
+    : detail::LoggerBase(
+        static_cast<std::string&&>(logger_name), sinks, static_cast<std::string&&>(format_pattern),
+        static_cast<std::string&&>(time_pattern), timestamp_timezone, clock_source, user_clock)
 
   {
     if (this->user_clock)

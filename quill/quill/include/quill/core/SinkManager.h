@@ -65,7 +65,8 @@ public:
   }
 
   /***/
-  template <typename TSink, typename... Args, std::enable_if_t<!(std::is_same_v<FileSink, TSink> || std::is_base_of_v<FileSink, TSink>), bool> = true>
+  template <typename TSink, typename... Args,
+            std::enable_if_t<!(std::is_same_v<FileSink, TSink> || std::is_base_of_v<FileSink, TSink>), bool> = true>
   std::shared_ptr<Sink> create_or_get_sink(std::string const& sink_name, Args&&... args)
   {
     // The sinks are used by the backend thread, so after their creation we want to avoid mutating their member variables.
@@ -83,7 +84,8 @@ public:
   }
 
   /***/
-  template <typename TSink, typename... Args, std::enable_if_t<(std::is_same_v<FileSink, TSink> || std::is_base_of_v<FileSink, TSink>), bool> = true>
+  template <typename TSink, typename... Args,
+            std::enable_if_t<(std::is_same_v<FileSink, TSink> || std::is_base_of_v<FileSink, TSink>), bool> = true>
   std::shared_ptr<Sink> create_or_get_sink(std::string const& sink_name, Args&&... args)
   {
     // The sinks are used by the backend thread, so after their creation we want to avoid mutating

@@ -56,9 +56,14 @@ namespace quill::detail
  */
 QUILL_NODISCARD inline std::wstring s2ws(std::string const& str) noexcept
 {
+  #pragma warning(push)
+  #pragma warning(disable : 4996)
+
   using convert_t = std::codecvt_utf8_utf16<wchar_t>;
   std::wstring_convert<convert_t, wchar_t> converter;
   return converter.from_bytes(str);
+
+  #pragma warning(pop)
 }
 
 /**
@@ -68,14 +73,20 @@ QUILL_NODISCARD inline std::wstring s2ws(std::string const& str) noexcept
  */
 QUILL_NODISCARD inline std::string ws2s(std::wstring const& wstr) noexcept
 {
+  #pragma warning(push)
+  #pragma warning(disable : 4996)
+
   using convert_t = std::codecvt_utf8_utf16<wchar_t>;
   std::wstring_convert<convert_t, wchar_t> converter;
   return converter.to_bytes(wstr);
+
+  #pragma warning(pop)
 }
 
 /***/
 template <typename ReturnT, typename Signature, typename... Args>
-ReturnT callRunTimeDynamicLinkedFunction(std::string const& dll_name, std::string const& function_name, Args... args)
+ReturnT callRunTimeDynamicLinkedFunction(std::string const& dll_name,
+                                         std::string const& function_name, Args... args)
 {
   // https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getthreaddescription
   // Windows Server 2016, Windows 10 LTSB 2016 and Windows 10 version 1607: e.g. GetThreadDescription is only available by Run Time Dynamic Linking in KernelBase.dll.
@@ -117,7 +128,7 @@ ReturnT callRunTimeDynamicLinkedFunction(std::string const& dll_name, std::strin
  * a null string is retrieved into name.
  * @return the thread name
  */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD inline std::string get_thread_name()
+QUILL_NODISCARD inline std::string get_thread_name()
 {
 #if defined(__CYGWIN__) || defined(__MINGW32__) || defined(__MINGW64__) || defined(QUILL_NO_THREAD_NAME_SUPPORT)
   // Disabled on MINGW / Cygwin.
@@ -158,7 +169,7 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD inline std::string get_thread_name()
  * Returns the os assigned ID of the thread
  * @return the thread ID of the calling thread
  */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD inline uint32_t get_thread_id() noexcept
+QUILL_NODISCARD inline uint32_t get_thread_id() noexcept
 {
 #if defined(__CYGWIN__)
   // get thread id on cygwin not supported

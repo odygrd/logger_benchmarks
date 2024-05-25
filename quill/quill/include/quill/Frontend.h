@@ -84,15 +84,12 @@ public:
    * @return Logger* A pointer to the created or retrieved logger.
    */
   static logger_t* create_or_get_logger(
-    std::string const& logger_name,
-    std::shared_ptr<Sink> sink,
+    std::string const& logger_name, std::shared_ptr<Sink> sink,
     std::string const& format_pattern =
       "%(time) [%(thread_id)] %(short_source_location:<28) LOG_%(log_level:<9) %(logger:<12) "
       "%(message)",
-    std::string const& time_pattern = "%H:%M:%S.%Qns",
-    Timezone timestamp_timezone = Timezone::LocalTime,
-    ClockSourceType clock_source = ClockSourceType::Tsc,
-    UserClockSource* user_clock = nullptr)
+    std::string const& time_pattern = "%H:%M:%S.%Qns", Timezone timestamp_timezone = Timezone::LocalTime,
+    ClockSourceType clock_source = ClockSourceType::Tsc, UserClockSource* user_clock = nullptr)
   {
     return _cast_to_logger(detail::LoggerManager::instance().create_or_get_logger<logger_t>(
       logger_name, static_cast<std::shared_ptr<Sink>&&>(sink), format_pattern, time_pattern,
@@ -112,15 +109,12 @@ public:
    * @return Logger* A pointer to the created or retrieved logger.
    */
   static logger_t* create_or_get_logger(
-    std::string const& logger_name,
-    std::initializer_list<std::shared_ptr<Sink>> sinks,
+    std::string const& logger_name, std::initializer_list<std::shared_ptr<Sink>> sinks,
     std::string const& format_pattern =
       "%(time) [%(thread_id)] %(short_source_location:<28) LOG_%(log_level:<9) %(logger:<12) "
       "%(message)",
-    std::string const& time_pattern = "%H:%M:%S.%Qns",
-    Timezone timestamp_timezone = Timezone::LocalTime,
-    ClockSourceType clock_source = ClockSourceType::Tsc,
-    UserClockSource* user_clock = nullptr)
+    std::string const& time_pattern = "%H:%M:%S.%Qns", Timezone timestamp_timezone = Timezone::LocalTime,
+    ClockSourceType clock_source = ClockSourceType::Tsc, UserClockSource* user_clock = nullptr)
   {
     return _cast_to_logger(detail::LoggerManager::instance().create_or_get_logger<logger_t>(
       logger_name, sinks, format_pattern, time_pattern, timestamp_timezone, clock_source, user_clock));

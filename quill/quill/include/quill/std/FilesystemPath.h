@@ -6,9 +6,9 @@
 #pragma once
 
 #include "quill/core/Codec.h"
+#include "quill/core/DynamicFormatArgStore.h"
 #include "quill/core/Filesystem.h"
 
-#include "quill/bundled/fmt/args.h"
 #include "quill/bundled/fmt/core.h"
 #include "quill/bundled/fmt/std.h"
 
@@ -42,10 +42,8 @@ struct ArgSizeCalculator<fs::path>
 template <>
 struct Encoder<fs::path>
 {
-  static void encode(std::byte*& buffer,
-                     std::vector<size_t> const& conditional_arg_size_cache,
-                     uint32_t& conditional_arg_size_cache_index,
-                     fs::path const& arg) noexcept
+  static void encode(std::byte*& buffer, std::vector<size_t> const& conditional_arg_size_cache,
+                     uint32_t& conditional_arg_size_cache_index, fs::path const& arg) noexcept
   {
     if constexpr (std::is_same_v<fs::path::string_type, std::string>)
     {
@@ -66,7 +64,7 @@ struct Encoder<fs::path>
 template <>
 struct Decoder<fs::path>
 {
-  static fs::path decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static fs::path decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
   {
     fs::path arg;
 

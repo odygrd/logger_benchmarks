@@ -6,8 +6,8 @@
 #pragma once
 
 #include "quill/core/Codec.h"
+#include "quill/core/DynamicFormatArgStore.h"
 
-#include "quill/bundled/fmt/args.h"
 #include "quill/bundled/fmt/core.h"
 #include "quill/bundled/fmt/std.h"
 
@@ -45,10 +45,8 @@ struct ArgSizeCalculator<std::optional<T>>
 template <typename T>
 struct Encoder<std::optional<T>>
 {
-  static void encode(std::byte*& buffer,
-                     std::vector<size_t> const& conditional_arg_size_cache,
-                     uint32_t& conditional_arg_size_cache_index,
-                     std::optional<T> const& arg) noexcept
+  static void encode(std::byte*& buffer, std::vector<size_t> const& conditional_arg_size_cache,
+                     uint32_t& conditional_arg_size_cache_index, std::optional<T> const& arg) noexcept
   {
     Encoder<bool>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, arg.has_value());
 
@@ -63,14 +61,13 @@ struct Encoder<std::optional<T>>
 template <typename T>
 #if defined(_WIN32)
 struct Decoder<std::optional<T>,
-               std::enable_if_t<std::negation_v<
-                 std::disjunction<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>
+               std::enable_if_t<std::negation_v<std::disjunction<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
+                                                                 std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>
 #else
 struct Decoder<std::optional<T>>
 #endif
 {
-  static std::optional<T> decode(std::byte*& buffer,
-                                 fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static std::optional<T> decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
   {
     std::optional<T> arg{std::nullopt};
 
@@ -93,12 +90,13 @@ struct Decoder<std::optional<T>>
 /***/
 template <typename T>
 struct Decoder<std::optional<T>,
-               std::enable_if_t<std::disjunction_v<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>, std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>
+               std::enable_if_t<std::disjunction_v<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
+                                                   std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>
 {
   /**
    * Chaining stl types not supported for wstrings so we do not return anything
    */
-  static void decode(std::byte*& buffer, fmtquill::dynamic_format_arg_store<fmtquill::format_context>* args_store)
+  static void decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
   {
     if (args_store)
     {

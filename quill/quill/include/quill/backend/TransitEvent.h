@@ -6,6 +6,7 @@
 #pragma once
 
 #include "quill/core/Attributes.h"
+#include "quill/core/Codec.h"
 #include "quill/core/FormatBuffer.h"
 #include "quill/core/LogLevel.h"
 #include "quill/core/MacroMetadata.h"
@@ -19,19 +20,16 @@
 #include <utility>
 #include <vector>
 
-namespace quill
+namespace quill::detail
 {
-
-namespace detail
-{
-// Forward declaration
+/** Forward declaration */
 class LoggerBase;
-} // namespace detail
 
+/***/
 struct TransitEvent
 {
   /***/
-  TransitEvent() { formatted_msg.reserve(64); }
+  TransitEvent() { formatted_msg.reserve(32); }
 
   /***/
   ~TransitEvent() = default;
@@ -49,8 +47,8 @@ struct TransitEvent
       thread_id(other.thread_id),
       thread_name(other.thread_name),
       formatted_msg(std::move(other.formatted_msg)),
-      structured_kvs(std::move(other.structured_kvs)),
-      log_level_override(other.log_level_override),
+      named_args(std::move(other.named_args)),
+      dynamic_log_level(other.dynamic_log_level),
       flush_flag(other.flush_flag)
   {
   }
@@ -67,8 +65,8 @@ struct TransitEvent
       thread_id = other.thread_id;
       thread_name = other.thread_name;
       formatted_msg = std::move(other.formatted_msg);
-      structured_kvs = std::move(other.structured_kvs);
-      log_level_override = other.log_level_override;
+      named_args = std::move(other.named_args);
+      dynamic_log_level = other.dynamic_log_level;
       flush_flag = other.flush_flag;
     }
 
@@ -78,18 +76,18 @@ struct TransitEvent
   /***/
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT LogLevel log_level() const noexcept
   {
-    return log_level_override ? *log_level_override : macro_metadata->log_level();
+    return (macro_metadata->log_level() != LogLevel::Dynamic) ? macro_metadata->log_level() : dynamic_log_level;
   }
 
   uint64_t timestamp{0};
   MacroMetadata const* macro_metadata{nullptr};
-  detail::LoggerBase const* logger_base{nullptr};
-  void* format_args_decoder{nullptr};
+  detail::LoggerBase* logger_base{nullptr};
+  detail::FormatArgsDecoder format_args_decoder{nullptr};
   std::string_view thread_id;
   std::string_view thread_name;
   FormatBuffer formatted_msg; /** buffer for message **/
-  std::unique_ptr<std::vector<std::pair<std::string, std::string>>> structured_kvs; /** A unique ptr to save space as structured logs feature is not always used */
-  std::optional<LogLevel> log_level_override{std::nullopt};
+  std::unique_ptr<std::vector<std::pair<std::string, std::string>>> named_args; /** A unique ptr to save space as named args feature is not always used */
+  LogLevel dynamic_log_level{LogLevel::None};
   std::atomic<bool>* flush_flag{nullptr}; /** This is only used in the case of Event::Flush **/
 };
-} // namespace quill
+} // namespace quill::detail
