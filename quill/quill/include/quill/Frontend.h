@@ -91,9 +91,12 @@ public:
     std::string const& time_pattern = "%H:%M:%S.%Qns", Timezone timestamp_timezone = Timezone::LocalTime,
     ClockSourceType clock_source = ClockSourceType::Tsc, UserClockSource* user_clock = nullptr)
   {
+    std::vector<std::shared_ptr<Sink>> sinks;
+    sinks.push_back(static_cast<std::shared_ptr<Sink>&&>(sink));
+
     return _cast_to_logger(detail::LoggerManager::instance().create_or_get_logger<logger_t>(
-      logger_name, static_cast<std::shared_ptr<Sink>&&>(sink), format_pattern, time_pattern,
-      timestamp_timezone, clock_source, user_clock));
+      logger_name, static_cast<std::vector<std::shared_ptr<Sink>>&&>(sinks), format_pattern,
+      time_pattern, timestamp_timezone, clock_source, user_clock));
   }
 
   /**
@@ -117,7 +120,8 @@ public:
     ClockSourceType clock_source = ClockSourceType::Tsc, UserClockSource* user_clock = nullptr)
   {
     return _cast_to_logger(detail::LoggerManager::instance().create_or_get_logger<logger_t>(
-      logger_name, sinks, format_pattern, time_pattern, timestamp_timezone, clock_source, user_clock));
+      logger_name, std::vector<std::shared_ptr<Sink>>{sinks}, format_pattern, time_pattern,
+      timestamp_timezone, clock_source, user_clock));
   }
 
   /**
@@ -162,6 +166,18 @@ public:
     }
 
     return loggers;
+  }
+
+  /**
+   * Returns the first valid logger that is found. This is useful when you do not want to use the
+   * std::vector<logger_t*> return value of get_all_loggers.
+   *
+   * @return A pointer to the first valid logger, or nullptr if no valid logger is found.
+   */
+  QUILL_NODISCARD static logger_t* get_valid_logger() noexcept
+  {
+    detail::LoggerBase* logger = detail::LoggerManager::instance().get_valid_logger();
+    return logger ? _cast_to_logger(logger) : nullptr;
   }
 
   /**

@@ -150,24 +150,24 @@ struct ArgSizeCalculator
       return sizeof(size_t) + arg.length();
     }
 #if defined(_WIN32)
-    else if constexpr (std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>)
+    else if constexpr (std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>,
+                                          std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>)
     {
       // Calculate the size of the string in bytes
-      size_t const len = wcslen(arg);
+      size_t len;
+
+      if constexpr (std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>)
+      {
+        len = wcslen(arg);
+      }
+      else
+      {
+        len = arg.size();
+      }
+
       conditional_arg_size_cache.push_back(len);
 
-      // to be safe we also store the size of the string in the buffer as a separate variable
-      // we can retrieve it when we decode. We also store the null terminator in the buffer to
-      // be able to return the value as wchar_t*
-      return static_cast<size_t>(sizeof(size_t) + ((len + 1u) * sizeof(wchar_t)));
-    }
-    else if constexpr (std::disjunction_v<std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>)
-    {
-      // Calculate the size of the string in bytes
-      size_t const len = arg.size();
-      conditional_arg_size_cache.push_back(len);
-
-      // to be safe we also store the size of the string in the buffer as a separate variable
+      // also include the size of the string in the buffer as a separate variable
       // we can retrieve it when we decode. We do not store the null terminator in the buffer
       return static_cast<size_t>(sizeof(size_t) + (len * sizeof(wchar_t)));
     }
@@ -180,9 +180,9 @@ struct ArgSizeCalculator
 };
 
 /**
- * @brief Calculates the total size required to encode the provided arguments and populates the c_style_string_lengths array.
+ * @brief Calculates the total size required to encode the provided arguments
 
- * @param c_style_string_lengths Array to store the c_style_string_lengths of C-style strings and char arrays.
+ * @param conditional_arg_size_cache Storage to avoid repeating calculations eg. cache strlen
  * @param args The arguments to be encoded.
  * @return The total size required to encode the arguments.
  */
@@ -252,19 +252,8 @@ struct Encoder
       buffer += sizeof(len) + len;
     }
 #if defined(_WIN32)
-    else if constexpr (std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>)
-    {
-      // The wide string size in bytes
-      size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
-      std::memcpy(buffer, &len, sizeof(len));
-      buffer += sizeof(len);
-
-      // copy the string including the null terminator
-      size_t const size_in_bytes = (len + 1) * sizeof(wchar_t);
-      std::memcpy(buffer, arg, size_in_bytes);
-      buffer += size_in_bytes;
-    }
-    else if constexpr (std::disjunction_v<std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>)
+    else if constexpr (std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>,
+                                          std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>)
     {
       // The wide string size in bytes
       size_t const len = conditional_arg_size_cache[conditional_arg_size_cache_index++];
@@ -276,7 +265,16 @@ struct Encoder
         // copy the string, no need to zero terminate it as we got the length and e.g a wstring_view
         // might not always be zero terminated
         size_t const size_in_bytes = len * sizeof(wchar_t);
-        std::memcpy(buffer, arg.data(), size_in_bytes);
+
+        if constexpr (std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>)
+        {
+          std::memcpy(buffer, arg, size_in_bytes);
+        }
+        else
+        {
+          std::memcpy(buffer, arg.data(), size_in_bytes);
+        }
+
         buffer += size_in_bytes;
       }
     }
@@ -291,7 +289,7 @@ struct Encoder
 /**
  * @brief Encoders multiple arguments into a buffer.
  * @param buffer Pointer to the buffer for encoding.
- * @param c_style_string_lengths Array storing the c_style_string_lengths of C-style strings and char arrays.
+ * @param conditional_arg_size_cache Storage to avoid repeating calculations eg. cache strlen
  * @param args The arguments to be encoded.
  */
 template <typename... Args>
@@ -322,22 +320,10 @@ struct Decoder
 
       return arg;
     }
-    else if constexpr (std::conjunction_v<std::is_array<Arg>, std::is_same<remove_cvref_t<std::remove_extent_t<Arg>>, char>>)
+    else if constexpr (std::disjunction_v<std::is_same<Arg, char*>, std::is_same<Arg, char const*>,
+                                          std::conjunction<std::is_array<Arg>, std::is_same<remove_cvref_t<std::remove_extent_t<Arg>>, char>>>)
     {
-      char const* str = reinterpret_cast<char const*>(buffer);
-      size_t const len = strlen(str);
-      buffer += len + 1; // for c_strings we add +1 to the length as we also want to copy the null terminated char
-
-      if (args_store)
-      {
-        // pass the std::string_view to args_store to avoid the dynamic allocation
-        args_store->push_back(std::string_view{str, len});
-      }
-
-      return str;
-    }
-    else if constexpr (std::disjunction_v<std::is_same<Arg, char*>, std::is_same<Arg, char const*>>)
-    {
+      // c strings or char array
       char const* str = reinterpret_cast<char const*>(buffer);
       size_t const len = strlen(str);
       buffer += len + 1; // for c_strings we add +1 to the length as we also want to copy the null terminated char
@@ -369,7 +355,8 @@ struct Decoder
       return v;
     }
 #if defined(_WIN32)
-    else if constexpr (std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>>)
+    else if constexpr (std::disjunction_v<std::is_same<Arg, wchar_t*>, std::is_same<Arg, wchar_t const*>,
+                                          std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>)
     {
       // we first need to retrieve the length
       size_t len;
@@ -384,27 +371,7 @@ struct Decoder
         args_store->push_back(static_cast<std::string&&>(str));
       }
 
-      // For wchar_t* we also copy the null terminator
-      size_t const size_bytes = (len + 1) * sizeof(wchar_t);
-      buffer += size_bytes;
-      return wstr;
-    }
-    else if constexpr (std::disjunction_v<std::is_same<Arg, std::wstring>, std::is_same<Arg, std::wstring_view>>)
-    {
-      // we first need to retrieve the length
-      size_t len;
-      std::memcpy(&len, buffer, sizeof(len));
-      buffer += sizeof(len);
-
-      std::wstring_view wstr{reinterpret_cast<wchar_t const*>(buffer), len};
-
-      if (args_store)
-      {
-        std::string str = utf8_encode(buffer, len);
-        args_store->push_back(static_cast<std::string&&>(str));
-      }
-
-      size_t const size_bytes = len * sizeof(wchar_t);
+      size_t size_bytes = len * sizeof(wchar_t);
       buffer += size_bytes;
       return wstr;
     }

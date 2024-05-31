@@ -55,13 +55,13 @@ struct BackendOptions
    * If a frontend threads continuously push messages to the queue (e.g., logging in a loop),
    * no logs can ever be processed.
    *
-   * When the soft limit is reached (default: 800), this number of events will be logged to the
-   * log files before continuing to read the frontend queues.
+   * When the soft limit is reached (default: 800), the backend worker thread will try to process
+   * a batch of cached transit events all at once
    *
    * The frontend queues are emptied on each iteration, so the actual popped messages
    * can be much greater than the transit_events_soft_limit.
    *
-   * @note This number represents a limit across ALL frontend threads.
+   * @note This number represents a limit across the messages received from ALL frontend threads.
    */
   size_t transit_events_soft_limit = 800;
 
@@ -161,7 +161,8 @@ struct BackendOptions
    * with the system time from the system wall clock.
    * The TSC clock can drift slightly over time and is not synchronized with NTP server updates.
    *
-   * Smaller values provide more accurate log timestamps at the cost of additional system clock calls. Changing this value only affects the performance of the backend worker.
+   * Smaller values provide more accurate log timestamps at the cost of additional system clock
+   * calls. Changing this value only affects the performance of the backend worker.
    */
   std::chrono::milliseconds rdtsc_resync_interval = std::chrono::milliseconds{500};
 };

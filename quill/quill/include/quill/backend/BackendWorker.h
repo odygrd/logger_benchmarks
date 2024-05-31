@@ -81,6 +81,10 @@ public:
   {
     // This destructor will run during static destruction as the thread is part of the singleton
     stop();
+
+    RdtscClock const* rdtsc_clock{_rdtsc_clock.load()};
+    _rdtsc_clock.store(nullptr);
+    delete rdtsc_clock;
   }
 
   /***/
@@ -216,7 +220,7 @@ public:
     // signal wake up the backend worker thread
     notify();
 
-    // Wait the backend thread to join, if backend thread was never started it won't be joinable so we can still
+    // Wait the backend thread to join, if backend thread was never started it won't be joinable
     if (_worker_thread.joinable())
     {
       _worker_thread.join();
@@ -262,9 +266,14 @@ private:
       }
       else
       {
-        while (_process_next_cached_transit_event())
+        // we want to process a batch of events.
+        while (!has_pending_events_for_caching_when_transit_event_buffer_empty() &&
+               _process_next_cached_transit_event())
         {
-          // process all cached TransitEvents
+          // We need to be cautious because there are log messages in the lock-free queues
+          // that have not yet been cached in the transit event buffer. Logging only the cached
+          // messages can result in out-of-order log entries, as messages with larger timestamps
+          // in the queue might be missed.
         }
       }
     }
@@ -316,48 +325,32 @@ private:
    */
   QUILL_ATTRIBUTE_COLD void _exit()
   {
-    // load all contexts locally
-    _update_active_thread_contexts_cache();
-
     while (true)
     {
-      size_t cached_transit_events_count = _populate_transit_events_from_frontend_queues();
+      bool const queues_and_events_empty = (!_options.wait_for_queues_to_empty_before_exit) ||
+        _check_frontend_queues_and_cached_transit_events_empty();
 
+      if (queues_and_events_empty)
+      {
+        // we are done, all queues are now empty
+        _check_failure_counter(_options.error_notifier);
+        _flush_and_run_active_sinks_loop(false);
+        break;
+      }
+
+      size_t const cached_transit_events_count = _populate_transit_events_from_frontend_queues();
       if (cached_transit_events_count > 0)
       {
-        // there are cached events to process
-        if (cached_transit_events_count < _options.transit_events_soft_limit)
+        while (!has_pending_events_for_caching_when_transit_event_buffer_empty() &&
+               _process_next_cached_transit_event())
         {
-          // process a single transit event, then give priority to the hot thread spsc queue again
-          _process_next_cached_transit_event();
-        }
-        else
-        {
-          while (_process_next_cached_transit_event())
-          {
-            // process all cached transit events
-          }
-        }
-      }
-      else
-      {
-        // there are no cached transit events to process
-        bool const queues_and_events_empty = (!_options.wait_for_queues_to_empty_before_exit) ||
-          _check_frontend_queues_and_cached_transit_events_empty();
-
-        if (queues_and_events_empty)
-        {
-          // we are done, all queues are now empty
-          _check_failure_counter(_options.error_notifier);
-          _flush_and_run_active_sinks_loop(false);
-          break;
+          // We need to be cautious because there are log messages in the lock-free queues
+          // that have not yet been cached in the transit event buffer. Logging only the cached
+          // messages can result in out-of-order log entries, as messages with larger timestamps
+          // in the queue might be missed.
         }
       }
     }
-
-    RdtscClock const* rdtsc_clock{_rdtsc_clock.load(std::memory_order_relaxed)};
-    _rdtsc_clock.store(nullptr, std::memory_order_release);
-    delete rdtsc_clock;
   }
 
   /**
@@ -510,106 +503,58 @@ private:
         transit_event->logger_base->pattern_formatter = std::make_shared<PatternFormatter>(
           transit_event->logger_base->format_pattern, transit_event->logger_base->time_pattern,
           transit_event->logger_base->timezone);
+
         _pattern_formatters.push_back(transit_event->logger_base->pattern_formatter);
       }
     }
 
-    // if we are using rdtsc clock then here we will convert the value to nanoseconds since epoch
-    // doing the conversion here ensures that every transit that is inserted in the transit buffer
-    // below has a timestamp of nanoseconds since epoch and makes it even possible to
-    // have Logger objects using different clocks
     if (transit_event->logger_base->clock_source == ClockSourceType::Tsc)
     {
+      // If using the rdtsc clock, convert the value to nanoseconds since epoch.
+      // This conversion ensures that every transit inserted in the buffer below has a timestamp in
+      // nanoseconds since epoch, allowing compatibility with Logger objects using different clocks.
       if (!_rdtsc_clock.load(std::memory_order_relaxed))
       {
-        // Here we lazy initialise rdtsc clock on the backend thread only if the user decides to use it
-        // Use of the rdtsc clock based on config.
-        // The clock requires a few seconds to init as it is taking samples first
+        // Lazy initialization of rdtsc clock on the backend thread only if the user decides to use
+        // it. The clock requires a few seconds to init as it is taking samples first.
         _rdtsc_clock.store(new RdtscClock{_options.rdtsc_resync_interval}, std::memory_order_release);
         _last_rdtsc_resync_time = std::chrono::system_clock::now();
       }
 
-      // convert the rdtsc value to nanoseconds since epoch
+      // Convert the rdtsc value to nanoseconds since epoch.
       transit_event->timestamp =
         _rdtsc_clock.load(std::memory_order_relaxed)->time_since_epoch(transit_event->timestamp);
+    }
 
-      // Now check if the message has a timestamp greater than our ts_now
-      if (QUILL_UNLIKELY((ts_now != 0) && ((transit_event->timestamp / 1'000) >= ts_now)))
+    // Check if strict log timestamp order is enabled and the clock source is not User.
+    if (_options.enable_strict_log_timestamp_order &
+        (transit_event->logger_base->clock_source != ClockSourceType::User))
+    {
+      // Ensure the message timestamp is not greater than ts_now.
+      // We skip checking against `ts_now` for custom timestamps by the user
+      if (QUILL_UNLIKELY((transit_event->timestamp / 1'000) >= ts_now))
       {
-        // We are reading the queues sequentially and to be fair when ordering the messages
-        // we are trying to avoid the situation when we already read the first queue,
-        // and then we missed it when reading the last queue
-
-        // if the message timestamp is greater than our timestamp then we stop reading this queue
-        // for now and we will continue in the next circle
-
-        // we return here and never call transit_event_buffer.push_back();
+        // If the message timestamp is ahead of the current time, temporarily halt processing.
+        // This guarantees the integrity of message order and avoids missed messages.
+        // We halt processing here to avoid introducing out-of-sequence messages.
+        // This scenario prevents potential race conditions where timestamps from
+        // the last queue could overwrite those from the first queue before they are included.
+        // We return at this point without adding the current event to the buffer.
         return false;
       }
-    }
-    else if (transit_event->logger_base->clock_source == ClockSourceType::System)
-    {
-      if (QUILL_UNLIKELY((ts_now != 0) && ((transit_event->timestamp / 1'000) >= ts_now)))
-      {
-        // We are reading the queues sequentially and to be fair when ordering the messages
-        // we are trying to avoid the situation when we already read the first queue,
-        // and then we missed it when reading the last queue
-
-        // if the message timestamp is greater than our timestamp then we stop reading this queue
-        // for now and we will continue in the next circle
-
-        // we return here and never call transit_event_buffer.push_back();
-        return false;
-      }
-    }
-    else if (transit_event->logger_base->clock_source == ClockSourceType::User)
-    {
-      // we skip checking against `ts_now`, we can not compare a custom timestamp by
-      // the user (TimestampClockType::Custom) against ours
     }
 
     // we need to check and do not try to format the flush events as that wouldn't be valid
     if (transit_event->macro_metadata->event() != MacroMetadata::Event::Flush)
     {
+      transit_event->format_args_decoder(read_pos, _format_args_store);
+
       if (!transit_event->macro_metadata->has_named_args())
       {
-        transit_event->format_args_decoder(read_pos, _format_args_store);
-
-        transit_event->formatted_msg.clear();
-
-        QUILL_TRY
-        {
-          fmtquill::vformat_to(std::back_inserter(transit_event->formatted_msg),
-                               transit_event->macro_metadata->message_format(),
-                               fmtquill::basic_format_args<fmtquill::format_context>{
-                                 _format_args_store.get_types(), _format_args_store.data()});
-        }
-#if !defined(QUILL_NO_EXCEPTIONS)
-        QUILL_CATCH(std::exception const& e)
-        {
-          transit_event->formatted_msg.clear();
-          std::string const error = fmtquill::format(
-            "[Could not format log statement. message: \"{}\", location: \"{}\", error: \"{}\"]",
-            transit_event->macro_metadata->message_format(),
-            transit_event->macro_metadata->short_source_location(), e.what());
-
-          transit_event->formatted_msg.append(error);
-          _options.error_notifier(error);
-        }
-#endif
+        _populate_formatted_log_message(transit_event, transit_event->macro_metadata->message_format());
       }
       else
       {
-        // named arg logs, we lazy initialise the named args buffer
-        if (!transit_event->named_args)
-        {
-          transit_event->named_args = std::make_unique<std::vector<std::pair<std::string, std::string>>>();
-        }
-        else
-        {
-          transit_event->named_args->clear();
-        }
-
         // using the message_format as key for lookups
         _named_args_format_template.assign(transit_event->macro_metadata->message_format());
 
@@ -618,43 +563,10 @@ private:
         {
           // process named args message when we already have parsed the format message once,
           // and we have the names of each arg cached
-          auto const& [fmt_str, arg_name] = search->second;
+          auto const& [message_format, arg_names] = search->second;
 
-          transit_event->named_args->resize(arg_name.size());
-
-          // We first populate the arg names in the transit buffer
-          for (size_t i = 0; i < arg_name.size(); ++i)
-          {
-            (*transit_event->named_args)[i].first = arg_name[i];
-          }
-
-          transit_event->format_args_decoder(read_pos, _format_args_store);
-
-          transit_event->formatted_msg.clear();
-
-          QUILL_TRY
-          {
-            fmtquill::vformat_to(std::back_inserter(transit_event->formatted_msg), fmt_str,
-                                 fmtquill::basic_format_args<fmtquill::format_context>{
-                                   _format_args_store.get_types(), _format_args_store.data()});
-
-            // format the values of each key
-            _format_and_split_arguments(*transit_event->named_args, _format_args_store);
-          }
-#if !defined(QUILL_NO_EXCEPTIONS)
-          QUILL_CATCH(std::exception const& e)
-          {
-            transit_event->formatted_msg.clear();
-            std::string const error = fmtquill::format(
-              "[Could not format log statement. message: \"{}\", location: \"{}\", error: "
-              "\"{}\"]",
-              transit_event->macro_metadata->message_format(),
-              transit_event->macro_metadata->short_source_location(), e.what());
-
-            transit_event->formatted_msg.append(error);
-            _options.error_notifier(error);
-          }
-#endif
+          _populate_formatted_log_message(transit_event, message_format.data());
+          _populate_formatted_named_args(transit_event, arg_names);
         }
         else
         {
@@ -664,62 +576,14 @@ private:
             _named_args_format_template,
             _process_named_args_format_message(transit_event->macro_metadata->message_format()));
 
-          // suppress unused warning
+          auto const& [message_format, arg_names] = res_it->second;
+
+          // suppress unused warnings
           (void)inserted;
 
-          auto const& [fmt_str, arg_name] = res_it->second;
-
-          transit_event->named_args->resize(arg_name.size());
-
-          // We first populate the names of each arg in the transit buffer
-          for (size_t i = 0; i < arg_name.size(); ++i)
-          {
-            (*transit_event->named_args)[i].first = arg_name[i];
-          }
-
-          transit_event->format_args_decoder(read_pos, _format_args_store);
-
-          transit_event->formatted_msg.clear();
-
-          QUILL_TRY
-          {
-            fmtquill::vformat_to(std::back_inserter(transit_event->formatted_msg), fmt_str,
-                                 fmtquill::basic_format_args<fmtquill::format_context>{
-                                   _format_args_store.get_types(), _format_args_store.data()});
-
-            // format the values of each key
-            _format_and_split_arguments(*transit_event->named_args, _format_args_store);
-          }
-#if !defined(QUILL_NO_EXCEPTIONS)
-          QUILL_CATCH(std::exception const& e)
-          {
-            transit_event->formatted_msg.clear();
-            std::string const error = fmtquill::format(
-              "[Could not format log statement. message: \"{}\", location: \"{}\", error: "
-              "\"{}\"]",
-              transit_event->macro_metadata->message_format(),
-              transit_event->macro_metadata->short_source_location(), e.what());
-
-            transit_event->formatted_msg.append(error);
-            _options.error_notifier(error);
-          }
-#endif
+          _populate_formatted_log_message(transit_event, message_format.data());
+          _populate_formatted_named_args(transit_event, arg_names);
         }
-      }
-
-      if (transit_event->macro_metadata->log_level() == LogLevel::Dynamic)
-      {
-        // if this is a dynamic log level we need to read the log level from the buffer
-        std::memcpy(&transit_event->dynamic_log_level, read_pos, sizeof(transit_event->dynamic_log_level));
-        read_pos += sizeof(transit_event->dynamic_log_level);
-      }
-      else
-      {
-        // Important: if a dynamic log level is not being used, then this must
-        // not have a value, otherwise the wrong log level may be used later.
-        // We can't assume that this member (or any member of TransitEvent) has
-        // its default value because TransitEvents may be reused.
-        transit_event->dynamic_log_level = LogLevel::None;
       }
     }
     else
@@ -732,10 +596,54 @@ private:
       read_pos += sizeof(uintptr_t);
     }
 
+    if (transit_event->macro_metadata->log_level() == LogLevel::Dynamic)
+    {
+      // if this is a dynamic log level we need to read the log level from the buffer
+      std::memcpy(&transit_event->dynamic_log_level, read_pos, sizeof(transit_event->dynamic_log_level));
+      read_pos += sizeof(transit_event->dynamic_log_level);
+    }
+    else
+    {
+      // Important: if a dynamic log level is not being used, then this must
+      // not have a value, otherwise the wrong log level may be used later.
+      // We can't assume that this member (or any member of TransitEvent) has
+      // its default value because TransitEvents may be reused.
+      transit_event->dynamic_log_level = LogLevel::None;
+    }
+
     // commit this transit event
     thread_context->_transit_event_buffer->push_back();
 
     return true;
+  }
+
+  /**
+   * Checks if there are pending events for caching based on the state of transit event buffers and queues.
+   * @return True if there are pending events for caching when the _transit_event_buffer is empty, false otherwise.
+   */
+  QUILL_ATTRIBUTE_HOT bool has_pending_events_for_caching_when_transit_event_buffer_empty() noexcept
+  {
+    _update_active_thread_contexts_cache();
+
+    for (ThreadContext* thread_context : _active_thread_contexts_cache)
+    {
+      if (!thread_context->_transit_event_buffer || thread_context->_transit_event_buffer->empty())
+      {
+        // if there is no _transit_event_buffer yet then check only the queue
+        if (thread_context->has_unbounded_queue_type() &&
+            !thread_context->get_spsc_queue_union().unbounded_spsc_queue.empty())
+        {
+          return true;
+        }
+        else if (thread_context->has_bounded_queue_type() &&
+                 !thread_context->get_spsc_queue_union().bounded_spsc_queue.empty())
+        {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -1054,7 +962,7 @@ private:
   /**
    * Updates the active sinks cache
    */
-  void _flush_and_run_active_sinks_loop(bool run_loop)
+  QUILL_ATTRIBUTE_HOT void _flush_and_run_active_sinks_loop(bool run_loop)
   {
     // Update the active sinks cache, consider only the valid loggers
     _logger_manager.for_each_logger(
@@ -1138,7 +1046,7 @@ private:
    *
    * @note Only called by the backend thread
    */
-  void _cleanup_invalidated_thread_contexts()
+  QUILL_ATTRIBUTE_HOT void _cleanup_invalidated_thread_contexts()
   {
     if (!_thread_context_manager.has_invalid_thread_context())
     {
@@ -1210,7 +1118,7 @@ private:
   /**
    * Cleans up any invalidated loggers
    */
-  void _cleanup_invalidated_loggers()
+  QUILL_ATTRIBUTE_HOT void _cleanup_invalidated_loggers()
   {
     // since there are no messages we can check for invalidated loggers and clean them up
     std::vector<std::string> const removed_loggers = _logger_manager.cleanup_invalidated_loggers(
@@ -1294,6 +1202,63 @@ private:
     {
       named_args[idx].second = formatted_values_str.substr(start);
     }
+  }
+
+  void _populate_formatted_named_args(TransitEvent* transit_event, std::vector<std::string> const& arg_names)
+  {
+    if (!transit_event->named_args)
+    {
+      // named arg logs, we lazy initialise the named args buffer
+      transit_event->named_args = std::make_unique<std::vector<std::pair<std::string, std::string>>>();
+    }
+    else
+    {
+      transit_event->named_args->clear();
+    }
+
+    transit_event->named_args->resize(arg_names.size());
+
+    // We first populate the arg names in the transit buffer
+    for (size_t i = 0; i < arg_names.size(); ++i)
+    {
+      (*transit_event->named_args)[i].first = arg_names[i];
+    }
+
+    // Then populate all the values of each arg
+    QUILL_TRY { _format_and_split_arguments(*transit_event->named_args, _format_args_store); }
+#if !defined(QUILL_NO_EXCEPTIONS)
+    QUILL_CATCH(std::exception const&)
+    {
+      // This catch block simply catches the exception.
+      // Since the error has already been handled in _populate_formatted_log_message,
+      // there is no additional action required here.
+    }
+#endif
+  }
+
+  QUILL_ATTRIBUTE_HOT void _populate_formatted_log_message(TransitEvent* transit_event, char const* message_format)
+  {
+    transit_event->formatted_msg.clear();
+
+    QUILL_TRY
+    {
+      fmtquill::vformat_to(std::back_inserter(transit_event->formatted_msg), message_format,
+                           fmtquill::basic_format_args<fmtquill::format_context>{
+                             _format_args_store.get_types(), _format_args_store.data()});
+    }
+#if !defined(QUILL_NO_EXCEPTIONS)
+    QUILL_CATCH(std::exception const& e)
+    {
+      transit_event->formatted_msg.clear();
+      std::string const error = fmtquill::format(
+        "[Could not format log statement. message: \"{}\", location: \"{}\", error: \"{}\"]",
+        transit_event->macro_metadata->message_format(),
+        transit_event->macro_metadata->short_source_location(), e.what());
+
+      transit_event->formatted_msg.append(error);
+      _options.error_notifier(error);
+    }
+#endif
   }
 
 private:
