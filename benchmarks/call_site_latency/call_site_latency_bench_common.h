@@ -1,5 +1,7 @@
 #pragma once
 #include <chrono>
+#include <pthread.h>
+
 #if defined(_WIN32)
 #include <intrin.h>
 #else
@@ -13,21 +15,24 @@
 // perf c2c report -NN -g --call-graph -c pid,iaddr --stdio
 #define BENCH_WITHOUT_PERF
 
-#define THREAD_LIST_COUNT                                                                          \
-  std::vector<int32_t> { 1, 4 }
-#define ITERATIONS                                                                                 \
-  std::size_t { 100000 }
+#define THREAD_LIST_COUNT std::vector<int32_t> { 1, 4 }
 
-#define MESSAGES                                                                                 \
-  std::size_t { 20 }
-
-#define MIN_WAIT_DURATION                                                                          \
-  std::chrono::microseconds { 2000 }
-#define MAX_WAIT_DURATION                                                                          \
-  std::chrono::microseconds { 2200 }
+#define ITERATIONS std::size_t { 10000 }
+#define MESSAGES std::size_t { 20 }
+#define MIN_WAIT_DURATION std::chrono::microseconds { 2000 }
+#define MAX_WAIT_DURATION std::chrono::microseconds { 2200 }
 
 //#define BENCH_INT_INT_DOUBLE
 //#define BENCH_INT_INT_LARGESTR
+
+inline void set_pthread_affinity(pthread_t thread, int cpu)
+{
+  cpu_set_t cpus;
+  CPU_ZERO(&cpus);
+  CPU_SET(cpu, &cpus);
+  if (::pthread_setaffinity_np(thread, sizeof(cpus), &cpus) != 0)
+    abort();
+}
 
 /** -------- **/
 inline double ns_per_rdtsc_tick()

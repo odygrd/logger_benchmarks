@@ -12,9 +12,11 @@ void reckless_benchmark(std::vector<int32_t> thread_count_array, size_t num_iter
 
   using log_t = reckless::severity_log<reckless::indent<4>, ' ', reckless::severity_field, reckless::timestamp_field>;
   reckless::file_writer writer("reckless_call_site_latency_percentile_linux_benchmark.log");
-  log_t g_log(&writer);
+  log_t g_log(&writer, 512UL * 1024UL, 128UL * 1024UL * 1024UL);
   g_log.permanent_error_policy(reckless::error_policy::block);
   g_log.temporary_error_policy(reckless::error_policy::block);
+
+  set_pthread_affinity(g_log.worker_thread().native_handle(), 5);
 
   // wait for the backend thread to start
   std::this_thread::sleep_for(std::chrono::seconds(1));

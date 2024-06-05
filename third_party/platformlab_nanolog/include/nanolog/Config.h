@@ -57,13 +57,13 @@ namespace NanoLogConfig {
     // for more log messages in the StagingBuffers to compress and output.
     // Due to overheads in the kernel, this number will a lower bound and
     // the actual time spent sleeping may be significantly higher.
-    static const uint32_t POLL_INTERVAL_NO_WORK_US = 1;
+    static const uint32_t POLL_INTERVAL_NO_WORK_US = 0;
 
     // How often should the background compression thread wake up and
     // check for more log messages when it's stalled waiting for an IO
     // to complete. Due to overheads in the kernel, this number will
     // be a lower bound and the actual time spent sleeping may be higher.
-    static const uint32_t POLL_INTERVAL_DURING_IO_US = 1;
+    static const uint32_t POLL_INTERVAL_DURING_IO_US = 0;
 }
 
 #endif /* CONFIG_H */
