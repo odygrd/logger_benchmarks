@@ -18,7 +18,7 @@ endif ()
 # Compiler config
 #---------------------------------------------------------------------------------------
 if (NOT CMAKE_CXX_STANDARD)
-    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD 20)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif ()
 
@@ -41,4 +41,5 @@ add_subdirectory(third_party/g3log)
 
 add_subdirectory(third_party/binlog)
 add_subdirectory(third_party/fmtlog)
+add_subdirectory(third_party/xtr)
 add_subdirectory(benchmarks)

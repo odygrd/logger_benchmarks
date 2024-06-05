@@ -82,8 +82,8 @@ public:
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT
     std::conditional_t<(queue_type == QueueType::UnboundedBlocking) || (queue_type == QueueType::UnboundedUnlimited) ||
                          (queue_type == QueueType::UnboundedDropping),
-                                                       UnboundedSPSCQueue, BoundedSPSCQueue>&
-  get_spsc_queue() noexcept
+                       UnboundedSPSCQueue, BoundedSPSCQueue>&
+    get_spsc_queue() noexcept
   {
     assert((_queue_type == queue_type) && "ThreadContext queue_type mismatch");
 
@@ -103,8 +103,8 @@ public:
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT
     std::conditional_t<(queue_type == QueueType::UnboundedBlocking) || (queue_type == QueueType::UnboundedUnlimited) ||
                          (queue_type == QueueType::UnboundedDropping),
-                                                       UnboundedSPSCQueue, BoundedSPSCQueue> const&
-  get_spsc_queue() const noexcept
+                       UnboundedSPSCQueue, BoundedSPSCQueue> const&
+    get_spsc_queue() const noexcept
   {
     assert((_queue_type == queue_type) && "ThreadContext queue_type mismatch");
 
@@ -210,7 +210,7 @@ class ThreadContextManager
 {
 public:
   /***/
-  static ThreadContextManager& instance() noexcept
+  QUILL_EXPORT static ThreadContextManager& instance() noexcept
   {
     static ThreadContextManager instance;
     return instance;
@@ -358,9 +358,7 @@ public:
   }
 
   /***/
-  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT ThreadContext*
-
-  get_thread_context() const noexcept
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT ThreadContext* get_thread_context() const noexcept
   {
     assert(_thread_context && "_thread_context can not be null");
     return _thread_context.get();
@@ -376,7 +374,7 @@ private:
 
 /***/
 template <typename TFrontendOptions>
-QUILL_NODISCARD QUILL_ATTRIBUTE_HOT extern ThreadContext* get_local_thread_context() noexcept
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT ThreadContext* get_local_thread_context() noexcept
 {
   thread_local ScopedThreadContext scoped_thread_context{
     TFrontendOptions::queue_type, TFrontendOptions::initial_queue_capacity, TFrontendOptions::huge_pages_enabled};

@@ -45,6 +45,8 @@ include(${PROJECT_SOURCE_DIR}/cmake/doctest.cmake)
 
 quill_add_test(TEST_BoundedQueueTest BoundedQueueTest.cpp)
 quill_add_test(TEST_DynamicFormatArgStore DynamicFormatArgStoreTest.cpp)
+quill_add_test(TEST_FileEventNotifier FileEventNotifierTest.cpp)
+quill_add_test(TEST_FileSink FileSinkTest.cpp)
 quill_add_test(TEST_FileUtilities FileUtilitiesTest.cpp)
 quill_add_test(TEST_LoggerManager LoggerManagerTest.cpp)
 quill_add_test(TEST_Logger LoggerTest.cpp)
@@ -60,6 +62,11 @@ quill_add_test(TEST_TimestampFormatter TimestampFormatterTest.cpp)
 quill_add_test(TEST_TransitEventBuffer TransitEventBufferTest.cpp)
 quill_add_test(TEST_UnboundedQueue.cpp UnboundedQueueTest.cpp)
 quill_add_test(TEST_Utility UtilityTest.cpp)
+
+if (NOT QUILL_SANITIZE_THREAD)
+    # clang++12 thread sanitizer throws exception for unknown reason in the CI
+    quill_add_test(TEST_UnboundedQueueLimit.cpp UnboundedQueueLimitTest.cpp)
+endif ()
 
 if (NOT QUILL_USE_VALGRIND)
     quill_add_test(TEST_RdtscClock RdtscClockTest.cpp)

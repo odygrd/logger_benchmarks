@@ -358,11 +358,12 @@ private:
    */
   QUILL_ATTRIBUTE_HOT size_t _populate_transit_events_from_frontend_queues()
   {
-    uint64_t const ts_now = _options.enable_strict_log_timestamp_order
-      ? static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
-                                std::chrono::system_clock::now().time_since_epoch())
+    uint64_t const ts_now = _options.log_timestamp_ordering_grace_period.count()
+      ? static_cast<uint64_t>((std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                 std::chrono::system_clock::now().time_since_epoch()) -
+                               _options.log_timestamp_ordering_grace_period)
                                 .count())
-      : 0;
+      : std::numeric_limits<uint64_t>::max();
 
     size_t cached_transit_events_count{0};
 
@@ -526,12 +527,28 @@ private:
     }
 
     // Check if strict log timestamp order is enabled and the clock source is not User.
-    if (_options.enable_strict_log_timestamp_order &
-        (transit_event->logger_base->clock_source != ClockSourceType::User))
+    if (transit_event->logger_base->clock_source != ClockSourceType::User)
     {
-      // Ensure the message timestamp is not greater than ts_now.
       // We skip checking against `ts_now` for custom timestamps by the user
-      if (QUILL_UNLIKELY((transit_event->timestamp / 1'000) >= ts_now))
+
+#ifndef NDEBUG
+      // Check the timestmaps we are comparign have the same digits
+      auto count_digits = [](uint64_t number)
+      {
+        uint32_t digits = 0;
+        do
+        {
+          digits++;
+          number /= 10;
+        } while (number != 0);
+        return digits;
+      };
+
+      assert(count_digits(transit_event->timestamp) == count_digits(ts_now));
+#endif
+
+      // Ensure the message timestamp is not greater than ts_now.
+      if (QUILL_UNLIKELY(transit_event->timestamp > ts_now))
       {
         // If the message timestamp is ahead of the current time, temporarily halt processing.
         // This guarantees the integrity of message order and avoids missed messages.
@@ -1274,7 +1291,7 @@ private:
   std::string _named_args_format_template; /** to avoid allocation each time **/
   std::string _process_id;                 /** Id of the current running process **/
   std::chrono::system_clock::time_point _last_rdtsc_resync_time;
-  std::atomic<uint32_t> _worker_thread_id{0}; /** cached backend worker thread id */
+  std::atomic<uint32_t> _worker_thread_id{0};  /** cached backend worker thread id */
   std::atomic<bool> _is_worker_running{false}; /** The spawned backend thread status */
 
   alignas(CACHE_LINE_ALIGNED) std::atomic<RdtscClock*> _rdtsc_clock{
