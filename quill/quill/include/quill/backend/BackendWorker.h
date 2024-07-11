@@ -32,7 +32,7 @@
 #include "quill/core/UnboundedSPSCQueue.h"
 #include "quill/sinks/Sink.h"
 
-#include "quill/bundled/fmt/core.h"
+#include "quill/bundled/fmt/base.h"
 
 #include <algorithm>
 #include <atomic>
@@ -702,6 +702,12 @@ private:
     } // clang-format on
 #endif
 
+    // Finally clean up any remaining fields in the transit event
+    if (transit_event->named_args)
+    {
+      transit_event->named_args->clear();
+    }
+
     // Remove this event and move to the next.
     transit_buffer->pop_front();
 
@@ -789,24 +795,33 @@ private:
    */
   QUILL_ATTRIBUTE_HOT void _write_transit_event_to_sinks(TransitEvent const& transit_event) const
   {
-    std::string_view const formatted_log_message = transit_event.logger_base->pattern_formatter->format(
+    std::string_view const log_message =
+      std::string_view{transit_event.formatted_msg.data(), transit_event.formatted_msg.size()};
+
+    std::string_view const log_level_description =
+      detail::log_level_to_string(transit_event.log_level(), _options.log_level_descriptions.data(),
+                                  _options.log_level_descriptions.size());
+
+    std::string_view const log_level_short_code =
+      detail::log_level_to_string(transit_event.log_level(), _options.log_level_short_codes.data(),
+                                  _options.log_level_short_codes.size());
+
+    std::string_view const log_statement = transit_event.logger_base->pattern_formatter->format(
       transit_event.timestamp, transit_event.thread_id, transit_event.thread_name, _process_id,
-      transit_event.logger_base->logger_name, loglevel_to_string(transit_event.log_level()),
-      *transit_event.macro_metadata, transit_event.named_args.get(),
-      std::string_view{transit_event.formatted_msg.data(), transit_event.formatted_msg.size()});
+      transit_event.logger_base->logger_name, log_level_description, log_level_short_code,
+      *transit_event.macro_metadata, transit_event.named_args.get(), log_message);
 
     for (auto& sink : transit_event.logger_base->sinks)
     {
       // If all filters are okay we write this message to the file
       if (sink->apply_all_filters(transit_event.macro_metadata, transit_event.timestamp,
                                   transit_event.thread_id, transit_event.thread_name,
-                                  transit_event.logger_base->logger_name, transit_event.log_level(),
-                                  formatted_log_message))
+                                  transit_event.logger_base->logger_name, transit_event.log_level(), log_statement))
       {
-        sink->write_log_message(transit_event.macro_metadata, transit_event.timestamp,
-                                transit_event.thread_id, transit_event.thread_name,
-                                transit_event.logger_base->logger_name, transit_event.log_level(),
-                                transit_event.named_args.get(), formatted_log_message);
+        sink->write_log(transit_event.macro_metadata, transit_event.timestamp, transit_event.thread_id,
+                        transit_event.thread_name, _process_id, transit_event.logger_base->logger_name,
+                        transit_event.log_level(), log_level_description, log_level_short_code,
+                        transit_event.named_args.get(), log_message, log_statement);
       }
     }
   }
@@ -1172,13 +1187,14 @@ private:
   }
 
   /**
-   * This function takes an `arg_store` containing multiple arguments and formats them into
+   * This function takes an `format_args_store` containing multiple arguments and formats them into
    * a single string using a generated format string. Due to limitations in the ability to
    * iterate and format each argument individually in libfmt, this approach is used.
    * After formatting, the string is split to isolate each formatted value.
    */
   static void _format_and_split_arguments(std::vector<std::pair<std::string, std::string>>& named_args,
-                                          DynamicFormatArgStore const& arg_store)
+                                          DynamicFormatArgStore const& format_args_store,
+                                          BackendOptions const& options)
   {
     // Generate a format string
     std::string format_string;
@@ -1195,9 +1211,9 @@ private:
 
     // Format all values to a single string
     std::string formatted_values_str;
-    fmtquill::vformat_to(
-      std::back_inserter(formatted_values_str), format_string,
-      fmtquill::basic_format_args<fmtquill::format_context>{arg_store.get_types(), arg_store.data()});
+    fmtquill::vformat_to(std::back_inserter(formatted_values_str), format_string,
+                         fmtquill::basic_format_args<fmtquill::format_context>{
+                           format_args_store.data(), format_args_store.size()});
 
     // Split the formatted_values to isolate each value
     size_t start = 0;
@@ -1217,6 +1233,17 @@ private:
     {
       named_args[idx].second = formatted_values_str.substr(start);
     }
+
+    // We call sanitize_non_printable_chars for each value, because formatted_values_str already
+    // contains non-printable characters for the argument separation
+    if (options.check_printable_char && format_args_store.has_string_related_type())
+    {
+      // if non-printable chars check is configured or if any of the provided arguments are strings
+      for (size_t i = 0; i < named_args.size(); ++i)
+      {
+        sanitize_non_printable_chars(named_args[i].second, options);
+      }
+    }
   }
 
   void _populate_formatted_named_args(TransitEvent* transit_event, std::vector<std::string> const& arg_names)
@@ -1225,10 +1252,6 @@ private:
     {
       // named arg logs, we lazy initialise the named args buffer
       transit_event->named_args = std::make_unique<std::vector<std::pair<std::string, std::string>>>();
-    }
-    else
-    {
-      transit_event->named_args->clear();
     }
 
     transit_event->named_args->resize(arg_names.size());
@@ -1240,7 +1263,10 @@ private:
     }
 
     // Then populate all the values of each arg
-    QUILL_TRY { _format_and_split_arguments(*transit_event->named_args, _format_args_store); }
+    QUILL_TRY
+    {
+      _format_and_split_arguments(*transit_event->named_args, _format_args_store, _options);
+    }
 #if !defined(QUILL_NO_EXCEPTIONS)
     QUILL_CATCH(std::exception const&)
     {
@@ -1259,7 +1285,13 @@ private:
     {
       fmtquill::vformat_to(std::back_inserter(transit_event->formatted_msg), message_format,
                            fmtquill::basic_format_args<fmtquill::format_context>{
-                             _format_args_store.get_types(), _format_args_store.data()});
+                             _format_args_store.data(), _format_args_store.size()});
+
+      if (_options.check_printable_char && _format_args_store.has_string_related_type())
+      {
+        // if non-printable chars check is configured or if any of the provided arguments are strings
+        sanitize_non_printable_chars(transit_event->formatted_msg, _options);
+      }
     }
 #if !defined(QUILL_NO_EXCEPTIONS)
     QUILL_CATCH(std::exception const& e)
@@ -1274,6 +1306,46 @@ private:
       _options.error_notifier(error);
     }
 #endif
+  }
+
+  template <typename TFormattedMsg>
+  static void sanitize_non_printable_chars(TFormattedMsg& formatted_msg, BackendOptions const& options)
+  {
+    // check for non printable characters in the formatted_msg
+    bool contains_non_printable_char{false};
+
+    for (char c : formatted_msg)
+    {
+      if (!options.check_printable_char(c))
+      {
+        contains_non_printable_char = true;
+        break;
+      }
+    }
+
+    if (contains_non_printable_char)
+    {
+      // in this rare event we will replace the non-printable chars with their hex values
+      std::string const formatted_msg_copy = {formatted_msg.data(), formatted_msg.size()};
+      formatted_msg.clear();
+
+      for (char c : formatted_msg_copy)
+      {
+        if (options.check_printable_char(c))
+        {
+          formatted_msg.append(std::string{c});
+        }
+        else
+        {
+          // convert non-printable character to hex
+          constexpr char hex[] = "0123456789ABCDEF";
+          formatted_msg.append(std::string{'\\'});
+          formatted_msg.append(std::string{'x'});
+          formatted_msg.append(std::string{hex[(c >> 4) & 0xF]});
+          formatted_msg.append(std::string{hex[c & 0xF]});
+        }
+      }
+    }
   }
 
 private:

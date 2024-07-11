@@ -9,13 +9,17 @@
 #include "quill/core/DynamicFormatArgStore.h"
 #include "quill/core/Filesystem.h"
 
-#include "quill/bundled/fmt/core.h"
+#include "quill/bundled/fmt/base.h"
 #include "quill/bundled/fmt/std.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <type_traits>
+
+#if defined(_WIN32)
+  #include "quill/std/WideString.h"
+#endif
 
 namespace quill::detail
 {

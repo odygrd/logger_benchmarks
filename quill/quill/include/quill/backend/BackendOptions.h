@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -173,5 +174,38 @@ struct BackendOptions
    * calls. Changing this value only affects the performance of the backend worker.
    */
   std::chrono::milliseconds rdtsc_resync_interval = std::chrono::milliseconds{500};
+
+  /**
+   * This option enables a check that verifies the log message contains only printable characters
+   * before forwarding it to the sinks. This adds an extra layer of safety by filtering out
+   * non-printable characters from the log file. Any non-printable characters are converted to their
+   * equivalent hex value.
+   *
+   * The check applies only when at least one argument in a log statement is of type string.
+   *
+   * You can customize this callback to define your own range of printable characters if needed.
+   *
+   * To disable this check, you can provide:
+   *   std::function<bool(char c)> check_printable_char = {}
+   */
+  std::function<bool(char c)> check_printable_char = [](char c) { return c >= ' ' && c <= '~'; };
+
+  /**
+   * Holds descriptive names for various log levels used in logging operations.
+   * The indices correspond to LogLevel enum values defined elsewhere in the codebase.
+   * These names provide human-readable identifiers for each log level.
+   */
+  std::array<std::string, 11> log_level_descriptions = {
+    "TRACE_L3", "TRACE_L2", "TRACE_L1",  "DEBUG", "INFO",   "WARNING",
+    "ERROR",    "CRITICAL", "BACKTRACE", "NONE",  "DYNAMIC"};
+
+  /**
+   * @brief Short codes or identifiers for each log level.
+   *
+   * Provides short codes representing each log level for compact identification and usage.
+   * The indices correspond to LogLevel enum values defined elsewhere in the codebase.
+   */
+  std::array<std::string, 11> log_level_short_codes = {"T3", "T2", "T1", "D", "I", "W",
+                                                       "E",  "C",  "BT", "N", "DN"};
 };
 } // namespace quill
