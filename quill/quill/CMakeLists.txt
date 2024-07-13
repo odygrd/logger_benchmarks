@@ -21,7 +21,7 @@ set(HEADER_FILES
         include/quill/backend/BackendUtilities.h
 
         include/quill/bundled/fmt/args.h
-        include/quill/bundled/fmt/base.h
+        include/quill/bundled/fmt/core.h
         include/quill/bundled/fmt/chrono.h
         include/quill/bundled/fmt/color.h
         include/quill/bundled/fmt/compile.h
@@ -228,7 +228,8 @@ if (QUILL_MASTER_PROJECT OR QUILL_ENABLE_INSTALL)
                 quill_example_user_defined_filter
                 quill_example_user_defined_sink
                 quill_example_tags_logging
-                quill_example_json_sink_logging
+                quill_example_json_file_logging
+                quill_example_json_console_logging
                 quill_example_user_defined_types_logging
                 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif ()

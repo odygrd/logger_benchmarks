@@ -6,11 +6,10 @@
 #pragma once
 
 #include "quill/backend/TimestampFormatter.h"
-#include "quill/bundled/fmt/base.h"
+#include "quill/bundled/fmt/core.h"
 #include "quill/bundled/fmt/format.h"
 #include "quill/core/Attributes.h"
 #include "quill/core/Common.h"
-#include "quill/core/FormatBuffer.h"
 #include "quill/core/MacroMetadata.h"
 #include "quill/core/QuillError.h"
 

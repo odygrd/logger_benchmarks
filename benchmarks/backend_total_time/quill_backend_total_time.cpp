@@ -54,7 +54,7 @@ int main()
   LOG_ERROR(logger, "End");
 
   // block until all messages are flushed
-  quill::Frontend::get_all_loggers().front()->flush_log();
+  quill::Frontend::get_all_loggers().front()->flush_log(0);
 
   auto const end_time = std::chrono::steady_clock::now();
   auto const delta = end_time - start_time;
