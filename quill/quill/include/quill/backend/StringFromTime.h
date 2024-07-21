@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "quill/bundled/fmt/format.h"
 #include "quill/core/Attributes.h"
 #include "quill/core/Common.h"
 #include "quill/core/QuillError.h"
@@ -70,25 +71,19 @@ public:
 
     if (_time_zone == Timezone::LocalTime)
     {
-      // If localtime is used we will recalculate every 1 hour - this is because of the DST changes
-      // and an easy work-around
-
-      // Then round it down to the nearest hour
-      timestamp = _nearest_hour_timestamp(timestamp);
-
-      // Also calculate and store the next hour timestamp
-      _next_recalculation_timestamp = _next_hour_timestamp(timestamp);
+      // If localtime is used, we will recalculate every 15 minutes. This approach accounts for DST
+      // changes and simplifies handling transitions around midnight. Recalculating every 15 minutes
+      // ensures coverage for all possible timezones without additional computations.
+      _next_recalculation_timestamp = _next_quarter_hour_timestamp(timestamp);
     }
     else if (_time_zone == Timezone::GmtTime)
     {
       // otherwise we will only recalculate every noon and midnight. the reason for this is in case
       // user is using PM, AM format etc
-      _next_recalculation_timestamp = _next_noon_or_midnight_timestamp(timestamp, _time_zone);
-
-      // we don't need to modify timestamp in the case of UTC
+      _next_recalculation_timestamp = _next_noon_or_midnight_timestamp(timestamp);
     }
 
-    // Now populate a pre formatted string for this hour,
+    // Now populate a pre-formatted string for this hour,
     // also cache any indexes of the time modifier in the string
     _populate_pre_formatted_string_and_cached_indexes(timestamp);
   }
@@ -119,11 +114,11 @@ public:
 
       if (_time_zone == Timezone::LocalTime)
       {
-        _next_recalculation_timestamp = _next_hour_timestamp(timestamp);
+        _next_recalculation_timestamp = _next_quarter_hour_timestamp(timestamp);
       }
       else if (_time_zone == Timezone::GmtTime)
       {
-        _next_recalculation_timestamp = _next_noon_or_midnight_timestamp(timestamp + 1, _time_zone);
+        _next_recalculation_timestamp = _next_noon_or_midnight_timestamp(timestamp);
       }
     }
 
@@ -153,14 +148,12 @@ public:
     // adding the difference.
     _cached_seconds += static_cast<uint32_t>(timestamp_diff);
 
-    uint32_t cached_seconds = _cached_seconds;
-    uint32_t const hours = cached_seconds / 3600;
-    cached_seconds = cached_seconds % 3600;
-    uint32_t const minutes = cached_seconds / 60;
-    cached_seconds = cached_seconds % 60;
-    uint32_t const seconds = cached_seconds;
-
-    std::string to_replace;
+    uint32_t total_seconds = _cached_seconds;
+    uint32_t const hours = total_seconds / 3600;
+    total_seconds -= hours * 3600;
+    uint32_t const minutes = total_seconds / 60;
+    total_seconds -= minutes * 60;
+    uint32_t const seconds = total_seconds;
 
     for (auto const& index : _cached_indexes)
     {
@@ -168,79 +161,27 @@ public:
       switch (index.second)
       {
       case format_type::H:
-        to_replace = std::to_string(hours);
-
-        if (to_replace.size() == 1)
-        {
-          to_replace.insert(0, 1, '0');
-        }
-
-        _pre_formatted_ts.replace(index.first, 2, to_replace);
+        fmtquill::format_to(&_pre_formatted_ts[index.first], "{:02}", hours);
         break;
       case format_type::M:
-        to_replace = std::to_string(minutes);
-
-        if (to_replace.size() == 1)
-        {
-          to_replace.insert(0, 1, '0');
-        }
-        _pre_formatted_ts.replace(index.first, 2, to_replace);
+        fmtquill::format_to(&_pre_formatted_ts[index.first], "{:02}", minutes);
         break;
       case format_type::S:
-        to_replace = std::to_string(seconds);
-
-        if (to_replace.size() == 1)
-        {
-          to_replace.insert(0, 1, '0');
-        }
-        _pre_formatted_ts.replace(index.first, 2, to_replace);
+        fmtquill::format_to(&_pre_formatted_ts[index.first], "{:02}", seconds);
         break;
       case format_type::I:
-        if (hours != 0)
-        {
-          to_replace = std::to_string(hours > 12 ? hours - 12 : hours);
-        }
-        else
-        {
-          // if hours is `00` we need to replace than with '12' instead in this format
-          to_replace = std::to_string(12);
-        }
-
-        if (to_replace.size() == 1)
-        {
-          to_replace.insert(0, 1, '0');
-        }
-        _pre_formatted_ts.replace(index.first, 2, to_replace);
-        break;
-      case format_type::k:
-        to_replace = std::to_string(hours);
-
-        if (to_replace.size() == 1)
-        {
-          to_replace.insert(0, 1, ' ');
-        }
-        _pre_formatted_ts.replace(index.first, 2, to_replace);
+        fmtquill::format_to(&_pre_formatted_ts[index.first], "{:02}",
+                            (hours == 0 ? 12 : (hours > 12 ? hours - 12 : hours)));
         break;
       case format_type::l:
-        if (hours != 0)
-        {
-          to_replace = std::to_string(hours > 12 ? hours - 12 : hours);
-        }
-        else
-        {
-          // if hours is `00` we need to replace than with '12' instead in this format
-          to_replace = std::to_string(12);
-        }
-
-        if (to_replace.size() == 1)
-        {
-          to_replace.insert(0, 1, ' ');
-        }
-        _pre_formatted_ts.replace(index.first, 2, to_replace);
+        fmtquill::format_to(&_pre_formatted_ts[index.first], "{:2}",
+                            (hours == 0 ? 12 : (hours > 12 ? hours - 12 : hours)));
+        break;
+      case format_type::k:
+        fmtquill::format_to(&_pre_formatted_ts[index.first], "{:2}", hours);
         break;
       case format_type::s:
-        to_replace = std::to_string(_cached_timestamp);
-        _pre_formatted_ts.replace(index.first, 10, to_replace);
+        fmtquill::format_to(&_pre_formatted_ts[index.first], "{:10}", _cached_timestamp);
         break;
       default:
         abort();
@@ -449,33 +390,25 @@ protected:
   }
 
   /***/
-  QUILL_NODISCARD static time_t _nearest_hour_timestamp(time_t timestamp) noexcept
+  QUILL_NODISCARD static time_t _nearest_quarter_hour_timestamp(time_t timestamp) noexcept
   {
-    time_t const nearest_hour_ts = timestamp - (timestamp % 3600);
-    return nearest_hour_ts;
+    time_t const nearest_quarter_hour_ts = timestamp - (timestamp % 900);
+    return nearest_quarter_hour_ts;
   }
 
   /***/
-  QUILL_NODISCARD static time_t _next_hour_timestamp(time_t timestamp) noexcept
+  QUILL_NODISCARD static time_t _next_quarter_hour_timestamp(time_t timestamp) noexcept
   {
-    time_t const next_hour_ts = _nearest_hour_timestamp(timestamp) + 3600;
-    return next_hour_ts;
+    time_t const next_quarter_hour_ts = _nearest_quarter_hour_timestamp(timestamp) + 900;
+    return next_quarter_hour_ts;
   }
 
   /***/
-  QUILL_NODISCARD static time_t _next_noon_or_midnight_timestamp(time_t timestamp, Timezone timezone) noexcept
+  QUILL_NODISCARD static time_t _next_noon_or_midnight_timestamp(time_t timestamp) noexcept
   {
     // Get the current date and time now as time_info
     tm time_info;
-
-    if (timezone == Timezone::GmtTime)
-    {
-      gmtime_rs(&timestamp, &time_info);
-    }
-    else
-    {
-      localtime_rs(&timestamp, &time_info);
-    }
+    gmtime_rs(&timestamp, &time_info);
 
     if (time_info.tm_hour < 12)
     {
@@ -493,9 +426,8 @@ protected:
     }
 
     // convert back to time since epoch
-    std::chrono::system_clock::time_point const next_midnight = (timezone == Timezone::GmtTime)
-      ? std::chrono::system_clock::from_time_t(detail::timegm(&time_info))
-      : std::chrono::system_clock::from_time_t(std::mktime(&time_info));
+    std::chrono::system_clock::time_point const next_midnight =
+      std::chrono::system_clock::from_time_t(detail::timegm(&time_info));
 
     // returns seconds since epoch of the next midnight.
     return std::chrono::duration_cast<std::chrono::seconds>(next_midnight.time_since_epoch()).count() + 1;

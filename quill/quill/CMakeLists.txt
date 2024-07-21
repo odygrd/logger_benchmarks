@@ -21,7 +21,7 @@ set(HEADER_FILES
         include/quill/backend/BackendUtilities.h
 
         include/quill/bundled/fmt/args.h
-        include/quill/bundled/fmt/core.h
+        include/quill/bundled/fmt/base.h
         include/quill/bundled/fmt/chrono.h
         include/quill/bundled/fmt/color.h
         include/quill/bundled/fmt/compile.h
@@ -50,6 +50,7 @@ set(HEADER_FILES
         include/quill/core/QuillError.h
         include/quill/core/Rdtsc.h
         include/quill/core/SinkManager.h
+        include/quill/core/Spinlock.h
         include/quill/core/ThreadContextManager.h
         include/quill/core/ThreadUtilities.h
         include/quill/core/TimeUtilities.h
@@ -98,10 +99,6 @@ add_library(${TARGET_NAME}::${TARGET_NAME} ALIAS ${TARGET_NAME})
 
 if (QUILL_NO_EXCEPTIONS)
     target_compile_definitions(${TARGET_NAME} PUBLIC INTERFACE -DQUILL_NO_EXCEPTIONS)
-
-    if (NOT MSVC)
-        target_compile_options(${TARGET_NAME} PUBLIC INTERFACE -fno-exceptions)
-    endif ()
 endif ()
 
 if (QUILL_NO_THREAD_NAME_SUPPORT)
