@@ -8,6 +8,7 @@
 #include "quill/core/Attributes.h"
 #include "quill/core/BoundedSPSCQueue.h"
 #include "quill/core/Common.h"
+#include "quill/core/Spinlock.h"
 #include "quill/core/ThreadUtilities.h"
 #include "quill/core/UnboundedSPSCQueue.h"
 
@@ -16,14 +17,15 @@
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
-#include <mutex>
 #include <new>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <vector>
 
-namespace quill::detail
+QUILL_BEGIN_NAMESPACE
+
+namespace detail
 {
 /** Forward Declarations **/
 class UnboundedTransitEventBuffer;
@@ -224,7 +226,7 @@ public:
   template <typename TCallback>
   void for_each_thread_context(TCallback cb)
   {
-    std::lock_guard<std::mutex> const lock{_mutex};
+    LockGuard const lock{_spinlock};
 
     for (auto const& elem : _thread_contexts)
     {
@@ -235,9 +237,9 @@ public:
   /***/
   void register_thread_context(std::shared_ptr<ThreadContext> const& thread_context)
   {
-    _mutex.lock();
+    _spinlock.lock();
     _thread_contexts.push_back(thread_context);
-    _mutex.unlock();
+    _spinlock.unlock();
     _new_thread_context_flag.store(true, std::memory_order_release);
   }
 
@@ -274,7 +276,7 @@ public:
   /***/
   void remove_shared_invalidated_thread_context(ThreadContext const* thread_context)
   {
-    std::lock_guard<std::mutex> const lock{_mutex};
+    LockGuard const lock{_spinlock};
 
     // We could use std::find_if, but since this header is included in Logger.h, which is essential
     // for logging purposes, we aim to minimize the number of includes in that path.
@@ -321,11 +323,10 @@ private:
   ~ThreadContextManager() = default;
 
 private:
-  std::mutex _mutex; /**< Protect access when register contexts or removing contexts */
   std::vector<std::shared_ptr<ThreadContext>> _thread_contexts; /**< The registered contexts */
-
-  alignas(CACHE_LINE_ALIGNED) std::atomic<bool> _new_thread_context_flag{false};
-  alignas(CACHE_LINE_ALIGNED) std::atomic<uint8_t> _invalid_thread_context_count{0};
+  Spinlock _spinlock; /**< Protect access when register contexts or removing contexts */
+  std::atomic<bool> _new_thread_context_flag{false};
+  std::atomic<uint8_t> _invalid_thread_context_count{0};
 };
 
 class ScopedThreadContext
@@ -335,6 +336,20 @@ public:
   ScopedThreadContext(QueueType queue_type, uint32_t spsc_queue_capacity, bool huge_pages_enabled)
     : _thread_context(std::make_shared<ThreadContext>(queue_type, spsc_queue_capacity, huge_pages_enabled))
   {
+#ifndef NDEBUG
+    // Thread-local flag to track if an instance has been created for this thread.
+    // This ensures that get_local_thread_context() is not called with different template arguments
+    // when using custom FrontendOptions. Having multiple thread contexts in a single thread is fine
+    // and functional but goes against the design principle of maintaining a single thread context
+    // per thread.
+    thread_local bool thread_local_instance_created = false;
+
+    assert(!thread_local_instance_created &&
+           R"(ScopedThreadContext can only be instantiated once per thread. It appears you may be combining default FrontendOptions with custom FrontendOptions. Ensure only one set of FrontendOptions is used to maintain a single thread context per thread.)");
+
+    thread_local_instance_created = true;
+#endif
+
     ThreadContextManager::instance().register_thread_context(_thread_context);
   }
 
@@ -381,4 +396,6 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT ThreadContext* get_local_thread_context() no
 
   return scoped_thread_context.get_thread_context();
 }
-} // namespace quill::detail
+} // namespace detail
+
+QUILL_END_NAMESPACE

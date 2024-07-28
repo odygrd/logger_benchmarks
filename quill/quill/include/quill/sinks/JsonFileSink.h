@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "quill/bundled/fmt/core.h"
+#include "quill/bundled/fmt/base.h"
 #include "quill/core/Attributes.h"
 #include "quill/core/Common.h"
 #include "quill/core/Filesystem.h"
@@ -21,8 +21,8 @@
 #include <utility>
 #include <vector>
 
-namespace quill
-{
+QUILL_BEGIN_NAMESPACE
+
 /**
  * The JsonFileSinkConfig class holds the configuration options for the JsonFileSink
  */
@@ -49,22 +49,26 @@ public:
    * @param log_timestamp Timestamp of the log event.
    * @param thread_id ID of the thread.
    * @param thread_name Name of the thread.
+   * @param process_id Process Id
    * @param logger_name Name of the logger.
    * @param log_level Log level of the message.
+   * @param log_level_description Description of the log level.
+   * @param log_level_short_code Short code representing the log level.
    * @param named_args Vector of key-value pairs of named args
    */
-  QUILL_ATTRIBUTE_HOT void write_log_message(MacroMetadata const* log_metadata, uint64_t log_timestamp,
-                                             std::string_view thread_id, std::string_view thread_name,
-                                             std::string_view logger_name, LogLevel log_level,
-                                             std::vector<std::pair<std::string, std::string>> const* named_args,
-                                             std::string_view) override
+  QUILL_ATTRIBUTE_HOT void write_log(MacroMetadata const* log_metadata, uint64_t log_timestamp,
+                                     std::string_view thread_id, std::string_view thread_name,
+                                     std::string const& process_id, std::string_view logger_name, LogLevel log_level, std::string_view log_level_description,
+                                     std::string_view log_level_short_code,
+                                     std::vector<std::pair<std::string, std::string>> const* named_args,
+                                     std::string_view, std::string_view) override
   {
     _json_message.clear();
 
     _json_message.append(fmtquill::format(
       R"({{"timestamp":"{}","file_name":"{}","line":"{}","thread_id":"{}","logger":"{}","log_level":"{}","message":"{}")",
       std::to_string(log_timestamp), log_metadata->file_name(), log_metadata->line(), thread_id,
-      logger_name, loglevel_to_string(log_level), log_metadata->message_format()));
+      logger_name, log_level_description, log_metadata->message_format()));
 
     if (named_args)
     {
@@ -80,12 +84,13 @@ public:
 
     _json_message.append("}\n");
 
-    StreamSink::write_log_message(log_metadata, log_timestamp, thread_id, thread_name, logger_name,
-                                  log_level, named_args,
-                                  std::string_view{_json_message.data(), _json_message.size()});
+    StreamSink::write_log(log_metadata, log_timestamp, thread_id, thread_name, process_id, logger_name, log_level,
+                          log_level_description, log_level_short_code, named_args, std::string_view{},
+                          std::string_view{_json_message.data(), _json_message.size()});
   }
 
 private:
   detail::FormatBuffer _json_message;
 };
-} // namespace quill
+
+QUILL_END_NAMESPACE

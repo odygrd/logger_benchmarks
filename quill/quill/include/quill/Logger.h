@@ -27,8 +27,7 @@
 #include <thread>
 #include <vector>
 
-namespace quill
-{
+QUILL_BEGIN_NAMESPACE
 
 /** Forward Declarations **/
 class Sink;
@@ -68,11 +67,25 @@ public:
    *
    * @return true if the message is written to the queue, false if it is dropped (when a dropping queue is used)
    */
-  template <typename... Args>
-  QUILL_ATTRIBUTE_HOT bool log_message(LogLevel dynamic_log_level,
-                                       MacroMetadata const* macro_metadata, Args&&... fmt_args)
+  template <bool immediate_flush, typename... Args>
+  QUILL_ATTRIBUTE_HOT bool log_statement(LogLevel dynamic_log_level,
+                                         MacroMetadata const* macro_metadata, Args&&... fmt_args)
   {
+#ifndef NDEBUG
+    if (dynamic_log_level != quill::LogLevel::None)
+    {
+      assert((macro_metadata->log_level() == quill::LogLevel::Dynamic) &&
+             "MacroMetadata LogLevel must be Dynamic when using a dynamic_log_level");
+    }
+
+    if (macro_metadata->log_level() != quill::LogLevel::Dynamic)
+    {
+      assert((dynamic_log_level == quill::LogLevel::None) &&
+             "No dynamic_log_level should be set when MacroMetadata LogLevel is not Dynamic");
+    }
+
     assert(valid.load(std::memory_order_acquire) && "Invalidated loggers can not log");
+#endif
 
     // Store the timestamp of the log statement at the start of the call. This gives more accurate
     // timestamp especially if the queue is full
@@ -88,7 +101,7 @@ public:
 
     // Need to reserve additional space as we will be aligning the pointer
     size_t total_size = sizeof(current_timestamp) + (sizeof(uintptr_t) * 3) +
-      detail::calculate_args_size_and_populate_string_lengths(
+      detail::compute_encoded_size_and_cache_string_lengths(
                           thread_context->get_conditional_arg_size_cache(), fmt_args...);
 
     if (dynamic_log_level != LogLevel::None)
@@ -175,7 +188,7 @@ public:
     std::memcpy(write_buffer, &logger_context, sizeof(uintptr_t));
     write_buffer += sizeof(uintptr_t);
 
-    detail::FormatArgsDecoder ftf = detail::decode_and_populate_format_args<detail::remove_cvref_t<Args>...>;
+    detail::FormatArgsDecoder ftf = detail::decode_and_store_args<detail::remove_cvref_t<Args>...>;
     std::memcpy(write_buffer, &ftf, sizeof(uintptr_t));
     write_buffer += sizeof(uintptr_t);
 
@@ -200,6 +213,11 @@ public:
     thread_context->get_spsc_queue<frontend_options_t::queue_type>().commit_write();
     thread_context->get_conditional_arg_size_cache().clear();
 
+    if constexpr (immediate_flush)
+    {
+      this->flush_log();
+    }
+
     return true;
   }
 
@@ -218,7 +236,7 @@ public:
 
     // we pass this message to the queue and also pass capacity as arg
     // We do not want to drop the message if a dropping queue is used
-    while (!this->log_message(LogLevel::None, &macro_metadata, max_capacity))
+    while (!this->template log_statement<false>(LogLevel::None, &macro_metadata, max_capacity))
     {
       std::this_thread::sleep_for(std::chrono::nanoseconds{100});
     }
@@ -237,7 +255,7 @@ public:
       "", "", "", nullptr, LogLevel::Critical, MacroMetadata::Event::FlushBacktrace};
 
     // We do not want to drop the message if a dropping queue is used
-    while (!this->log_message(LogLevel::None, &macro_metadata))
+    while (!this->template log_statement<false>(LogLevel::None, &macro_metadata))
     {
       std::this_thread::sleep_for(std::chrono::nanoseconds{100});
     }
@@ -268,7 +286,8 @@ public:
     std::atomic<bool>* backend_thread_flushed_ptr = &backend_thread_flushed;
 
     // We do not want to drop the message if a dropping queue is used
-    while (!this->log_message(LogLevel::None, &macro_metadata, reinterpret_cast<uintptr_t>(backend_thread_flushed_ptr)))
+    while (!this->template log_statement<false>(
+      LogLevel::None, &macro_metadata, reinterpret_cast<uintptr_t>(backend_thread_flushed_ptr)))
     {
       if (sleep_duration_ns > 0)
       {
@@ -317,4 +336,5 @@ private:
 };
 
 using Logger = LoggerImpl<FrontendOptions>;
-} // namespace quill
+
+QUILL_END_NAMESPACE

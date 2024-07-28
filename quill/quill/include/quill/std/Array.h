@@ -5,29 +5,68 @@
 
 #pragma once
 
+#include "quill/core/Attributes.h"
 #include "quill/core/Codec.h"
 #include "quill/core/DynamicFormatArgStore.h"
+#include "quill/core/Utf8Conv.h"
 
-#include "quill/bundled/fmt/core.h"
+#include "quill/bundled/fmt/base.h"
 #include "quill/bundled/fmt/ranges.h"
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #if defined(_WIN32)
   #include <string>
 #endif
 
-namespace quill::detail
+QUILL_BEGIN_NAMESPACE
+
+/** Specialization for arrays of arithmetic types and enums **/
+template <typename T>
+struct Codec<T,
+             std::enable_if_t<std::conjunction_v<
+               std::is_array<T>, std::disjunction<std::is_arithmetic<detail::remove_cvref_t<std::remove_extent_t<T>>>, std::is_enum<detail::remove_cvref_t<std::remove_extent_t<T>>>>>>>
 {
-/***/
+  using element_type = detail::remove_cvref_t<std::remove_extent_t<T>>;
+  static constexpr size_t N = std::extent_v<T>;
+  using array_type = std::array<element_type, N>;
+
+  static size_t compute_encoded_size(std::vector<size_t>&, T const&) noexcept { return sizeof(T); }
+
+  static void encode(std::byte*& buffer, std::vector<size_t> const&, uint32_t&, T const& arg) noexcept
+  {
+    std::memcpy(buffer, &arg, sizeof(T));
+    buffer += sizeof(T);
+  }
+
+  static auto decode_arg(std::byte*& buffer)
+  {
+    array_type arg;
+    for (size_t i = 0; i < N; ++i)
+    {
+      std::memcpy(&arg[i], buffer, sizeof(element_type));
+      buffer += sizeof(element_type);
+    }
+    return arg;
+  }
+
+  static void decode_and_store_arg(std::byte*& buffer, DynamicFormatArgStore* args_store)
+  {
+    args_store->push_back(decode_arg(buffer));
+  }
+};
+
+/** Specialization for std::array **/
 template <typename T, size_t N>
-struct ArgSizeCalculator<std::array<T, N>>
+struct Codec<std::array<T, N>>
 {
-  static size_t calculate(std::vector<size_t>& conditional_arg_size_cache, std::array<T, N> const& arg) noexcept
+  static size_t compute_encoded_size(std::vector<size_t>& conditional_arg_size_cache,
+                                     std::array<T, N> const& arg) noexcept
   {
     if constexpr (std::disjunction_v<std::is_arithmetic<T>, std::is_enum<T>>)
     {
@@ -43,82 +82,61 @@ struct ArgSizeCalculator<std::array<T, N>>
 
       for (auto const& elem : arg)
       {
-        total_size += ArgSizeCalculator<T>::calculate(conditional_arg_size_cache, elem);
+        total_size += Codec<T>::compute_encoded_size(conditional_arg_size_cache, elem);
       }
 
       return total_size;
     }
   }
-};
 
-/***/
-template <typename T, size_t N>
-struct Encoder<std::array<T, N>>
-{
   static void encode(std::byte*& buffer, std::vector<size_t> const& conditional_arg_size_cache,
                      uint32_t& conditional_arg_size_cache_index, std::array<T, N> const& arg) noexcept
   {
     for (auto const& elem : arg)
     {
-      Encoder<T>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, elem);
+      Codec<T>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, elem);
     }
   }
-};
 
-/***/
-template <typename T, size_t N>
-#if defined(_WIN32)
-struct Decoder<std::array<T, N>,
-               std::enable_if_t<std::negation_v<std::disjunction<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
-                                                                 std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>
-#else
-struct Decoder<std::array<T, N>>
-#endif
-{
-  static std::array<T, N> decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
+  static auto decode_arg(std::byte*& buffer)
   {
-    std::array<T, N> arg;
-
-    for (size_t i = 0; i < N; ++i)
-    {
-      arg[i] = Decoder<T>::decode(buffer, nullptr);
-    }
-
-    if (args_store)
-    {
-      args_store->push_back(arg);
-    }
-
-    return arg;
-  }
-};
-
 #if defined(_WIN32)
-/***/
-template <typename T, size_t N>
-struct Decoder<std::array<T, N>,
-               std::enable_if_t<std::disjunction_v<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
-                                                   std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>
-{
-  /**
-   * Chaining stl types not supported for wstrings so we do not return anything
-   */
-  static void decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
-  {
-    if (args_store)
+    // Wide string support
+    if constexpr (std::disjunction_v<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
+                                     std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>)
     {
-      std::vector<std::string> encoded_values;
-      encoded_values.reserve(N);
+      std::vector<std::string> arg;
+      arg.reserve(N);
 
       for (size_t i = 0; i < N; ++i)
       {
-        std::wstring_view v = Decoder<T>::decode(buffer, nullptr);
-        encoded_values.emplace_back(utf8_encode(v));
+        std::wstring_view v = Codec<T>::decode_arg(buffer);
+        arg.emplace_back(detail::utf8_encode(v));
       }
 
-      args_store->push_back(encoded_values);
+      return arg;
     }
+    else
+    {
+#endif
+      std::array<T, N> arg;
+
+      for (size_t i = 0; i < N; ++i)
+      {
+        arg[i] = Codec<T>::decode_arg(buffer);
+      }
+
+      return arg;
+
+#if defined(_WIN32)
+    }
+#endif
+  }
+
+  static void decode_and_store_arg(std::byte*& buffer, DynamicFormatArgStore* args_store)
+  {
+    args_store->push_back(decode_arg(buffer));
   }
 };
-#endif
-} // namespace quill::detail
+
+QUILL_END_NAMESPACE

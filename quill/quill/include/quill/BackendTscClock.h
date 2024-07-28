@@ -12,8 +12,8 @@
 #include <chrono>
 #include <cstdint>
 
-namespace quill
-{
+QUILL_BEGIN_NAMESPACE
+
 /**
  * @brief A utility class for accessing the Time Stamp Counter (TSC) clock used by the backend logging thread.
  *
@@ -82,7 +82,7 @@ public:
    * clock timestamp.
    *
    * @param rdtsc The TSC counter value obtained from the backend logging thread's TSC timer.
-   * @warning This function will return `0` when TimestampClockType::Tsc is not enabled in Config.h.
+   * @warning This function will return `0` when no Logger with TSC clock is used.
    * @return Time since epoch in nanoseconds.
    */
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT static time_point to_time_point(RdtscVal rdtsc) noexcept
@@ -91,4 +91,5 @@ public:
       detail::BackendManager::instance().convert_rdtsc_to_epoch_time(rdtsc.value())}};
   }
 };
-} // namespace quill
+
+QUILL_END_NAMESPACE

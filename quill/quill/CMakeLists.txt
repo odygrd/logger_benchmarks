@@ -21,10 +21,10 @@ set(HEADER_FILES
         include/quill/backend/BackendUtilities.h
 
         include/quill/bundled/fmt/args.h
+        include/quill/bundled/fmt/base.h
         include/quill/bundled/fmt/chrono.h
         include/quill/bundled/fmt/color.h
         include/quill/bundled/fmt/compile.h
-        include/quill/bundled/fmt/core.h
         include/quill/bundled/fmt/format.h
         include/quill/bundled/fmt/format-inl.h
         include/quill/bundled/fmt/os.h
@@ -50,10 +50,12 @@ set(HEADER_FILES
         include/quill/core/QuillError.h
         include/quill/core/Rdtsc.h
         include/quill/core/SinkManager.h
+        include/quill/core/Spinlock.h
         include/quill/core/ThreadContextManager.h
         include/quill/core/ThreadUtilities.h
         include/quill/core/TimeUtilities.h
         include/quill/core/UnboundedSPSCQueue.h
+        include/quill/core/Utf8Conv.h
 
         include/quill/filters/Filter.h
 
@@ -67,6 +69,7 @@ set(HEADER_FILES
         include/quill/sinks/StreamSink.h
 
         include/quill/std/Array.h
+        include/quill/std/Chrono.h
         include/quill/std/Deque.h
         include/quill/std/FilesystemPath.h
         include/quill/std/ForwardList.h
@@ -79,12 +82,15 @@ set(HEADER_FILES
         include/quill/std/UnorderedMap.h
         include/quill/std/UnorderedSet.h
         include/quill/std/Vector.h
+        include/quill/std/WideString.h
 
         include/quill/Backend.h
         include/quill/BackendTscClock.h
         include/quill/Frontend.h
         include/quill/Logger.h
         include/quill/LogMacros.h
+        include/quill/StringRef.h
+        include/quill/TriviallyCopyableCodec.h
         include/quill/UserClockSource.h
         include/quill/Utility.h
 )
@@ -95,10 +101,6 @@ add_library(${TARGET_NAME}::${TARGET_NAME} ALIAS ${TARGET_NAME})
 
 if (QUILL_NO_EXCEPTIONS)
     target_compile_definitions(${TARGET_NAME} PUBLIC INTERFACE -DQUILL_NO_EXCEPTIONS)
-
-    if (NOT MSVC)
-        target_compile_options(${TARGET_NAME} PUBLIC INTERFACE -fno-exceptions)
-    endif ()
 endif ()
 
 if (QUILL_NO_THREAD_NAME_SUPPORT)
@@ -113,8 +115,10 @@ if (QUILL_DISABLE_NON_PREFIXED_MACROS)
     target_compile_definitions(${TARGET_NAME} PUBLIC INTERFACE -DQUILL_DISABLE_NON_PREFIXED_MACROS)
 endif ()
 
-# Add target sources
-target_sources(${TARGET_NAME} PRIVATE ${HEADER_FILES})
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.19)
+    # cmake prior to 3.19 does not support target_sources for interface libraries
+    target_sources(${TARGET_NAME} PRIVATE ${HEADER_FILES})
+endif()
 
 # Link dependencies
 target_link_libraries(${TARGET_NAME} PUBLIC INTERFACE Threads::Threads)
@@ -137,9 +141,6 @@ target_include_directories(${TARGET_NAME}
 # Compiler options
 target_compile_options(${TARGET_NAME} INTERFACE
         $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:-Wno-gnu-zero-variadic-macro-arguments>)
-
-# Properties
-set_target_properties(${TARGET_NAME} PROPERTIES VERSION ${QUILL_VERSION} SOVERSION ${QUILL_VERSION})
 
 # ---- Tests ---- #
 if (QUILL_BUILD_TESTS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test)
@@ -226,7 +227,8 @@ if (QUILL_MASTER_PROJECT OR QUILL_ENABLE_INSTALL)
                 quill_example_user_defined_filter
                 quill_example_user_defined_sink
                 quill_example_tags_logging
-                quill_example_json_sink_logging
+                quill_example_json_file_logging
+                quill_example_json_console_logging
                 quill_example_user_defined_types_logging
                 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif ()

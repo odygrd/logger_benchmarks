@@ -8,20 +8,20 @@
 #include "quill/core/Attributes.h"
 #include "quill/core/LogLevel.h"
 #include "quill/core/QuillError.h"
+#include "quill/core/Spinlock.h"
 #include "quill/filters/Filter.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-namespace quill
-{
+QUILL_BEGIN_NAMESPACE
+
 /** Forward Declaration **/
 class MacroMetadata;
 
@@ -52,15 +52,21 @@ public:
    * @param log_timestamp Timestamp of the log event.
    * @param thread_id ID of the thread.
    * @param thread_name Name of the thread.
+   * @param process_id Process Id
    * @param logger_name Name of the logger.
    * @param log_level Log level of the message.
+   * @param log_level_description Description of the log level.
+   * @param log_level_short_code Short code representing the log level.
    * @param named_args Vector of key-value pairs of named args
    * @param log_message The log message.
+   * @param log_statement The log statement.
    */
-  QUILL_ATTRIBUTE_HOT virtual void write_log_message(
+  QUILL_ATTRIBUTE_HOT virtual void write_log(
     MacroMetadata const* log_metadata, uint64_t log_timestamp, std::string_view thread_id,
-    std::string_view thread_name, std::string_view logger_name, LogLevel log_level,
-    std::vector<std::pair<std::string, std::string>> const* named_args, std::string_view log_message) = 0;
+    std::string_view thread_name, std::string const& process_id, std::string_view logger_name,
+    LogLevel log_level, std::string_view log_level_description, std::string_view log_level_short_code,
+    std::vector<std::pair<std::string, std::string>> const* named_args,
+    std::string_view log_message, std::string_view log_statement) = 0;
 
   /**
    * @brief Flushes the sink, synchronizing the associated sink with its controlled output sequence.
@@ -103,7 +109,7 @@ public:
   void add_filter(std::unique_ptr<Filter> filter)
   {
     // Lock and add this filter to our global collection
-    std::lock_guard<std::recursive_mutex> const lock{_global_filters_lock};
+    detail::LockGuard const lock{_global_filters_lock};
 
     // Check if the same filter already exists
     auto const search_filter_it = std::find_if(
@@ -131,12 +137,13 @@ public:
    * @param logger_name Name of the logger.
    * @param log_level Log level of the message.
    * @param log_message The log message.
+   * @param log_statement The log message.
    * @return True if the log record passes all filters, false otherwise.
    */
   QUILL_NODISCARD bool apply_all_filters(MacroMetadata const* log_metadata, uint64_t log_timestamp,
                                          std::string_view thread_id, std::string_view thread_name,
                                          std::string_view logger_name, LogLevel log_level,
-                                         std::string_view log_message)
+                                         std::string_view log_message, std::string_view log_statement)
   {
     if (log_level < _log_level.load(std::memory_order_relaxed))
     {
@@ -149,7 +156,8 @@ public:
       // if there is a new filter we have to update
       _local_filters.clear();
 
-      std::lock_guard<std::recursive_mutex> const lock{_global_filters_lock};
+      detail::LockGuard const lock{_global_filters_lock};
+
       for (auto const& filter : _global_filters)
       {
         _local_filters.push_back(filter.get());
@@ -167,10 +175,10 @@ public:
     {
       return std::all_of(_local_filters.begin(), _local_filters.end(),
                          [log_metadata, log_timestamp, thread_id, thread_name, logger_name,
-                          log_level, log_message](Filter* filter_elem)
+                          log_level, log_message, log_statement](Filter* filter_elem)
                          {
-                           return filter_elem->filter(log_metadata, log_timestamp, thread_id,
-                                                      thread_name, logger_name, log_level, log_message);
+                           return filter_elem->filter(log_metadata, log_timestamp, thread_id, thread_name,
+                                                      logger_name, log_level, log_message, log_statement);
                          });
     }
   }
@@ -181,12 +189,11 @@ private:
 
   /** Global filter for this sink **/
   std::vector<std::unique_ptr<Filter>> _global_filters;
-  std::recursive_mutex _global_filters_lock;
-
-  std::atomic<LogLevel> _log_level{LogLevel::TraceL3};
-
+  detail::Spinlock _global_filters_lock;
   /** Indicator that a new filter was added **/
   std::atomic<bool> _new_filter{false};
+
+  std::atomic<LogLevel> _log_level{LogLevel::TraceL3};
 };
 
-} // namespace quill
+QUILL_END_NAMESPACE

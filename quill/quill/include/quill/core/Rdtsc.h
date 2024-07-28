@@ -32,7 +32,9 @@
   #endif
 #endif
 
-namespace quill::detail
+QUILL_BEGIN_NAMESPACE
+
+namespace detail
 {
 #if defined(__aarch64__)
 // arm64
@@ -45,7 +47,7 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t rdtsc() noexcept
   __asm__ volatile("mrs %0, cntvct_el0" : "=r"(virtual_timer_value));
   return static_cast<uint64_t>(virtual_timer_value);
 }
-#elif defined(__ARM_ARCH)
+#elif (defined(__ARM_ARCH) && !defined(_MSC_VER))
 QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t rdtsc() noexcept
 {
   #if (__ARM_ARCH >= 6)
@@ -69,13 +71,7 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t rdtsc() noexcept
   // soft failover
   return static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
 }
-#elif (defined(_M_ARM) || defined(_M_ARM64))
-QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t rdtsc() noexcept
-{
-  // soft failover
-  return static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
-}
-#elif (defined(__PPC64__))
+#elif (defined(_M_ARM) || defined(_M_ARM64) || defined(__PPC64__))
 QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t rdtsc() noexcept
 {
   // soft failover
@@ -89,4 +85,6 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t rdtsc() noexcept
 QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t rdtsc() noexcept { return __rdtsc(); }
 #endif
 
-} // namespace quill::detail
+} // namespace detail
+
+QUILL_END_NAMESPACE

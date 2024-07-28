@@ -15,22 +15,24 @@
 #include <utility>
 #include <vector>
 
-namespace quill
-{
+QUILL_BEGIN_NAMESPACE
+
 /** Forward Declaration **/
 class MacroMetadata;
 
 class NullSink : public Sink
 {
 public:
-  QUILL_ATTRIBUTE_HOT void write_log_message(MacroMetadata const* log_metadata, uint64_t log_timestamp,
-                                             std::string_view thread_id, std::string_view thread_name,
-                                             std::string_view logger_name, LogLevel log_level,
-                                             std::vector<std::pair<std::string, std::string>> const* named_args,
-                                             std::string_view log_message) override
+  QUILL_ATTRIBUTE_HOT void write_log(MacroMetadata const* log_metadata, uint64_t log_timestamp,
+                                     std::string_view thread_id, std::string_view thread_name,
+                                     std::string const& process_id, std::string_view logger_name, LogLevel log_level, std::string_view log_level_description,
+                                     std::string_view log_level_short_code,
+                                     std::vector<std::pair<std::string, std::string>> const* named_args,
+                                     std::string_view log_message, std::string_view log_statement) override
   {
   }
 
   QUILL_ATTRIBUTE_HOT void flush_sink() override {}
 };
-} // namespace quill
+
+QUILL_END_NAMESPACE

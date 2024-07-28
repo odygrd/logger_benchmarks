@@ -22,8 +22,8 @@
 #include <utility>
 #include <vector>
 
-namespace quill
-{
+QUILL_BEGIN_NAMESPACE
+
 /** Forward Declaration **/
 class MacroMetadata;
 
@@ -79,12 +79,23 @@ public:
       if (!_filename.parent_path().empty())
       {
         parent_path = _filename.parent_path();
-        fs::create_directories(parent_path, ec);
-        if (ec)
+
+        // The call to fs::status is necessary due to a known issue in GCC versions 8.3.0 to 9.4.0.
+        // In these versions, fs::create_directories(path, ec) internally uses
+        // fs::symlink_status(path, ec) instead of fs::status(path, ec) for checking the path.
+        // This causes a problem because fs::symlink_status does not follow the symlink to the
+        // target directory. As a result,  it fails the is_directory() check but still indicates
+        // that the path exists, leading to a not_a_directory exception being set in the error code
+        auto const st = fs::status(parent_path, ec);
+        if (!is_directory(st))
         {
-          // use .string() to also support experimental fs
-          QUILL_THROW(QuillError{std::string{"cannot create directories for path "} +
-                                 parent_path.string() + std::string{" - error: "} + ec.message()});
+          fs::create_directories(parent_path, ec);
+          if (ec)
+          {
+            // use .string() to also support experimental fs
+            QUILL_THROW(QuillError{std::string{"cannot create directories for path "} +
+                                   parent_path.string() + std::string{" - error: "} + ec.message()});
+          }
         }
       }
       else
@@ -111,14 +122,15 @@ public:
 
   /**
    * @brief Writes a formatted log message to the stream
-   * @param log_message The log message to write
    */
-  QUILL_ATTRIBUTE_HOT void write_log_message(MacroMetadata const* /* log_metadata */,
-                                             uint64_t /* log_timestamp */, std::string_view /* thread_id */,
-                                             std::string_view /* thread_name */,
-                                             std::string_view /* logger_name */, LogLevel /* log_level */,
-                                             std::vector<std::pair<std::string, std::string>> const* /* named_args */,
-                                             std::string_view log_message) override
+  QUILL_ATTRIBUTE_HOT void write_log(MacroMetadata const* /* log_metadata */,
+                                     uint64_t /* log_timestamp */, std::string_view /* thread_id */,
+                                             std::string_view /* thread_name */, std::string const& /* process_id */,
+                                     std::string_view /* logger_name */, LogLevel /* log_level */,
+                                     std::string_view /* log_level_description */,
+                                     std::string_view /* log_level_short_code */,
+                                     std::vector<std::pair<std::string, std::string>> const* /* named_args */,
+                                     std::string_view /* log_message */, std::string_view log_statement) override
   {
     if (QUILL_UNLIKELY(!_file))
     {
@@ -128,13 +140,13 @@ public:
 
     if (_file_event_notifier.before_write)
     {
-      std::string const user_log_message = _file_event_notifier.before_write(log_message);
+      std::string const user_log_statement = _file_event_notifier.before_write(log_statement);
 
-      safe_fwrite(user_log_message.data(), sizeof(char), user_log_message.size(), _file);
+      safe_fwrite(user_log_statement.data(), sizeof(char), user_log_statement.size(), _file);
     }
     else
     {
-      safe_fwrite(log_message.data(), sizeof(char), log_message.size(), _file);
+      safe_fwrite(log_statement.data(), sizeof(char), log_statement.size(), _file);
     }
 
     _write_occurred = true;
@@ -192,4 +204,5 @@ protected:
   bool _is_null{false};
   bool _write_occurred{false};
 };
-} // namespace quill
+
+QUILL_END_NAMESPACE

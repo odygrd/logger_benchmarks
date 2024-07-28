@@ -14,8 +14,8 @@
 #include <cstdint>
 #include <string_view>
 
-namespace quill
-{
+QUILL_BEGIN_NAMESPACE
+
 /**
  * Captures and stores information about a logging event in compile time
  */
@@ -72,16 +72,6 @@ public:
   }
 
   QUILL_NODISCARD LogLevel log_level() const noexcept { return _log_level; }
-
-  QUILL_NODISCARD std::string_view log_level_string() const noexcept
-  {
-    return quill::loglevel_to_string(_log_level);
-  }
-
-  QUILL_NODISCARD std::string_view log_level_id() const noexcept
-  {
-    return quill::loglevel_to_string_id(_log_level);
-  }
 
   QUILL_NODISCARD Tags const* tags() const noexcept { return _tags; }
 
@@ -215,4 +205,5 @@ private:
 
 static_assert(sizeof(MacroMetadata) <= detail::CACHE_LINE_SIZE,
               "Size of MacroMetadata exceeds the cache line size");
-} // namespace quill
+
+QUILL_END_NAMESPACE

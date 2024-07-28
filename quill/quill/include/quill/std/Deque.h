@@ -5,10 +5,12 @@
 
 #pragma once
 
+#include "quill/core/Attributes.h"
 #include "quill/core/Codec.h"
 #include "quill/core/DynamicFormatArgStore.h"
+#include "quill/core/Utf8Conv.h"
 
-#include "quill/bundled/fmt/core.h"
+#include "quill/bundled/fmt/base.h"
 #include "quill/bundled/fmt/ranges.h"
 
 #include <cstddef>
@@ -21,13 +23,13 @@
   #include <string>
 #endif
 
-namespace quill::detail
-{
-/***/
+QUILL_BEGIN_NAMESPACE
+
 template <typename T, typename Allocator>
-struct ArgSizeCalculator<std::deque<T, Allocator>>
+struct Codec<std::deque<T, Allocator>>
 {
-  static size_t calculate(std::vector<size_t>& conditional_arg_size_cache, std::deque<T, Allocator> const& arg) noexcept
+  static size_t compute_encoded_size(std::vector<size_t>& conditional_arg_size_cache,
+                                     std::deque<T, Allocator> const& arg) noexcept
   {
     // We need to store the size of the deque in the buffer, so we reserve space for it.
     // We add sizeof(size_t) bytes to accommodate the size information.
@@ -45,92 +47,69 @@ struct ArgSizeCalculator<std::deque<T, Allocator>>
       // of each string as we will be copying them directly to our queue buffer.
       for (auto const& elem : arg)
       {
-        total_size += ArgSizeCalculator<T>::calculate(conditional_arg_size_cache, elem);
+        total_size += Codec<T>::compute_encoded_size(conditional_arg_size_cache, elem);
       }
     }
 
     return total_size;
   }
-};
 
-/***/
-template <typename T, typename Allocator>
-struct Encoder<std::deque<T, Allocator>>
-{
   static void encode(std::byte*& buffer, std::vector<size_t> const& conditional_arg_size_cache,
                      uint32_t& conditional_arg_size_cache_index, std::deque<T, Allocator> const& arg) noexcept
   {
-    Encoder<size_t>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index,
-                            arg.size());
+    Codec<size_t>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, arg.size());
 
     for (auto const& elem : arg)
     {
-      Encoder<T>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, elem);
+      Codec<T>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, elem);
     }
   }
-};
 
-/***/
-template <typename T, typename Allocator>
-#if defined(_WIN32)
-struct Decoder<std::deque<T, Allocator>,
-               std::enable_if_t<std::negation_v<std::disjunction<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
-                                                                 std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>>
-#else
-struct Decoder<std::deque<T, Allocator>>
-#endif
-{
-  static std::deque<T, Allocator> decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
+  static auto decode_arg(std::byte*& buffer)
   {
-    std::deque<T, Allocator> arg;
-
-    // Read the size of the deque
-    size_t const number_of_elements = Decoder<size_t>::decode(buffer, nullptr);
-    arg.resize(number_of_elements);
-
-    for (size_t i = 0; i < number_of_elements; ++i)
-    {
-      arg[i] = Decoder<T>::decode(buffer, nullptr);
-    }
-
-    if (args_store)
-    {
-      args_store->push_back(arg);
-    }
-
-    return arg;
-  }
-};
-
 #if defined(_WIN32)
-/***/
-template <typename T, typename Allocator>
-struct Decoder<std::deque<T, Allocator>,
-               std::enable_if_t<std::disjunction_v<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
-                                                   std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>>
-{
-  /**
-   * Chaining stl types not supported for wstrings so we do not return anything
-   */
-  static void decode(std::byte*& buffer, DynamicFormatArgStore* args_store)
-  {
-    if (args_store)
+    // Wide string support
+    if constexpr (std::disjunction_v<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
+                                     std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>)
     {
-      // Read the size of the vector
-      size_t const number_of_elements = Decoder<size_t>::decode(buffer, nullptr);
+      // Read the size
+      size_t const number_of_elements = Codec<size_t>::decode_arg(buffer);
 
-      std::vector<std::string> encoded_values;
-      encoded_values.reserve(number_of_elements);
+      std::vector<std::string> arg;
+      arg.reserve(number_of_elements);
 
       for (size_t i = 0; i < number_of_elements; ++i)
       {
-        std::wstring_view v = Decoder<T>::decode(buffer, nullptr);
-        encoded_values.emplace_back(utf8_encode(v));
+        std::wstring_view const v = Codec<T>::decode_arg(buffer);
+        arg.emplace_back(detail::utf8_encode(v));
       }
 
-      args_store->push_back(encoded_values);
+      return arg;
     }
+    else
+    {
+#endif
+      // Read the size
+      size_t const number_of_elements = Codec<size_t>::decode_arg(buffer);
+
+      std::deque<T, Allocator> arg;
+      arg.resize(number_of_elements);
+
+      for (size_t i = 0; i < number_of_elements; ++i)
+      {
+        arg[i] = Codec<T>::decode_arg(buffer);
+      }
+
+      return arg;
+#if defined(_WIN32)
+    }
+#endif
+  }
+
+  static void decode_and_store_arg(std::byte*& buffer, DynamicFormatArgStore* args_store)
+  {
+    args_store->push_back(decode_arg(buffer));
   }
 };
-#endif
-} // namespace quill::detail
+
+QUILL_END_NAMESPACE

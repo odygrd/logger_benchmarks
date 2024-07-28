@@ -60,7 +60,9 @@
   #endif
 #endif
 
-namespace quill::detail
+QUILL_BEGIN_NAMESPACE
+
+namespace detail
 {
 /**
  * A bounded single producer single consumer ring buffer.
@@ -231,7 +233,7 @@ private:
    * @throws  std::system_error on failure
    */
 
-  QUILL_NODISCARD static void* _alloc_aligned(size_t size, size_t alignment, bool huges_pages_enabled)
+  QUILL_NODISCARD static void* _alloc_aligned(size_t size, size_t alignment, QUILL_MAYBE_UNUSED bool huges_pages_enabled)
   {
 #if defined(_WIN32)
     void* p = _aligned_malloc(size, alignment);
@@ -324,4 +326,6 @@ private:
 };
 
 using BoundedSPSCQueue = BoundedSPSCQueueImpl<uint32_t>;
-} // namespace quill::detail
+} // namespace detail
+
+QUILL_END_NAMESPACE

@@ -9,15 +9,17 @@
 #include "quill/core/BoundedSPSCQueue.h"
 #include "quill/core/Common.h"
 #include "quill/core/QuillError.h"
+#include "quill/core/MathUtils.h"
 
 #include <atomic>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <string>
 
-namespace quill::detail
+QUILL_BEGIN_NAMESPACE
+
+namespace detail
 {
 /**
  * A singe-producer single-consumer FIFO circular buffer
@@ -121,8 +123,7 @@ public:
     }
 
     // bounded queue max power of 2 capacity since uint32_t type is used to hold the value 2147483648 bytes
-    uint64_t constexpr max_bounded_queue_capacity =
-      (std::numeric_limits<BoundedSPSCQueue::integer_type>::max() >> 1) + 1;
+    uint64_t constexpr max_bounded_queue_capacity = max_power_of_two<BoundedSPSCQueue::integer_type>();
 
     if (QUILL_UNLIKELY(capacity > max_bounded_queue_capacity))
     {
@@ -258,4 +259,6 @@ private:
   alignas(CACHE_LINE_ALIGNED) Node* _consumer{nullptr};
 };
 
-} // namespace quill::detail
+} // namespace detail
+
+QUILL_END_NAMESPACE

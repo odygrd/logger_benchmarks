@@ -7,6 +7,7 @@
 
 #include "quill/core/Attributes.h"
 #include "quill/core/LogLevel.h"
+#include "quill/core/QuillError.h"
 #include "quill/sinks/StreamSink.h"
 
 #include <array>
@@ -36,8 +37,7 @@
   #include <unistd.h>
 #endif
 
-namespace quill
-{
+QUILL_BEGIN_NAMESPACE
 
 /** Forward Declaration **/
 class MacroMetadata;
@@ -342,30 +342,58 @@ public:
    * @param log_timestamp log timestamp
    * @param thread_id thread id
    * @param thread_name thread name
+   * @param process_id Process Id
    * @param logger_name logger name
-   * @param log_level log level
+   * @param log_level Log level of the message.
+   * @param log_level_description Description of the log level.
+   * @param log_level_short_code Short code representing the log level.
    * @param named_args vector of key-value pairs of named args
    * @param log_message log message
    */
-  QUILL_ATTRIBUTE_HOT void write_log_message(MacroMetadata const* log_metadata, uint64_t log_timestamp,
-                                             std::string_view thread_id, std::string_view thread_name,
-                                             std::string_view logger_name, LogLevel log_level,
-                                             std::vector<std::pair<std::string, std::string>> const* named_args,
-                                             std::string_view log_message) override
+  QUILL_ATTRIBUTE_HOT void write_log(MacroMetadata const* log_metadata, uint64_t log_timestamp,
+                                     std::string_view thread_id, std::string_view thread_name,
+                                     std::string const& process_id, std::string_view logger_name, LogLevel log_level, std::string_view log_level_description,
+                                     std::string_view log_level_short_code,
+                                     std::vector<std::pair<std::string, std::string>> const* named_args,
+                                     std::string_view log_message, std::string_view log_statement) override
   {
 #if defined(_WIN32)
     if (_console_colours.using_colours())
     {
       WORD const colour_code = _console_colours.colour_code(log_level);
+      WORD orig_attribs{0};
 
-      // Set foreground colour and store the original attributes
-      WORD const orig_attribs = _set_foreground_colour(colour_code);
+      QUILL_TRY
+      {
+        // Set foreground colour and store the original attributes
+        orig_attribs = _set_foreground_colour(colour_code);
+      }
+  #if !defined(QUILL_NO_EXCEPTIONS)
+      QUILL_CATCH(std::exception const& e)
+      {
+        // GetConsoleScreenBufferInfo can fail sometimes on windows, in that case still write
+        // the log without colours
+        StreamSink::write_log(log_metadata, log_timestamp, thread_id, thread_name, process_id,
+                              logger_name, log_level, log_level_description, log_level_short_code,
+                              named_args, log_message, log_statement);
+
+        if (!_report_write_log_error_once)
+        {
+          // Report the error once
+          _report_write_log_error_once = true;
+          QUILL_THROW(QuillError{e.what()});
+        }
+
+        // do not resume further, we already wrote the log statement
+        return;
+      }
+  #endif
 
       auto out_handle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(_file)));
 
       // Write to console
       bool const write_to_console = WriteConsoleA(
-        out_handle, log_message.data(), static_cast<DWORD>(log_message.size()), nullptr, nullptr);
+        out_handle, log_statement.data(), static_cast<DWORD>(log_statement.size()), nullptr, nullptr);
 
       if (QUILL_UNLIKELY(!write_to_console))
       {
@@ -385,9 +413,9 @@ public:
     }
     else
     {
-      // Write record to file
-      StreamSink::write_log_message(log_metadata, log_timestamp, thread_id, thread_name,
-                                    logger_name, log_level, named_args, log_message);
+      StreamSink::write_log(log_metadata, log_timestamp, thread_id, thread_name, process_id,
+                            logger_name, log_level, log_level_description, log_level_short_code,
+                            named_args, log_message, log_statement);
     }
 #else
     if (_console_colours.can_use_colours())
@@ -398,22 +426,15 @@ public:
     }
 
     // Write record to file
-    StreamSink::write_log_message(log_metadata, log_timestamp, thread_id, thread_name, logger_name,
-                                  log_level, named_args, log_message);
+    StreamSink::write_log(log_metadata, log_timestamp, thread_id, thread_name, process_id,
+                          logger_name, log_level, log_level_description, log_level_short_code,
+                          named_args, log_message, log_statement);
 
     if (_console_colours.can_use_colours())
     {
       safe_fwrite(ConsoleColours::reset.data(), sizeof(char), ConsoleColours::reset.size(), _file);
     }
 #endif
-  }
-
-  /**
-   * Used internally to enable the console colours on "stdout" sink
-   */
-  QUILL_ATTRIBUTE_COLD void enable_console_colours() noexcept
-  {
-    _console_colours.set_default_colours();
   }
 
 private:
@@ -453,5 +474,10 @@ private:
 protected:
   // protected in case someone wants to derive from this class and create a custom one, e.g. for json logging to stdout
   ConsoleColours _console_colours;
+
+#if defined(_WIN32)
+  bool _report_write_log_error_once{false};
+#endif
 };
-} // namespace quill
+
+QUILL_END_NAMESPACE

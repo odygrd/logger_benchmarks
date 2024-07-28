@@ -51,8 +51,7 @@
   #include <unistd.h>
 #endif
 
-namespace quill
-{
+QUILL_BEGIN_NAMESPACE
 
 enum class FilenameAppendOption : uint8_t
 {
@@ -268,17 +267,6 @@ protected:
       _file_event_notifier.before_open(filename);
     }
 
-    if (!filename.parent_path().empty())
-    {
-      std::error_code ec;
-      fs::create_directories(filename.parent_path(), ec);
-      if (ec)
-      {
-        QUILL_THROW(QuillError{std::string{"create directories failed path: "} +
-                               filename.parent_path().string() + " error: " + ec.message()});
-      }
-    }
-
     _file = fopen(filename.string().data(), mode.data());
 
     if (!_file)
@@ -341,7 +329,7 @@ private:
    * @param timezone Timezone to use.
    * @return Updated filename.
    */
-  QUILL_NODISCARD quill::fs::path _get_updated_filename_with_appended_datetime(
+  QUILL_NODISCARD static quill::fs::path _get_updated_filename_with_appended_datetime(
     quill::fs::path const& filename, quill::FilenameAppendOption append_to_filename_option,
     quill::Timezone timezone, std::chrono::system_clock::time_point timestamp)
   {
@@ -366,4 +354,5 @@ private:
 private:
   FileSinkConfig _config;
 };
-} // namespace quill
+
+QUILL_END_NAMESPACE
