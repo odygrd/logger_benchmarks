@@ -31,7 +31,6 @@ find_package(Threads REQUIRED)
 # Subdirectories
 #-------------------------------------------------------------------------------------------------------
 add_subdirectory(quill)
-add_subdirectory(quillv3)
 add_subdirectory(third_party/Iyengar_NanoLog)
 add_subdirectory(third_party/reckless)
 add_subdirectory(third_party/platformlab_nanolog)

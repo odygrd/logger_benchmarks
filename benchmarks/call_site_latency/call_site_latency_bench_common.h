@@ -17,7 +17,7 @@
 
 #define THREAD_LIST_COUNT std::vector<int32_t> { 1, 4 }
 
-#define ITERATIONS std::size_t { 10000 }
+#define ITERATIONS std::size_t { 10'000 }
 #define MESSAGES std::size_t { 20 }
 #define MIN_WAIT_DURATION std::chrono::microseconds { 2000 }
 #define MAX_WAIT_DURATION std::chrono::microseconds { 2200 }

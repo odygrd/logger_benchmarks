@@ -19,7 +19,7 @@ int main()
 
   // Setup
   quill::BackendOptions backend_options;
-  backend_options.backend_cpu_affinity = 5;
+  backend_options.cpu_affinity = 5;
   quill::Backend::start(backend_options);
 
   // wait for the backend thread to start
