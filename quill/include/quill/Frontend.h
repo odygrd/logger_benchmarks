@@ -11,6 +11,7 @@
 #include "quill/core/Common.h"
 #include "quill/core/FrontendOptions.h"
 #include "quill/core/LoggerManager.h"
+#include "quill/core/PatternFormatterOptions.h"
 #include "quill/core/QuillError.h"
 #include "quill/core/SinkManager.h"
 #include "quill/core/ThreadContextManager.h"
@@ -42,8 +43,8 @@ public:
   QUILL_ATTRIBUTE_COLD static void preallocate()
   {
     uint32_t const volatile spsc_queue_capacity = detail::get_local_thread_context<TFrontendOptions>()
-        ->template get_spsc_queue<TFrontendOptions::queue_type>()
-        .capacity();
+                                                    ->template get_spsc_queue<TFrontendOptions::queue_type>()
+                                                    .capacity();
 
     // On windows and c++17, QUILL_MAYBE_UNUSED won't work
     (void)spsc_queue_capacity;
@@ -78,27 +79,22 @@ public:
    *
    * @param logger_name The name of the logger.
    * @param sink A shared pointer to the sink to associate with the logger.
-   * @param format_pattern The format pattern for log messages.
-   * @param time_pattern The time pattern for log timestamps.
-   * @param timestamp_timezone The timezone for log timestamps.
+   * @param pattern_formatter_options Contains the formatting configuration for PatternFormatter
    * @param clock_source The clock source for log timestamps.
    * @param user_clock A pointer to a custom user clock.
+   *
    * @return Logger* A pointer to the created or retrieved logger.
    */
-  static logger_t* create_or_get_logger(
-    std::string const& logger_name, std::shared_ptr<Sink> sink,
-    std::string const& format_pattern =
-      "%(time) [%(thread_id)] %(short_source_location:<28) LOG_%(log_level:<9) %(logger:<12) "
-      "%(message)",
-    std::string const& time_pattern = "%H:%M:%S.%Qns", Timezone timestamp_timezone = Timezone::LocalTime,
-    ClockSourceType clock_source = ClockSourceType::Tsc, UserClockSource* user_clock = nullptr)
+  static logger_t* create_or_get_logger(std::string const& logger_name, std::shared_ptr<Sink> sink,
+                                        PatternFormatterOptions const& pattern_formatter_options = PatternFormatterOptions{},
+                                        ClockSourceType clock_source = ClockSourceType::Tsc, UserClockSource* user_clock = nullptr)
   {
     std::vector<std::shared_ptr<Sink>> sinks;
     sinks.push_back(static_cast<std::shared_ptr<Sink>&&>(sink));
 
     return _cast_to_logger(detail::LoggerManager::instance().create_or_get_logger<logger_t>(
-      logger_name, static_cast<std::vector<std::shared_ptr<Sink>>&&>(sinks), format_pattern,
-      time_pattern, timestamp_timezone, clock_source, user_clock));
+      logger_name, static_cast<std::vector<std::shared_ptr<Sink>>&&>(sinks),
+      pattern_formatter_options, clock_source, user_clock));
   }
 
   /**
@@ -106,24 +102,18 @@ public:
    *
    * @param logger_name The name of the logger.
    * @param sinks An initializer list of shared pointers to sinks to associate with the logger.
-   * @param format_pattern The format pattern for log messages.
-   * @param time_pattern The time pattern for log timestamps.
-   * @param timestamp_timezone The timezone for log timestamps.
+   * @param pattern_formatter_options Contains the formatting configuration for PatternFormatter
    * @param clock_source The clock source for log timestamps.
    * @param user_clock A pointer to a custom user clock.
    * @return Logger* A pointer to the created or retrieved logger.
    */
   static logger_t* create_or_get_logger(
     std::string const& logger_name, std::initializer_list<std::shared_ptr<Sink>> sinks,
-    std::string const& format_pattern =
-      "%(time) [%(thread_id)] %(short_source_location:<28) LOG_%(log_level:<9) %(logger:<12) "
-      "%(message)",
-    std::string const& time_pattern = "%H:%M:%S.%Qns", Timezone timestamp_timezone = Timezone::LocalTime,
+    PatternFormatterOptions const& pattern_formatter_options = PatternFormatterOptions{},
     ClockSourceType clock_source = ClockSourceType::Tsc, UserClockSource* user_clock = nullptr)
   {
     return _cast_to_logger(detail::LoggerManager::instance().create_or_get_logger<logger_t>(
-      logger_name, std::vector<std::shared_ptr<Sink>>{sinks}, format_pattern, time_pattern,
-      timestamp_timezone, clock_source, user_clock));
+      logger_name, std::vector<std::shared_ptr<Sink>>{sinks}, pattern_formatter_options, clock_source, user_clock));
   }
 
   /**

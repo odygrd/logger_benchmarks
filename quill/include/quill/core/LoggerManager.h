@@ -8,6 +8,7 @@
 #include "quill/core/Attributes.h"
 #include "quill/core/Common.h"
 #include "quill/core/LoggerBase.h"
+#include "quill/core/PatternFormatterOptions.h"
 #include "quill/core/Spinlock.h"
 
 #include <algorithm>
@@ -114,8 +115,7 @@ public:
   /***/
   template <typename TLogger>
   LoggerBase* create_or_get_logger(std::string const& logger_name, std::vector<std::shared_ptr<Sink>> sinks,
-                                   std::string const& format_pattern,
-                                   std::string const& time_pattern, Timezone timestamp_timezone,
+                                   PatternFormatterOptions const& pattern_formatter_options,
                                    ClockSourceType clock_source, UserClockSource* user_clock)
   {
     LockGuard const lock{_spinlock};
@@ -127,7 +127,7 @@ public:
       // If logger pointer is null, create a new logger instance.
       std::unique_ptr<LoggerBase> new_logger{
         new TLogger{logger_name, static_cast<std::vector<std::shared_ptr<Sink>>&&>(sinks),
-                    format_pattern, time_pattern, timestamp_timezone, clock_source, user_clock}};
+                    pattern_formatter_options, clock_source, user_clock}};
 
       _insert_logger(static_cast<std::unique_ptr<LoggerBase>&&>(new_logger));
 

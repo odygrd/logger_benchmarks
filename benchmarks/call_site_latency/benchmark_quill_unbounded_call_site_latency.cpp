@@ -59,9 +59,9 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
 
   logger_t* logger =
     frontend_t::create_or_get_logger("root", std::move(file_sink),
-                                     "%(time) [%(thread_id)] %(short_source_location:<28) "
+                                     quill::PatternFormatterOptions { "%(time) [%(thread_id)] %(short_source_location:<28) "
                                      "LOG_%(log_level:<9) %(logger:<12) %(message)",
-                                     "%H:%M:%S.%Qns", quill::Timezone::GmtTime);
+                                     "%H:%M:%S.%Qns", quill::Timezone::GmtTime, false });
 
   // Define a logging lambda
 #ifdef BENCH_INT_INT_DOUBLE
