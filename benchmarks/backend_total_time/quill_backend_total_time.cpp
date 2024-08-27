@@ -39,8 +39,9 @@ int main()
 
   quill::Logger* logger = quill::Frontend::create_or_get_logger(
     "root", std::move(file_sink),
-    quill::PatternFormatterOptions { "%(time) [%(thread_id)] %(short_source_location) %(log_level) %(message)", "%H:%M:%S.%Qns",
-    quill::Timezone::GmtTime, false} );
+    quill::PatternFormatterOptions{
+      "%(time) [%(thread_id)] %(short_source_location) %(log_level) %(message)", "%H:%M:%S.%Qns",
+      quill::Timezone::GmtTime, false});
 
   quill::Frontend::preallocate();
 
