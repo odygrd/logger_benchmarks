@@ -4,6 +4,8 @@
 #include "quill/Logger.h"
 #include "quill/sinks/FileSink.h"
 
+#include <filesystem>
+
 #include <chrono>
 #include <iostream>
 
@@ -14,8 +16,11 @@ static constexpr size_t total_iterations = 4'000'000;
  */
 int main()
 {
+  std::filesystem::path log_file{"benchmark_quill_backend_total_time.log"};
+  std::remove(log_file.c_str());
+
   // main thread affinity
-  quill::detail::set_cpu_affinity(0);
+  quill::detail::set_cpu_affinity(1);
 
   // Setup
   quill::BackendOptions backend_options;
@@ -27,7 +32,7 @@ int main()
 
   // Frontend
   auto file_sink = quill::Frontend::create_or_get_sink<quill::FileSink>(
-    "benchmark_quill_unbounded_call_site_latency.log",
+    log_file,
     []()
     {
       quill::FileSinkConfig cfg;
@@ -63,8 +68,10 @@ int main()
   auto delta_d = std::chrono::duration_cast<std::chrono::duration<double>>(delta).count();
 
   std::cout << fmtquill::format(
-                 "throughput is {:.2f} million msgs/sec average, total time elapsed: {} ms \n",
+                 "throughput is {:.2f} million msgs/sec average, total time elapsed: {} ms, log "
+                 "file size {:2.f} MB \n",
                  total_iterations / delta_d / 1e6,
-                 std::chrono::duration_cast<std::chrono::milliseconds>(delta).count())
+                 std::chrono::duration_cast<std::chrono::milliseconds>(delta).count(),
+                 static_cast<double>(std::filesystem::file_size(log_file)) / (1024 * 1024))
             << std::endl;
 }

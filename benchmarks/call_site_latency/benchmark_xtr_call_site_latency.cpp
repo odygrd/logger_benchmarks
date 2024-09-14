@@ -1,4 +1,5 @@
 #define FMT_HEADER_ONLY
+#define XTR_USE_IO_URING 0
 
 #include "call_site_latency_bench.h"
 
@@ -9,9 +10,9 @@
 /***/
 void xtr_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterations_per_thread)
 {
-  std::remove("xtr.log");
+  std::remove("xtr_call_site_latency_percentile_linux_benchmark.log");
 
-  xtr::logger log("xtr.log");
+  xtr::logger log("xtr_call_site_latency_percentile_linux_benchmark.log");
 
   set_pthread_affinity(log.consumer_thread_native_handle(), 1);
 
