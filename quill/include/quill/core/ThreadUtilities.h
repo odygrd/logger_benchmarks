@@ -1,4 +1,5 @@
 /**
+ * @page copyright
  * Copyright(c) 2020-present, Odysseas Georgoudis & quill contributors.
  * Distributed under the MIT License (http://opensource.org/licenses/MIT)
  */
@@ -49,7 +50,7 @@ QUILL_BEGIN_NAMESPACE
 
 namespace detail
 {
-#if defined(_WIN32)
+#if defined(_WIN32) && defined(_MSC_VER)
 
 /**
  * Convert a string to wstring

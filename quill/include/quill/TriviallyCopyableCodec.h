@@ -1,4 +1,5 @@
 /**
+ * @page copyright
  * Copyright(c) 2020-present, Odysseas Georgoudis & quill contributors.
  * Distributed under the MIT License (http://opensource.org/licenses/MIT)
  */
@@ -7,6 +8,7 @@
 
 #include "quill/core/Attributes.h"
 #include "quill/core/DynamicFormatArgStore.h"
+#include "quill/core/InlinedVector.h"
 
 #include <cstring>
 #include <type_traits>

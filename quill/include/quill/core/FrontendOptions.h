@@ -1,4 +1,5 @@
 /**
+ * @page copyright
  * Copyright(c) 2020-present, Odysseas Georgoudis & quill contributors.
  * Distributed under the MIT License (http://opensource.org/licenses/MIT)
  */
@@ -30,7 +31,7 @@ struct FrontendOptions
    * Initial capacity of the queue. Used for UnboundedBlocking, UnboundedDropping, and
    * UnboundedUnlimited. Also serves as the capacity for BoundedBlocking and BoundedDropping.
    */
-  static constexpr uint32_t initial_queue_capacity = 131'072;
+  static constexpr uint32_t initial_queue_capacity = 128 * 1024; // 128 KiB
 
   /**
    * Interval for retrying when using BoundedBlocking or UnboundedBlocking.

@@ -1,5 +1,6 @@
 /**
- * Copyright(c) 2020-present, Odysseas Georgoudis & quill contributors.
+  * @page copyright
+ * Copyright(c) 2020-present, Odysseas Georgoudis & quill contributors.* @page copyright
  * Distributed under the MIT License (http://opensource.org/licenses/MIT)
  */
 
@@ -22,7 +23,7 @@ QUILL_BEGIN_NAMESPACE
 
 /** Version Info - When updating VersionMajor please also update the namespace in Attributes.h **/
 constexpr uint32_t VersionMajor{7};
-constexpr uint32_t VersionMinor{0};
+constexpr uint32_t VersionMinor{2};
 constexpr uint32_t VersionPatch{0};
 constexpr uint32_t Version{VersionMajor * 10000 + VersionMinor * 100 + VersionPatch};
 

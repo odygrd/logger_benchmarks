@@ -144,10 +144,6 @@ if (QUILL_BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)
 endif ()
 
-if (QUILL_DOCS_GEN)
-    add_subdirectory(docs)
-endif ()
-
 if (QUILL_BUILD_TESTS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test)
     add_subdirectory(test)
 endif ()
@@ -199,6 +195,7 @@ set(HEADER_FILES
         include/quill/core/LogLevel.h
         include/quill/core/MacroMetadata.h
         include/quill/core/MathUtils.h
+        include/quill/core/PatternFormatterOptions.h
         include/quill/core/QuillError.h
         include/quill/core/Rdtsc.h
         include/quill/core/SinkManager.h
@@ -379,4 +376,8 @@ if (QUILL_MASTER_PROJECT OR QUILL_ENABLE_INSTALL)
     set(CPACK_RPM_PACKAGE_URL ${CPACK_PROJECT_URL})
     set(CPACK_RPM_PACKAGE_DESCRIPTION "Asynchronous Low Latency C++ Logging Library")
     include(CPack)
+endif ()
+
+if (QUILL_DOCS_GEN)
+    add_subdirectory(docs)
 endif ()
