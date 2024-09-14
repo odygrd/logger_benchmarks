@@ -91,5 +91,7 @@ target_sources(${TARGET_NAME} PRIVATE ${SOURCE_FILES} ${HEADER_FILES})
 
 # Link dependencies
 target_link_libraries(${TARGET_NAME} PUBLIC rt)
+target_include_directories(${TARGET_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-target_include_directories(${TARGET_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include )
+add_executable(ms_binlog_bread bread/bread.cpp bread/printers.cpp bread/getopt.cpp)
+target_link_libraries(ms_binlog_bread PUBLIC binlog)
