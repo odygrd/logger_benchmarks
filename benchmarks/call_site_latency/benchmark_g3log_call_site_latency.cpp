@@ -28,7 +28,11 @@ void g3log_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   };
 #endif
 
-  auto on_start = []() {};
+  auto on_start = []()
+  {
+    LOG(INFO) << "Warm up";
+    std::this_thread::sleep_for(std::chrono::seconds{1});
+  };
 
   auto on_exit = []() {};
 

@@ -24,7 +24,11 @@ void platformlab_nanolog(std::vector<int32_t> thread_count_array, size_t num_ite
   };
 #endif
 
-  auto on_start = []() { NanoLog::preallocate(); };
+  auto on_start = []()
+  {
+    NANO_LOG(NOTICE, "Warm up");
+    NanoLog::sync();
+  };
 
   auto on_exit = []() {};
 

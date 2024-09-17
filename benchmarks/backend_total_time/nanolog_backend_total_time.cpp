@@ -38,8 +38,8 @@ int main()
     NANO_LOG(NOTICE, "Iteration: %lu int: %lu double: %f", iteration, iteration * 2,
              static_cast<double>(iteration) / 2);
   }
-  NANO_LOG(ERROR, "End");
 
+  NANO_LOG(ERROR, "End");
   NanoLog::sync();
 
   auto const end_time = std::chrono::steady_clock::now();

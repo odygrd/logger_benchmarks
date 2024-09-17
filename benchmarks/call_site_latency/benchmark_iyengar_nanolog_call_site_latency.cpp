@@ -25,7 +25,11 @@ void iyengar_nanoLog_benchmark(std::vector<int32_t> thread_count_array, size_t n
   };
 #endif
 
-  auto on_start = []() {};
+  auto on_start = []()
+  {
+    IY_LOG_INFO << "Warm up";
+    std::this_thread::sleep_for(std::chrono::seconds{1});
+  };
 
   auto on_exit = []() {};
 

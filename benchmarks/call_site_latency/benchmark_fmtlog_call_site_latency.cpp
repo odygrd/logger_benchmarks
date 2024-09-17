@@ -44,7 +44,11 @@ void fmtlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   { FMTLOG(fmtlog::INF, "Logging int: {}, int: {}, vector: {}", i, j, s); };
 #endif
 
-  auto on_start = []() { fmtlog::preallocate(); };
+  auto on_start = []()
+  {
+    FMTLOG(fmtlog::INF, "Warm up");
+    std::this_thread::sleep_for(std::chrono::seconds{1});
+  };
 
   auto on_exit = []() { };
 

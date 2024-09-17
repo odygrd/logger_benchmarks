@@ -38,7 +38,12 @@ void xtr_benchmark(std::vector<int32_t> thread_count_array, size_t num_iteration
   };
 #endif
 
-  auto on_start = []() {};
+  auto on_start = [&log]()
+  {
+    thread_local auto sink = log.get_sink("main");
+    XTR_LOGL_TSC(info, sink, "Warm up");
+    sink.sync();
+  };
 
   auto on_exit = []() {};
 

@@ -89,7 +89,11 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   char const* quill_x86_arch = "[quill_x86_arch: off]";
 #endif
 
-  auto on_start = []() { frontend_t::preallocate(); };
+  auto on_start = [logger]()
+  {
+    LOG_INFO(logger, "Warm up");
+    logger->flush_log(0);
+  };
 
   auto on_exit = []() { frontend_t::get_all_loggers().front()->flush_log(); };
 

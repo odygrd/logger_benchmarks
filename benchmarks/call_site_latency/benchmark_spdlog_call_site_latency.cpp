@@ -45,7 +45,11 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   { SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, string: {}", i, j, s); };
 #endif
 
-  auto on_start = []() {};
+  auto on_start = [logger]()
+  {
+    SPDLOG_LOGGER_INFO(logger, "Warm up");
+    logger->flush();
+  };
 
   auto on_exit = []() {};
 

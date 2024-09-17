@@ -50,7 +50,11 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   { BINLOG_INFO("Logging int: {}, int: {}, vector: {}", i, j, s); };
 #endif
 
-  auto on_start = []() {};
+  auto on_start = []()
+  {
+    BINLOG_INFO("Warm up");
+    std::this_thread::sleep_for(std::chrono::seconds{1});
+  };
 
   auto on_exit = []() {};
 

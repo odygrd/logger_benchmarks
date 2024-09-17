@@ -31,7 +31,11 @@ void reckless_benchmark(std::vector<int32_t> thread_count_array, size_t num_iter
   };
 #endif
 
-  auto on_start = []() {};
+  auto on_start = [&g_log]()
+  {
+    g_log.info("Warm up");
+    g_log.flush();
+  };
 
   auto on_exit = []() {};
 
