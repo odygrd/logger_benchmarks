@@ -28,8 +28,8 @@ int main()
   NanoLog::setLogFile(log_file.c_str());
   NanoLog::preallocate();
 
-  // wait for the backend thread to start
-  std::this_thread::sleep_for(std::chrono::seconds(1));
+  NANO_LOG(NOTICE, "Warm up");
+  NanoLog::sync();
 
   // start counting the time until backend worker finishes
   auto const start_time = std::chrono::steady_clock::now();

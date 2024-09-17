@@ -44,8 +44,8 @@ int main()
                                                        spdlog::async_overflow_policy::block);
   logger->set_pattern("%T.%F [%t] %s:%# %l %v");
 
-  // wait for the backend thread to start
-  std::this_thread::sleep_for(std::chrono::seconds(1));
+  SPDLOG_LOGGER_INFO(logger, "Warm up");
+  logger->flush();
 
   // start counting the time until backend worker finishes
   auto const start_time = std::chrono::steady_clock::now();
@@ -54,8 +54,8 @@ int main()
     SPDLOG_LOGGER_INFO(logger, "Iteration: {} int: {} double: {}", iteration, iteration * 2,
                        static_cast<double>(iteration) / 2);
   }
-  SPDLOG_LOGGER_ERROR(logger, "End");
 
+  SPDLOG_LOGGER_ERROR(logger, "End");
   logger->flush();
 
   auto const end_time = std::chrono::steady_clock::now();

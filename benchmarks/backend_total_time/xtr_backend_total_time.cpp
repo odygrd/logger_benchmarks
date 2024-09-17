@@ -38,19 +38,20 @@ int main()
     abort();
   }
 
-  // wait for the backend thread to start
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-
   // start counting the time until backend worker finishes
   auto sink = log.get_sink("main");
+
+  XTR_LOGL_TSC(info, sink, "Warm up");
+  sink.sync();
+
   auto const start_time = std::chrono::steady_clock::now();
   for (size_t iteration = 0; iteration < total_iterations; ++iteration)
   {
     XTR_LOGL_TSC(info, sink, "Iteration: {} int: {} double: {}", iteration, iteration * 2,
                  static_cast<double>(iteration) / 2);
   }
-  XTR_LOGL_TSC(error, sink, "End");
 
+  XTR_LOGL_TSC(error, sink, "End");
   sink.sync();
 
   auto const end_time = std::chrono::steady_clock::now();

@@ -37,19 +37,19 @@ int main()
       set_thread_affinity(5);
 
       binlog::Session::ConsumeResult consume_result;
-      do
+      while (true)
       {
-        if (consume_result.bytesConsumed == 0)
-        {
-          std::this_thread::sleep_for(std::chrono::nanoseconds{300});
-        }
-
         consume_result = binlog::consume(logfile);
-      } while (!done.load(std::memory_order_relaxed) || consume_result.bytesConsumed != 0);
+
+        if (done.load(std::memory_order_relaxed) && consume_result.bytesConsumed == 0)
+        {
+          break;
+        }
+      }
     });
 
-  // wait for the backend thread to start
-  std::this_thread::sleep_for(std::chrono::seconds(1));
+  BINLOG_INFO("Warm up");
+  std::this_thread::sleep_for(std::chrono::seconds{1});
 
   // start counting the time until backend worker finishes
   auto const start_time = std::chrono::steady_clock::now();

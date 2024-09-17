@@ -45,10 +45,8 @@ int main()
       fmtlog::poll(true);
     });
 
-  // wait for the backend thread to start
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-
-  fmtlog::preallocate();
+  FMTLOG(fmtlog::INF, "Warm up");
+  std::this_thread::sleep_for(std::chrono::seconds{1});
 
   // start counting the time until backend worker finishes
   auto const start_time = std::chrono::steady_clock::now();

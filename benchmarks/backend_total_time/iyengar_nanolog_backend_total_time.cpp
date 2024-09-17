@@ -29,6 +29,7 @@ int main()
   // Guaranteed nano log.
   nanolog::initialize(nanolog::GuaranteedLogger(), "./", log_file.c_str(), 10 * 1024 /* 10GB */);
 
+  IY_LOG_CRIT << "Warm up";
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // start counting the time until backend worker finishes

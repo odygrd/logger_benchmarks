@@ -42,8 +42,8 @@ int main()
     abort();
   }
 
-  // wait for the backend thread to start
-  std::this_thread::sleep_for(std::chrono::seconds(1));
+  g_log.info("Warm up");
+  g_log.flush();
 
   // start counting the time until backend worker finishes
   auto const start_time = std::chrono::steady_clock::now();
@@ -52,8 +52,8 @@ int main()
     g_log.info("Iteration: %d, int: %d, double: %f", iteration, iteration * 2,
                static_cast<double>(iteration) / 2);
   }
-  g_log.error("End");
 
+  g_log.error("End");
   g_log.flush();
 
   auto const end_time = std::chrono::steady_clock::now();

@@ -25,10 +25,8 @@ int main()
   // Setup
   quill::BackendOptions backend_options;
   backend_options.cpu_affinity = 5;
+  backend_options.sleep_duration = std::chrono::nanoseconds{0};
   quill::Backend::start(backend_options);
-
-  // wait for the backend thread to start
-  std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Frontend
   auto file_sink = quill::Frontend::create_or_get_sink<quill::FileSink>(
@@ -48,7 +46,8 @@ int main()
       "%(time) [%(thread_id)] %(short_source_location) %(log_level) %(message)", "%H:%M:%S.%Qns",
       quill::Timezone::GmtTime, false});
 
-  quill::Frontend::preallocate();
+  LOG_INFO(logger, "Warm up");
+  logger->flush_log(0);
 
   // start counting the time until backend worker finishes
   auto const start_time = std::chrono::steady_clock::now();
@@ -60,7 +59,7 @@ int main()
   LOG_ERROR(logger, "End");
 
   // block until all messages are flushed
-  quill::Frontend::get_all_loggers().front()->flush_log();
+  logger->flush_log(0);
 
   auto const end_time = std::chrono::steady_clock::now();
   auto const delta = end_time - start_time;
