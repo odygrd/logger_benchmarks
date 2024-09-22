@@ -9,8 +9,8 @@
 #include "quill/core/Attributes.h"
 #include "quill/core/BoundedSPSCQueue.h"
 #include "quill/core/Common.h"
+#include "quill/core/MathUtilities.h"
 #include "quill/core/QuillError.h"
-#include "quill/core/MathUtils.h"
 
 #include <atomic>
 #include <cassert>
@@ -49,7 +49,7 @@ private:
      * @param bounded_queue_capacity the capacity of the fixed buffer
      * @param huge_pages_enabled enables huge pages
      */
-    explicit Node(uint32_t bounded_queue_capacity, bool huge_pages_enabled)
+    explicit Node(size_t bounded_queue_capacity, bool huge_pages_enabled)
       : bounded_queue(bounded_queue_capacity, huge_pages_enabled)
     {
     }
@@ -65,15 +65,15 @@ public:
     explicit ReadResult(std::byte* read_position) : read_pos(read_position) {}
 
     std::byte* read_pos;
-    uint32_t previous_capacity{0};
-    uint32_t new_capacity{0};
+    size_t previous_capacity{0};
+    size_t new_capacity{0};
     bool allocation{false};
   };
 
   /**
    * Constructor
    */
-  explicit UnboundedSPSCQueue(uint32_t initial_bounded_queue_capacity, bool huges_pages_enabled = false)
+  explicit UnboundedSPSCQueue(size_t initial_bounded_queue_capacity, bool huges_pages_enabled = false)
     : _producer(new Node(initial_bounded_queue_capacity, huges_pages_enabled)), _consumer(_producer)
   {
   }
@@ -106,7 +106,8 @@ public:
    * making it visible to the consumer.
    * @return a valid point to the buffer
    */
-  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::byte* prepare_write(uint32_t nbytes, QueueType queue_type)
+  template <quill::QueueType queue_type>
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::byte* prepare_write(size_t nbytes)
   {
     // Try to reserve the bounded queue
     std::byte* write_pos = _producer->bounded_queue.prepare_write(nbytes);
@@ -116,62 +117,14 @@ public:
       return write_pos;
     }
 
-    // Then it means the queue doesn't have enough size
-    uint64_t capacity = static_cast<uint64_t>(_producer->bounded_queue.capacity()) * 2ull;
-    while (capacity < (nbytes + 1))
-    {
-      capacity = capacity * 2ull;
-    }
-
-    // bounded queue max power of 2 capacity since uint32_t type is used to hold the value 2147483648 bytes
-    uint64_t constexpr max_bounded_queue_capacity = max_power_of_two<BoundedSPSCQueue::integer_type>();
-
-    if (QUILL_UNLIKELY(capacity > max_bounded_queue_capacity))
-    {
-      if ((nbytes + 1) > max_bounded_queue_capacity)
-      {
-        QUILL_THROW(QuillError{
-          "logging single messages greater than 2 GB is not supported. nbytes: " + std::to_string(nbytes) +
-          " capacity: " + std::to_string(capacity) +
-          " max_bounded_queue_capacity: " + std::to_string(max_bounded_queue_capacity)});
-      }
-
-      if ((queue_type == QueueType::UnboundedBlocking) || (queue_type == QueueType::UnboundedDropping))
-      {
-        // we reached the unbounded queue limit of 2147483648 bytes (~2GB) we won't be allocating
-        // anymore and instead return nullptr to block or drop
-        return nullptr;
-      }
-
-      // else the UnboundedNonBlocking queue has no limits and will keep allocating additional 2GB queues
-      capacity = max_bounded_queue_capacity;
-    }
-
-    // commit previous write to the old queue before switching
-    _producer->bounded_queue.commit_write();
-
-    // We failed to reserve because the queue was full, create a new node with a new queue
-    auto const next_node =
-      new Node{static_cast<uint32_t>(capacity), _producer->bounded_queue.huge_pages_enabled()};
-
-    // store the new node pointer as next in the current node
-    _producer->next.store(next_node, std::memory_order_release);
-
-    // producer is now using the next node
-    _producer = next_node;
-
-    // reserve again, this time we know we will always succeed, cast to void* to ignore
-    write_pos = _producer->bounded_queue.prepare_write(nbytes);
-    assert(write_pos && "Already reserved a queue with that capacity");
-
-    return write_pos;
+    return _handle_full_queue<queue_type>(nbytes);
   }
 
   /**
    * Complement to reserve producer space that makes nbytes starting
    * from the return of reserve producer space visible to the consumer.
    */
-  QUILL_ATTRIBUTE_HOT void finish_write(uint32_t nbytes) noexcept
+  QUILL_ATTRIBUTE_HOT void finish_write(size_t nbytes) noexcept
   {
     _producer->bounded_queue.finish_write(nbytes);
   }
@@ -182,46 +135,37 @@ public:
   QUILL_ATTRIBUTE_HOT void commit_write() noexcept { _producer->bounded_queue.commit_write(); }
 
   /**
+   * Finish and commit write as a single function
+   */
+  QUILL_ATTRIBUTE_HOT void finish_and_commit_write(size_t nbytes) noexcept
+  {
+    finish_write(nbytes);
+    commit_write();
+  }
+
+  /**
    * Prepare to read from the buffer
    * @error_notifier a callback used for notifications to the user
    * @return first: pointer to buffer or nullptr, second: a pair of new_capacity, previous_capacity if an allocation
    */
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT ReadResult prepare_read()
   {
-    ReadResult read_result = ReadResult{_consumer->bounded_queue.prepare_read()};
+    ReadResult read_result{_consumer->bounded_queue.prepare_read()};
 
-    if (!read_result.read_pos)
+    if (read_result.read_pos != nullptr)
     {
-      // the buffer is empty check if another buffer exists
-      Node* const next_node = _consumer->next.load(std::memory_order_acquire);
-
-      if (QUILL_UNLIKELY(next_node != nullptr))
-      {
-        // a new buffer was added by the producer, this happens only when we have allocated a new queue
-
-        // try the existing buffer once more
-        read_result.read_pos = _consumer->bounded_queue.prepare_read();
-
-        if (!read_result.read_pos)
-        {
-          // commit the previous reads before deleting the queue
-          _consumer->bounded_queue.commit_read();
-
-          // switch to the new buffer, existing one is deleted
-          auto const previous_capacity = _consumer->bounded_queue.capacity();
-          delete _consumer;
-
-          _consumer = next_node;
-          read_result.read_pos = _consumer->bounded_queue.prepare_read();
-
-          // we switched to a new here, so we store the capacity info to return it
-          read_result.allocation = true;
-          read_result.new_capacity = _consumer->bounded_queue.capacity();
-          read_result.previous_capacity = previous_capacity;
-        }
-      }
+      return read_result;
     }
 
+    // the buffer is empty check if another buffer exists
+    Node* const next_node = _consumer->next.load(std::memory_order_acquire);
+
+    if (next_node)
+    {
+      return _read_next_queue(next_node);
+    }
+
+    // Queue is empty and no new queue exists
     return read_result;
   }
 
@@ -229,7 +173,7 @@ public:
    * Consumes the next nbytes in the buffer and frees it back
    * for the producer to reuse.
    */
-  QUILL_ATTRIBUTE_HOT void finish_read(uint32_t nbytes) noexcept
+  QUILL_ATTRIBUTE_HOT void finish_read(size_t nbytes) noexcept
   {
     _consumer->bounded_queue.finish_read(nbytes);
   }
@@ -243,15 +187,110 @@ public:
    * Return the current buffer's capacity
    * @return capacity
    */
-  QUILL_NODISCARD uint32_t capacity() const noexcept { return _consumer->bounded_queue.capacity(); }
+  QUILL_NODISCARD size_t capacity() const noexcept { return _consumer->bounded_queue.capacity(); }
 
   /**
    * checks if the queue is empty
    * @return true if empty, false otherwise
    */
-  QUILL_NODISCARD bool empty() const noexcept
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT bool empty() const noexcept
   {
     return _consumer->bounded_queue.empty() && (_consumer->next.load(std::memory_order_relaxed) == nullptr);
+  }
+
+private:
+  /***/
+  template <quill::QueueType queue_type>
+  QUILL_NODISCARD std::byte* _handle_full_queue(size_t nbytes)
+  {
+    // Then it means the queue doesn't have enough size
+    size_t capacity = _producer->bounded_queue.capacity() * 2ull;
+    while (capacity < (nbytes + 1))
+    {
+      capacity = capacity * 2ull;
+    }
+
+    if constexpr ((queue_type == QueueType::UnboundedBlocking) || (queue_type == QueueType::UnboundedDropping))
+    {
+      size_t constexpr max_bounded_queue_size = 2ull * 1024 * 1024 * 1024; // 2 GB
+
+      if (QUILL_UNLIKELY(capacity > max_bounded_queue_size))
+      {
+        if (nbytes > max_bounded_queue_size)
+        {
+          QUILL_THROW(QuillError{
+            "Logging single messages larger than 2 GB is not supported with the current queue "
+            "type. For UnboundedBlocking or UnboundedDropping queues, this limitation applies.\n"
+            "To log single messages larger than 2 GB, consider using the UnboundedUnlimited queue "
+            "type.\n"
+            "Message size: " +
+            std::to_string(nbytes) +
+            " bytes\n"
+            "Required queue capacity: " +
+            std::to_string(capacity) +
+            " bytes\n"
+            "Maximum allowed queue capacity: " +
+            std::to_string(max_bounded_queue_size) + " bytes"});
+        }
+
+        // we reached the max_bounded_queue_size we won't be allocating more
+        // instead return nullptr to block or drop
+        return nullptr;
+      }
+    }
+
+    // else the UnboundedUnlimited queue has no limits
+
+    // commit previous write to the old queue before switching
+    _producer->bounded_queue.commit_write();
+
+    // We failed to reserve because the queue was full, create a new node with a new queue
+    auto const next_node = new Node{capacity, _producer->bounded_queue.huge_pages_enabled()};
+
+    // store the new node pointer as next in the current node
+    _producer->next.store(next_node, std::memory_order_release);
+
+    // producer is now using the next node
+    _producer = next_node;
+
+    // reserve again, this time we know we will always succeed, cast to void* to ignore
+    std::byte* const write_pos = _producer->bounded_queue.prepare_write(nbytes);
+
+    assert(write_pos && "write_pos is nullptr");
+
+    return write_pos;
+  }
+
+  /***/
+  QUILL_NODISCARD ReadResult _read_next_queue(Node* next_node)
+  {
+    // a new buffer was added by the producer, this happens only when we have allocated a new queue
+
+    // try the existing buffer once more
+    ReadResult read_result{_consumer->bounded_queue.prepare_read()};
+
+    if (read_result.read_pos)
+    {
+      return read_result;
+    }
+
+    // Switch to the new buffer for reading
+    // commit the previous reads before deleting the queue
+    _consumer->bounded_queue.commit_read();
+
+    // switch to the new buffer, existing one is deleted
+    auto const previous_capacity = _consumer->bounded_queue.capacity();
+    delete _consumer;
+
+    _consumer = next_node;
+    read_result.read_pos = _consumer->bounded_queue.prepare_read();
+
+    // we switched to a new here, so we store the capacity info to return it
+    read_result.allocation = true;
+    read_result.new_capacity = _consumer->bounded_queue.capacity();
+    read_result.previous_capacity = previous_capacity;
+
+    return read_result;
   }
 
 private:

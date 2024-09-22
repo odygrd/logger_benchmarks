@@ -24,7 +24,7 @@
 #include "quill/core/LoggerBase.h"
 #include "quill/core/LoggerManager.h"
 #include "quill/core/MacroMetadata.h"
-#include "quill/core/MathUtils.h"
+#include "quill/core/MathUtilities.h"
 #include "quill/core/QuillError.h"
 #include "quill/core/SinkManager.h"
 #include "quill/core/ThreadContextManager.h"
@@ -461,7 +461,7 @@ private:
 
       // Finish reading
       assert((read_pos >= read_begin) && "read_buffer should be greater or equal to read_begin");
-      auto const bytes_read = static_cast<uint32_t>(read_pos - read_begin);
+      auto const bytes_read = static_cast<size_t>(read_pos - read_begin);
       frontend_queue.finish_read(bytes_read);
       total_bytes_read += bytes_read;
       // Reads a maximum of one full frontend queue or the transit events' hard limit to prevent

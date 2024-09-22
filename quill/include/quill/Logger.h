@@ -67,15 +67,24 @@ public:
    *
    * @return true if the message is written to the queue, false if it is dropped (when a dropping queue is used)
    */
-  template <bool immediate_flush, typename... Args>
+  template <bool immediate_flush, bool has_dynamic_log_level, typename... Args>
   QUILL_ATTRIBUTE_HOT bool log_statement(LogLevel dynamic_log_level,
                                          MacroMetadata const* macro_metadata, Args&&... fmt_args)
   {
 #ifndef NDEBUG
+    if (has_dynamic_log_level)
+    {
+      assert((dynamic_log_level != quill::LogLevel::None) &&
+             "When has_dynamic_log_level is set to true then dynamic_log_level should not be None");
+    }
+
     if (dynamic_log_level != quill::LogLevel::None)
     {
       assert((macro_metadata->log_level() == quill::LogLevel::Dynamic) &&
              "MacroMetadata LogLevel must be Dynamic when using a dynamic_log_level");
+
+      assert(has_dynamic_log_level &&
+             "When dynamic_log_level is used then has_dynamic_log_level must also be true");
     }
 
     if (macro_metadata->log_level() != quill::LogLevel::Dynamic)
@@ -90,12 +99,23 @@ public:
     // Store the timestamp of the log statement at the start of the call. This gives more accurate
     // timestamp especially if the queue is full
     // This is very rare but might lead to out of order timestamp in the log file if we block on push for too long
-    uint64_t const current_timestamp = (clock_source == ClockSourceType::Tsc) ? detail::rdtsc()
-      : (clock_source == ClockSourceType::System)
-      ? static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                std::chrono::system_clock::now().time_since_epoch())
-                                .count())
-      : user_clock->now();
+
+    uint64_t current_timestamp;
+
+    if (clock_source == ClockSourceType::Tsc)
+    {
+      current_timestamp = detail::rdtsc();
+    }
+    else if (clock_source == ClockSourceType::System)
+    {
+      current_timestamp = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                  std::chrono::system_clock::now().time_since_epoch())
+                                                  .count());
+    }
+    else
+    {
+      current_timestamp = user_clock->now();
+    }
 
     if (QUILL_UNLIKELY(thread_context == nullptr))
     {
@@ -108,28 +128,13 @@ public:
       detail::compute_encoded_size_and_cache_string_lengths(
                           thread_context->get_conditional_arg_size_cache(), fmt_args...);
 
-    if (dynamic_log_level != LogLevel::None)
+    if constexpr (has_dynamic_log_level)
     {
       // For the dynamic log level we want to add to the total size to store the dynamic log level
       total_size += sizeof(dynamic_log_level);
     }
 
-    constexpr bool is_unbounded_queue = (frontend_options_t::queue_type == QueueType::UnboundedUnlimited) ||
-      (frontend_options_t::queue_type == QueueType::UnboundedBlocking) ||
-      (frontend_options_t::queue_type == QueueType::UnboundedDropping);
-
-    std::byte* write_buffer;
-
-    if constexpr (is_unbounded_queue)
-    {
-      write_buffer = thread_context->get_spsc_queue<frontend_options_t::queue_type>().prepare_write(
-        static_cast<uint32_t>(total_size), frontend_options_t::queue_type);
-    }
-    else
-    {
-      write_buffer = thread_context->get_spsc_queue<frontend_options_t::queue_type>().prepare_write(
-        static_cast<uint32_t>(total_size));
-    }
+    std::byte* write_buffer = _prepare_write_buffer(total_size);
 
     if constexpr (frontend_options_t::queue_type == QueueType::UnboundedUnlimited)
     {
@@ -167,16 +172,7 @@ public:
           }
 
           // not enough space to push to queue, keep trying
-          if constexpr (is_unbounded_queue)
-          {
-            write_buffer = thread_context->get_spsc_queue<frontend_options_t::queue_type>().prepare_write(
-              static_cast<uint32_t>(total_size), frontend_options_t::queue_type);
-          }
-          else
-          {
-            write_buffer = thread_context->get_spsc_queue<frontend_options_t::queue_type>().prepare_write(
-              static_cast<uint32_t>(total_size));
-          }
+          write_buffer = _prepare_write_buffer(total_size);
         } while (write_buffer == nullptr);
       }
     }
@@ -195,7 +191,7 @@ public:
     // encode remaining arguments
     detail::encode(write_buffer, thread_context->get_conditional_arg_size_cache(), fmt_args...);
 
-    if (dynamic_log_level != LogLevel::None)
+    if constexpr (has_dynamic_log_level)
     {
       // write the dynamic log level
       // The reason we write it last is that is less likely to break the alignment in the buffer
@@ -205,12 +201,11 @@ public:
 
 #ifndef NDEBUG
     assert((write_buffer > write_begin) && "write_buffer must be greater than write_begin");
-    assert(total_size == (static_cast<uint32_t>(write_buffer - write_begin)) &&
+    assert(total_size == (static_cast<size_t>(write_buffer - write_begin)) &&
            "The committed write bytes must be equal to the total_size requested bytes");
 #endif
 
-    thread_context->get_spsc_queue<frontend_options_t::queue_type>().finish_write(static_cast<uint32_t>(total_size));
-    thread_context->get_spsc_queue<frontend_options_t::queue_type>().commit_write();
+    thread_context->get_spsc_queue<frontend_options_t::queue_type>().finish_and_commit_write(total_size);
 
     if constexpr (immediate_flush)
     {
@@ -235,7 +230,7 @@ public:
 
     // we pass this message to the queue and also pass capacity as arg
     // We do not want to drop the message if a dropping queue is used
-    while (!this->log_statement<false>(LogLevel::None, &macro_metadata, max_capacity))
+    while (!this->log_statement<false, false>(LogLevel::None, &macro_metadata, max_capacity))
     {
       std::this_thread::sleep_for(std::chrono::nanoseconds{100});
     }
@@ -254,7 +249,7 @@ public:
       "", "", "", nullptr, LogLevel::Critical, MacroMetadata::Event::FlushBacktrace};
 
     // We do not want to drop the message if a dropping queue is used
-    while (!this->log_statement<false>(LogLevel::None, &macro_metadata))
+    while (!this->log_statement<false, false>(LogLevel::None, &macro_metadata))
     {
       std::this_thread::sleep_for(std::chrono::nanoseconds{100});
     }
@@ -285,8 +280,8 @@ public:
     std::atomic<bool>* backend_thread_flushed_ptr = &backend_thread_flushed;
 
     // We do not want to drop the message if a dropping queue is used
-    while (!this->log_statement<false>(LogLevel::None, &macro_metadata,
-                                       reinterpret_cast<uintptr_t>(backend_thread_flushed_ptr)))
+    while (!this->log_statement<false, false>(
+      LogLevel::None, &macro_metadata, reinterpret_cast<uintptr_t>(backend_thread_flushed_ptr)))
     {
       if (sleep_duration_ns > 0)
       {
@@ -320,8 +315,8 @@ private:
   LoggerImpl(std::string logger_name, std::vector<std::shared_ptr<Sink>> sinks,
              PatternFormatterOptions pattern_formatter_options, ClockSourceType clock_source,
              UserClockSource* user_clock)
-    : detail::LoggerBase(static_cast<std::string&&>(logger_name),
-                         static_cast<std::vector<std::shared_ptr<Sink>>&&>(sinks),
+    : detail::LoggerBase(
+        static_cast<std::string&&>(logger_name), static_cast<std::vector<std::shared_ptr<Sink>>&&>(sinks),
         static_cast<PatternFormatterOptions&&>(pattern_formatter_options), clock_source, user_clock)
 
   {
@@ -331,7 +326,7 @@ private:
       this->clock_source = ClockSourceType::User;
     }
   }
-  
+
   /**
    * Encodes header information into the write buffer
    *
@@ -358,6 +353,32 @@ private:
     write_buffer += sizeof(uintptr_t);
 
     return write_buffer;
+  }
+
+  /**
+   * Prepares a write buffer for the given context and size.
+   */
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::byte* _prepare_write_buffer(size_t total_size)
+  {
+    constexpr bool is_unbounded_queue = (frontend_options_t::queue_type == QueueType::UnboundedUnlimited) ||
+      (frontend_options_t::queue_type == QueueType::UnboundedBlocking) ||
+      (frontend_options_t::queue_type == QueueType::UnboundedDropping);
+
+    if constexpr (is_unbounded_queue)
+    {
+      // MSVC doesn't like the template keyword, but every other compiler requires it
+#if defined(_MSC_VER)
+      return thread_context->get_spsc_queue<frontend_options_t::queue_type>().prepare_write<frontend_options_t::queue_type>(
+        total_size);
+#else
+      return thread_context->get_spsc_queue<frontend_options_t::queue_type>()
+        .template prepare_write<frontend_options_t::queue_type>(total_size);
+#endif
+    }
+    else
+    {
+      return thread_context->get_spsc_queue<frontend_options_t::queue_type>().prepare_write(total_size);
+    }
   }
 };
 

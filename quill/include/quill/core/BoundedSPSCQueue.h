@@ -2,7 +2,7 @@
 
 #include "quill/core/Attributes.h"
 #include "quill/core/Common.h"
-#include "quill/core/MathUtils.h"
+#include "quill/core/MathUtilities.h"
 #include "quill/core/QuillError.h"
 
 #include <atomic>
@@ -148,6 +148,15 @@ public:
     _mm_prefetch(reinterpret_cast<char const*>(_storage + (_writer_pos & _mask) + (CACHE_LINE_SIZE * 10)),
                  _MM_HINT_T0);
 #endif
+  }
+
+  /**
+   * Finish and commit write as a single function
+   */
+  QUILL_ATTRIBUTE_HOT void finish_and_commit_write(integer_type n) noexcept
+  {
+    finish_write(n);
+    commit_write();
   }
 
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::byte* prepare_read() noexcept
@@ -331,7 +340,7 @@ private:
   integer_type _last_flushed_reader_pos{0};
 };
 
-using BoundedSPSCQueue = BoundedSPSCQueueImpl<uint32_t>;
+using BoundedSPSCQueue = BoundedSPSCQueueImpl<size_t>;
 } // namespace detail
 
 QUILL_END_NAMESPACE
