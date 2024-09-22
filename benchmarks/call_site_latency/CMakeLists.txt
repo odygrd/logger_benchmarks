@@ -186,3 +186,16 @@ add_executable(${TARGET_NAME})
 target_sources(${TARGET_NAME} PRIVATE benchmark_xtr_call_site_latency.cpp)
 target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
 target_link_libraries(${TARGET_NAME} PRIVATE xtr Threads::Threads)
+
+# bqlog
+set(TARGET_NAME benchmark_bqlog_call_site_latency_int_int_double)
+add_executable(${TARGET_NAME})
+target_sources(${TARGET_NAME} PRIVATE benchmark_bqlog_call_site_latency.cpp)
+target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
+target_link_libraries(${TARGET_NAME} PRIVATE bqlog Threads::Threads)
+
+set(TARGET_NAME benchmark_bqlog_call_site_latency_int_int_largestr)
+add_executable(${TARGET_NAME})
+target_sources(${TARGET_NAME} PRIVATE benchmark_bqlog_call_site_latency.cpp)
+target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
+target_link_libraries(${TARGET_NAME} PRIVATE bqlog Threads::Threads)
