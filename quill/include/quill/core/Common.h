@@ -17,10 +17,16 @@
 #define QUILL_AS_STR(x) #x
 #define QUILL_STRINGIFY(x) QUILL_AS_STR(x)
 
-#if defined(__GNUC__) && defined(__linux__)
-  #define QUILL_THREAD_LOCAL __thread
-#else
-  #define QUILL_THREAD_LOCAL thread_local
+#if !defined(QUILL_THREAD_LOCAL)
+  #if defined(__GNUC__) && defined(__linux__)
+    #define QUILL_THREAD_LOCAL __thread
+  #else
+    #define QUILL_THREAD_LOCAL thread_local
+  #endif
+#endif
+
+#if !defined(QUILL_MAGIC_SEPARATOR)
+  #define QUILL_MAGIC_SEPARATOR "\x01\x02\x03"
 #endif
 
 QUILL_BEGIN_NAMESPACE
@@ -28,10 +34,13 @@ QUILL_BEGIN_NAMESPACE
 namespace detail
 {
 /**
- * Cache line size
+ * Cache line constants.
+ *
+ * Note: On FreeBSD, CACHE_LINE_SIZE is defined in a system header,
+ * so we use a prefix to avoid naming conflicts.
  */
-static constexpr size_t CACHE_LINE_SIZE{64u};
-static constexpr size_t CACHE_LINE_ALIGNED{2 * CACHE_LINE_SIZE};
+static constexpr size_t QUILL_CACHE_LINE_SIZE{64u};
+static constexpr size_t QUILL_CACHE_LINE_ALIGNED{2 * QUILL_CACHE_LINE_SIZE};
 } // namespace detail
 
 /**
@@ -41,7 +50,6 @@ enum class QueueType
 {
   UnboundedBlocking,
   UnboundedDropping,
-  UnboundedUnlimited,
   BoundedBlocking,
   BoundedDropping
 };
@@ -63,6 +71,16 @@ enum class ClockSourceType : uint8_t
   Tsc,
   System,
   User
+};
+
+/**
+ * Enum for huge pages
+ */
+enum class HugePagesPolicy
+{
+  Never,  // Do not use huge pages
+  Always, // Use huge pages, fail if unavailable
+  Try     // Try huge pages, but fall back to normal pages if unavailable
 };
 
 QUILL_END_NAMESPACE

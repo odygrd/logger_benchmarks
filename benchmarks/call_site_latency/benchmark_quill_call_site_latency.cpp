@@ -21,11 +21,12 @@ struct CustomFrontendOptions
 
   // Set small capacity to demonstrate dropping messages in this example
   static constexpr uint32_t blocking_queue_retry_interval_ns = 800;
+  static constexpr size_t unbounded_queue_max_capacity = 2ull * 1024u * 1024u * 1024u;
 
 #ifdef QUILL_USE_HUGE_PAGES
-  static constexpr bool huge_pages_enabled = true;
+  static constexpr quill::HugePagesPolicy huge_pages_policy = quill::HugePagesPolicy::Always;
 #else
-  static constexpr bool huge_pages_enabled = false;
+  static constexpr quill::HugePagesPolicy huge_pages_policy = quill::HugePagesPolicy::Never;
 #endif
 };
 

@@ -10,10 +10,9 @@
 #include "quill/core/Codec.h"
 #include "quill/core/DynamicFormatArgStore.h"
 #include "quill/core/InlinedVector.h"
-#include "quill/core/Utf8Conv.h"
 
-#include "quill/bundled/fmt/ranges.h"
 #include "quill/bundled/fmt/format.h"
+#include "quill/bundled/fmt/ranges.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -25,8 +24,9 @@ QUILL_BEGIN_NAMESPACE
 
 template <template <typename...> class UnorderedSetType, typename Key, typename Hash, typename KeyEqual, typename Allocator>
 struct Codec<UnorderedSetType<Key, Hash, KeyEqual, Allocator>,
-  std::enable_if_t<std::disjunction_v<std::is_same<UnorderedSetType<Key, Hash, KeyEqual, Allocator>, std::unordered_set<Key, Hash, KeyEqual, Allocator>>,
-                                      std::is_same<UnorderedSetType<Key, Hash, KeyEqual, Allocator>, std::unordered_multiset<Key, Hash, KeyEqual, Allocator>>>>>
+             std::enable_if_t<std::disjunction_v<
+               std::is_same<UnorderedSetType<Key, Hash, KeyEqual, Allocator>, std::unordered_set<Key, Hash, KeyEqual, Allocator>>,
+               std::is_same<UnorderedSetType<Key, Hash, KeyEqual, Allocator>, std::unordered_multiset<Key, Hash, KeyEqual, Allocator>>>>>
 {
   static size_t compute_encoded_size(detail::SizeCacheVector& conditional_arg_size_cache,
                                      UnorderedSetType<Key, Hash, KeyEqual, Allocator> const& arg) noexcept
@@ -92,7 +92,13 @@ struct Codec<UnorderedSetType<Key, Hash, KeyEqual, Allocator>,
     else
     {
 #endif
-      UnorderedSetType<Key, Hash, KeyEqual, Allocator> arg;
+      using ReturnType = decltype(Codec<Key>::decode_arg(buffer));
+      using ReboundHash =
+        typename std::conditional<std::is_same<Hash, std::hash<Key>>::value, std::hash<ReturnType>, Hash>::type;
+      using ReboundKeyEqual =
+        typename std::conditional<std::is_same<KeyEqual, std::equal_to<Key>>::value, std::equal_to<ReturnType>, KeyEqual>::type;
+      using ReboundAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<ReturnType>;
+      UnorderedSetType<ReturnType, ReboundHash, ReboundKeyEqual, ReboundAllocator> arg;
 
       // Read the size of the set
       size_t const number_of_elements = Codec<size_t>::decode_arg(buffer);

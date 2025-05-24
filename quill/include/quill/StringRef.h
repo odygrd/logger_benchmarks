@@ -32,10 +32,11 @@ namespace utility
 class StringRef
 {
 public:
-  explicit StringRef(std::string const& str) : _str_view(str){};
-  explicit StringRef(std::string_view str) : _str_view(str){};
-  explicit StringRef(char const* str) : _str_view(str, strlen(str)){};
-  StringRef(char const* str, size_t size) : _str_view(str, size){};
+  explicit StringRef(std::string const& str) : _str_view(str) {};
+  explicit StringRef(std::string_view str) : _str_view(str) {};
+  explicit StringRef(char const* str)
+    : _str_view(str, detail::safe_strnlen(str)) {};
+  StringRef(char const* str, size_t size) : _str_view(str, size) {};
 
   QUILL_NODISCARD std::string_view const& get_string_view() const noexcept { return _str_view; }
 
@@ -46,15 +47,15 @@ private:
 
 /***/
 template <>
-struct Codec<quill::utility::StringRef>
+struct Codec<utility::StringRef>
 {
-  static size_t compute_encoded_size(detail::SizeCacheVector&, quill::utility::StringRef const&) noexcept
+  static size_t compute_encoded_size(detail::SizeCacheVector&, utility::StringRef const&) noexcept
   {
     return sizeof(size_t) + sizeof(uintptr_t);
   }
 
   static void encode(std::byte*& buffer, detail::SizeCacheVector const&, uint32_t&,
-                     quill::utility::StringRef const& no_copy) noexcept
+                     utility::StringRef const& no_copy) noexcept
   {
     char const* data = no_copy.get_string_view().data();
     std::memcpy(buffer, &data, sizeof(uintptr_t));

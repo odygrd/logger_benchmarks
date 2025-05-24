@@ -10,10 +10,9 @@
 #include "quill/core/Codec.h"
 #include "quill/core/DynamicFormatArgStore.h"
 #include "quill/core/InlinedVector.h"
-#include "quill/core/Utf8Conv.h"
 
-#include "quill/bundled/fmt/ranges.h"
 #include "quill/bundled/fmt/format.h"
+#include "quill/bundled/fmt/ranges.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -92,8 +91,10 @@ struct Codec<std::pair<T1, T2>>
     else
     {
 #endif
+      using ReturnType1 = decltype(Codec<T1>::decode_arg(buffer));
+      using ReturnType2 = decltype(Codec<T2>::decode_arg(buffer));
+      std::pair<ReturnType1, ReturnType2> arg;
 
-      std::pair<T1, T2> arg;
       arg.first = Codec<T1>::decode_arg(buffer);
       arg.second = Codec<T2>::decode_arg(buffer);
       return arg;

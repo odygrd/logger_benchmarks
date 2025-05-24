@@ -37,18 +37,6 @@
 
   #include <io.h>
   #include <windows.h>
-#elif defined(__APPLE__)
-  #include <unistd.h>
-#elif defined(__CYGWIN__)
-  #include <unistd.h>
-#elif defined(__linux__)
-  #include <unistd.h>
-#elif defined(__NetBSD__)
-  #include <unistd.h>
-#elif defined(__FreeBSD__)
-  #include <unistd.h>
-#elif defined(__DragonFly__)
-  #include <unistd.h>
 #else
   #include <unistd.h>
 #endif
@@ -125,14 +113,6 @@ public:
    */
   QUILL_ATTRIBUTE_COLD void set_fsync_enabled(bool value) { _fsync_enabled = value; }
 
-  [[deprecated(
-    "This function is deprecated and will be removed in the next version. Use set_fsync_enabled() "
-    "instead.")]]
-  QUILL_ATTRIBUTE_COLD void set_do_fsync(bool value)
-  {
-    _fsync_enabled = value;
-  }
-
   /**
    * @brief Sets the open mode for the file.
    * Valid options for the open mode are 'a' or 'w'. The default value is 'a'.
@@ -180,6 +160,20 @@ public:
     _minimum_fsync_interval = value;
   }
 
+  /**
+   * @brief Sets custom pattern formatter options for this sink.
+   *
+   * By default, the logger's pattern formatter is used to format log messages.
+   * This function allows overriding the default formatter with custom options for this specific
+   * sink. If a custom formatter is provided, it will be used instead of the logger's formatter.
+   *
+   * @param options The custom pattern formatter options to use
+   */
+  QUILL_ATTRIBUTE_COLD void set_override_pattern_formatter_options(std::optional<PatternFormatterOptions> const& options)
+  {
+    _override_pattern_formatter_options = options;
+  }
+
   /** Getters **/
   QUILL_NODISCARD bool fsync_enabled() const noexcept { return _fsync_enabled; }
   QUILL_NODISCARD Timezone timezone() const noexcept { return _time_zone; }
@@ -197,12 +191,17 @@ public:
   {
     return _minimum_fsync_interval;
   }
+  QUILL_NODISCARD std::optional<PatternFormatterOptions> const& override_pattern_formatter_options() const noexcept
+  {
+    return _override_pattern_formatter_options;
+  }
 
 private:
-  std::string _open_mode{'w'};
+  std::string _open_mode{'a'};
   std::string _append_filename_format_pattern;
   size_t _write_buffer_size{64 * 1024}; // Default size 64k
   std::chrono::milliseconds _minimum_fsync_interval{0};
+  std::optional<PatternFormatterOptions> _override_pattern_formatter_options;
   Timezone _time_zone{Timezone::LocalTime};
   FilenameAppendOption _filename_append_option{FilenameAppendOption::None};
   bool _fsync_enabled{false};
@@ -222,6 +221,7 @@ public:
    * @param config Configuration for the FileSink.
    * @param file_event_notifier Notifies on file events.
    * @param do_fopen If false, the file will not be opened.
+   * @param start_time start time
    */
   explicit FileSink(fs::path const& filename, FileSinkConfig const& config = FileSinkConfig{},
                     FileEventNotifier file_event_notifier = FileEventNotifier{}, bool do_fopen = true,
@@ -229,7 +229,7 @@ public:
     : StreamSink(_get_updated_filename_with_appended_datetime(filename, config.filename_append_option(),
                                                               config.append_filename_format_pattern(),
                                                               config.timezone(), start_time),
-                 nullptr, std::move(file_event_notifier)),
+                 nullptr, config.override_pattern_formatter_options(), std::move(file_event_notifier)),
       _config(config)
   {
     if (!_config.fsync_enabled() && (_config.minimum_fsync_interval().count() != 0))
@@ -261,7 +261,7 @@ public:
 
     if (_config.fsync_enabled())
     {
-      fsync_file(_file);
+      fsync_file();
     }
 
     if (!fs::exists(_filename))
@@ -404,23 +404,23 @@ protected:
 
   /**
    * Fsync the file descriptor.
-   * @param fd File descriptor.
    */
-  void fsync_file(FILE* fd) noexcept
+  void fsync_file(bool force_fsync = false) noexcept
   {
-    auto const now = std::chrono::steady_clock::now();
-
-    if ((now - _last_fsync_timestamp) < _config.minimum_fsync_interval())
+    if (!force_fsync)
     {
-      return;
+      auto const now = std::chrono::steady_clock::now();
+      if ((now - _last_fsync_timestamp) < _config.minimum_fsync_interval())
+      {
+        return;
+      }
+      _last_fsync_timestamp = now;
     }
 
-    _last_fsync_timestamp = now;
-
 #ifdef _WIN32
-    FlushFileBuffers(reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(fd))));
+    FlushFileBuffers(reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(_file))));
 #else
-    ::fsync(fileno(fd));
+    ::fsync(fileno(_file));
 #endif
   }
 
@@ -429,30 +429,32 @@ private:
    * Get the filename with appended date and/or time.
    * @param filename Path to the file.
    * @param append_to_filename_option Append option.
+   * @param append_filename_format_pattern Append filename format option.
    * @param time_zone Timezone to use.
+   * @param timestamp timestamp
    * @return Updated filename.
    */
-  QUILL_NODISCARD static quill::fs::path _get_updated_filename_with_appended_datetime(
-    quill::fs::path const& filename, quill::FilenameAppendOption append_to_filename_option,
-    std::string const& append_filename_format_pattern, quill::Timezone time_zone,
+  QUILL_NODISCARD static fs::path _get_updated_filename_with_appended_datetime(
+    fs::path const& filename, FilenameAppendOption append_to_filename_option,
+    std::string const& append_filename_format_pattern, Timezone time_zone,
     std::chrono::system_clock::time_point timestamp)
   {
-    if ((append_to_filename_option == quill::FilenameAppendOption::None) || (filename == "/dev/null"))
+    if ((append_to_filename_option == FilenameAppendOption::None) || (filename == "/dev/null"))
     {
       return filename;
     }
 
-    if ((append_to_filename_option == quill::FilenameAppendOption::StartCustomTimestampFormat) ||
-        (append_to_filename_option == quill::FilenameAppendOption::StartDate) ||
-        (append_to_filename_option == quill::FilenameAppendOption::StartDateTime))
+    if ((append_to_filename_option == FilenameAppendOption::StartCustomTimestampFormat) ||
+        (append_to_filename_option == FilenameAppendOption::StartDate) ||
+        (append_to_filename_option == FilenameAppendOption::StartDateTime))
     {
       return append_datetime_to_filename(filename, append_filename_format_pattern, time_zone, timestamp);
     }
 
-    return quill::fs::path{};
+    return fs::path{};
   }
 
-private:
+protected:
   FileSinkConfig _config;
   std::chrono::steady_clock::time_point _last_fsync_timestamp{};
   std::unique_ptr<char[]> _write_buffer;

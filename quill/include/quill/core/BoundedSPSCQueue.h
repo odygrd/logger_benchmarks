@@ -15,29 +15,8 @@
 
 #if defined(_WIN32)
   #include <malloc.h>
-#elif defined(__APPLE__)
-  #include <sys/mman.h>
-  #include <unistd.h>
-#elif defined(__CYGWIN__)
-  #include <sys/mman.h>
-  #include <unistd.h>
-#elif defined(__linux__)
-  #include <sys/mman.h>
-#elif defined(__NetBSD__)
-  #include <lwp.h>
-  #include <sys/mman.h>
-  #include <unistd.h>
-#elif defined(__FreeBSD__)
-  #include <sys/mman.h>
-  #include <sys/thr.h>
-  #include <unistd.h>
-#elif defined(__DragonFly__)
-  #include <sys/lwp.h>
-  #include <sys/mman.h>
-  #include <unistd.h>
 #else
   #include <sys/mman.h>
-  #include <sys/stat.h>
   #include <unistd.h>
 #endif
 
@@ -73,14 +52,15 @@ class BoundedSPSCQueueImpl
 public:
   using integer_type = T;
 
-  QUILL_ATTRIBUTE_HOT explicit BoundedSPSCQueueImpl(integer_type capacity, bool huges_pages_enabled = false,
+  QUILL_ATTRIBUTE_HOT explicit BoundedSPSCQueueImpl(integer_type capacity,
+                                                    HugePagesPolicy huge_pages_policy = HugePagesPolicy::Never,
                                                     integer_type reader_store_percent = 5)
     : _capacity(next_power_of_two(capacity)),
       _mask(_capacity - 1),
-      _bytes_per_batch(static_cast<integer_type>(_capacity * static_cast<double>(reader_store_percent) / 100.0)),
-      _storage(static_cast<std::byte*>(_alloc_aligned(2ull * static_cast<uint64_t>(_capacity),
-                                                      CACHE_LINE_ALIGNED, huges_pages_enabled))),
-      _huge_pages_enabled(huges_pages_enabled)
+      _bytes_per_batch(static_cast<integer_type>(static_cast<double>(_capacity * reader_store_percent) / 100.0)),
+      _storage(static_cast<std::byte*>(_alloc_aligned(
+        2ull * static_cast<uint64_t>(_capacity), QUILL_CACHE_LINE_ALIGNED, huge_pages_policy))),
+      _huge_pages_policy(huge_pages_policy)
   {
     std::memset(_storage, 0, 2ull * static_cast<uint64_t>(_capacity));
 
@@ -89,7 +69,7 @@ public:
 
 #if defined(QUILL_X86ARCH)
     // remove log memory from cache
-    for (uint64_t i = 0; i < (2ull * static_cast<uint64_t>(_capacity)); i += CACHE_LINE_SIZE)
+    for (uint64_t i = 0; i < (2ull * static_cast<uint64_t>(_capacity)); i += QUILL_CACHE_LINE_SIZE)
     {
       _mm_clflush(_storage + i);
     }
@@ -104,7 +84,7 @@ public:
 
     for (uint64_t i = 0; i < cache_lines; ++i)
     {
-      _mm_prefetch(reinterpret_cast<char const*>(_storage + (CACHE_LINE_SIZE * i)), _MM_HINT_T0);
+      _mm_prefetch(reinterpret_cast<char const*>(_storage + (QUILL_CACHE_LINE_SIZE * i)), _MM_HINT_T0);
     }
 #endif
   }
@@ -145,8 +125,8 @@ public:
     _flush_cachelines(_last_flushed_writer_pos, _writer_pos);
 
     // prefetch a future cache line
-    _mm_prefetch(reinterpret_cast<char const*>(_storage + (_writer_pos & _mask) + (CACHE_LINE_SIZE * 10)),
-                 _MM_HINT_T0);
+    _mm_prefetch(
+      reinterpret_cast<char const*>(_storage + (_writer_pos & _mask) + (QUILL_CACHE_LINE_SIZE * 10)), _MM_HINT_T0);
 #endif
   }
 
@@ -208,19 +188,19 @@ public:
     return static_cast<integer_type>(_capacity);
   }
 
-  QUILL_NODISCARD bool huge_pages_enabled() const noexcept { return _huge_pages_enabled; }
+  QUILL_NODISCARD HugePagesPolicy huge_pages_policy() const noexcept { return _huge_pages_policy; }
 
 private:
 #if defined(QUILL_X86ARCH)
   QUILL_ATTRIBUTE_HOT void _flush_cachelines(integer_type& last, integer_type offset)
   {
-    integer_type last_diff = last - (last & CACHELINE_MASK);
-    integer_type const cur_diff = offset - (offset & CACHELINE_MASK);
+    integer_type last_diff = last - (last & QUILL_CACHE_LINE_MASK);
+    integer_type const cur_diff = offset - (offset & QUILL_CACHE_LINE_MASK);
 
     while (cur_diff > last_diff)
     {
       _mm_clflushopt(_storage + (last_diff & _mask));
-      last_diff += CACHE_LINE_SIZE;
+      last_diff += QUILL_CACHE_LINE_SIZE;
       last = last_diff;
     }
   }
@@ -229,6 +209,7 @@ private:
   /**
    * align a pointer to the given alignment
    * @param pointer a pointer the object
+   * @param alignment a pointer the object
    * @return an aligned pointer for the given object
    */
   QUILL_NODISCARD static std::byte* _align_pointer(void* pointer, size_t alignment) noexcept
@@ -242,13 +223,14 @@ private:
    * Aligned alloc
    * @param size number of bytes to allocate. An integral multiple of alignment
    * @param alignment specifies the alignment. Must be a valid alignment supported by the implementation.
-   * @param huges_pages_enabled allocate huge pages, only supported on linux
+   * @param huge_pages_policy allocate huge pages, only supported on linux
    * @return On success, returns the pointer to the beginning of newly allocated memory.
    * To avoid a memory leak, the returned pointer must be deallocated with _free_aligned().
    * @throws QuillError on failure
    */
 
-  QUILL_NODISCARD static void* _alloc_aligned(size_t size, size_t alignment, QUILL_MAYBE_UNUSED bool huges_pages_enabled)
+  QUILL_NODISCARD static void* _alloc_aligned(size_t size, size_t alignment,
+                                              QUILL_MAYBE_UNUSED HugePagesPolicy huge_pages_policy)
   {
 #if defined(_WIN32)
     void* p = _aligned_malloc(size, alignment);
@@ -269,13 +251,22 @@ private:
     int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 
   #if defined(__linux__)
-    if (huges_pages_enabled)
+    if (huge_pages_policy != HugePagesPolicy::Never)
     {
       flags |= MAP_HUGETLB;
     }
   #endif
 
     void* mem = ::mmap(nullptr, total_size, PROT_READ | PROT_WRITE, flags, -1, 0);
+
+  #if defined(__linux__)
+    if ((mem == MAP_FAILED) && (huge_pages_policy == HugePagesPolicy::Try))
+    {
+      // we tried but failed allocating huge pages, try normal pages instead
+      flags &= ~MAP_HUGETLB;
+      mem = ::mmap(nullptr, total_size, PROT_READ | PROT_WRITE, flags, -1, 0);
+    }
+  #endif
 
     if (mem == MAP_FAILED)
     {
@@ -321,21 +312,21 @@ private:
   }
 
 private:
-  static constexpr integer_type CACHELINE_MASK{CACHE_LINE_SIZE - 1};
+  static constexpr integer_type QUILL_CACHE_LINE_MASK{QUILL_CACHE_LINE_SIZE - 1};
 
   integer_type const _capacity;
   integer_type const _mask;
   integer_type const _bytes_per_batch;
   std::byte* const _storage{nullptr};
-  bool const _huge_pages_enabled;
+  HugePagesPolicy const _huge_pages_policy;
 
-  alignas(CACHE_LINE_ALIGNED) std::atomic<integer_type> _atomic_writer_pos{0};
-  alignas(CACHE_LINE_ALIGNED) integer_type _writer_pos{0};
+  alignas(QUILL_CACHE_LINE_ALIGNED) std::atomic<integer_type> _atomic_writer_pos{0};
+  alignas(QUILL_CACHE_LINE_ALIGNED) integer_type _writer_pos{0};
   integer_type _reader_pos_cache{0};
   integer_type _last_flushed_writer_pos{0};
 
-  alignas(CACHE_LINE_ALIGNED) std::atomic<integer_type> _atomic_reader_pos{0};
-  alignas(CACHE_LINE_ALIGNED) integer_type _reader_pos{0};
+  alignas(QUILL_CACHE_LINE_ALIGNED) std::atomic<integer_type> _atomic_reader_pos{0};
+  alignas(QUILL_CACHE_LINE_ALIGNED) integer_type _reader_pos{0};
   mutable integer_type _writer_pos_cache{0};
   integer_type _last_flushed_reader_pos{0};
 };

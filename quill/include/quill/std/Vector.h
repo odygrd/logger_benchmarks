@@ -10,10 +10,9 @@
 #include "quill/core/Codec.h"
 #include "quill/core/DynamicFormatArgStore.h"
 #include "quill/core/InlinedVector.h"
-#include "quill/core/Utf8Conv.h"
 
-#include "quill/bundled/fmt/ranges.h"
 #include "quill/bundled/fmt/format.h"
+#include "quill/bundled/fmt/ranges.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -96,7 +95,9 @@ struct Codec<std::vector<T, Allocator>>
     else
     {
 #endif
-      std::vector<T, Allocator> arg;
+      using ReturnType = decltype(Codec<T>::decode_arg(buffer));
+      using ReboundAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<ReturnType>;
+      std::vector<ReturnType, ReboundAllocator> arg;
 
       // Read the size of the vector
       size_t const number_of_elements = Codec<size_t>::decode_arg(buffer);

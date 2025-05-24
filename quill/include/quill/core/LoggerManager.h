@@ -8,6 +8,7 @@
 
 #include "quill/core/Attributes.h"
 #include "quill/core/Common.h"
+#include "quill/core/LogLevel.h"
 #include "quill/core/LoggerBase.h"
 #include "quill/core/PatternFormatterOptions.h"
 #include "quill/core/Spinlock.h"
@@ -15,9 +16,11 @@
 #include <algorithm>
 #include <atomic>
 #include <cassert>
+#include <cstdlib>
 #include <initializer_list>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 QUILL_BEGIN_NAMESPACE
@@ -69,7 +72,7 @@ public:
   }
 
   /***/
-  QUILL_NODISCARD LoggerBase* get_valid_logger() const
+  QUILL_NODISCARD LoggerBase* get_valid_logger(std::string_view exclude_logger_substr = {}) const
   {
     // Retrieves any valid logger without the need for constructing a vector
     LockGuard const lock{_spinlock};
@@ -79,7 +82,13 @@ public:
       // we can not add invalidated loggers as they can be removed at any time
       if (elem->is_valid_logger())
       {
-        return elem.get();
+        // Return the logger only if it does not match the exclude_logger_substr
+        if (exclude_logger_substr.empty() ||
+            elem->get_logger_name().find(exclude_logger_substr) == std::string::npos)
+        {
+          // Return this logger if it's valid and not excluded
+          return elem.get();
+        }
       }
     }
 
@@ -136,11 +145,29 @@ public:
       // we retain this portion of code for additional safety in case of potential re-lookup of
       // the logger. This section is not performance-critical.
       logger_ptr = _find_logger(logger_name);
+
+      if (logger_ptr && _env_log_level)
+      {
+        logger_ptr->set_log_level(*_env_log_level);
+      }
     }
 
     assert(logger_ptr);
     assert(logger_ptr->is_valid_logger());
     return logger_ptr;
+  }
+
+  /***/
+  template <typename TLogger>
+  LoggerBase* create_or_get_logger(std::string const& logger_name, LoggerBase* source_logger)
+  {
+    if (!source_logger)
+    {
+      return get_logger(logger_name);
+    }
+
+    return create_or_get_logger<TLogger>(logger_name, source_logger->sinks, source_logger->pattern_formatter_options,
+                                         source_logger->clock_source, source_logger->user_clock);
   }
 
   /***/
@@ -194,8 +221,37 @@ public:
     return _has_invalidated_loggers.load(std::memory_order_acquire);
   }
 
+  QUILL_ATTRIBUTE_COLD void parse_log_level_from_env()
+  {
+    constexpr char const* field = "QUILL_LOG_LEVEL";
+
+    std::string log_level;
+
+#if defined(_MSC_VER)
+    size_t len = 0;
+    char buf[128];
+    bool const ok = ::getenv_s(&len, buf, sizeof(buf), field) == 0;
+    if (ok)
+    {
+      log_level = buf;
+    }
+#else // revert to getenv
+    char* buf = ::getenv(field);
+    if (buf)
+    {
+      log_level = buf;
+    }
+#endif
+
+    if (!log_level.empty())
+    {
+      _env_log_level = std::make_unique<LogLevel>(loglevel_from_string(log_level));
+    }
+  }
+
 private:
-  LoggerManager() = default;
+  LoggerManager() { parse_log_level_from_env(); }
+
   ~LoggerManager() = default;
 
   /***/
@@ -222,6 +278,7 @@ private:
 
 private:
   std::vector<std::unique_ptr<LoggerBase>> _loggers;
+  std::unique_ptr<LogLevel> _env_log_level;
   mutable Spinlock _spinlock;
   std::atomic<bool> _has_invalidated_loggers{false};
 };

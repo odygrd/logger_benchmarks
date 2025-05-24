@@ -64,8 +64,8 @@ struct BackendOptions
    * If a frontend threads continuously push messages to the queue (e.g., logging in a loop),
    * no logs can ever be processed.
    *
-   * When the soft limit is reached (default: 800), the backend worker thread will try to process
-   * a batch of cached transit events all at once
+   * When the soft limit is reached the backend worker thread will try to process a batch of cached
+   * transit events all at once
    *
    * The frontend queues are emptied on each iteration, so the actual popped messages
    * can be much greater than the transit_events_soft_limit.
@@ -184,6 +184,23 @@ struct BackendOptions
   std::chrono::milliseconds rdtsc_resync_interval = std::chrono::milliseconds{500};
 
   /**
+   * This option specifies the minimum time interval (in milliseconds) before the backend thread
+   * flushes the output buffers (flush_sink()) for all sinks in the application.
+   *
+   * The backend thread will ensure that no sink is flushed more frequently than this interval.
+   * Explicit calls to `logger->flush_log()` override this interval and trigger an immediate flush.
+   *
+   * However, if the backend thread is actively processing messages, flushing may occur less
+   * frequently than the specified interval.
+   *
+   * Setting this value to 0 disables the feature, causing the backend thread to flush sinks
+   * whenever there is no pending work, provided a write to the sink has occurred.
+   *
+   * This setting applies globally and affects all sinks in the application.
+   */
+  std::chrono::milliseconds sink_min_flush_interval = std::chrono::milliseconds{200};
+
+  /**
    * This option enables a check that verifies the log message contains only printable characters
    * before forwarding it to the sinks. This adds an extra layer of safety by filtering out
    * non-printable characters from the log file. Any non-printable characters are converted to their
@@ -204,9 +221,9 @@ struct BackendOptions
    * The indices correspond to LogLevel enum values defined elsewhere in the codebase.
    * These names provide human-readable identifiers for each log level.
    */
-  std::array<std::string, 12> log_level_descriptions = {
-    "TRACE_L3", "TRACE_L2", "TRACE_L1",  "DEBUG", "INFO", "NOTICE", "WARNING",
-    "ERROR",    "CRITICAL", "BACKTRACE", "NONE",  "DYNAMIC"};
+  std::array<std::string, 11> log_level_descriptions = {
+    "TRACE_L3", "TRACE_L2", "TRACE_L1", "DEBUG",     "INFO", "NOTICE",
+    "WARNING",  "ERROR",    "CRITICAL", "BACKTRACE", "NONE"};
 
   /**
    * @brief Short codes or identifiers for each log level.
@@ -214,8 +231,30 @@ struct BackendOptions
    * Provides short codes representing each log level for compact identification and usage.
    * The indices correspond to LogLevel enum values defined elsewhere in the codebase.
    */
-  std::array<std::string, 12> log_level_short_codes = {"T3", "T2", "T1", "D",  "I", "N",
-                                                       "W",  "E",  "C",  "BT", "_", "DN"};
+  std::array<std::string, 11> log_level_short_codes = {"T3", "T2", "T1", "D",  "I", "N",
+                                                       "W",  "E",  "C",  "BT", "_"};
+
+  /**
+   * Enables a runtime check to detect multiple instances of the backend singleton.
+   *
+   * When mixing shared and static libraries, linkage issues can lead to multiple instances
+   * of the backend singleton. This may result in multiple backend worker threads running
+   * simultaneously, causing unexpected behavior or crashes.
+   *
+   * This issue commonly occurs on Windows when Quill is compiled as a static library and linked
+   * into both a shared library and the main executable, creating separate instances. While using
+   * Quill as a static library is generally recommended, in such cases, the preferred approach
+   * is to build Quill as a shared library and export its symbols
+   * (e.g., using `WINDOWS_EXPORT_ALL_SYMBOLS`).
+   *
+   * On Windows, this check is implemented using a named mutex, whereas on Linux and other POSIX
+   * systems, it relies on a named semaphore. In rare cases, this mechanism may interfere with
+   * certain environments or containerized deployments. If necessary, this check can be disabled
+   * by setting this option to `false`.
+   *
+   * Setting this option to `true` enables the check, while setting it to `false` disables it.
+   */
+  bool check_backend_singleton_instance = true;
 };
 
 QUILL_END_NAMESPACE

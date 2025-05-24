@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "quill/backend/ThreadUtilities.h"
+
 #include "quill/Logger.h"
 #include "quill/core/Attributes.h"
 #include "quill/core/LogLevel.h"
@@ -13,14 +15,12 @@
 #include "quill/core/LoggerManager.h"
 #include "quill/core/MacroMetadata.h"
 #include "quill/core/QuillError.h"
-#include "quill/core/ThreadUtilities.h"
 
 #include <atomic>
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <initializer_list>
 #include <string>
 
 #if defined(_WIN32)
@@ -42,6 +42,35 @@
 
 QUILL_BEGIN_NAMESPACE
 
+/**
+ * Struct to hold options for the signal handler.
+ */
+struct SignalHandlerOptions
+{
+  /**
+   * List of signals that the backend should catch if with_signal_handler is enabled.
+   */
+  std::vector<int> catchable_signals{SIGTERM, SIGINT, SIGABRT, SIGFPE, SIGILL, SIGSEGV};
+
+  /**
+   * Defines the timeout duration in seconds for the signal handler alarm.
+   * It is only available on Linux, as Windows does not support the alarm function.
+   * The signal handler sets up an alarm to ensure that the process will terminate if it does not
+   * complete within the specified time frame. This is particularly useful to prevent the
+   * process from hanging indefinitely in case the signal handler encounters an issue.
+   */
+  uint32_t timeout_seconds = 20u;
+
+  /**
+   * The logger instance that the signal handler will use to log errors when the application crashes.
+   * The logger is accessed by the signal handler and must be created by your application using
+   * Frontend::create_or_get_logger(...).
+   * If the specified logger is not found, or if this parameter is left empty, the signal handler
+   * will default to using the first valid logger it finds.
+   */
+  std::string logger;
+};
+
 namespace detail
 {
 /***/
@@ -58,6 +87,28 @@ public:
     return instance;
   }
 
+  /***/
+  QUILL_NODISCARD static LoggerBase* get_logger() noexcept
+  {
+    LoggerBase* logger_base{nullptr};
+
+    if (!instance().logger_name.empty())
+    {
+      logger_base = LoggerManager::instance().get_logger(instance().logger_name);
+    }
+
+    // This also checks if the logger was found above
+    if (!logger_base || !logger_base->is_valid_logger())
+    {
+      logger_base = LoggerManager::instance().get_valid_logger(excluded_logger_name_substr);
+    }
+
+    return logger_base;
+  }
+
+  static constexpr std::string_view excluded_logger_name_substr = {"__csv__"};
+
+  std::string logger_name;
   std::atomic<int32_t> signal_number{0};
   std::atomic<uint32_t> lock{0};
   std::atomic<uint32_t> backend_thread_id{0};
@@ -69,16 +120,16 @@ private:
   ~SignalHandlerContext() = default;
 };
 
-#define QUILL_SIGNAL_HANDLER_LOG(logger, log_level, fmt, ...)                                       \
-  do                                                                                                \
-  {                                                                                                 \
-    if (logger->template should_log_statement<log_level>())                                         \
-    {                                                                                               \
-      static constexpr quill::MacroMetadata macro_metadata{                                         \
-        "SignalHandler:~", "", fmt, nullptr, log_level, quill::MacroMetadata::Event::Log};                 \
-                                                                                                           \
-      logger->template log_statement<false, false>(quill::LogLevel::None, &macro_metadata, ##__VA_ARGS__); \
-    }                                                                                               \
+#define QUILL_SIGNAL_HANDLER_LOG(logger, log_level, fmt, ...)                                      \
+  do                                                                                               \
+  {                                                                                                \
+    if (logger->template should_log_statement<log_level>())                                        \
+    {                                                                                              \
+      static constexpr quill::MacroMetadata macro_metadata{                                        \
+        "SignalHandler:~", "", fmt, nullptr, log_level, quill::MacroMetadata::Event::Log};         \
+                                                                                                   \
+      logger->template log_statement<false>(&macro_metadata, ##__VA_ARGS__);                       \
+    }                                                                                              \
   } while (0)
 
 /***/
@@ -125,7 +176,8 @@ void on_signal(int32_t signal_number)
     {
       std::exit(EXIT_SUCCESS);
     }
-    else if (should_reraise_signal)
+
+    if (should_reraise_signal)
     {
       // for other signals expect SIGINT and SIGTERM we re-raise
       std::signal(signal_number, SIG_DFL);
@@ -135,7 +187,7 @@ void on_signal(int32_t signal_number)
   else
   {
     // This means signal handler is running on a frontend thread, we can log and flush
-    LoggerBase* logger_base = detail::LoggerManager::instance().get_valid_logger();
+    LoggerBase* logger_base = SignalHandlerContext::instance().get_logger();
 
     if (logger_base)
     {
@@ -146,7 +198,7 @@ void on_signal(int32_t signal_number)
 #endif
 
       auto logger = reinterpret_cast<LoggerImpl<TFrontendOptions>*>(logger_base);
-      QUILL_SIGNAL_HANDLER_LOG(logger, quill::LogLevel::Info, "Received signal: {} (signum: {})",
+      QUILL_SIGNAL_HANDLER_LOG(logger, LogLevel::Info, "Received signal: {} (signum: {})",
                                signal_desc, signal_number);
 
       if (signal_number == SIGINT || signal_number == SIGTERM)
@@ -156,9 +208,10 @@ void on_signal(int32_t signal_number)
         logger->flush_log(0);
         std::exit(EXIT_SUCCESS);
       }
-      else if (should_reraise_signal)
+
+      if (should_reraise_signal)
       {
-        QUILL_SIGNAL_HANDLER_LOG(logger, quill::LogLevel::Critical,
+        QUILL_SIGNAL_HANDLER_LOG(logger, LogLevel::Critical,
                                  "Program terminated unexpectedly due to signal: {} (signum: {})",
                                  signal_desc, signal_number);
 
@@ -246,11 +299,12 @@ BOOL WINAPI on_console_signal(DWORD signal)
       (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT))
   {
     // Log the interruption and flush log messages
-    LoggerBase* logger_base = detail::LoggerManager::instance().get_valid_logger();
+    LoggerBase* logger_base = SignalHandlerContext::instance().get_logger();
+
     if (logger_base)
     {
       auto logger = reinterpret_cast<LoggerImpl<TFrontendOptions>*>(logger_base);
-      QUILL_SIGNAL_HANDLER_LOG(logger, quill::LogLevel::Info,
+      QUILL_SIGNAL_HANDLER_LOG(logger, LogLevel::Info,
                                "Program interrupted by Ctrl+C or Ctrl+Break signal");
 
       // Pass `0` to avoid calling std::this_thread::sleep_for()
@@ -273,16 +327,17 @@ LONG WINAPI on_exception(EXCEPTION_POINTERS* exception_p)
   if ((backend_thread_id != 0) && (current_thread_id != backend_thread_id))
   {
     // Log the interruption and flush log messages
-    LoggerBase* logger_base = detail::LoggerManager::instance().get_valid_logger();
+    LoggerBase* logger_base = SignalHandlerContext::instance().get_logger();
+
     if (logger_base)
     {
       auto logger = reinterpret_cast<LoggerImpl<TFrontendOptions>*>(logger_base);
 
-      QUILL_SIGNAL_HANDLER_LOG(logger, quill::LogLevel::Info, "Received exception: {} (Code: {})",
+      QUILL_SIGNAL_HANDLER_LOG(logger, LogLevel::Info, "Received exception: {} (Code: {})",
                                get_error_message(exception_p->ExceptionRecord->ExceptionCode),
                                exception_p->ExceptionRecord->ExceptionCode);
 
-      QUILL_SIGNAL_HANDLER_LOG(logger, quill::LogLevel::Critical,
+      QUILL_SIGNAL_HANDLER_LOG(logger, LogLevel::Critical,
                                "Program terminated unexpectedly due to exception: {} (Code: {})",
                                get_error_message(exception_p->ExceptionRecord->ExceptionCode),
                                exception_p->ExceptionRecord->ExceptionCode);
@@ -317,7 +372,7 @@ void init_exception_handler()
  * @param catchable_signals the signals we are catching
  */
 template <typename TFrontendOptions>
-void init_signal_handler(std::initializer_list<int32_t> const& catchable_signals = std::initializer_list<int>{
+void init_signal_handler(std::vector<int> const& catchable_signals = std::vector<int>{
                            SIGTERM, SIGINT, SIGABRT, SIGFPE, SIGILL, SIGSEGV})
 {
   for (auto const& catchable_signal : catchable_signals)
@@ -347,7 +402,7 @@ inline void on_alarm(int32_t signal_number)
 }
 
 template <typename TFrontendOptions>
-void init_signal_handler(std::initializer_list<int32_t> const& catchable_signals)
+void init_signal_handler(std::vector<int> const& catchable_signals)
 {
   for (auto const& catchable_signal : catchable_signals)
   {

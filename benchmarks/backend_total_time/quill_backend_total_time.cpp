@@ -3,6 +3,7 @@
 #include "quill/LogMacros.h"
 #include "quill/Logger.h"
 #include "quill/sinks/FileSink.h"
+#include "quill/bundled/fmt/format.h"
 
 #include <filesystem>
 
@@ -66,9 +67,8 @@ int main()
 
   auto delta_d = std::chrono::duration_cast<std::chrono::duration<double>>(delta).count();
 
-  std::cout << fmtquill::format(
-                 "throughput is {:.2f} million msgs/sec average, total time elapsed: {} ms, log "
-                 "file size {:2.f} MB \n",
+  std::cout << fmtquill::format("throughput is {:.2f} million msgs/sec average, total time elapsed: {} ms, log "
+                 "file size {:.2f} MB \n",
                  total_iterations / delta_d / 1e6,
                  std::chrono::duration_cast<std::chrono::milliseconds>(delta).count(),
                  static_cast<double>(std::filesystem::file_size(log_file)) / (1024 * 1024))

@@ -33,13 +33,45 @@ function(set_common_compile_options target_name)
     endif ()
 
     target_compile_options(${target_name} ${COMPILE_OPTIONS_VISIBILITY}
+            # General warnings for Clang, AppleClang, and GNU
             $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
-            -Wall -Wextra -pedantic -Werror>
-            $<$<CXX_COMPILER_ID:MSVC>:/bigobj /WX /W4 /wd4324 /wd4996>)
+            -Wall -Wextra -pedantic -Werror -Wredundant-decls -Wfloat-equal>
 
-    # Additional MSVC specific options
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-        if (NOT QUILL_NO_EXCEPTIONS)
+            # GCC-specific hardening and security flags
+            $<$<AND:$<CXX_COMPILER_ID:GNU>,$<BOOL:${QUILL_ENABLE_GCC_HARDENING}>>:
+            -fstack-protector-strong
+            -fstack-clash-protection
+            -Wformat
+            -Werror=format-security
+            -fcf-protection
+            -Wdate-time
+            -D_FORTIFY_SOURCE=2>
+
+            # Clang specific options
+            $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:
+            -Wimplicit-int-float-conversion -Wdocumentation>
+
+            # Disable C++20 extension warnings for Clang > 17
+            $<$<AND:$<CXX_COMPILER_ID:Clang>,$<VERSION_GREATER:$<CXX_COMPILER_VERSION>,17>>:
+            -Wno-c++20-extensions>
+
+            # Disable specific warning for Clang and AppleClang
+            $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:
+            -Wno-gnu-zero-variadic-macro-arguments>
+
+            # MSVC-specific options
+            $<$<CXX_COMPILER_ID:MSVC>:/bigobj /WX /W4 /wd4324 /wd4996>
+    )
+
+    if (QUILL_NO_EXCEPTIONS)
+        # Add flags -fno-exceptions -fno-rtti to make sure we support them
+        target_compile_options(${target_name} ${COMPILE_OPTIONS_VISIBILITY}
+                $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
+                -fno-exceptions -fno-rtti>
+                $<$<CXX_COMPILER_ID:MSVC>:/wd4702 /GR- /EHs-c- /D_HAS_EXCEPTIONS=0>)
+    else ()
+        # Additional MSVC specific options
+        if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
             target_compile_options(${target_name} ${COMPILE_OPTIONS_VISIBILITY} /EHsc)
         endif ()
     endif ()

@@ -6,10 +6,8 @@
 
 #pragma once
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <type_traits>
 
 #include "quill/core/Attributes.h"
@@ -105,8 +103,7 @@ public:
    */
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT value_type operator[](size_t index) const
   {
-#ifdef __MINGW32__
-  // Disable the array bounds warning for MinGW
+#if defined(__GNUC__) || defined(__clang__) || defined(__MINGW32__)
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
@@ -125,7 +122,7 @@ public:
       return _storage.heap_buffer[index];
     }
 
-#ifdef __MINGW32__
+#if defined(__GNUC__) || defined(__clang__) || defined(__MINGW32__)
   // Re-enable the array bounds warning
   #pragma GCC diagnostic pop
 #endif
@@ -171,7 +168,7 @@ private:
  * The capacity of 12 is chosen to fit within a full cache line for better performance.
  */
 using SizeCacheVector = InlinedVector<uint32_t, 12>;
-static_assert(sizeof(SizeCacheVector) <= detail::CACHE_LINE_SIZE,
+static_assert(sizeof(SizeCacheVector) <= QUILL_CACHE_LINE_SIZE,
               "SizeCacheVector should not exceed a cache line");
 } // namespace detail
 

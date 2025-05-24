@@ -31,13 +31,13 @@ namespace detail
 /**
  * @brief Convert a wide Unicode string to a UTF-8 encoded string.
  *
- * @param input_string_data Pointer to the wide string data.
- * @param input_string_length Length of the wide string.
+ * @param data Pointer to the wide string data.
+ * @param wide_str_len Length of the wide string.
  * @return The UTF-8 encoded string.
  *
  * @remarks If the input string is empty or the conversion fails, an empty string is returned.
  */
-inline std::string utf8_encode(std::byte const* data, size_t wide_str_len)
+QUILL_NODISCARD QUILL_EXPORT QUILL_ATTRIBUTE_USED inline std::string utf8_encode(std::byte const* data, size_t wide_str_len)
 {
   // Check if the input is empty
   if (wide_str_len == 0)
@@ -77,7 +77,7 @@ inline std::string utf8_encode(std::byte const* data, size_t wide_str_len)
   return ret_val;
 }
 
-inline std::string utf8_encode(std::wstring_view str)
+QUILL_NODISCARD QUILL_EXPORT QUILL_ATTRIBUTE_USED inline std::string utf8_encode(std::wstring_view str)
 {
   return utf8_encode(reinterpret_cast<std::byte const*>(str.data()), str.size());
 }

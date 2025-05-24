@@ -30,6 +30,7 @@ namespace detail
 {
 class BackendWorker;
 class BacktraceStorage;
+class LoggerManager;
 
 /***/
 class LoggerBase
@@ -37,7 +38,8 @@ class LoggerBase
 public:
   /***/
   LoggerBase(std::string logger_name, std::vector<std::shared_ptr<Sink>> sinks,
-             PatternFormatterOptions pattern_formatter_options, ClockSourceType clock_source, UserClockSource* user_clock)
+             PatternFormatterOptions pattern_formatter_options, ClockSourceType clock_source,
+             UserClockSource* user_clock)
     : logger_name(static_cast<std::string&&>(logger_name)),
       user_clock(user_clock),
       pattern_formatter_options(static_cast<PatternFormatterOptions&&>(pattern_formatter_options)),
@@ -65,6 +67,37 @@ public:
    * @return A constant reference to the logger's name.
    */
   QUILL_NODISCARD std::string const& get_logger_name() const noexcept { return logger_name; }
+
+  /**
+   * Returns the user-defined clock source.
+   * @return A pointer to the constant UserClockSource object.
+   */
+  QUILL_NODISCARD UserClockSource* get_user_clock_source() const noexcept { return user_clock; }
+
+  /**
+   * Returns the type of clock source being used.
+   * @return The ClockSourceType enum value representing the current clock source.
+   */
+  QUILL_NODISCARD ClockSourceType get_clock_source_type() const noexcept { return clock_source; }
+
+  /**
+   * Returns the pattern formatter options.
+   * @return A constant reference to the PatternFormatterOptions object.
+   */
+  QUILL_NODISCARD PatternFormatterOptions const& get_pattern_formatter_options() const noexcept
+  {
+    return pattern_formatter_options;
+  }
+
+  /**
+   * Returns a const reference to the sinks vector.
+   * @warning The returned sinks should be treated as read-only. Do not modify the Sink objects as they are used by the backend thread
+   * @return A constant reference to the std::vector<std::shared_ptr<Sink>> object
+   */
+  QUILL_NODISCARD std::vector<std::shared_ptr<Sink>> const& get_sinks() const noexcept
+  {
+    return sinks;
+  }
 
   /**
    * This function sets the logger's validity flag to false, indicating that the logger is no longer valid.
@@ -103,6 +136,24 @@ public:
   }
 
   /**
+   * Sets the immediate flush behavior for logging.
+   *
+   * Immediate flush is useful primarily for debugging purposes. When enabled,
+   * it will call flush_log after each log message, ensuring the message is written
+   * to the underlying sink synchronously.
+   *
+   * This is particularly valuable when:
+   * - Running the application in a debugger
+   * - Requiring synchronized logging for debugging
+   *
+   * @warning Enabling immediate flush can significantly impact application performance
+   * and should only be used during debugging. It is disabled by default.
+   *
+   * @param value true to enable immediate flush, false to disable
+   */
+  void set_immediate_flush(bool value) { immediate_flush.store(value); }
+
+  /**
    * Checks if the given log_statement_level can be logged by this logger
    * @return bool if a statement can be logged based on the current log level
    */
@@ -124,6 +175,7 @@ public:
 
 protected:
   friend class BackendWorker;
+  friend class LoggerManager;
 
   static inline QUILL_THREAD_LOCAL ThreadContext* thread_context = nullptr; /* Set and accessed by the frontend */
   std::shared_ptr<PatternFormatter> pattern_formatter; /* The backend thread will set this once, we never access it on the frontend */
@@ -134,6 +186,7 @@ protected:
   PatternFormatterOptions pattern_formatter_options; /* Set by the frontend and accessed by the backend to initialise PatternFormatter */
   ClockSourceType clock_source; /* Set by the frontend and accessed by the frontend AND backend */
   std::atomic<LogLevel> log_level{LogLevel::Info}; /* used by frontend only */
+  std::atomic<bool> immediate_flush{false};        /* used by frontend only */
   std::atomic<LogLevel> backtrace_flush_level{LogLevel::None}; /** Updated by the frontend at any time, accessed by the backend */
   std::atomic<bool> valid{true}; /* Updated by the frontend at any time, accessed by the backend */
 };

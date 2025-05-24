@@ -10,7 +10,6 @@
 #include "quill/core/Common.h"
 #include "quill/core/LogLevel.h"
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
@@ -25,11 +24,18 @@ class MacroMetadata
 public:
   enum Event : uint8_t
   {
+    None,
     Log,
     InitBacktrace,
     FlushBacktrace,
-    Flush
+    Flush,
+    LogWithRuntimeMetadataDeepCopy,
+    LogWithRuntimeMetadataHybridCopy,
+    LogWithRuntimeMetadataShallowCopy,
+    LoggerRemovalRequest
   };
+
+  constexpr MacroMetadata() = default;
 
   constexpr MacroMetadata(char const* source_location, char const* caller_function,
                           char const* message_format, char const* tags, LogLevel log_level, Event event) noexcept
@@ -42,7 +48,6 @@ public:
       _log_level(log_level),
       _event(event)
   {
-    _set_named_args_flag(_contains_named_args(message_format));
   }
 
   QUILL_NODISCARD char const* source_location() const noexcept { return _source_location; }
@@ -76,50 +81,15 @@ public:
 
   QUILL_NODISCARD char const* tags() const noexcept { return _tags; }
 
-  QUILL_NODISCARD bool has_named_args() const noexcept { return _format_flags & NAMED_ARGS_FLAG; }
+  QUILL_NODISCARD constexpr bool has_named_args() const noexcept
+  {
+    return _contains_named_args(_message_format);
+  }
 
   QUILL_NODISCARD Event event() const noexcept { return _event; }
 
-private:
   /***/
-  QUILL_NODISCARD constexpr uint16_t _calc_file_name_pos() const noexcept
-  {
-    char const* source_location = _source_location;
-    char const* file = source_location;
-    while (*source_location)
-    {
-      char cur = *source_location++;
-      if (cur == '/' || cur == PATH_PREFERRED_SEPARATOR)
-      {
-        file = source_location;
-      }
-    }
-    return static_cast<uint16_t>(file - _source_location);
-  }
-
-  /***/
-  QUILL_NODISCARD constexpr uint16_t _calc_colon_separator_pos() const noexcept
-  {
-    std::string_view const source_loc{_source_location};
-    auto const separator_index = source_loc.rfind(':');
-    return static_cast<uint16_t>(separator_index);
-  }
-
-  /***/
-  constexpr void _set_named_args_flag(bool value) noexcept
-  {
-    if (value)
-    {
-      _format_flags |= NAMED_ARGS_FLAG;
-    }
-    else
-    {
-      _format_flags &= static_cast<uint8_t>(~NAMED_ARGS_FLAG);
-    }
-  }
-
-  /***/
-  static constexpr bool _contains_named_args(std::string_view fmt) noexcept
+  QUILL_NODISCARD static constexpr bool _contains_named_args(std::string_view fmt) noexcept
   {
     uint32_t pos{0};
     bool found_named_arg{false};
@@ -184,6 +154,31 @@ private:
   }
 
 private:
+  /***/
+  QUILL_NODISCARD constexpr uint16_t _calc_file_name_pos() const noexcept
+  {
+    char const* source_location = _source_location;
+    char const* file = source_location;
+    while (*source_location)
+    {
+      char cur = *source_location++;
+      if (cur == '/' || cur == PATH_PREFERRED_SEPARATOR)
+      {
+        file = source_location;
+      }
+    }
+    return static_cast<uint16_t>(file - _source_location);
+  }
+
+  /***/
+  QUILL_NODISCARD constexpr uint16_t _calc_colon_separator_pos() const noexcept
+  {
+    std::string_view const source_loc{_source_location};
+    auto const separator_index = source_loc.rfind(':');
+    return static_cast<uint16_t>(separator_index);
+  }
+
+private:
   // define our own PATH_PREFERRED_SEPARATOR to not include <filesystem>
 #if defined(_WIN32) && !defined(__CYGWIN__)
   static constexpr wchar_t PATH_PREFERRED_SEPARATOR = L'\\';
@@ -193,18 +188,17 @@ private:
 
   static constexpr uint8_t NAMED_ARGS_FLAG = 0x01;
 
-  char const* _source_location;
-  char const* _caller_function;
-  char const* _message_format;
-  char const* _tags;
-  uint16_t _colon_separator_pos;
-  uint16_t _file_name_pos;
-  LogLevel _log_level;
-  Event _event;
-  uint8_t _format_flags{0};
+  char const* _source_location{nullptr};
+  char const* _caller_function{nullptr};
+  char const* _message_format{nullptr};
+  char const* _tags{nullptr};
+  uint16_t _colon_separator_pos{0};
+  uint16_t _file_name_pos{0};
+  LogLevel _log_level{LogLevel::None};
+  Event _event{Event::None};
 };
 
-static_assert(sizeof(MacroMetadata) <= detail::CACHE_LINE_SIZE,
+static_assert(sizeof(MacroMetadata) <= detail::QUILL_CACHE_LINE_SIZE,
               "Size of MacroMetadata exceeds the cache line size");
 
 QUILL_END_NAMESPACE

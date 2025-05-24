@@ -26,7 +26,7 @@
 
   #include <windows.h>
 
-  #include "quill/core/ThreadUtilities.h"
+  #include "quill/backend/ThreadUtilities.h"
 #elif defined(__APPLE__)
   #include <mach/thread_act.h>
   #include <mach/thread_policy.h>
@@ -35,20 +35,13 @@
 #elif defined(__CYGWIN__)
   #include <sched.h>
   #include <unistd.h>
-#elif defined(__linux__)
-  #include <pthread.h>
-  #include <sched.h>
-  #include <unistd.h>
-#elif defined(__NetBSD__)
-  #include <sched.h>
-  #include <unistd.h>
-#elif defined(__FreeBSD__)
-  #include <sched.h>
-  #include <unistd.h>
-#elif defined(__DragonFly__)
+#elif defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__)
+  #include <pthread_np.h>
   #include <sched.h>
   #include <unistd.h>
 #else
+  // linux, anything else
+  #include <pthread.h>
   #include <sched.h>
   #include <unistd.h>
 #endif
@@ -85,11 +78,33 @@ QUILL_ATTRIBUTE_COLD inline void set_cpu_affinity(uint16_t cpu_id)
 
   thread_policy_set(mach_thread, THREAD_AFFINITY_POLICY, (thread_policy_t)&policy, 1);
 #else
+  // Linux
+  #if defined(__NetBSD__)
+  cpuset_t* cpuset;
+  cpuset = cpuset_create();
+  if (cpuset == nullptr)
+  {
+    QUILL_THROW(QuillError{"Failed to create cpuset"});
+  }
+  cpuset_zero(cpuset);
+  cpuset_set(cpu_id, cpuset);
+  auto const err = pthread_setaffinity_np(pthread_self(), cpuset_size(cpuset), cpuset);
+  cpuset_destroy(cpuset);
+  #elif defined(__FreeBSD__)
+  cpuset_t cpuset;
+  CPU_ZERO(&cpuset);
+  CPU_SET(cpu_id, &cpuset);
+  auto const err = pthread_setaffinity_np(pthread_self(), sizeof(cpuset_t), &cpuset);
+  #elif defined(__OpenBSD__)
+  // OpenBSD doesn't support CPU affinity, so we'll use a placeholder
+  (void)cpu_id;
+  auto const err = 0; // Assume success
+  #else
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(cpu_id, &cpuset);
-
   auto const err = sched_setaffinity(0, sizeof(cpuset), &cpuset);
+  #endif
 
   if (QUILL_UNLIKELY(err == -1))
   {
@@ -122,21 +137,34 @@ QUILL_ATTRIBUTE_COLD inline void set_thread_name(char const* name)
   auto const res = pthread_setname_np(name);
   if (res != 0)
   {
-    QUILL_THROW(QuillError{std::string{"Failed to set thread name - errno: " + std::to_string(errno) +
-                                       " error: " + strerror(errno)}});
+    QUILL_THROW(QuillError{std::string{"Failed to set thread name - error: " + std::to_string(res) +
+                                       " error: " + strerror(res)}});
   }
 #else
-  // linux
+  // Linux
   char truncated_name[16];
   std::strncpy(truncated_name, name, 15);
   truncated_name[15] = '\0';
 
-  auto const res = pthread_setname_np(pthread_self(), name);
+  #if defined(__OpenBSD__) || defined(__FreeBSD__)
+  pthread_set_name_np(pthread_self(), truncated_name);
+  #elif defined(__NetBSD__)
+  auto const res = pthread_setname_np(pthread_self(), truncated_name, nullptr);
+
   if (res != 0)
   {
-    QUILL_THROW(QuillError{std::string{"Failed to set thread name - errno: " + std::to_string(errno) +
-                                       " error: " + strerror(errno)}});
+    QUILL_THROW(QuillError{std::string{"Failed to set thread name - error: " + std::to_string(res) +
+                                       " error: " + strerror(res)}});
   }
+  #else
+  auto const res = pthread_setname_np(pthread_self(), truncated_name);
+
+  if (res != 0)
+  {
+    QUILL_THROW(QuillError{std::string{"Failed to set thread name - error: " + std::to_string(res) +
+                                       " error: " + strerror(res)}});
+  }
+  #endif
 #endif
 }
 

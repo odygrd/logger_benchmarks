@@ -10,15 +10,13 @@
 #include "quill/core/Codec.h"
 #include "quill/core/DynamicFormatArgStore.h"
 #include "quill/core/InlinedVector.h"
-#include "quill/core/Utf8Conv.h"
 
-#include "quill/bundled/fmt/std.h"
 #include "quill/bundled/fmt/format.h"
+#include "quill/bundled/fmt/std.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <vector>
 
 #if defined(_WIN32)
   #include <string>
@@ -32,8 +30,6 @@ struct Codec<std::optional<T>>
   static size_t compute_encoded_size(detail::SizeCacheVector& conditional_arg_size_cache,
                                      std::optional<T> const& arg) noexcept
   {
-    // We need to store the size of the vector in the buffer, so we reserve space for it.
-    // We add sizeof(bool) bytes to accommodate the size information.
     size_t total_size{sizeof(bool)};
 
     if (arg.has_value())
@@ -77,7 +73,8 @@ struct Codec<std::optional<T>>
     else
     {
 #endif
-      std::optional<T> arg{std::nullopt};
+      using ReturnType = decltype(Codec<T>::decode_arg(buffer));
+      std::optional<ReturnType> arg{std::nullopt};
 
       bool const has_value = Codec<bool>::decode_arg(buffer);
       if (has_value)

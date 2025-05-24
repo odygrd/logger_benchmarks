@@ -2,6 +2,7 @@ import subprocess
 
 root_dir = "/home/odygrd/git/logger_benchmarks/cmake-build-release/benchmarks/call_site_latency/"
 
+benchmark_quill_unbounded_with_functions_call_site_latency_int_int_double = root_dir + "benchmark_quill_with_functions_unbounded_call_site_latency_int_int_double"
 benchmark_quill_unbounded_call_site_latency_int_int_double = root_dir + "benchmark_quill_unbounded_call_site_latency_int_int_double"
 benchmark_quill_bounded_call_site_latency_int_int_double = root_dir + "benchmark_quill_bounded_call_site_latency_int_int_double"
 benchmark_g3log_int_int_double = root_dir + "benchmark_g3log_call_site_latency_int_int_double"
@@ -13,6 +14,7 @@ benchmark_reckless_int_int_double = root_dir + "benchmark_reckless_call_site_lat
 benchmark_spdlog_int_int_double = root_dir + "benchmark_spdlog_call_site_latency_int_int_double"
 benchmark_xtr_int_int_double = root_dir + "benchmark_xtr_call_site_latency_int_int_double"
 
+benchmark_quill_unbounded_with_functions_call_site_latency_int_int_largestr = root_dir + "benchmark_quill_with_functions_unbounded_call_site_latency_int_int_largestr"
 benchmark_quill_unbounded_call_site_latency_int_int_largestr = root_dir + "benchmark_quill_unbounded_call_site_latency_int_int_largestr"
 benchmark_quill_bounded_call_site_latency_int_int_largestr = root_dir + "benchmark_quill_bounded_call_site_latency_int_int_largestr"
 benchmark_g3log_int_int_largestr = root_dir + "benchmark_g3log_call_site_latency_int_int_largestr"
@@ -31,7 +33,8 @@ benchmark_ms_binlog_call_site_latency_int_vector_largestr = root_dir + "benchmar
 benchmark_spdlog_call_site_latency_int_vector_largestr = root_dir + "benchmark_spdlog_call_site_latency_int_vector_largestr"
 benchmark_xtr_call_site_latency_int_vector_largestr = root_dir + "benchmark_spdlog_call_site_latency_int_vector_largestr"
 
-benchmarks = [benchmark_quill_unbounded_call_site_latency_int_int_double,
+benchmarks = [benchmark_quill_unbounded_with_functions_call_site_latency_int_int_double,
+              benchmark_quill_unbounded_call_site_latency_int_int_double,
               benchmark_quill_bounded_call_site_latency_int_int_double,
               benchmark_fmtlog_int_int_double,
               benchmark_xtr_int_int_double,
@@ -41,6 +44,7 @@ benchmarks = [benchmark_quill_unbounded_call_site_latency_int_int_double,
               benchmark_g3log_int_int_double,
               benchmark_iyengar_nanolog_int_int_double,
               benchmark_reckless_int_int_double,
+              benchmark_quill_unbounded_with_functions_call_site_latency_int_int_largestr,
               benchmark_quill_unbounded_call_site_latency_int_int_largestr,
               benchmark_quill_bounded_call_site_latency_int_int_largestr,
               benchmark_fmtlog_int_int_largestr,

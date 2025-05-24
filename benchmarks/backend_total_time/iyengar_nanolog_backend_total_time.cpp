@@ -51,7 +51,7 @@ int main()
 
   std::cout << fmt::format(
                  "throughput is {:.2f} million msgs/sec average, total time elapsed: {} ms, log "
-                 "file size {:2.f} MB \n",
+                 "file size {:.2f} MB \n",
                  total_iterations / delta_d / 1e6,
                  std::chrono::duration_cast<std::chrono::milliseconds>(delta).count(),
                  static_cast<double>(std::filesystem::file_size(actual_log_file)) / (1024 * 1024))
