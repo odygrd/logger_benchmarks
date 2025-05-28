@@ -16,6 +16,8 @@
 
 #include "utils.h"
 
+// !!! - This test is not relevant anymore, spdlog flush() is no longer sync in latest versions -- !!!
+
 static constexpr size_t total_iterations = 4'000'000;
 
 /**
