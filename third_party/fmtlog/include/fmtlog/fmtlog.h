@@ -260,20 +260,19 @@ public:
       int64_t delayed_tsc, delayed_ns;
       syncTime(delayed_tsc, delayed_ns);
       double init_ns_per_tsc = (double)(delayed_ns - base_ns) / (delayed_tsc - base_tsc);
-      saveParam(base_tsc, base_ns, base_ns, init_ns_per_tsc);
+      saveParam(base_tsc, base_ns, 0, init_ns_per_tsc);
     }
 
     void calibrate() {
       if (rdtsc() < next_calibrate_tsc_) return;
       int64_t tsc, ns;
       syncTime(tsc, ns);
-      int64_t calulated_ns = tsc2ns(tsc);
-      int64_t ns_err = calulated_ns - ns;
-      int64_t expected_err_at_next_calibration =
-        ns_err + (ns_err - base_ns_err_) * calibate_interval_ns_ / (ns - base_ns_ + base_ns_err_);
+      int64_t ns_err = tsc2ns(tsc) - ns;
+      if (ns_err > 1000000) ns_err = 1000000;
+      if (ns_err < -1000000) ns_err = -1000000;
       double new_ns_per_tsc =
-        ns_per_tsc_ * (1.0 - (double)expected_err_at_next_calibration / calibate_interval_ns_);
-      saveParam(tsc, calulated_ns, ns, new_ns_per_tsc);
+        ns_per_tsc_ * (1.0 - (ns_err + ns_err - base_ns_err_) / ((tsc - base_tsc_) * ns_per_tsc_));
+      saveParam(tsc, ns, ns_err, new_ns_per_tsc);
     }
 
     static inline int64_t rdtsc() {
@@ -345,14 +344,14 @@ public:
       ns_out = ns[best];
     }
 
-    void saveParam(int64_t base_tsc, int64_t base_ns, int64_t sys_ns, double new_ns_per_tsc) {
-      base_ns_err_ = base_ns - sys_ns;
+    void saveParam(int64_t base_tsc, int64_t sys_ns, int64_t base_ns_err, double new_ns_per_tsc) {
+      base_ns_err_ = base_ns_err;
       next_calibrate_tsc_ = base_tsc + (int64_t)((calibate_interval_ns_ - 1000) / new_ns_per_tsc);
       uint32_t seq = param_seq_.load(std::memory_order_relaxed);
       param_seq_.store(++seq, std::memory_order_release);
       std::atomic_signal_fence(std::memory_order_acq_rel);
       base_tsc_ = base_tsc;
-      base_ns_ = base_ns;
+      base_ns_ = sys_ns + base_ns_err;
       ns_per_tsc_ = new_ns_per_tsc;
       std::atomic_signal_fence(std::memory_order_acq_rel);
       param_seq_.store(++seq, std::memory_order_release);
@@ -407,20 +406,19 @@ public:
   { using type = Arg; };
 
 #if FMT_USE_NONTYPE_TEMPLATE_ARGS
-  template<typename Arg, size_t N, fmt::detail_exported::fixed_string<char, N> Str>
-  struct unNamedType<fmt::detail::statically_named_arg<Arg, char, N, Str>>
+  template<typename Arg, size_t N, fmt::detail::fixed_string<char, N> Str>
+  struct unNamedType<fmt::detail::static_named_arg<Arg, char, N, Str>>
   { using type = Arg; };
 #endif
 
   template<typename Arg>
   static inline constexpr bool isCstring() {
-    return fmt::detail::mapped_type_constant<Arg, Context>::value ==
-           fmt::detail::type::cstring_type;
+    return fmt::detail::mapped_type_constant<Arg, char>::value == fmt::detail::type::cstring_type;
   }
 
   template<typename Arg>
   static inline constexpr bool isString() {
-    return fmt::detail::mapped_type_constant<Arg, Context>::value == fmt::detail::type::string_type;
+    return fmt::detail::mapped_type_constant<Arg, char>::value == fmt::detail::type::string_type;
   }
 
   template<typename Arg>
@@ -530,10 +528,10 @@ public:
       fmt::string_view v(in, size);
       if constexpr (ValueOnly) {
         fmt::detail::value<Context>& value_ = *(fmt::detail::value<Context>*)(args + Idx);
-        value_ = fmt::detail::arg_mapper<Context>().map(v);
+        value_ = v;
       }
       else {
-        args[Idx] = fmt::detail::make_arg<Context>(v);
+        args[Idx] = v;
       }
       return decodeArgs<ValueOnly, Idx + 1, DestructIdx, Args...>(in + size + 1, args,
                                                                   destruct_args);
@@ -542,18 +540,18 @@ public:
       if constexpr (ValueOnly) {
         fmt::detail::value<Context>& value_ = *(fmt::detail::value<Context>*)(args + Idx);
         if constexpr (UnrefPtr<ArgType>::value) {
-          value_ = fmt::detail::arg_mapper<Context>().map(**(ArgType*)in);
+          value_ = **(ArgType*)in;
         }
         else {
-          value_ = fmt::detail::arg_mapper<Context>().map(*(ArgType*)in);
+          value_ = *(ArgType*)in;
         }
       }
       else {
         if constexpr (UnrefPtr<ArgType>::value) {
-          args[Idx] = fmt::detail::make_arg<Context>(**(ArgType*)in);
+          args[Idx] = **(ArgType*)in;
         }
         else {
-          args[Idx] = fmt::detail::make_arg<Context>(*(ArgType*)in);
+          args[Idx] = *(ArgType*)in;
         }
       }
 
@@ -637,7 +635,7 @@ public:
       out += copy_size;
       begin = p;
       c = *p++;
-      if (!c) fmt::detail::throw_format_error("invalid format string");
+      if (!c) fmt::report_error("invalid format string");
       if (fmt::detail::is_name_start(c)) {
         while ((fmt::detail::is_name_start(c = *p) || ('0' <= c && c <= '9'))) {
           ++p;
@@ -650,7 +648,7 @@ public:
             break;
           }
         }
-        if (id < 0) fmt::detail::throw_format_error("invalid format string");
+        if (id < 0) fmt::report_error("invalid format string");
         if constexpr (Reorder) {
           reorderIdx[id] = arg_idx++;
         }
