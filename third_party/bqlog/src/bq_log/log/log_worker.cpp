@@ -17,10 +17,6 @@
 #include <signal.h>
 #endif
 #endif
-
-#include <sched.h>
-#include <system_error>
-
 namespace bq {
     static bq::platform::atomic<int32_t> log_worker_name_seq = 0;
 
@@ -81,26 +77,8 @@ namespace bq {
         }
     }
 
-    // !! This is a custom edit to pin the backend worker thread a cpu
-    inline void set_thread_affinity(size_t cpu_num)
-    {
-      // Set this thread affinity
-      cpu_set_t cpuset;
-      CPU_ZERO(&cpuset);
-      CPU_SET(cpu_num, &cpuset);
-
-      auto const err = sched_setaffinity(0, sizeof(cpuset), &cpuset);
-
-      if (err == -1)
-      {
-        throw std::system_error(errno, std::system_category());
-      }
-    }
-
     void log_worker::run()
     {
-        set_thread_affinity(5);
-
         assert(thread_mode_ != log_thread_mode::sync && "log_worker started without init");
 #if BQ_POSIX
         // we need flush ring_buffer in signal handler.

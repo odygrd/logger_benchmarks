@@ -16,7 +16,7 @@
  * This high-performance ring buffer supports multi-threaded writes and single-threaded reads simultaneously.
  * The buffer size is determined during initialization and cannot be changed.
  * Data in the ring buffer chunks are stored contiguously.
- * The implementation is wait-free in most cases and designed to be CPU cache friendly.
+ * The implementation is designed for extremely high concurrent performance and is optimized to be CPU cache friendly.
  *
  * V2 performance improvements:
  *   1. Reorganize the data structure by dividing the ring buffer into blocks,
@@ -77,9 +77,9 @@ namespace bq {
         static constexpr size_t cache_line_size_log2 = 6;
         static_assert(cache_line_size >> cache_line_size_log2 == 1, "invalid cache line size information");
         union cursor_type {
-            bq::platform::atomic<uint32_t> atomic_value;
-            volatile uint32_t volatile_value;
-            uint32_t odinary_value;
+            alignas(8) bq::platform::atomic<uint32_t> atomic_value;
+            alignas(8) volatile uint32_t volatile_value;
+            alignas(8) uint32_t odinary_value;
             cursor_type()
             {
                 atomic_value.store(0);
@@ -89,7 +89,7 @@ namespace bq {
             {
             }
         };
-        static_assert(sizeof(cursor_type) == sizeof(cursor_type::odinary_value), "invalid cursor_type size");
+        static_assert(offsetof(cursor_type, atomic_value) == offsetof(cursor_type, odinary_value), "invalid cursor_type size");
         enum block_status {
             unused, // data section begin from this block is unused, can not be read
             used, // data section begin from this block has already finished writing, and can be read.
@@ -127,9 +127,10 @@ namespace bq {
         alignas(8) cursor_type write_cursor_;
         char cache_line_padding1_[cache_line_size - sizeof(write_cursor_)];
         alignas(8) cursor_type read_cursor_;
-        char cache_line_padding2_[cache_line_size - sizeof(write_cursor_)];
+        char cache_line_padding2_[cache_line_size - sizeof(read_cursor_)];
         uint32_t current_reading_cursor_;
-        char cache_line_padding3_[cache_line_size - sizeof(write_cursor_)];
+        uint32_t current_reading_cursor_tmp_;
+        char cache_line_padding3_[cache_line_size - sizeof(current_reading_cursor_) - sizeof(current_reading_cursor_tmp_)];
         uint8_t* real_buffer_;
         buffer_head* buffer_head_;
         block* aligned_blocks_;

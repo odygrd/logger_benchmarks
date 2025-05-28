@@ -69,6 +69,9 @@ namespace bq {
             return static_cast<file_open_mode_enum>(static_cast<int32_t>(lhs) & static_cast<int32_t>(rhs));
         }
 
+        //to avoid Static Initialization Order Fiasco
+        void init_for_file_manager();
+
         // TODO optimize use TSC
         uint64_t high_performance_epoch_ms();
 
@@ -104,6 +107,9 @@ namespace bq {
 
         bool unlock_file(const platform_file_handle& file_handle); // undo file write exclusive
 
+        bq::string get_lexically_path(const bq::string& original_path);
+
+        bool is_absolute(const string& path);
         /// <summary>
         /// truncate file
         /// </summary>
