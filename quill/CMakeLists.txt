@@ -250,10 +250,12 @@ set(HEADER_FILES
 
         include/quill/Backend.h
         include/quill/BackendTscClock.h
+        include/quill/BinaryDataDeferredFormatCodec.h
         include/quill/CsvWriter.h
         include/quill/DeferredFormatCodec.h
         include/quill/DirectFormatCodec.h
         include/quill/Frontend.h
+        include/quill/HelperMacros.h
         include/quill/LogFunctions.h
         include/quill/Logger.h
         include/quill/LogMacros.h
@@ -403,7 +405,7 @@ endif ()
 if (QUILL_DOCS_GEN)
     if (NOT QUILL_BUILD_EXAMPLES)
         message(FATAL_ERROR "QUILL_DOCS_GEN requires QUILL_BUILD_EXAMPLES to be ON. Please enable QUILL_BUILD_EXAMPLES.")
-    endif()
+    endif ()
 
     add_subdirectory(docs)
 endif ()
