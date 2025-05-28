@@ -1,10 +1,12 @@
+**Scanning Update**: [![ci/action CodeQL](https://github.com/KjellKod/g3log/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/KjellKod/g3log/actions/workflows/codeql-analysis.yml)
+
 
 # Contents 
 [**introduction**](docs/index.md) | [detailed information](docs/g3log_usage.md) | [Configure & Build](docs/building.md) | [API description](docs/API.md) | [Custom log formatting](docs/API_custom_formatting.md)
 
 
 # Welcome to g3log
-### Use [kjellkod.github.io/g3log/](https://kjellkod.github.io/g3log/) for best reading / searching / navigating of g3log's documentation. 
+### Use [kjellkod.github.io/g3log/](https://kjellkod.github.io/g3log/) for best reading / searching / navigating of g3log's documentation
 
 G3log is an asynchronous logger with three main features: 
 1. Intuitive `LOG(...)` API
@@ -13,7 +15,7 @@ G3log is an asynchronous logger with three main features:
 
 The super quick introduction to g3log can be seen in the steps 1 - 9 below. 
 
-For more in-depth information please see the full usage description in [g3log_usage.md](docs/g3log_usage.md).If you want to understand better the internals of g3log, then plase look at the [API.md](docs/API.md) for both high-level and deep-dive insights. 
+For more in-depth information please see the full usage description in [g3log_usage.md](docs/g3log_usage.md). If you want to understand better the internals of g3log, then plase look at the [API.md](docs/API.md) for both high-level and deep-dive insights. 
 
 
 ## Experiment and try-out g3log in Github Codespaces 
@@ -21,14 +23,14 @@ ref: [codespaces.md](docs/codespaces.md)
 
 
 ## 1. Easy usage in files
-Avoid deep dependency injection complexity and instead get access to the logger as easy as 
+Avoid deep dependency injection complexity and instead get access to the logger as easy as:
 ```
 #include <g3log/g3log.hpp>
 ``` 
 
 
 ## 2. Access to streaming and print_f log call syntax
-Both streaming syntax `LOG` and print_f `LOGF` syntax are available. 
+Both streaming syntax `LOG` and print_f `LOGF` syntax are available:
 
 ```
 LOGF(INFO, "Hi log %d", 123);
@@ -108,14 +110,8 @@ You can find it here: https://kjellkod.wordpress.com/2015/06/30/the-worlds-faste
 
 
 ## <a name="continuous_integration">Continuous Integration</a>
-The g3log repository is evaluating both github actions and CircleCI for executing test coverage, installation and document generation. For windows the repo is still relying on appveyor.  In case you want to look into change any of these setups the following files are the ones of interest. 
-```
-1. appveyor --> g3log/appveyor.yml
-2. circleCI --> g3log/.circleci/config.yml
-3. github actions --> g3log/.github/workflows/*.yml
-
-
-```
+The g3log repository is evaluating github actions for executing test coverage, installation and document generation. In case you want to look into change any of these setups the following files are the ones of interest. 
+See `Actions` for matrix (ubuntu, macos, windows) testing as well as other actions for doc publishing. 
 
 
 ## <a name="feedback">Feedback</a>
