@@ -16,8 +16,6 @@
 
 #include "utils.h"
 
-// !!! - This test is not relevant anymore, spdlog flush() is no longer sync in latest versions -- !!!
-
 static constexpr size_t total_iterations = 4'000'000;
 
 /**
@@ -49,6 +47,13 @@ int main()
   SPDLOG_LOGGER_INFO(logger, "Warm up");
   logger->flush();
 
+  auto spdlog_tp = spdlog::thread_pool();
+
+  // Wait for the flush to be processed (queue empty again)
+  while (spdlog_tp->queue_size() != 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+
   // start counting the time until backend worker finishes
   auto const start_time = std::chrono::steady_clock::now();
   for (size_t iteration = 0; iteration < total_iterations; ++iteration)
@@ -58,7 +63,19 @@ int main()
   }
 
   SPDLOG_LOGGER_ERROR(logger, "End");
+
+  // Wait for the queue to empty before flush
+  while (spdlog_tp->queue_size() != 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+
+  // Send flush request
   logger->flush();
+
+  // Wait for the flush to be processed (queue empty again)
+  while (spdlog_tp->queue_size() != 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
 
   auto const end_time = std::chrono::steady_clock::now();
   auto const delta = end_time - start_time;
