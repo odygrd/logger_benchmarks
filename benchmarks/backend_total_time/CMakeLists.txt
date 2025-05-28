@@ -8,6 +8,7 @@ add_executable(BENCHMARK_fmtlog_backend_total_time fmtlog_backend_total_time.cpp
 target_link_libraries(BENCHMARK_fmtlog_backend_total_time fmtlog)
 
 # This test is not relevant anymore, spdlog flush() is no longer sync in latest versions
+# https://github.com/gabime/spdlog/pull/3235
 #include_directories(${CMAKE_SOURCE_DIR}/third_party)
 #add_executable(BENCHMARK_spdlog_backend_total_time spdlog_backend_total_time.cpp)
 #target_link_libraries(BENCHMARK_spdlog_backend_total_time)
