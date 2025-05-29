@@ -31,7 +31,7 @@ benchmark_quill_bounded_call_site_latency_vector_largestr = root_dir + "benchmar
 benchmark_fmtlog_call_site_latency_int_vector_largestr = root_dir + "benchmark_fmtlog_call_site_latency_int_vector_largestr"
 benchmark_ms_binlog_call_site_latency_int_vector_largestr = root_dir + "benchmark_ms_binlog_call_site_latency_int_vector_largestr"
 benchmark_spdlog_call_site_latency_int_vector_largestr = root_dir + "benchmark_spdlog_call_site_latency_int_vector_largestr"
-benchmark_xtr_call_site_latency_int_vector_largestr = root_dir + "benchmark_spdlog_call_site_latency_int_vector_largestr"
+benchmark_xtr_call_site_latency_int_vector_largestr = root_dir + "benchmark_xtr_call_site_latency_int_vector_largestr"
 
 benchmarks = [benchmark_quill_unbounded_with_functions_call_site_latency_int_int_double,
               benchmark_quill_unbounded_call_site_latency_int_int_double,
