@@ -8,16 +8,30 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <type_traits>
 
 #include "quill/core/Attributes.h"
 #include "quill/core/Common.h"
 #include "quill/core/QuillError.h"
 
+#if defined(__GNUC__) && !defined(__clang__)
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Warray-bounds"
+  #pragma GCC diagnostic ignored "-Wstringop-overflow"
+#elif defined(__clang__)
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Warray-bounds"
+#elif defined(_WIN32) && defined(_MSC_VER)
+  #pragma warning(push)
+  #pragma warning(disable : 4789)
+#endif
+
 QUILL_BEGIN_NAMESPACE
 
 namespace detail
 {
+
 template <typename T, size_t N>
 class InlinedVector
 {
@@ -66,17 +80,13 @@ public:
       if (_capacity == N)
       {
         // Entering here for the first time, then we copy the inline storage
-        for (size_t i = 0; i < _size; ++i)
-        {
-          new_data[i] = _storage.inline_buffer[i];
-        }
+        // Use memcpy for trivially copyable types to avoid false positive warnings with LTO
+        std::memcpy(new_data, _storage.inline_buffer, _size * sizeof(value_type));
       }
       else
       {
-        for (size_t i = 0; i < _size; ++i)
-        {
-          new_data[i] = _storage.heap_buffer[i];
-        }
+        // Use memcpy for trivially copyable types to avoid false positive warnings with LTO
+        std::memcpy(new_data, _storage.heap_buffer, _size * sizeof(value_type));
         delete[] _storage.heap_buffer;
       }
 
@@ -101,13 +111,8 @@ public:
   /**
    * Access element
    */
-  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT value_type operator[](size_t index) const
+  QUILL_ATTRIBUTE_HOT value_type operator[](size_t index) const
   {
-#if defined(__GNUC__) || defined(__clang__) || defined(__MINGW32__)
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Warray-bounds"
-#endif
-
     if (QUILL_UNLIKELY(index >= _size))
     {
       QUILL_THROW(QuillError{"index out of bounds"});
@@ -121,11 +126,6 @@ public:
     {
       return _storage.heap_buffer[index];
     }
-
-#if defined(__GNUC__) || defined(__clang__) || defined(__MINGW32__)
-  // Re-enable the array bounds warning
-  #pragma GCC diagnostic pop
-#endif
   }
 
   /**
@@ -173,3 +173,11 @@ static_assert(sizeof(SizeCacheVector) <= QUILL_CACHE_LINE_SIZE,
 } // namespace detail
 
 QUILL_END_NAMESPACE
+
+#if defined(__GNUC__) && !defined(__clang__)
+  #pragma GCC diagnostic pop
+#elif defined(__clang__)
+  #pragma GCC diagnostic pop
+#elif defined(_WIN32) && defined(_MSC_VER)
+  #pragma warning(pop)
+#endif

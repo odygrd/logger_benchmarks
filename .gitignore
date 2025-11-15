@@ -1,8 +1,12 @@
 # Project exclude paths
 /cmake-build-debug/
 /.vs
+/.idea
 /out/build/x64-Debug
 /CMakeSettings.json
 /out/build/x64-Release
 /quill_call_site_latency_percentile_linux_benchmark.log
 /spdlog_call_site_latency_percentile_linux_benchmark.log
+.DS_Store
+__pycache__/
+*.pyc

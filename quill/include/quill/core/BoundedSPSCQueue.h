@@ -6,7 +6,6 @@
 #include "quill/core/QuillError.h"
 
 #include <atomic>
-#include <cassert>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
@@ -43,6 +42,12 @@ QUILL_BEGIN_NAMESPACE
 
 namespace detail
 {
+
+#if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(push)
+#pragma warning(disable : 4324)
+#endif
+
 /**
  * A bounded single producer single consumer ring buffer.
  */
@@ -197,10 +202,18 @@ private:
     integer_type last_diff = last - (last & QUILL_CACHE_LINE_MASK);
     integer_type const cur_diff = offset - (offset & QUILL_CACHE_LINE_MASK);
 
-    while (cur_diff > last_diff)
+    if (cur_diff > last_diff)
     {
-      _mm_clflushopt(_storage + (last_diff & _mask));
-      last_diff += QUILL_CACHE_LINE_SIZE;
+      // Compute masked base pointer once before loop to avoid repeated mask operations
+      std::byte* ptr = _storage + (last_diff & _mask);
+
+      do
+      {
+        _mm_clflushopt(ptr);
+        ptr += QUILL_CACHE_LINE_SIZE;
+        last_diff += QUILL_CACHE_LINE_SIZE;
+      } while (cur_diff > last_diff);
+
       last = last_diff;
     }
   }
@@ -214,7 +227,8 @@ private:
    */
   QUILL_NODISCARD static std::byte* _align_pointer(void* pointer, size_t alignment) noexcept
   {
-    assert(is_power_of_two(alignment) && "alignment must be a power of two");
+    QUILL_ASSERT(is_power_of_two(alignment),
+                 "alignment must be a power of two in BoundedSPSCQueue::_align_pointer()");
     return reinterpret_cast<std::byte*>((reinterpret_cast<uintptr_t>(pointer) + (alignment - 1ul)) &
                                         ~(alignment - 1ul));
   }
@@ -271,7 +285,7 @@ private:
     if (mem == MAP_FAILED)
     {
       QUILL_THROW(QuillError{std::string{"mmap failed. errno: "} + std::to_string(errno) +
-                             " error: " + strerror(errno)});
+                             " error: " + std::strerror(errno)});
     }
 
     // Calculate the aligned address after the metadata
@@ -332,6 +346,11 @@ private:
 };
 
 using BoundedSPSCQueue = BoundedSPSCQueueImpl<size_t>;
+
+#if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(pop)
+#endif
+
 } // namespace detail
 
 QUILL_END_NAMESPACE

@@ -13,7 +13,6 @@
 #include "quill/core/QuillError.h"
 
 #include <array>
-#include <cassert>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -52,8 +51,9 @@ public:
   explicit TimestampFormatter(std::string time_format, Timezone timestamp_timezone = Timezone::LocalTime)
     : _time_format(std::move(time_format)), _timestamp_timezone(timestamp_timezone)
   {
-    assert((_timestamp_timezone == Timezone::LocalTime || _timestamp_timezone == Timezone::GmtTime) &&
-           "Invalid timezone type");
+    QUILL_ASSERT(
+      _timestamp_timezone == Timezone::LocalTime || _timestamp_timezone == Timezone::GmtTime,
+      "Invalid timezone type in TimestampFormatter constructor, must be LocalTime or GmtTime");
 
     // store the beginning of the found specifier
     size_t specifier_begin{std::string::npos};
@@ -94,7 +94,9 @@ public:
     if (specifier_begin == std::string::npos)
     {
       // If no additional specifier was found then we can simply store the whole format string
-      assert(_additional_format_specifier == AdditionalSpecifier::None);
+      QUILL_ASSERT(_additional_format_specifier == AdditionalSpecifier::None,
+                   "Unexpected specifier state in TimestampFormatter constructor, should be None "
+                   "when no specifier found");
       _strftime_part_1.init(_time_format, _timestamp_timezone);
     }
     else
@@ -185,8 +187,8 @@ private:
     fmtquill::format_int const extracted_ms_string{extracted_fractional_seconds};
 
     // _formatted_date.size() - extracted_ms_string.size() is where we want to begin placing the fractional seconds
-    memcpy(&_formatted_date[_formatted_date.size() - extracted_ms_string.size()],
-           extracted_ms_string.data(), extracted_ms_string.size());
+    std::memcpy(&_formatted_date[_formatted_date.size() - extracted_ms_string.size()],
+                extracted_ms_string.data(), extracted_ms_string.size());
   }
 
 private:

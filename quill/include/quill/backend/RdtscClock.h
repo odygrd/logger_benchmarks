@@ -17,12 +17,19 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <limits>
 #include <vector>
 
 QUILL_BEGIN_NAMESPACE
 
 namespace detail
 {
+
+#if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(push)
+#pragma warning(disable : 4324)
+#endif
+
 /**
  * Converts tsc ticks to nanoseconds since epoch
  */
@@ -110,16 +117,26 @@ public:
 
   /***/
   explicit RdtscClock(std::chrono::nanoseconds resync_interval)
-    : _resync_interval_ticks(static_cast<std::int64_t>(static_cast<double>(resync_interval.count()) *
-                                                       RdtscTicks::instance().ns_per_tick())),
-      _resync_interval_original(_resync_interval_ticks),
-      _ns_per_tick(RdtscTicks::instance().ns_per_tick())
-
+    : _ns_per_tick(RdtscTicks::instance().ns_per_tick())
   {
-    if (!resync(2500))
+    double const calc_value = static_cast<double>(resync_interval.count()) * _ns_per_tick;
+
+    // Check for overflow and negative values
+    if (calc_value >= static_cast<double>(std::numeric_limits<int64_t>::max()) || calc_value < 0)
+    {
+      _resync_interval_ticks = std::numeric_limits<int64_t>::max();
+    }
+    else
+    {
+      _resync_interval_ticks = static_cast<int64_t>(calc_value);
+    }
+
+    _resync_interval_original = _resync_interval_ticks;
+
+    if (!resync(resync_lag_cycles))
     {
       // try to resync again with higher lag
-      if (!resync(10000))
+      if (!resync(resync_lag_cycles * 2u))
       {
         std::fprintf(stderr, "Failed to sync RdtscClock. Timestamps will be incorrect\n");
       }
@@ -140,7 +157,7 @@ public:
     // we need to sync after we calculated otherwise base_tsc value will be ahead of passed tsc value
     if (diff > _resync_interval_ticks)
     {
-      resync(2500);
+      resync(resync_lag_cycles);
       diff = static_cast<int64_t>(rdtsc_value - _base[index].base_tsc);
     }
 
@@ -203,7 +220,12 @@ public:
 
     // we failed to return earlier and we never resynced, but we don't really want to keep retrying on each call
     // to time_since_epoch() so we do non accurate resync we will increase the resync duration to resync later
-    _resync_interval_ticks = _resync_interval_ticks * 2;
+    constexpr int64_t max_int64_half = std::numeric_limits<int64_t>::max() / 2;
+    if (_resync_interval_ticks <= max_int64_half)
+    {
+      _resync_interval_ticks = _resync_interval_ticks * 2;
+    }
+
     return false;
   }
 
@@ -225,6 +247,7 @@ private:
   }
 
 private:
+  static constexpr uint32_t resync_lag_cycles {50'000};
   mutable int64_t _resync_interval_ticks{0};
   int64_t _resync_interval_original{0}; /**< stores the initial interval value as as if we fail to resync we increase the timer */
   double _ns_per_tick{0};
@@ -232,6 +255,11 @@ private:
   alignas(QUILL_CACHE_LINE_ALIGNED) mutable std::atomic<uint32_t> _version{0};
   mutable std::array<BaseTimeTsc, 2> _base{};
 };
+
+#if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(pop)
+#endif
+
 } // namespace detail
 
 QUILL_END_NAMESPACE

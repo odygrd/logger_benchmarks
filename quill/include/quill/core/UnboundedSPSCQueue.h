@@ -12,7 +12,6 @@
 #include "quill/core/QuillError.h"
 
 #include <atomic>
-#include <cassert>
 #include <cstddef>
 #include <string>
 
@@ -20,6 +19,12 @@ QUILL_BEGIN_NAMESPACE
 
 namespace detail
 {
+
+#if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(push)
+#pragma warning(disable : 4324)
+#endif
+
 /**
  * A single-producer single-consumer FIFO circular buffer
  *
@@ -284,7 +289,9 @@ private:
     // reserve again, this time we know we will always succeed, cast to void* to ignore
     std::byte* const write_pos = _producer->bounded_queue.prepare_write(nbytes);
 
-    assert(write_pos && "write_pos is nullptr");
+    QUILL_ASSERT(
+      write_pos,
+      "write_pos is nullptr after allocating new node in UnboundedSPSCQueue::prepare_write()");
 
     return write_pos;
   }
@@ -328,6 +335,10 @@ private:
   alignas(QUILL_CACHE_LINE_ALIGNED) Node* _producer{nullptr};
   alignas(QUILL_CACHE_LINE_ALIGNED) Node* _consumer{nullptr};
 };
+
+#if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(pop)
+#endif
 
 } // namespace detail
 

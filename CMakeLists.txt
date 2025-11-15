@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1.0)
+cmake_minimum_required(VERSION 3.5.0)
 project(logger_benchmarks)
 
 # set(CMAKE_CXX_FLAGS "-m64 -march=native" CACHE STRING "" FORCE)

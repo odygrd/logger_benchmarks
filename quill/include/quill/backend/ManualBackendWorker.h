@@ -8,7 +8,6 @@
 
 #include "quill/backend/BackendOptions.h"
 #include "quill/backend/BackendWorker.h"
-#include <cassert>
 #include <chrono>
 #include <limits>
 
@@ -25,7 +24,13 @@ public:
   {
   }
 
-  ~ManualBackendWorker() { _backend_worker->_exit(); }
+  ~ManualBackendWorker()
+  {
+    if (_started)
+    {
+      _backend_worker->_exit();
+    }
+  }
 
   /**
    * @brief Initializes the ManualBackendWorker with the specified backend options.
@@ -40,6 +45,7 @@ public:
     options.sleep_duration = std::chrono::nanoseconds{0};
     options.enable_yield_when_idle = false;
     _backend_worker->_init(options);
+    _started = true;
   }
 
   /**
@@ -52,14 +58,16 @@ public:
    */
   void poll_one()
   {
-    assert((_backend_worker->_options.sleep_duration.count() == 0) &&
-           "call init() prior to calling this function");
-    assert((_backend_worker->_options.enable_yield_when_idle == false) &&
-           "call init() prior to calling this function");
-    assert((_backend_worker->_worker_thread_id.load() != 0) &&
-           "call init() prior to calling this function");
-    assert((_backend_worker->_worker_thread_id.load() == detail::get_thread_id()) &&
-           "poll() must be always called from the same thread");
+    QUILL_ASSERT(
+      _backend_worker->_options.sleep_duration.count() == 0,
+      "ManualBackendWorker::poll_one() requires init() to be called first with sleep_duration = 0");
+    QUILL_ASSERT(_backend_worker->_options.enable_yield_when_idle == false,
+                 "ManualBackendWorker::poll_one() requires init() to be called first with "
+                 "enable_yield_when_idle = false");
+    QUILL_ASSERT(_backend_worker->_worker_thread_id.load() != 0,
+                 "ManualBackendWorker::poll_one() requires init() to be called first");
+    QUILL_ASSERT(_backend_worker->_worker_thread_id.load() == detail::get_thread_id(),
+                 "ManualBackendWorker::poll_one() must always be called from the same thread");
 
     QUILL_TRY { _backend_worker->_poll(); }
 #if !defined(QUILL_NO_EXCEPTIONS)
@@ -106,6 +114,7 @@ public:
 
 private:
   detail::BackendWorker* _backend_worker;
+  bool _started{false};
 };
 
 QUILL_END_NAMESPACE

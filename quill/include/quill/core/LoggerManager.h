@@ -15,7 +15,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cassert>
 #include <cstdlib>
 #include <initializer_list>
 #include <memory>
@@ -96,6 +95,33 @@ public:
   }
 
   /***/
+  QUILL_NODISCARD LoggerBase* get_valid_logger(std::vector<std::string> const& exclude_logger_substrs) const
+  {
+    LockGuard const lock{_spinlock};
+    for (auto const& elem : _loggers)
+    {
+      if (elem->is_valid_logger())
+      {
+        bool excluded = false;
+        for (auto const& exclude_substr : exclude_logger_substrs)
+        {
+          if (!exclude_substr.empty() && elem->get_logger_name().find(exclude_substr) != std::string::npos)
+          {
+            excluded = true;
+            break;
+          }
+        }
+
+        if (!excluded)
+        {
+          return elem.get();
+        }
+      }
+    }
+    return nullptr;
+  }
+
+  /***/
   QUILL_NODISCARD size_t get_number_of_loggers() const noexcept
   {
     LockGuard const lock{_spinlock};
@@ -152,8 +178,9 @@ public:
       }
     }
 
-    assert(logger_ptr);
-    assert(logger_ptr->is_valid_logger());
+    QUILL_ASSERT(logger_ptr, "logger_ptr is nullptr in LoggerManager::get_logger()");
+    QUILL_ASSERT(logger_ptr->is_valid_logger(),
+                 "logger is not valid in LoggerManager::get_logger()");
     return logger_ptr;
   }
 
@@ -179,10 +206,8 @@ public:
 
   /***/
   template <typename TCheckQueuesEmpty>
-  QUILL_NODISCARD std::vector<std::string> cleanup_invalidated_loggers(TCheckQueuesEmpty check_queues_empty)
+  void cleanup_invalidated_loggers(TCheckQueuesEmpty check_queues_empty, std::vector<std::string>& removed_loggers)
   {
-    std::vector<std::string> removed_loggers;
-
     if (_has_invalidated_loggers.load(std::memory_order_acquire))
     {
       _has_invalidated_loggers.store(false, std::memory_order_release);
@@ -211,8 +236,6 @@ public:
         }
       }
     }
-
-    return removed_loggers;
   }
 
   /***/

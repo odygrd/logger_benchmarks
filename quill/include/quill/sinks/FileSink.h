@@ -13,7 +13,6 @@
 #include "quill/core/TimeUtilities.h"
 #include "quill/sinks/StreamSink.h"
 
-#include <cassert>
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
@@ -24,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <thread>
 
 #if defined(_WIN32)
   #if !defined(WIN32_LEAN_AND_MEAN)
@@ -36,12 +36,19 @@
   #endif
 
   #include <io.h>
+  #include <share.h>
   #include <windows.h>
 #else
+  #include <fcntl.h>
   #include <unistd.h>
 #endif
 
 QUILL_BEGIN_NAMESPACE
+
+#if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
+  #pragma warning(push)
+  #pragma warning(disable : 4996)
+#endif
 
 enum class FilenameAppendOption : uint8_t
 {
@@ -115,10 +122,15 @@ public:
 
   /**
    * @brief Sets the open mode for the file.
-   * Valid options for the open mode are 'a' or 'w'. The default value is 'a'.
    * @param open_mode open mode for the file.
    */
   QUILL_ATTRIBUTE_COLD void set_open_mode(char open_mode) { _open_mode = open_mode; }
+
+  /**
+   * @brief Sets the open mode for the file.
+   * @param open_mode open mode for the file.
+   */
+  QUILL_ATTRIBUTE_COLD void set_open_mode(std::string_view open_mode) { _open_mode = open_mode; }
 
   /**
    * @brief Sets the user-defined buffer size for fwrite operations.
@@ -354,12 +366,60 @@ protected:
       _file_event_notifier.before_open(filename);
     }
 
-    _file = fopen(filename.string().data(), mode.data());
+    // Retry file open to handle transient failures (e.g., antivirus locking on Windows)
+    constexpr int max_retries = 3;
+    constexpr int retry_delay_ms = 200;
+
+    for (int attempt = 0; attempt < max_retries; ++attempt)
+    {
+#if defined(_WIN32)
+      // Use _fsopen with _SH_DENYNO to allow other processes to read the file
+      // while we're writing (e.g., tail, monitoring tools)
+      _file = ::_fsopen(filename.string().data(), mode.data(), _SH_DENYNO);
+
+      if (_file)
+      {
+        // Prevent child processes from inheriting this file handle
+        auto file_handle = reinterpret_cast<HANDLE>(::_get_osfhandle(::_fileno(_file)));
+        if (!::SetHandleInformation(file_handle, HANDLE_FLAG_INHERIT, 0))
+        {
+          ::fclose(_file);
+          _file = nullptr;
+        }
+      }
+#else
+      // Unix: use open() with O_CLOEXEC to prevent child processes from inheriting the FD
+      int flags = O_CREAT | O_WRONLY | O_CLOEXEC;
+      flags |= (mode == "w") ? O_TRUNC : O_APPEND;
+
+      int fd = ::open(filename.string().data(), flags, 0644);
+      if (fd != -1)
+      {
+        _file = ::fdopen(fd, mode.data());
+        if (!_file)
+        {
+          ::close(fd);
+        }
+      }
+#endif
+
+      if (_file)
+      {
+        break; // Success
+      }
+
+      // Retry after delay if not the last attempt
+      if (attempt < max_retries - 1)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds{retry_delay_ms});
+      }
+    }
 
     if (!_file)
     {
-      QUILL_THROW(QuillError{std::string{"fopen failed failed path: "} + filename.string() + " mode: " + mode +
-                             " errno: " + std::to_string(errno) + " error: " + strerror(errno)});
+      QUILL_THROW(QuillError{std::string{"fopen failed after "} + std::to_string(max_retries) +
+                             " attempts, path: " + filename.string() + " mode: " + mode +
+                             " errno: " + std::to_string(errno) + " error: " + std::strerror(errno)});
     }
 
     if (_config.write_buffer_size() != 0)
@@ -368,7 +428,7 @@ protected:
 
       if (setvbuf(_file, _write_buffer.get(), _IOFBF, _config.write_buffer_size()) != 0)
       {
-        QUILL_THROW(QuillError{std::string{"setvbuf failed error: "} + strerror(errno)});
+        QUILL_THROW(QuillError{std::string{"setvbuf failed error: "} + std::strerror(errno)});
       }
     }
 
@@ -459,5 +519,9 @@ protected:
   std::chrono::steady_clock::time_point _last_fsync_timestamp{};
   std::unique_ptr<char[]> _write_buffer;
 };
+
+#if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(pop)
+#endif
 
 QUILL_END_NAMESPACE

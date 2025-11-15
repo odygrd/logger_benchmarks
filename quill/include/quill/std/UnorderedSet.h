@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <type_traits>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 QUILL_BEGIN_NAMESPACE
@@ -35,9 +36,10 @@ struct Codec<UnorderedSetType<Key, Hash, KeyEqual, Allocator>,
     // We add sizeof(size_t) bytes to accommodate the size information.
     size_t total_size{sizeof(size_t)};
 
-    if constexpr (std::disjunction_v<std::is_arithmetic<Key>, std::is_enum<Key>>)
+    if constexpr (std::is_arithmetic_v<Key>)
     {
-      // For built-in types, such as arithmetic or enum types, iteration is unnecessary
+      // Built-in arithmetic types don't require iteration.
+      // Note: Enums are excluded as they may have custom Codecs (e.g., DirectFormatCodec)
       total_size += sizeof(Key) * arg.size();
     }
     else
@@ -54,15 +56,27 @@ struct Codec<UnorderedSetType<Key, Hash, KeyEqual, Allocator>,
     return total_size;
   }
 
+  template <typename Arg>
   static void encode(std::byte*& buffer, detail::SizeCacheVector const& conditional_arg_size_cache,
-                     uint32_t& conditional_arg_size_cache_index,
-                     UnorderedSetType<Key, Hash, KeyEqual, Allocator> const& arg) noexcept
+                     uint32_t& conditional_arg_size_cache_index, Arg&& arg) noexcept
   {
     Codec<size_t>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, arg.size());
 
-    for (auto const& elem : arg)
+    // Forward elements based on whether the container was passed as rvalue
+    if constexpr (std::is_rvalue_reference_v<Arg&&>)
     {
-      Codec<Key>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, elem);
+      for (auto&& elem : arg)
+      {
+        Codec<Key>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index,
+                           std::move(elem));
+      }
+    }
+    else
+    {
+      for (auto const& elem : arg)
+      {
+        Codec<Key>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, elem);
+      }
     }
   }
 
@@ -106,7 +120,15 @@ struct Codec<UnorderedSetType<Key, Hash, KeyEqual, Allocator>,
 
       for (size_t i = 0; i < number_of_elements; ++i)
       {
-        arg.emplace(Codec<Key>::decode_arg(buffer));
+        auto elem = Codec<Key>::decode_arg(buffer);
+        if constexpr (std::is_move_constructible_v<ReturnType>)
+        {
+          arg.emplace(std::move(elem));
+        }
+        else
+        {
+          arg.emplace(elem);
+        }
       }
 
       return arg;

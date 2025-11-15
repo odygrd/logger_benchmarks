@@ -29,7 +29,7 @@ QUILL_BEGIN_NAMESPACE
 /**
  * @brief Provides serialization (codec) functionality for complex user-defined types.
  *
- * This codec minimizes overhead on the hot-path by directly using memcpy or
+ * This codec minimizes overhead on the hot-path by directly using std::memcpy or
  * placement new to serialize objects into the SPSC buffer,
  *
  * This approach avoids expensive string formatting on the hot path.
@@ -106,7 +106,8 @@ struct DeferredFormatCodec
     }
   }
 
-  static void encode(std::byte*& buffer, detail::SizeCacheVector const&, uint32_t&, T const& arg)
+  template <typename Arg>
+  static void encode(std::byte*& buffer, detail::SizeCacheVector const&, uint32_t&, Arg&& arg)
   {
     if constexpr (use_memcpy)
     {
@@ -117,8 +118,15 @@ struct DeferredFormatCodec
     {
       auto aligned_ptr = align_pointer(buffer, alignof(T));
 
-      static_assert(is_copy_constructible<T>::value, "T is not copy-constructible!");
-      new (static_cast<void*>(aligned_ptr)) T(arg);
+      if constexpr (std::is_rvalue_reference_v<Arg&&> && is_move_constructible<T>::value)
+      {
+        new (static_cast<void*>(aligned_ptr)) T(std::move(arg));
+      }
+      else
+      {
+        static_assert(is_copy_constructible<T>::value, "T is not copy-constructible!");
+        new (static_cast<void*>(aligned_ptr)) T(arg);
+      }
 
       buffer += sizeof(T) + alignof(T) - 1;
     }
@@ -138,26 +146,37 @@ struct DeferredFormatCodec
     }
     else
     {
+      static_assert(std::is_move_constructible_v<T> || std::is_copy_constructible_v<T>,
+                    "T must be move or copy constructible");
+
       auto aligned_ptr = align_pointer(buffer, alignof(T));
       auto* tmp = std::launder(reinterpret_cast<T*>(aligned_ptr));
-
-      static_assert(is_move_constructible<T>::value, "T is not move-constructible!");
-      T arg{std::move(*tmp)};
-
-      if constexpr (!std::is_trivially_destructible_v<T>)
-      {
-        // Destroy tmp
-        tmp->~T();
-      }
-
       buffer += sizeof(T) + alignof(T) - 1;
-      return arg;
+
+      if constexpr (std::is_move_constructible_v<T>)
+      {
+        T arg{std::move(*tmp)};
+        if constexpr (!std::is_trivially_destructible_v<T>)
+        {
+          tmp->~T();
+        }
+        return arg;
+      }
+      else
+      {
+        T arg{*tmp};
+        if constexpr (!std::is_trivially_destructible_v<T>)
+        {
+          tmp->~T();
+        }
+        return T{arg};
+      }
     }
   }
 
   static void decode_and_store_arg(std::byte*& buffer, DynamicFormatArgStore* args_store)
   {
-    args_store->push_back(decode_arg(buffer));
+    args_store->push_back(std::move(decode_arg(buffer)));
   }
 
 private:

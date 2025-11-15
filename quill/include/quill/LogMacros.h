@@ -44,14 +44,6 @@
   #define QUILL_ENABLE_IMMEDIATE_FLUSH 1
 #endif
 
-#if !defined(QUILL_FUNCTION_NAME)
-  #if defined(QUILL_DISABLE_FUNCTION_NAME)
-    #define QUILL_FUNCTION_NAME ""
-  #else
-    #define QUILL_FUNCTION_NAME __FUNCTION__
-  #endif
-#endif
-
 /** -- LOGV_ helpers begin -- **/
 
 // Helper macro to expand __VA_ARGS__ correctly in MSVC
@@ -308,8 +300,7 @@
 #define QUILL_DEFINE_MACRO_METADATA(caller_function, fmt, tags, log_level)                         \
   static constexpr quill::MacroMetadata macro_metadata                                             \
   {                                                                                                \
-    __FILE__ ":" QUILL_STRINGIFY(__LINE__), caller_function, fmt, tags, log_level,                 \
-      quill::MacroMetadata::Event::Log                                                             \
+    QUILL_FILE_INFO, caller_function, fmt, tags, log_level, quill::MacroMetadata::Event::Log       \
   }
 
 #define QUILL_LOGGER_CALL(likelyhood, logger, tags, log_level, fmt, ...)                            \
@@ -327,29 +318,29 @@
   {                                                                                                \
     if (likelyhood(logger->template should_log_statement<log_level>()))                            \
     {                                                                                              \
-      thread_local std::chrono::time_point<std::chrono::steady_clock> next_log_time;               \
-      thread_local uint64_t suppressed_log_count{0};                                               \
-      auto const now = std::chrono::steady_clock::now();                                           \
+      thread_local std::chrono::time_point<std::chrono::steady_clock> __next_log_time__;           \
+      thread_local uint64_t __suppressed_log_count__{0};                                           \
+      auto const __now__ = std::chrono::steady_clock::now();                                       \
                                                                                                    \
-      if (now < next_log_time)                                                                     \
+      if (__now__ < __next_log_time__)                                                             \
       {                                                                                            \
-        ++suppressed_log_count;                                                                    \
+        ++__suppressed_log_count__;                                                                \
         break;                                                                                     \
       }                                                                                            \
                                                                                                    \
       if constexpr (quill::MacroMetadata::_contains_named_args(fmt))                               \
       {                                                                                            \
         QUILL_LOGGER_CALL(likelyhood, logger, tags, log_level, fmt " ({occurred}x)",               \
-                          ##__VA_ARGS__, suppressed_log_count + 1);                                \
+                          ##__VA_ARGS__, __suppressed_log_count__ + 1);                            \
       }                                                                                            \
       else                                                                                         \
       {                                                                                            \
         QUILL_LOGGER_CALL(likelyhood, logger, tags, log_level, fmt " ({}x)", ##__VA_ARGS__,        \
-                          suppressed_log_count + 1);                                               \
+                          __suppressed_log_count__ + 1);                                           \
       }                                                                                            \
                                                                                                    \
-      next_log_time = now + min_interval;                                                          \
-      suppressed_log_count = 0;                                                                    \
+      __next_log_time__ = __now__ + min_interval;                                                  \
+      __suppressed_log_count__ = 0;                                                                \
     }                                                                                              \
   } while (0)
 
@@ -358,14 +349,14 @@
   {                                                                                                   \
     if (likelyhood(logger->template should_log_statement<log_level>()))                               \
     {                                                                                                 \
-      thread_local uint64_t call_count = 0;                                                           \
-      thread_local uint64_t next_log_at = 0;                                                          \
-      if (call_count == next_log_at)                                                                  \
+      thread_local uint64_t __call_count__ = 0;                                                       \
+      thread_local uint64_t __next_log_at__ = 0;                                                      \
+      if (__call_count__ == __next_log_at__)                                                          \
       {                                                                                               \
         QUILL_LOGGER_CALL(likelyhood, logger, tags, log_level, fmt, ##__VA_ARGS__);                   \
-        next_log_at += n_occurrences;                                                                 \
+        __next_log_at__ += n_occurrences;                                                             \
       }                                                                                               \
-      ++call_count;                                                                                   \
+      ++__call_count__;                                                                               \
     }                                                                                                 \
   } while (0)
 
@@ -936,20 +927,20 @@
   QUILL_BACKTRACE_LOGGER_CALL(logger, nullptr, QUILL_GENERATE_NAMED_FORMAT_STRING(fmt, ##__VA_ARGS__), ##__VA_ARGS__)
 
 #define QUILL_LOG_DYNAMIC(logger, log_level, fmt, ...)                                             \
-  QUILL_LOG_RUNTIME_METADATA_SHALLOW(logger, log_level, __FILE__, __LINE__, QUILL_FUNCTION_NAME,   \
-                                     "", fmt, ##__VA_ARGS__)
+  QUILL_LOG_RUNTIME_METADATA_SHALLOW(logger, log_level, QUILL_FILE_NAME, QUILL_LINE_NO,            \
+                                     QUILL_FUNCTION_NAME, "", fmt, ##__VA_ARGS__)
 
 #define QUILL_LOG_DYNAMIC_TAGS(logger, log_level, tags, fmt, ...)                                  \
-  QUILL_LOG_RUNTIME_METADATA_SHALLOW(logger, log_level, __FILE__, __LINE__, QUILL_FUNCTION_NAME,   \
-                                     tags, fmt, ##__VA_ARGS__)
+  QUILL_LOG_RUNTIME_METADATA_SHALLOW(logger, log_level, QUILL_FILE_NAME, QUILL_LINE_NO,            \
+                                     QUILL_FUNCTION_NAME, tags, fmt, ##__VA_ARGS__)
 
-#define QUILL_LOGV_DYNAMIC(logger, log_level, fmt, ...)                                              \
-  QUILL_LOG_RUNTIME_METADATA_SHALLOW(logger, log_level, __FILE__, __LINE__, QUILL_FUNCTION_NAME, "", \
-                                     QUILL_GENERATE_FORMAT_STRING(fmt, ##__VA_ARGS__), ##__VA_ARGS__)
+#define QUILL_LOGV_DYNAMIC(logger, log_level, fmt, ...)                                                      \
+  QUILL_LOG_RUNTIME_METADATA_SHALLOW(logger, log_level, QUILL_FILE_NAME, QUILL_LINE_NO, QUILL_FUNCTION_NAME, \
+                                     "", QUILL_GENERATE_FORMAT_STRING(fmt, ##__VA_ARGS__), ##__VA_ARGS__)
 
-#define QUILL_LOGJ_DYNAMIC(logger, log_level, fmt, ...)                                              \
-  QUILL_LOG_RUNTIME_METADATA_SHALLOW(logger, log_level, __FILE__, __LINE__, QUILL_FUNCTION_NAME, "", \
-                                     QUILL_GENERATE_NAMED_FORMAT_STRING(fmt, ##__VA_ARGS__), ##__VA_ARGS__)
+#define QUILL_LOGJ_DYNAMIC(logger, log_level, fmt, ...)                                                      \
+  QUILL_LOG_RUNTIME_METADATA_SHALLOW(logger, log_level, QUILL_FILE_NAME, QUILL_LINE_NO, QUILL_FUNCTION_NAME, \
+                                     "", QUILL_GENERATE_NAMED_FORMAT_STRING(fmt, ##__VA_ARGS__), ##__VA_ARGS__)
 
 #define QUILL_LOG_RUNTIME_METADATA_CALL(event, logger, log_level, file, line_number, function, tags, fmt, ...) \
   do                                                                                                           \

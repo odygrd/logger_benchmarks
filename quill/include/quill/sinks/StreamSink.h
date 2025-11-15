@@ -24,7 +24,26 @@
 #include <utility>
 #include <vector>
 
+#if defined(_WIN32)
+  #if !defined(WIN32_LEAN_AND_MEAN)
+    #define WIN32_LEAN_AND_MEAN
+  #endif
+
+  #if !defined(NOMINMAX)
+    // Mingw already defines this, so no need to redefine
+    #define NOMINMAX
+  #endif
+
+  #include <io.h>
+  #include <windows.h>
+#endif
+
 QUILL_BEGIN_NAMESPACE
+
+#if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
+  #pragma warning(push)
+  #pragma warning(disable : 4996)
+#endif
 
 /** Forward Declaration **/
 class MacroMetadata;
@@ -194,12 +213,67 @@ public:
    */
   QUILL_ATTRIBUTE_HOT static void safe_fwrite(void const* ptr, size_t size, size_t count, FILE* stream)
   {
-    size_t const written = std::fwrite(ptr, size, count, stream);
+    size_t const total_bytes = size * count;
+    size_t bytes_written = 0;
 
-    if (QUILL_UNLIKELY(written < count))
+    while (bytes_written < total_bytes)
     {
-      QUILL_THROW(QuillError{std::string{"fwrite failed errno: "} + std::to_string(errno) +
-                             " error: " + strerror(errno)});
+      auto const* current_ptr = static_cast<char const*>(ptr) + bytes_written;
+      size_t const remaining = total_bytes - bytes_written;
+
+#if defined(_WIN32)
+      // On Windows, using fwrite to non-binary stream (stdout/stderr) results in \r\r\n
+      // Instead, use WriteFile for console streams
+      if ((stream == stdout) || (stream == stderr))
+      {
+        HANDLE const handle = reinterpret_cast<HANDLE>(::_get_osfhandle(::_fileno(stream)));
+
+        if (QUILL_LIKELY(handle != INVALID_HANDLE_VALUE))
+        {
+          auto const total_bytes_remaining = static_cast<DWORD>(remaining);
+          DWORD bytes_written_this_call = 0;
+
+          if (QUILL_UNLIKELY((::WriteFile(handle, current_ptr, total_bytes_remaining,
+                                          &bytes_written_this_call, nullptr) == 0) ||
+                             (bytes_written_this_call != total_bytes_remaining)))
+          {
+            QUILL_THROW(QuillError{std::string{"WriteFile failed. GetLastError: "} +
+                                   std::to_string(::GetLastError())});
+          }
+
+          bytes_written += bytes_written_this_call;
+          continue;
+        }
+
+        // Fall through to fwrite if the handle is invalid (e.g., no console attached)
+      }
+#endif
+
+      size_t const written = std::fwrite(current_ptr, 1, remaining, stream);
+
+      if (QUILL_UNLIKELY(written < remaining))
+      {
+        // Partial write or error
+        if (ferror(stream))
+        {
+          int const saved_errno = errno;
+          std::clearerr(stream); // Reset error state
+          QUILL_THROW(QuillError{std::string{"fwrite failed errno: "} + std::to_string(saved_errno) +
+                                 " error: " + std::strerror(saved_errno)});
+        }
+
+        if (written == 0)
+        {
+          // Zero bytes written without error is unusual - treat as fatal to avoid infinite loop
+          QUILL_THROW(
+            QuillError{std::string{"fwrite returned 0 bytes written without error - stream may be "
+                                   "at EOF or in invalid state"}});
+        }
+
+        // Partial write succeeded - continue with remaining bytes
+      }
+
+      bytes_written += written;
     }
   }
 
@@ -209,8 +283,19 @@ protected:
    */
   QUILL_ATTRIBUTE_HOT void flush()
   {
-    _write_occurred = false;
-    fflush(_file);
+    int const result = std::fflush(_file);
+
+    if (QUILL_LIKELY(result == 0))
+    {
+      _write_occurred = false;
+    }
+    else
+    {
+      int const saved_errno = errno;
+      std::clearerr(_file); // Reset error state
+      QUILL_THROW(QuillError{std::string{"fflush failed errno: "} + std::to_string(saved_errno) +
+                             " error: " + std::strerror(saved_errno)});
+    }
   }
 
 protected:
@@ -221,5 +306,9 @@ protected:
   bool _is_null{false};
   bool _write_occurred{false};
 };
+
+#if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
+  #pragma warning(pop)
+#endif
 
 QUILL_END_NAMESPACE

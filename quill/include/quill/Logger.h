@@ -18,7 +18,6 @@
 #include "quill/core/Rdtsc.h"
 
 #include <atomic>
-#include <cassert>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -36,6 +35,7 @@ class Sink;
 namespace detail
 {
 class LoggerManager;
+
 class BackendWorker;
 } // namespace detail
 
@@ -56,6 +56,7 @@ public:
 
   /***/
   LoggerImpl(LoggerImpl const&) = delete;
+
   LoggerImpl& operator=(LoggerImpl const&) = delete;
 
   ~LoggerImpl() override = default;
@@ -74,14 +75,14 @@ public:
   template <bool enable_immediate_flush, typename... Args>
   QUILL_ATTRIBUTE_HOT bool log_statement(MacroMetadata const* macro_metadata, Args&&... fmt_args)
   {
-#ifndef NDEBUG
-    assert((macro_metadata->event() != MacroMetadata::Event::LogWithRuntimeMetadataDeepCopy &&
-            macro_metadata->event() != MacroMetadata::Event::LogWithRuntimeMetadataShallowCopy &&
-            macro_metadata->event() != MacroMetadata::Event::LogWithRuntimeMetadataHybridCopy) &&
-           "Should not be called with MacroMetadata::Event::LogWithRuntimeMetadata");
+    QUILL_ASSERT(
+      macro_metadata->event() != MacroMetadata::Event::LogWithRuntimeMetadataDeepCopy &&
+        macro_metadata->event() != MacroMetadata::Event::LogWithRuntimeMetadataShallowCopy &&
+        macro_metadata->event() != MacroMetadata::Event::LogWithRuntimeMetadataHybridCopy,
+      "log_statement() should not be called with MacroMetadata::Event::LogWithRuntimeMetadata");
 
-    assert(_valid.load(std::memory_order_acquire) && "Invalidated loggers can not log");
-#endif
+    QUILL_ASSERT(_valid.load(std::memory_order_acquire),
+                 "Attempting to log with an invalidated logger");
 
     // Store the timestamp of the log statement at the start of the call. This gives a more accurate
     // timestamp, especially if the queue is full
@@ -107,9 +108,9 @@ public:
 
     // we have enough space in this buffer, and we will write to the buffer
 
-#ifndef NDEBUG
+#if defined(QUILL_ENABLE_ASSERTIONS) || !defined(NDEBUG)
     std::byte const* const write_begin = write_buffer;
-    assert(write_begin);
+    QUILL_ASSERT(write_begin, "Reserved queue space returned nullptr in log_statement()");
 #endif
 
     // first encode a header
@@ -117,13 +118,17 @@ public:
                                   detail::decode_and_store_args<detail::remove_cvref_t<Args>...>);
 
     // encode remaining arguments
-    detail::encode(write_buffer, _thread_context->get_conditional_arg_size_cache(), fmt_args...);
+    detail::encode(write_buffer, _thread_context->get_conditional_arg_size_cache(),
+                   static_cast<decltype(fmt_args)&&>(fmt_args)...);
 
-#ifndef NDEBUG
-    assert((write_buffer > write_begin) && "write_buffer must be greater than write_begin");
-    assert(total_size == (static_cast<size_t>(write_buffer - write_begin)) &&
-           "The committed write bytes must be equal to the total_size requested bytes");
-#endif
+    QUILL_ASSERT_WITH_FMT(
+      write_buffer > write_begin,
+      "write_buffer must be greater than write_begin after encoding in log_statement(): msg=\"%s\"",
+      macro_metadata->message_format());
+    QUILL_ASSERT_WITH_FMT(
+      total_size == static_cast<size_t>(write_buffer - write_begin),
+      "Encoded bytes mismatch in log_statement(): total_size=%zu, actual_encoded=%zu, msg=\"%s\"",
+      total_size, static_cast<size_t>(write_buffer - write_begin), macro_metadata->message_format());
 
     _commit_log_statement<enable_immediate_flush>(total_size);
 
@@ -154,14 +159,14 @@ public:
                                                           char const* tags, uint32_t line_number,
                                                           LogLevel log_level, Args&&... fmt_args)
   {
-#ifndef NDEBUG
-    assert((macro_metadata->event() == MacroMetadata::Event::LogWithRuntimeMetadataDeepCopy ||
-            macro_metadata->event() == MacroMetadata::Event::LogWithRuntimeMetadataHybridCopy ||
-            macro_metadata->event() == MacroMetadata::Event::LogWithRuntimeMetadataShallowCopy) &&
-           "Should only be called with MacroMetadata::Event::LogWithRuntimeMetadata");
+    QUILL_ASSERT(macro_metadata->event() == MacroMetadata::Event::LogWithRuntimeMetadataDeepCopy ||
+                   macro_metadata->event() == MacroMetadata::Event::LogWithRuntimeMetadataHybridCopy ||
+                   macro_metadata->event() == MacroMetadata::Event::LogWithRuntimeMetadataShallowCopy,
+                 "log_statement_runtime_metadata() should only be called with "
+                 "MacroMetadata::Event::LogWithRuntimeMetadata");
 
-    assert(_valid.load(std::memory_order_acquire) && "Invalidated loggers can not log");
-#endif
+    QUILL_ASSERT(_valid.load(std::memory_order_acquire),
+                 "Attempting to log with an invalidated logger");
 
     // Store the timestamp of the log statement at the start of the call. This gives a more accurate
     // timestamp, especially if the queue is full
@@ -210,9 +215,10 @@ public:
 
     // we have enough space in this buffer, and we will write to the buffer
 
-#ifndef NDEBUG
+#if defined(QUILL_ENABLE_ASSERTIONS) || !defined(NDEBUG)
     std::byte const* const write_begin = write_buffer;
-    assert(write_begin);
+    QUILL_ASSERT(write_begin,
+                 "Reserved queue space returned nullptr in log_statement_runtime_metadata()");
 #endif
 
     // first encode a header
@@ -222,28 +228,31 @@ public:
     if (macro_metadata->event() == MacroMetadata::Event::LogWithRuntimeMetadataDeepCopy)
     {
       // encode runtime metadata and remaining arguments
-      detail::encode(write_buffer, _thread_context->get_conditional_arg_size_cache(), fmt,
-                     file_path, function_name, tags, line_number, log_level, fmt_args...);
+      detail::encode(write_buffer, _thread_context->get_conditional_arg_size_cache(), fmt, file_path, function_name,
+                     tags, line_number, log_level, static_cast<decltype(fmt_args)&&>(fmt_args)...);
     }
     else if (macro_metadata->event() == MacroMetadata::Event::LogWithRuntimeMetadataShallowCopy)
     {
       detail::encode(write_buffer, _thread_context->get_conditional_arg_size_cache(),
                      static_cast<void const*>(fmt), static_cast<void const*>(file_path),
                      static_cast<void const*>(function_name), static_cast<void const*>(tags),
-                     line_number, log_level, fmt_args...);
+                     line_number, log_level, static_cast<decltype(fmt_args)&&>(fmt_args)...);
     }
     else if (macro_metadata->event() == MacroMetadata::Event::LogWithRuntimeMetadataHybridCopy)
     {
       detail::encode(write_buffer, _thread_context->get_conditional_arg_size_cache(), fmt,
                      static_cast<void const*>(file_path), static_cast<void const*>(function_name),
-                     tags, line_number, log_level, fmt_args...);
+                     tags, line_number, log_level, static_cast<decltype(fmt_args)&&>(fmt_args)...);
     }
 
-#ifndef NDEBUG
-    assert((write_buffer > write_begin) && "write_buffer must be greater than write_begin");
-    assert(total_size == (static_cast<size_t>(write_buffer - write_begin)) &&
-           "The committed write bytes must be equal to the total_size requested bytes");
-#endif
+    QUILL_ASSERT_WITH_FMT(write_buffer > write_begin,
+                          "write_buffer must be greater than write_begin after encoding in "
+                          "log_statement_runtime_metadata(): fmt=\"%s\"",
+                          fmt);
+    QUILL_ASSERT_WITH_FMT(total_size == static_cast<size_t>(write_buffer - write_begin),
+                          "Encoded bytes mismatch in log_statement_runtime_metadata(): "
+                          "total_size=%zu, actual_encoded=%zu, fmt=\"%s\"",
+                          total_size, static_cast<size_t>(write_buffer - write_begin), fmt);
 
     _commit_log_statement<enable_immediate_flush>(total_size);
 
@@ -344,6 +353,7 @@ public:
 
 private:
   friend class detail::LoggerManager;
+
   friend class detail::BackendWorker;
 
   /***/
@@ -353,7 +363,6 @@ private:
     : detail::LoggerBase(
         static_cast<std::string&&>(logger_name), static_cast<std::vector<std::shared_ptr<Sink>>&&>(sinks),
         static_cast<PatternFormatterOptions&&>(pattern_formatter_options), clock_source, user_clock)
-
   {
     if (this->_user_clock)
     {

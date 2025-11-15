@@ -17,6 +17,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <forward_list>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #if defined(_WIN32)
@@ -48,22 +50,34 @@ struct Codec<std::forward_list<T, Allocator>>
       ++number_of_elements;
     }
 
-    assert((number_of_elements <= std::numeric_limits<uint32_t>::max()) &&
-           "len is outside the supported range");
+    QUILL_ASSERT(
+      number_of_elements <= std::numeric_limits<uint32_t>::max(),
+      "Forward list size exceeds uint32_t max in Codec<std::forward_list>::compute_encoded_size()");
     conditional_arg_size_cache.assign(index, static_cast<uint32_t>(number_of_elements));
     return total_size;
   }
 
+  template <typename Arg>
   static void encode(std::byte*& buffer, detail::SizeCacheVector const& conditional_arg_size_cache,
-                     uint32_t& conditional_arg_size_cache_index, std::forward_list<T, Allocator> const& arg) noexcept
+                     uint32_t& conditional_arg_size_cache_index, Arg&& arg) noexcept
   {
     // First encode the number of elements of the forward list
     size_t const elems_num = conditional_arg_size_cache[conditional_arg_size_cache_index++];
     Codec<size_t>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, elems_num);
 
-    for (auto const& elem : arg)
+    if constexpr (std::is_rvalue_reference_v<Arg&&>)
     {
-      Codec<T>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, elem);
+      for (auto&& elem : arg)
+      {
+        Codec<T>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, std::move(elem));
+      }
+    }
+    else
+    {
+      for (auto const& elem : arg)
+      {
+        Codec<T>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, elem);
+      }
     }
   }
 
@@ -103,7 +117,15 @@ struct Codec<std::forward_list<T, Allocator>>
       for (size_t i = 0; i < number_of_elements; ++i)
       {
         // Insert after the last inserted element and update the iterator
-        last_inserted = arg.emplace_after(last_inserted, Codec<T>::decode_arg(buffer));
+        auto elem = Codec<T>::decode_arg(buffer);
+        if constexpr (std::is_move_constructible_v<ReturnType>)
+        {
+          last_inserted = arg.emplace_after(last_inserted, std::move(elem));
+        }
+        else
+        {
+          last_inserted = arg.emplace_after(last_inserted, elem);
+        }
       }
 
       return arg;
