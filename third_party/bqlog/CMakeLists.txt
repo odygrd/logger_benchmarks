@@ -10,10 +10,10 @@ set(HEADER_FILES
         include/bq_common/types/array.h
         include/bq_common/types/array_def.h
         include/bq_common/types/array_impl.h
+        include/bq_common/types/basic_types.h
         include/bq_common/types/hash_map.h
         include/bq_common/types/hash_map_def.h
         include/bq_common/types/hash_map_impl.h
-        include/bq_common/types/optional.h
         include/bq_common/types/string.h
         include/bq_common/types/string_impl.h
         include/bq_common/types/type_tools.h

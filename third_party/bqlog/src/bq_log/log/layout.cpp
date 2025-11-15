@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2024 THL A29 Limited, a Tencent company.
+ * Copyright (C) 2024 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -68,7 +68,7 @@ namespace bq {
     } _time_zone_str_initer_inst_;
 
     static struct _digit_str_initer {
-        const char digit3_array[3000 + 1] = {};
+        const char digit3_array[3000 + 16] = {};
         _digit_str_initer()
         {
             for (uint32_t i = 0; i < 1000; ++i) {
@@ -432,6 +432,7 @@ namespace bq {
         } else {
             python_style_format_content_utf16(log_entry);
         }
+        expand_format_content_buff_size(format_content_cursor + 1);
         format_content[format_content_cursor] = '\0';
         assert(format_content_cursor < format_content.size());
     }

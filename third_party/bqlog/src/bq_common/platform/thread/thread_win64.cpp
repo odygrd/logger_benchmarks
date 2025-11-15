@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2024 THL A29 Limited, a Tencent company.
+ * Copyright (C) 2024 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -134,7 +134,7 @@ namespace bq {
         {
             HMODULE module = GetModuleHandle("ntdll.dll");
             if (module) {
-                GetRtlGetVersion = reinterpret_cast<decltype(GetRtlGetVersion)>(GetProcAddress(module, "RtlGetVersion"));
+                GetRtlGetVersion = reinterpret_cast<decltype(GetRtlGetVersion)>((void*)GetProcAddress(module, "RtlGetVersion"));
             }
         }
 
@@ -161,7 +161,7 @@ namespace bq {
                 if (!hKernel32)
                     return "";
                 typedef HRESULT(WINAPI * GetThreadDescriptionFunc)(HANDLE hThread, PWSTR * ppszThreadDescription);
-                GetThreadDescriptionFunc pGetThreadDescription = reinterpret_cast<GetThreadDescriptionFunc>(GetProcAddress(hKernel32, "GetThreadDescription"));
+                GetThreadDescriptionFunc pGetThreadDescription = reinterpret_cast<GetThreadDescriptionFunc>((void*)GetProcAddress(hKernel32, "GetThreadDescription"));
                 if (!pGetThreadDescription) {
                     return "";
                 }
@@ -263,7 +263,7 @@ namespace bq {
                 int converted_size = MultiByteToWideChar(CP_UTF8, 0, thread_name_.c_str(), static_cast<int>(thread_name_.size()), &wide_str[0], required_size);
                 if (converted_size == required_size) {
                     typedef HRESULT(WINAPI * SetThreadDescriptionFunc)(HANDLE hThread, PCWSTR ppszThreadDescription);
-                    SetThreadDescriptionFunc pGetThreadDescription = reinterpret_cast<SetThreadDescriptionFunc>(GetProcAddress(hKernel32, "SetThreadDescription"));
+                    SetThreadDescriptionFunc pGetThreadDescription = reinterpret_cast<SetThreadDescriptionFunc>((void*)GetProcAddress(hKernel32, "SetThreadDescription"));
                     if (pGetThreadDescription) {
                         pGetThreadDescription(current_thread_handle, &wide_str[0]);
                     }
