@@ -1,7 +1,7 @@
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/expressions.hpp>
-#include <boost/log/sinks/async_frontend.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/log/attributes/clock.hpp>
+#include <boost/log/attributes/counter.hpp>
+#include <boost/log/attributes/current_thread_id.hpp>
 #include <boost/log/core.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks/async_frontend.hpp>
