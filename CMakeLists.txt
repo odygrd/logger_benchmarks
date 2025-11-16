@@ -42,4 +42,13 @@ add_subdirectory(third_party/binlog)
 add_subdirectory(third_party/fmtlog)
 add_subdirectory(third_party/xtr)
 add_subdirectory(third_party/bqlog)
+
+# Boost.Log is optional - run setup_boost_simple.py to install it
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/boost/CMakeLists.txt")
+    message(STATUS "Boost.Log found - including in build")
+    add_subdirectory(third_party/boost)
+else ()
+    message(STATUS "Boost.Log not found - run './setup_boost_simple.py' to install it")
+endif ()
+
 add_subdirectory(benchmarks)

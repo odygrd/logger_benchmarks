@@ -33,3 +33,9 @@ target_link_libraries(BENCHMARK_bqlog_backend_total_time bqlog)
 
 add_executable(BENCHMARK_bqlog_binary_backend_total_time bqlog_binary_backend_total_time.cpp)
 target_link_libraries(BENCHMARK_bqlog_binary_backend_total_time bqlog)
+
+if (TARGET boost_log)
+    message(STATUS "Boost.Log benchmarks added to build")
+    add_executable(BENCHMARK_boost_log_backend_total_time boost_log_backend_total_time.cpp)
+    target_link_libraries(BENCHMARK_boost_log_backend_total_time boost_log)
+endif ()
