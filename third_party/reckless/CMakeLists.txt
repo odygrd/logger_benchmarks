@@ -1,51 +1,64 @@
-# library name
-set(TARGET_NAME reckless)
+if(NOT MSVC)
+    set(CMAKE_CXX_COMPILER_NAMES g++ clang++ icpc c++ cxx)
+endif()
+project(reckless LANGUAGES CXX)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
 
-# header files
-set(HEADER_FILES
-        detail/fd_writer.hpp
-        detail/spsc_event.hpp
-        detail/utility.hpp
-        detail/lockless_cv.hpp
-        detail/mpsc_ring_buffer.hpp
-        detail/trace_log.hpp
-        detail/platform.hpp
-        basic_log.hpp
-        crash_handler.hpp
-        file_writer.hpp
-        ntoa.hpp
-        output_buffer.hpp
-        policy_log.hpp
-        severity_log.hpp
-        stdout_writer.hpp
-        template_formatter.hpp
-        unit_test.hpp
-        writer.hpp
-        )
+################################################################################
+# Options
+################################################################################
 
-# source files
-set(SOURCE_FILES basic_log.cpp
-        crash_handler_unix.cpp
-        lockless_cv.cpp
-        mpsc_ring_buffer.cpp
-        platform.cpp
-        fd_writer.cpp
-        file_writer.cpp
-        ntoa.cpp
-        output_buffer.cpp
-        policy_log.cpp
-        trace_log.cpp
-        template_formatter.cpp
-        writer.cpp
-        )
+option(RECKLESS_BUILD_EXAMPLES "Build the examples" OFF)
 
-# Add as a library
-add_library(${TARGET_NAME} STATIC "")
+################################################################################
+# Add Flags
+################################################################################
+set(CMAKE_CXX_STANDARD 11)
+if(MSVC)
+    add_compile_options(/W4 /O3)
+else()
+    add_compile_options(-Wall -Wextra -O3 -g)
+endif()
 
-# Add target sources
-target_sources(${TARGET_NAME} PRIVATE ${SOURCE_FILES} ${HEADER_FILES})
+################################################################################
+# Build Libraries
+################################################################################
+include_directories("reckless/include")
+include_directories("performance_log/include")
 
-# Link dependencies
-target_link_libraries(${TARGET_NAME} PUBLIC Threads::Threads)
 
-target_include_directories(${TARGET_NAME} SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+set (SRC_LIST
+reckless/src/output_buffer.cpp
+reckless/src/ntoa.cpp
+reckless/src/template_formatter.cpp
+reckless/src/writer.cpp
+reckless/src/basic_log.cpp
+reckless/src/policy_log.cpp
+reckless/src/file_writer.cpp
+reckless/src/fd_writer.cpp
+reckless/src/mpsc_ring_buffer.cpp
+reckless/src/platform.cpp
+reckless/src/lockless_cv.cpp
+)
+
+if(WIN32)
+   set (SRC_LIST ${SRC_LIST}
+   reckless/src/spsc_event_win32.cpp
+   reckless/src/crash_handler_win32.cpp
+   )
+else()
+   set (SRC_LIST ${SRC_LIST}
+   reckless/src/crash_handler_unix.cpp
+   )
+endif()
+
+add_library(reckless STATIC ${SRC_LIST})
+
+################################################################################
+# Build Examples
+################################################################################
+if (RECKLESS_BUILD_EXAMPLES)
+    message (STATUS "Making example applications")
+    add_subdirectory(examples)
+endif ()
+

@@ -16,6 +16,8 @@
 
 QUILL_BEGIN_NAMESPACE
 
+QUILL_BEGIN_EXPORT
+
 /**
  * Captures and stores information about a logging event in compile time
  */
@@ -32,7 +34,11 @@ public:
     LogWithRuntimeMetadataDeepCopy,
     LogWithRuntimeMetadataHybridCopy,
     LogWithRuntimeMetadataShallowCopy,
-    LoggerRemovalRequest
+    LoggerRemovalRequest,
+    Metric,
+    MdcSet,
+    MdcErase,
+    MdcClear
   };
 
   constexpr MacroMetadata() = default;
@@ -58,6 +64,11 @@ public:
 
   QUILL_NODISCARD char const* line() const noexcept
   {
+    if (QUILL_UNLIKELY(_source_location[_colon_separator_pos] == '\0'))
+    {
+      return _source_location + _colon_separator_pos;
+    }
+
     return _source_location + _colon_separator_pos + 1;
   }
 
@@ -83,13 +94,13 @@ public:
 
   QUILL_NODISCARD constexpr bool has_named_args() const noexcept
   {
-    return _contains_named_args(_message_format);
+    return contains_named_args(_message_format);
   }
 
   QUILL_NODISCARD Event event() const noexcept { return _event; }
 
   /***/
-  QUILL_NODISCARD static constexpr bool _contains_named_args(std::string_view fmt) noexcept
+  QUILL_NODISCARD static constexpr bool contains_named_args(std::string_view fmt) noexcept
   {
     uint32_t pos{0};
     bool found_named_arg{false};
@@ -142,10 +153,11 @@ public:
           ++char_cnt;
         }
 
-        if ((char_cnt != 0) && ((fc >= 'a' && fc <= 'z') || (fc >= 'A' && fc <= 'Z')))
+        if ((char_cnt != 0) && ((fc >= 'a' && fc <= 'z') || (fc >= 'A' && fc <= 'Z') || (fc == '_')))
         {
           found_named_arg = true;
         }
+        continue;
       }
       ++pos;
     }
@@ -173,9 +185,22 @@ private:
   /***/
   QUILL_NODISCARD constexpr uint16_t _calc_colon_separator_pos() const noexcept
   {
-    std::string_view const source_loc{_source_location};
-    auto const separator_index = source_loc.rfind(':');
-    return static_cast<uint16_t>(separator_index);
+    // std::string_view::rfind is only constexpr from C++20
+    size_t length = 0;
+    while (_source_location[length] != '\0')
+    {
+      ++length;
+    }
+
+    for (size_t i = length; i > 0; --i)
+    {
+      if (_source_location[i - 1] == ':')
+      {
+        return static_cast<uint16_t>(i - 1);
+      }
+    }
+
+    return static_cast<uint16_t>(length);
   }
 
 private:
@@ -188,6 +213,8 @@ private:
   LogLevel _log_level{LogLevel::None};
   Event _event{Event::None};
 };
+
+QUILL_END_EXPORT
 
 static_assert(sizeof(MacroMetadata) <= detail::QUILL_CACHE_LINE_SIZE,
               "Size of MacroMetadata exceeds the cache line size");

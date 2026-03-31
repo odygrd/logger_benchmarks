@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 QUILL_BEGIN_NAMESPACE
@@ -21,8 +22,8 @@ namespace detail
 {
 
 #if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
-#pragma warning(push)
-#pragma warning(disable : 4324)
+  #pragma warning(push)
+  #pragma warning(disable : 4324)
 #endif
 
 /**
@@ -63,6 +64,13 @@ private:
   };
 
 public:
+  struct WriteReservation
+  {
+    std::byte* write_buffer{nullptr};
+    size_t writer_pos{0};
+    BoundedSPSCQueue* bounded_queue{nullptr};
+  };
+
   struct ReadResult
   {
     explicit ReadResult(std::byte* read_position) : read_pos(read_position) {}
@@ -125,6 +133,13 @@ public:
     return _handle_full_queue(nbytes);
   }
 
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT WriteReservation prepare_write_reserve_cached(size_t nbytes) noexcept
+  {
+    BoundedSPSCQueue* const bounded_queue = &_producer->bounded_queue;
+    auto const reservation = bounded_queue->prepare_write_reserve_cached(nbytes);
+    return WriteReservation{reservation.write_buffer, reservation.writer_pos, bounded_queue};
+  }
+
   /**
    * Complement to reserve producer space that makes nbytes starting
    * from the return of reserve producer space visible to the consumer.
@@ -146,6 +161,11 @@ public:
   {
     finish_write(nbytes);
     commit_write();
+  }
+
+  QUILL_ATTRIBUTE_HOT void finish_and_commit_write_reservation(size_t new_writer_pos) noexcept
+  {
+    _producer->bounded_queue.finish_and_commit_write_reservation(new_writer_pos);
   }
 
   /**
@@ -184,7 +204,6 @@ public:
 
   /**
    * Prepare to read from the buffer
-   * @error_notifier a callback used for notifications to the user
    * @return first: pointer to buffer or nullptr, second: a pair of new_capacity, previous_capacity if an allocation
    */
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT ReadResult prepare_read()
@@ -244,10 +263,19 @@ private:
   QUILL_NODISCARD std::byte* _handle_full_queue(size_t nbytes)
   {
     // Then it means the queue doesn't have enough size
-    size_t capacity = _producer->bounded_queue.capacity() * 2ull;
+    size_t capacity = _producer->bounded_queue.capacity();
+
+    capacity = (capacity > ((SIZE_MAX / 2ull))) ? _max_capacity : capacity * 2ull;
+
     while (capacity < nbytes)
     {
-      capacity = capacity * 2ull;
+      if (QUILL_UNLIKELY(capacity > ((SIZE_MAX / 2ull))))
+      {
+        capacity = _max_capacity;
+        break;
+      }
+
+      capacity *= 2ull;
     }
 
     if (QUILL_UNLIKELY(capacity > _max_capacity))
@@ -337,7 +365,7 @@ private:
 };
 
 #if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
-#pragma warning(pop)
+  #pragma warning(pop)
 #endif
 
 } // namespace detail

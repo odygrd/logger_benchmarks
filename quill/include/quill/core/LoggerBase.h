@@ -21,9 +21,13 @@
 QUILL_BEGIN_NAMESPACE
 
 /** Forward Declarations **/
+QUILL_BEGIN_EXPORT
+
 class Sink;
 class PatternFormatter;
 class UserClockSource;
+
+QUILL_END_EXPORT
 
 namespace detail
 {
@@ -44,12 +48,13 @@ public:
       _clock_source(clock_source),
       _pattern_formatter_options(static_cast<PatternFormatterOptions&&>(pattern_formatter_options))
   {
-#if defined(QUILL_ENABLE_ASSERTIONS) || !defined(NDEBUG)
     for (auto const& sink : sinks)
     {
-      QUILL_ASSERT(sink, "sink pointer is nullptr in LoggerBase constructor");
+      if (QUILL_UNLIKELY(!sink))
+      {
+        QUILL_THROW(QuillError{"sink pointer is nullptr in LoggerBase constructor"});
+      }
     }
-#endif
 
     this->_sinks = static_cast<std::vector<std::shared_ptr<Sink>>&&>(sinks);
   }
@@ -117,7 +122,15 @@ public:
    */
   QUILL_NODISCARD LogLevel get_log_level() const noexcept
   {
-    return _log_level.load(std::memory_order_relaxed);
+    auto const* self = this;
+
+#if defined(__GNUC__) && !defined(__clang__)
+    // GCC warns about potential null pointer access when logger might be
+    // uninitialized during LTO analysis
+    asm volatile("" : "+r"(self) : : "memory");
+#endif
+
+    return self->_log_level.load(std::memory_order_relaxed);
   }
 
   /**
@@ -175,23 +188,37 @@ public:
     return log_statement_level >= get_log_level();
   }
 
+  /***/
+  QUILL_NODISCARD static bool is_current_thread_backend_thread() noexcept
+  {
+    return _is_backend_thread;
+  }
+
 protected:
   friend class BackendWorker;
   friend class LoggerManager;
 
+  /***/
+  static void set_current_thread_is_backend_thread(bool value) noexcept
+  {
+    _is_backend_thread = value;
+  }
+
   static inline QUILL_THREAD_LOCAL ThreadContext* _thread_context = nullptr; /* Set and accessed by the frontend */
+  static inline QUILL_THREAD_LOCAL bool _is_backend_thread{false}; /* Set and read by the current thread */
 
   // -- frontend access BEGIN --
   std::string _logger_name; /* Set by the frontend once, accessed by the frontend AND backend */
   UserClockSource* _user_clock{nullptr}; /* A non-owned pointer to a custom timestamp clock, valid only when provided. used by frontend only */
   std::atomic<uint32_t> _message_flush_threshold{0};   /* used by frontend only */
   std::atomic<uint32_t> _messages_since_last_flush{0}; /* used by frontend only */
-  ClockSourceType _clock_source; /* Set by the frontend and accessed by the frontend AND backend */
+  ClockSourceType const _clock_source; /* Set once during construction and accessed by the frontend AND backend */
   std::atomic<LogLevel> _log_level{LogLevel::Info}; /* used by frontend only */
   std::atomic<LogLevel> _backtrace_flush_level{LogLevel::None}; /** Updated by the frontend at any time, accessed by the backend */
   std::atomic<bool> _valid{true}; /* Updated by the frontend at any time, accessed by the backend */
   // -- frontend access END --
 
+  // -- backend access BEGIN (immutable after construction, no false sharing concern) --
   PatternFormatterOptions _pattern_formatter_options; /* Set by the frontend once and accessed by the backend to initialise PatternFormatter */
   std::vector<std::shared_ptr<Sink>> _sinks; /* Set by the frontend once and accessed by the backend */
   std::shared_ptr<PatternFormatter> _pattern_formatter; /* The backend thread will set this once, we never access it on the frontend */

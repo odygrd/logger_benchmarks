@@ -26,8 +26,8 @@ namespace detail
 {
 
 #if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
-#pragma warning(push)
-#pragma warning(disable : 4324)
+  #pragma warning(push)
+  #pragma warning(disable : 4324)
 #endif
 
 /**
@@ -42,7 +42,7 @@ public:
   class RdtscTicks
   {
   public:
-    QUILL_NODISCARD static RdtscTicks& instance()
+    QUILL_NODISCARD QUILL_EXPORT static RdtscTicks& instance()
     {
       static RdtscTicks inst;
       return inst;
@@ -57,12 +57,19 @@ public:
      */
     RdtscTicks()
     {
+#if defined(__aarch64__)
+      // On AArch64 the generic timer frequency is exposed directly
+      uint64_t freq;
+      __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+      // freq is typically exactly 24000000, 50000000, or 1000000000 depending on the SoC
+      _ns_per_tick = 1e9 / static_cast<double>(freq);
+#else
       // Convert rdtsc to wall time.
       // 1. Get real time and rdtsc current count
       // 2. Calculate how many rdtsc ticks can occur in one
       // calculate _ticks_per_ns as the median over a number of observations
       // we use always odd number of trials for easy median calc
-      constexpr std::chrono::milliseconds spin_duration = std::chrono::milliseconds{10};
+      constexpr uint64_t spin_duration_ns = 10ull * 1'000'000ull; // 10 ms
       constexpr size_t max_trials = 15;
       constexpr size_t min_trials = 3;
       constexpr double convergence_threshold = 0.01; // 1% threshold
@@ -74,19 +81,19 @@ public:
 
       for (size_t i = 0; i < max_trials; ++i)
       {
-        auto const beg_ts = detail::get_timestamp<std::chrono::steady_clock>();
+        uint64_t const beg_ts = detail::get_steady_time_ns();
         uint64_t const beg_tsc = rdtsc();
         uint64_t end_tsc;
-        std::chrono::nanoseconds elapsed_ns;
+        uint64_t elapsed_ns;
 
         do
         {
-          auto const end_ts = detail::get_timestamp<std::chrono::steady_clock>();
+          uint64_t const end_ts = detail::get_steady_time_ns();
           end_tsc = rdtsc();
           elapsed_ns = end_ts - beg_ts;
-        } while (elapsed_ns < spin_duration);
+        } while (elapsed_ns < spin_duration_ns);
 
-        rates.push_back(static_cast<double>(end_tsc - beg_tsc) / static_cast<double>(elapsed_ns.count()));
+        rates.push_back(static_cast<double>(end_tsc - beg_tsc) / static_cast<double>(elapsed_ns));
 
         // Check for convergence after minimum trials and only on an odd count of trials.
         if (((i + 1) >= min_trials) && (((i + 1) % 2) != 0))
@@ -110,6 +117,7 @@ public:
 
       double const ticks_per_ns = rates[rates.size() / 2];
       _ns_per_tick = 1 / ticks_per_ns;
+#endif
     }
 
     double _ns_per_tick{0};
@@ -119,7 +127,7 @@ public:
   explicit RdtscClock(std::chrono::nanoseconds resync_interval)
     : _ns_per_tick(RdtscTicks::instance().ns_per_tick())
   {
-    double const calc_value = static_cast<double>(resync_interval.count()) * _ns_per_tick;
+    double const calc_value = static_cast<double>(resync_interval.count()) / _ns_per_tick;
 
     // Check for overflow and negative values
     if (calc_value >= static_cast<double>(std::numeric_limits<int64_t>::max()) || calc_value < 0)
@@ -148,17 +156,21 @@ public:
   {
     // should only get called by the backend thread
 
-    // get the current index, this is only sef called my the thread that is doing the resync
+    // get the current index, this is only safe to call from the thread that is doing the resync
     auto const index = _version.load(std::memory_order_relaxed) & (_base.size() - 1);
 
-    // get rdtsc current value and compare the diff then add it to base wall time
+    // Unsigned subtraction + int64_t cast: a stale rdtsc_value yields a small negative
+    // diff, producing a wall time slightly in the past. This is intentional.
     auto diff = static_cast<int64_t>(rdtsc_value - _base[index].base_tsc);
 
     // we need to sync after we calculated otherwise base_tsc value will be ahead of passed tsc value
     if (diff > _resync_interval_ticks)
     {
       resync(resync_lag_cycles);
-      diff = static_cast<int64_t>(rdtsc_value - _base[index].base_tsc);
+      auto const resynced_index = _version.load(std::memory_order_relaxed) & (_base.size() - 1);
+      diff = static_cast<int64_t>(rdtsc_value - _base[resynced_index].base_tsc);
+      return static_cast<uint64_t>(_base[resynced_index].base_time +
+                                   static_cast<int64_t>(static_cast<double>(diff) * _ns_per_tick));
     }
 
     return static_cast<uint64_t>(_base[index].base_time +
@@ -202,7 +214,7 @@ public:
     {
       uint64_t const beg = rdtsc();
       // we force convert to nanoseconds because the precision of system_clock::time-point is not portable across platforms.
-      auto const wall_time = static_cast<int64_t>(detail::get_timestamp_ns<std::chrono::system_clock>());
+      auto const wall_time = static_cast<int64_t>(detail::get_system_time_ns());
       uint64_t const end = rdtsc();
 
       if (QUILL_LIKELY(end - beg <= lag))
@@ -232,7 +244,7 @@ public:
   /***/
   double nanoseconds_per_tick() const noexcept { return _ns_per_tick; }
 
-private:
+protected:
   struct BaseTimeTsc
   {
     BaseTimeTsc() = default;
@@ -246,8 +258,8 @@ private:
     return (x & y) + ((x ^ y) >> 1);
   }
 
-private:
-  static constexpr uint32_t resync_lag_cycles {50'000};
+protected:
+  static constexpr uint32_t resync_lag_cycles{50'000};
   mutable int64_t _resync_interval_ticks{0};
   int64_t _resync_interval_original{0}; /**< stores the initial interval value as as if we fail to resync we increase the timer */
   double _ns_per_tick{0};
@@ -257,7 +269,7 @@ private:
 };
 
 #if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
-#pragma warning(pop)
+  #pragma warning(pop)
 #endif
 
 } // namespace detail

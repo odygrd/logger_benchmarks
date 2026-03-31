@@ -1,41 +1,37 @@
 add_executable(BENCHMARK_quill_backend_total_time quill_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_quill_backend_total_time quill)
+target_link_libraries(BENCHMARK_quill_backend_total_time quill fmt::fmt)
 
 add_executable(BENCHMARK_quill_with_functions_backend_total_time quill_with_functions_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_quill_with_functions_backend_total_time quill)
+target_link_libraries(BENCHMARK_quill_with_functions_backend_total_time quill fmt::fmt)
 
 add_executable(BENCHMARK_fmtlog_backend_total_time fmtlog_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_fmtlog_backend_total_time fmtlog)
+target_link_libraries(BENCHMARK_fmtlog_backend_total_time fmtlog fmt::fmt)
 
-include_directories(${CMAKE_SOURCE_DIR}/third_party)
 add_executable(BENCHMARK_spdlog_backend_total_time spdlog_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_spdlog_backend_total_time)
+target_link_libraries(BENCHMARK_spdlog_backend_total_time spdlog fmt::fmt Threads::Threads)
 
 add_executable(BENCHMARK_xtr_backend_total_time xtr_backend_total_time.cpp)
 #find_package(PkgConfig REQUIRED)
 #pkg_check_modules(LIBURING REQUIRED liburing)
-target_link_libraries(BENCHMARK_xtr_backend_total_time xtr Threads::Threads ${LIBURING_LIBRARIES})
+target_link_libraries(BENCHMARK_xtr_backend_total_time xtr fmt::fmt Threads::Threads ${LIBURING_LIBRARIES})
 
 add_executable(BENCHMARK_ms_binlog_backend_total_time ms_binlog_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_ms_binlog_backend_total_time binlog)
+target_link_libraries(BENCHMARK_ms_binlog_backend_total_time binlog fmt::fmt)
 
 add_executable(BENCHMARK_reckless_backend_total_time reckless_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_reckless_backend_total_time reckless)
+target_link_libraries(BENCHMARK_reckless_backend_total_time reckless fmt::fmt)
 
 add_executable(BENCHMARK_iyengar_nanolog_backend_total_time iyengar_nanolog_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_iyengar_nanolog_backend_total_time IyengarNanoLog)
+target_link_libraries(BENCHMARK_iyengar_nanolog_backend_total_time IyengarNanoLog fmt::fmt)
 
 add_executable(BENCHMARK_nanolog_backend_total_time nanolog_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_nanolog_backend_total_time platformlab_nanolog)
+target_link_libraries(BENCHMARK_nanolog_backend_total_time platformlab_nanolog fmt::fmt)
 
 add_executable(BENCHMARK_bqlog_backend_total_time bqlog_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_bqlog_backend_total_time bqlog)
+target_link_libraries(BENCHMARK_bqlog_backend_total_time bqlog fmt::fmt)
 
 add_executable(BENCHMARK_bqlog_binary_backend_total_time bqlog_binary_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_bqlog_binary_backend_total_time bqlog)
+target_link_libraries(BENCHMARK_bqlog_binary_backend_total_time bqlog fmt::fmt)
 
-if (TARGET boost_log)
-    message(STATUS "Boost.Log benchmarks added to build")
-    add_executable(BENCHMARK_boost_log_backend_total_time boost_log_backend_total_time.cpp)
-    target_link_libraries(BENCHMARK_boost_log_backend_total_time boost_log)
-endif ()
+add_executable(BENCHMARK_boost_log_backend_total_time boost_log_backend_total_time.cpp)
+target_link_libraries(BENCHMARK_boost_log_backend_total_time boost_log fmt::fmt)

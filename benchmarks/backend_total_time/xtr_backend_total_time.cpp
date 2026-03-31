@@ -1,6 +1,7 @@
 #define FMT_HEADER_ONLY
 #define XTR_USE_IO_URING 0
 
+#include "fmt/format.h"
 #include "xtr/logger.hpp"
 
 #include <atomic>

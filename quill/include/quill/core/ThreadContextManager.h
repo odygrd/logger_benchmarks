@@ -29,13 +29,14 @@ namespace detail
 {
 
 #if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
-#pragma warning(push)
-#pragma warning(disable : 4324)
+  #pragma warning(push)
+  #pragma warning(disable : 4324)
 #endif
 
 /** Forward Declarations **/
 class TransitEventBuffer;
 class BackendWorker;
+class BackendMdcState;
 
 #if defined(__GNUC__) || defined(__clang__) || defined(__MINGW32__)
   #pragma GCC diagnostic push
@@ -179,10 +180,15 @@ public:
   QUILL_NODISCARD std::string_view thread_name() const noexcept { return _thread_name; }
 
   /***/
-  void mark_invalid() noexcept { _valid.store(false, std::memory_order_relaxed); }
+  void mark_invalid() noexcept
+  {
+    // Publish thread teardown after any final queue updates so the backend can safely
+    // treat `!is_valid()` as the start of the final drain-and-remove sequence.
+    _valid.store(false, std::memory_order_release);
+  }
 
   /***/
-  QUILL_NODISCARD bool is_valid() const noexcept { return _valid.load(std::memory_order_relaxed); }
+  QUILL_NODISCARD bool is_valid() const noexcept { return _valid.load(std::memory_order_acquire); }
 
   /***/
   void increment_failure_counter() noexcept
@@ -208,6 +214,7 @@ private:
   std::string _thread_id = std::to_string(get_thread_id());  /**< cached thread pid */
   std::string _thread_name = get_thread_name();              /**< cached thread name */
   std::shared_ptr<TransitEventBuffer> _transit_event_buffer; /**< backend thread buffer. this could be unique_ptr but it is shared_ptr because of the forward declaration */
+  std::shared_ptr<BackendMdcState> _backend_mdc_state; /**< backend-owned MDC state. shared_ptr keeps the forward declaration lightweight */
   QueueType _queue_type;
   std::atomic<bool> _valid{true}; /**< is this context valid, set by the frontend, read by the backend thread */
   alignas(QUILL_CACHE_LINE_ALIGNED) std::atomic<size_t> _failure_counter{0};
@@ -242,9 +249,8 @@ public:
   /***/
   void register_thread_context(std::shared_ptr<ThreadContext> const& thread_context)
   {
-    _spinlock.lock();
+    LockGuard const lock{_spinlock};
     _thread_contexts.push_back(thread_context);
-    _spinlock.unlock();
     _new_thread_context_flag.store(true, std::memory_order_release);
   }
 
@@ -257,9 +263,9 @@ public:
   /***/
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT bool has_invalid_thread_context() const noexcept
   {
-    // Here we do relaxed because if the value is not zero we will look inside ThreadContext invalid
-    // flag that is also a relaxed atomic, and then we will look into the SPSC queue size that is
-    // also atomic Even if we don't read everything in order we will check again in the next circle
+    // Relaxed is sufficient here: a non-zero count just tells the backend to check
+    // individual ThreadContext validity flags (which use acquire ordering) and drain
+    // their queues. If we miss an update we will recheck on the next iteration
     return _invalid_thread_context_count.load(std::memory_order_relaxed) != 0;
   }
 
@@ -323,6 +329,9 @@ public:
     _thread_contexts.erase(thread_context_it);
 
     // Decrement the counter since we found something to
+    QUILL_ASSERT(_invalid_thread_context_count.load(std::memory_order_relaxed) != 0,
+                 "_invalid_thread_context_count underflow in "
+                 "ThreadContextManager::unregister_thread_context()");
     _invalid_thread_context_count.fetch_sub(1, std::memory_order_relaxed);
   }
 
@@ -334,7 +343,7 @@ private:
   std::vector<std::shared_ptr<ThreadContext>> _thread_contexts; /**< The registered contexts */
   Spinlock _spinlock; /**< Protect access when register contexts or removing contexts */
   std::atomic<bool> _new_thread_context_flag{false};
-  std::atomic<uint8_t> _invalid_thread_context_count{0};
+  std::atomic<uint32_t> _invalid_thread_context_count{0};
 };
 
 class ScopedThreadContext
@@ -398,19 +407,31 @@ private:
   std::shared_ptr<ThreadContext> _thread_context;
 };
 
-/***/
-template <typename TFrontendOptions>
-QUILL_NODISCARD QUILL_ATTRIBUTE_HOT ThreadContext* get_local_thread_context() noexcept
+/**
+ * Non-template implementation that owns the thread local context. This ensures that when building
+ * with shared libraries, the thread-local context is shared accross all shared libraries
+ */
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT QUILL_EXPORT inline ThreadContext* get_scoped_thread_context_impl(
+  QueueType queue_type, size_t initial_queue_capacity, size_t unbounded_queue_max_capacity,
+  HugePagesPolicy huge_pages_policy)
 {
   thread_local ScopedThreadContext scoped_thread_context{
-    TFrontendOptions::queue_type, TFrontendOptions::initial_queue_capacity,
-    TFrontendOptions::unbounded_queue_max_capacity, TFrontendOptions::huge_pages_policy};
+    queue_type, initial_queue_capacity, unbounded_queue_max_capacity, huge_pages_policy};
 
   return scoped_thread_context.get_thread_context();
 }
 
+/***/
+template <typename TFrontendOptions>
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT ThreadContext* get_local_thread_context()
+{
+  return get_scoped_thread_context_impl(
+    TFrontendOptions::queue_type, TFrontendOptions::initial_queue_capacity,
+    TFrontendOptions::unbounded_queue_max_capacity, TFrontendOptions::huge_pages_policy);
+}
+
 #if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
-#pragma warning(pop)
+  #pragma warning(pop)
 #endif
 
 } // namespace detail

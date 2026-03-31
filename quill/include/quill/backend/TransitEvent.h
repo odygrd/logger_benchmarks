@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 QUILL_BEGIN_NAMESPACE
@@ -52,8 +53,10 @@ struct TransitEvent
       logger_base(other.logger_base),
       formatted_msg(std::move(other.formatted_msg)),
       extra_data(std::move(other.extra_data)),
-      flush_flag(other.flush_flag)
+      event_payload(std::move(other.event_payload))
   {
+    other.event_payload = std::monostate{};
+
     // Update macro_metadata pointer if it was pointing to runtime_metadata
     if (extra_data && extra_data->runtime_metadata.has_runtime_metadata)
     {
@@ -72,13 +75,14 @@ struct TransitEvent
       logger_base = other.logger_base;
       formatted_msg = std::move(other.formatted_msg);
       extra_data = std::move(other.extra_data);
-      flush_flag = other.flush_flag;
-    }
+      event_payload = std::move(other.event_payload);
+      other.event_payload = std::monostate{};
 
-    if (extra_data && extra_data->runtime_metadata.has_runtime_metadata)
-    {
-      // Point to our own runtime_metadata instead of the moved-from object's
-      macro_metadata = &extra_data->runtime_metadata.macro_metadata;
+      if (extra_data && extra_data->runtime_metadata.has_runtime_metadata)
+      {
+        // Point to our own runtime_metadata instead of the moved-from object's
+        macro_metadata = &extra_data->runtime_metadata.macro_metadata;
+      }
     }
 
     return *this;
@@ -90,7 +94,7 @@ struct TransitEvent
     other.timestamp = timestamp;
     other.macro_metadata = macro_metadata;
     other.logger_base = logger_base;
-    other.flush_flag = flush_flag;
+    other.event_payload = event_payload;
 
     // manually copy the fmt::buffer
     other.formatted_msg->clear();
@@ -118,11 +122,24 @@ struct TransitEvent
   /***/
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::vector<std::pair<std::string, std::string>>* get_named_args() const noexcept
   {
-    return extra_data ? &extra_data->named_args : nullptr;
+    // TransitEvents are pooled, so `extra_data` may have been allocated by a previous log on
+    // this slot
+    if (!extra_data || !macro_metadata || !macro_metadata->has_named_args())
+    {
+      return nullptr;
+    }
+
+    return &extra_data->named_args;
   }
 
   /***/
-  QUILL_ATTRIBUTE_HOT void ensure_extra_data() noexcept
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::string_view mdc() const noexcept
+  {
+    return extra_data ? extra_data->mdc : std::string_view{};
+  }
+
+  /***/
+  QUILL_ATTRIBUTE_HOT void ensure_extra_data()
   {
     if (extra_data)
     {
@@ -132,16 +149,47 @@ struct TransitEvent
     extra_data = std::make_unique<ExtraData>();
   }
 
+  QUILL_ATTRIBUTE_HOT void set_flush_flag(std::atomic<bool>* flush_flag_ptr) noexcept
+  {
+    event_payload = flush_flag_ptr;
+  }
+
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::atomic<bool>* flush_flag() const noexcept
+  {
+    QUILL_ASSERT(std::holds_alternative<std::atomic<bool>*>(event_payload),
+                 "Attempted to read a flush flag from a TransitEvent with a non-flush payload");
+    std::atomic<bool>* const flush_flag_ptr = std::get<std::atomic<bool>*>(event_payload);
+    QUILL_ASSERT(flush_flag_ptr != nullptr,
+                 "Attempted to read a null flush flag from a TransitEvent");
+    return flush_flag_ptr;
+  }
+
+  QUILL_ATTRIBUTE_HOT void set_metric_value(double value) noexcept { event_payload = value; }
+
+  QUILL_ATTRIBUTE_HOT void reset_payload() noexcept { event_payload = std::monostate{}; }
+
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT bool has_metric_value() const noexcept
+  {
+    return std::holds_alternative<double>(event_payload);
+  }
+
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT double metric_value() const noexcept
+  {
+    QUILL_ASSERT(has_metric_value(),
+                 "Attempted to read a metric value from a TransitEvent without one");
+    return std::get<double>(event_payload);
+  }
+
   struct RuntimeMetadata
   {
     RuntimeMetadata() = default;
 
     RuntimeMetadata(char const* file, uint32_t line, char const* function, char const* in_tags,
                     char const* in_fmt, LogLevel log_level)
-      : fmt(in_fmt),
+      : fmt(_safe_string(in_fmt)),
         source_location(_format_file_location(file, line)),
-        function_name(function),
-        tags(in_tags),
+        function_name(_safe_string(function)),
+        tags(_safe_string(in_tags)),
         macro_metadata(source_location.data(), function_name.data(), fmt.data(),
                        tags.empty() ? nullptr : tags.data(), log_level, MacroMetadata::Event::Log),
         has_runtime_metadata(true)
@@ -190,6 +238,11 @@ struct TransitEvent
     bool has_runtime_metadata{false};
 
   private:
+    QUILL_NODISCARD static char const* _safe_string(char const* value) noexcept
+    {
+      return value ? value : "";
+    }
+
     QUILL_NODISCARD static std::string _format_file_location(char const* file, uint32_t line)
     {
       if (!file || (file[0] == '\0' && line == 0))
@@ -207,6 +260,7 @@ struct TransitEvent
     // Additional fields that are used for some features as a separate structure to keep
     // TransitEvent size smaller for the main scenarios
     std::vector<std::pair<std::string, std::string>> named_args;
+    std::string mdc;
     RuntimeMetadata runtime_metadata;
   };
 
@@ -215,7 +269,8 @@ struct TransitEvent
   LoggerBase* logger_base{nullptr};
   std::unique_ptr<FormatBuffer> formatted_msg{std::make_unique<FormatBuffer>()}; /** buffer for message **/
   std::unique_ptr<ExtraData> extra_data; /** A unique ptr to save space as these fields not always used */
-  std::atomic<bool>* flush_flag{nullptr}; /** This is only used in the case of Event::Flush **/
+  std::variant<std::monostate, std::atomic<bool>*, double> event_payload{
+    std::monostate{}}; /** This is only used in the case of Event::Flush or Event::Metric **/
 };
 } // namespace detail
 

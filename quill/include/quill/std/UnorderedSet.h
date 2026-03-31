@@ -16,13 +16,30 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#if defined(_WIN32)
+  #include <string>
+  #include <string_view>
+#endif
+
 QUILL_BEGIN_NAMESPACE
 
+QUILL_BEGIN_EXPORT
+
+/**
+ * @note compute_encoded_size() and encode() iterate the container twice in immediate succession
+ *       on the frontend hot path, and their traversals must visit the same elements in the same
+ *       order. For std::unordered_set / std::unordered_multiset the iteration order is determined
+ *       by `Hash(key) % bucket_count`; with the default std::hash this is stable across both
+ *       passes because no insert, erase, or rehash happens between them. Non-deterministic custom
+ *       hashes (e.g. salted or time-seeded) are not supported — they can change iteration order
+ *       between the two passes and silently corrupt the encoded payload.
+ */
 template <template <typename...> class UnorderedSetType, typename Key, typename Hash, typename KeyEqual, typename Allocator>
 struct Codec<UnorderedSetType<Key, Hash, KeyEqual, Allocator>,
              std::enable_if_t<std::disjunction_v<
@@ -30,7 +47,7 @@ struct Codec<UnorderedSetType<Key, Hash, KeyEqual, Allocator>,
                std::is_same<UnorderedSetType<Key, Hash, KeyEqual, Allocator>, std::unordered_multiset<Key, Hash, KeyEqual, Allocator>>>>>
 {
   static size_t compute_encoded_size(detail::SizeCacheVector& conditional_arg_size_cache,
-                                     UnorderedSetType<Key, Hash, KeyEqual, Allocator> const& arg) noexcept
+                                     UnorderedSetType<Key, Hash, KeyEqual, Allocator> const& arg)
   {
     // We need to store the size of the set in the buffer, so we reserve space for it.
     // We add sizeof(size_t) bytes to accommodate the size information.
@@ -47,6 +64,8 @@ struct Codec<UnorderedSetType<Key, Hash, KeyEqual, Allocator>,
       // For other complex types it's essential to determine the exact size of each element.
       // For instance, in the case of a collection of std::string, we need to know the exact size
       // of each string as we will be copying them directly to our queue buffer.
+      // Any nested codec sizes pushed into conditional_arg_size_cache are consumed in encode()
+      // by iterating this same container instance again without mutation.
       for (auto const& elem : arg)
       {
         total_size += Codec<Key>::compute_encoded_size(conditional_arg_size_cache, elem);
@@ -58,25 +77,17 @@ struct Codec<UnorderedSetType<Key, Hash, KeyEqual, Allocator>,
 
   template <typename Arg>
   static void encode(std::byte*& buffer, detail::SizeCacheVector const& conditional_arg_size_cache,
-                     uint32_t& conditional_arg_size_cache_index, Arg&& arg) noexcept
+                     uint32_t& conditional_arg_size_cache_index, Arg&& arg)
   {
     Codec<size_t>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, arg.size());
 
-    // Forward elements based on whether the container was passed as rvalue
-    if constexpr (std::is_rvalue_reference_v<Arg&&>)
+    // This traversal must mirror compute_encoded_size(). For unordered containers that relies on
+    // iterating the same container instance without mutation or rehashing between the two passes.
+    // std::unordered_set elements are always const (key is the value), so moving is not possible.
+    // We always encode by const reference regardless of the container's value category.
+    for (auto const& elem : arg)
     {
-      for (auto&& elem : arg)
-      {
-        Codec<Key>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index,
-                           std::move(elem));
-      }
-    }
-    else
-    {
-      for (auto const& elem : arg)
-      {
-        Codec<Key>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, elem);
-      }
+      Codec<Key>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, elem);
     }
   }
 
@@ -142,5 +153,7 @@ struct Codec<UnorderedSetType<Key, Hash, KeyEqual, Allocator>,
     args_store->push_back(decode_arg(buffer));
   }
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

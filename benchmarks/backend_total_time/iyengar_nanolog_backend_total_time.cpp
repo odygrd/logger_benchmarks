@@ -1,5 +1,5 @@
 #include "Iyengar_NanoLog/NanoLog.hpp"
-#include "spdlog/fmt/fmt.h"
+#include "fmt/format.h"
 #include <atomic>
 #include <fstream>
 #include <iostream>
@@ -29,17 +29,17 @@ int main()
   // Guaranteed nano log.
   nanolog::initialize(nanolog::GuaranteedLogger(), "./", log_file.c_str(), 10 * 1024 /* 10GB */);
 
-  IY_LOG_CRIT << "Warm up";
+  LOG_CRIT << "Warm up";
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // start counting the time until backend worker finishes
   auto const start_time = std::chrono::steady_clock::now();
   for (size_t iteration = 0; iteration < total_iterations; ++iteration)
   {
-    IY_LOG_INFO << "Iteration: " << iteration << " int: " << iteration * 2
-                << " double: " << static_cast<double>(iteration) / 2;
+    LOG_INFO << "Iteration: " << iteration << " int: " << iteration * 2
+             << " double: " << static_cast<double>(iteration) / 2;
   }
-  IY_LOG_CRIT << "End";
+  LOG_CRIT << "End";
 
   auto const end_time = std::chrono::steady_clock::now();
   auto const delta = end_time - start_time;

@@ -55,15 +55,15 @@ public:
     _timestamp_format = std::move(timestamp_format);
     _time_zone = timezone;
 
-    if (_timestamp_format.find("%X") != std::string::npos)
+    if (_find_unescaped_modifier(_timestamp_format, "%X") != std::string::npos)
     {
       QUILL_THROW(QuillError("`%X` as format modifier is not currently supported in format: " + _timestamp_format));
     }
 
     // We first look for some special format modifiers and replace them
-    _replace_all(_timestamp_format, "%r", "%I:%M:%S %p");
-    _replace_all(_timestamp_format, "%R", "%H:%M");
-    _replace_all(_timestamp_format, "%T", "%H:%M:%S");
+    _replace_unescaped_modifier(_timestamp_format, "%r", "%I:%M:%S %p");
+    _replace_unescaped_modifier(_timestamp_format, "%R", "%H:%M");
+    _replace_unescaped_modifier(_timestamp_format, "%T", "%H:%M:%S");
 
     // Populate the initial parts that we will use to generate a pre-formatted string
     _populate_initial_parts(_timestamp_format);
@@ -129,10 +129,31 @@ public:
     // cache this timestamp
     _cached_timestamp = timestamp;
 
+    if (QUILL_UNLIKELY(_cached_epoch_seconds_width != 0))
+    {
+      size_t const epoch_seconds_width = _decimal_width(_cached_timestamp);
+      if (epoch_seconds_width != _cached_epoch_seconds_width)
+      {
+        _next_recalculation_timestamp = 0;
+        return format_timestamp(timestamp);
+      }
+    }
+
     // Add the timestamp_diff to the cached seconds and calculate the new hours minutes seconds.
     // Note: cached_seconds could be in gmtime or localtime but we don't care as we are just
     // adding the difference.
     _cached_seconds += static_cast<uint32_t>(timestamp_diff);
+
+    if (QUILL_UNLIKELY(_cached_seconds >= 86400))
+    {
+      // This is purely defensive
+      // - GMT mode: recalc boundaries align exactly with midnight/noon, so _cached_seconds can never exceed 86399 in the incremental path
+      // - LocalTime mode: triggerable on machines in non-UTC-aligned timezones, or during DST transitions
+
+      // Force a full recalculation
+      _next_recalculation_timestamp = 0;
+      return format_timestamp(timestamp);
+    }
 
     uint32_t total_seconds = _cached_seconds;
     uint32_t const hours = total_seconds / 3600;
@@ -195,8 +216,7 @@ public:
         }
         break;
       case format_type::s:
-        // Timestamp in seconds always changes
-        fmtquill::format_to(&_pre_formatted_ts[index.first], "{:10}", _cached_timestamp);
+        fmtquill::format_to(&_pre_formatted_ts[index.first], "{}", _cached_timestamp);
         break;
       default:
         abort();
@@ -204,6 +224,37 @@ public:
     }
 
     return _pre_formatted_ts;
+  }
+
+  /***/
+  QUILL_NODISCARD static size_t _find_unescaped_modifier(std::string const& timestamp_format,
+                                                         std::string const& modifier) noexcept
+  {
+    size_t search_pos = 0;
+    while ((search_pos = timestamp_format.find(modifier, search_pos)) != std::string::npos)
+    {
+      if (!_is_escaped_percent(timestamp_format, search_pos))
+      {
+        return search_pos;
+      }
+
+      ++search_pos;
+    }
+
+    return std::string::npos;
+  }
+
+  /***/
+  QUILL_NODISCARD static bool _is_escaped_percent(std::string const& timestamp_format, size_t percent_pos) noexcept
+  {
+    size_t preceding_percent_count = 0;
+    while ((percent_pos > preceding_percent_count) &&
+           (timestamp_format[percent_pos - preceding_percent_count - 1] == '%'))
+    {
+      ++preceding_percent_count;
+    }
+
+    return (preceding_percent_count % 2u) != 0u;
   }
 
 protected:
@@ -282,7 +333,10 @@ protected:
     for (auto const& format_part : _initial_parts)
     {
       // We call strftime on each part of the timestamp to format it.
-      _pre_formatted_ts += _safe_strftime(format_part.data(), _cached_timestamp, _time_zone).data();
+      std::vector<char> const formatted_part = _safe_strftime(format_part.data(), _cached_timestamp, _time_zone);
+      std::string_view const formatted_part_sv{formatted_part.data()};
+      size_t const formatted_part_size = formatted_part_sv.size();
+      _pre_formatted_ts.append(formatted_part_sv);
 
       // If we formatted and appended to the string a time modifier also store the
       // current index in the string
@@ -312,13 +366,14 @@ protected:
       }
       else if (format_part == "%s")
       {
-        _cached_indexes.emplace_back(_pre_formatted_ts.size() - 10, format_type::s);
+        _cached_indexes.emplace_back(_pre_formatted_ts.size() - formatted_part_size, format_type::s);
+        _cached_epoch_seconds_width = formatted_part_size;
       }
     }
   }
 
   /***/
-  std::pair<std::string, std::string> static _split_timestamp_format_once(std::string& timestamp_format) noexcept
+  std::pair<std::string, std::string> static _split_timestamp_format_once(std::string& timestamp_format)
   {
     // don't make this static as it breaks on windows with atexit when backend worker stops
     std::array<std::string, 7> const modifiers{"%H", "%M", "%S", "%I", "%k", "%l", "%s"};
@@ -331,7 +386,7 @@ protected:
 
     for (auto const& modifier : modifiers)
     {
-      if (auto const search = timestamp_format.find(modifier); search != std::string::npos)
+      if (auto const search = _find_unescaped_modifier(timestamp_format, modifier); search != std::string::npos)
       {
         // Add the index and the modifier string to our map
         found_format_modifiers.emplace(search, modifier);
@@ -385,13 +440,21 @@ protected:
       gmtime_rs(reinterpret_cast<time_t const*>(std::addressof(timestamp)), std::addressof(time_info));
     }
 
-    // Create a buffer to call strftimex
+    // Create a buffer to call strftime
+    static constexpr size_t max_buffer_size{64 * 1024};
     std::vector<char> buffer;
     buffer.resize(32);
     size_t res = strftime(&buffer[0], buffer.size(), format_string, std::addressof(time_info));
 
     while (res == 0)
     {
+      if (QUILL_UNLIKELY(buffer.size() >= max_buffer_size))
+      {
+        QUILL_THROW(
+          QuillError{"strftime failed to format timestamp. The timestamp pattern may "
+                     "contain an unsupported format specifier."});
+      }
+
       // if strftime fails we will reserve more space
       buffer.resize(buffer.size() * 2);
       res = strftime(&buffer[0], buffer.size(), format_string, std::addressof(time_info));
@@ -401,11 +464,17 @@ protected:
   }
 
   /***/
-  static void _replace_all(std::string& str, std::string const& old_value, std::string const& new_value) noexcept
+  static void _replace_unescaped_modifier(std::string& str, std::string const& old_value, std::string const& new_value)
   {
     std::string::size_type pos = 0u;
     while ((pos = str.find(old_value, pos)) != std::string::npos)
     {
+      if (_is_escaped_percent(str, pos))
+      {
+        ++pos;
+        continue;
+      }
+
       str.replace(pos, old_value.length(), new_value);
       pos += new_value.length();
     }
@@ -455,6 +524,40 @@ protected:
     return std::chrono::duration_cast<std::chrono::seconds>(next_midnight.time_since_epoch()).count() + 1;
   }
 
+  /***/
+  QUILL_NODISCARD static size_t _decimal_width(time_t timestamp) noexcept
+  {
+    size_t width = 0;
+
+    using unsigned_time_t = std::make_unsigned_t<time_t>;
+    unsigned_time_t magnitude = 0;
+
+    if constexpr (std::is_signed_v<time_t>)
+    {
+      if (timestamp < 0)
+      {
+        width = 1; // '-'
+        magnitude = static_cast<unsigned_time_t>(-(timestamp + 1)) + 1;
+      }
+      else
+      {
+        magnitude = static_cast<unsigned_time_t>(timestamp);
+      }
+    }
+    else
+    {
+      magnitude = timestamp;
+    }
+
+    do
+    {
+      ++width;
+      magnitude /= 10;
+    } while (magnitude != 0);
+
+    return width;
+  }
+
 private:
   /** Contains the timestamp_format broken down into parts. We call use those parts to
    * create a pre-formatted string */
@@ -488,6 +591,7 @@ private:
 
   /** gmtime or localtime */
   Timezone _time_zone{Timezone::GmtTime};
+  size_t _cached_epoch_seconds_width{0};
 };
 } // namespace detail
 

@@ -1,5 +1,5 @@
-#include "platformlab_nanolog/include/nanolog/NanoLogCpp17.h"
-#include "spdlog/fmt/fmt.h"
+#include "platformlab_nanolog/runtime/NanoLogCpp17.h"
+#include "fmt/format.h"
 #include <atomic>
 #include <fstream>
 #include <iostream>

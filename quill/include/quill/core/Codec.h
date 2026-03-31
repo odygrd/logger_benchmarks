@@ -15,7 +15,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <limits>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -82,7 +81,7 @@ void codec_not_found_for_type()
     "      Look for the instantiation of 'codec_not_found_for_type<Arg>' in the error output.\n"
     "      The compiler should indicate what type 'Arg' represents in this instance.\n"
     "\n"
-    "For more information see https://quillcpp.readthedocs.io/en/latest/cheat_sheet.html\n");
+    "For more information see https://quillcpp.readthedocs.io/en/latest/recipes.html\n");
 }
 
 /***/
@@ -99,6 +98,9 @@ QUILL_NODISCARD inline size_t safe_strnlen(char const* str, size_t maxlen) noexc
   #if __GNUC__ >= 13
     #pragma GCC diagnostic ignored "-Wstringop-overread"
   #endif
+
+  // Suppress during LTO analysis
+  asm volatile("" : "+r"(maxlen) : : "memory");
 #endif
 
   auto end = static_cast<char const*>(std::memchr(str, '\0', maxlen));
@@ -117,12 +119,20 @@ QUILL_NODISCARD inline size_t safe_strnlen(char const* str) noexcept
   // On i386, armel and armhf std::memchr "max number of bytes to examine" set to maximum size of
   // unsigned int which does not compile
   // Currently Debian package is using architecture `any` which includes them
-  static constexpr int32_t max_len = std::numeric_limits<int32_t>::max();
+  static constexpr int32_t max_len = INT32_MAX;
 #else
-  static constexpr uint32_t max_len = std::numeric_limits<uint32_t>::max();
+  static constexpr uint32_t max_len = UINT32_MAX;
 #endif
 
   return safe_strnlen(str, max_len);
+}
+
+/***/
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint32_t clamp_encoded_string_length(size_t len) noexcept
+{
+  // Clamp to max() - 1 so that callers adding +1 for a null terminator cannot overflow to 0
+  constexpr uint32_t max_val = UINT32_MAX - 1u;
+  return (len > max_val) ? max_val : static_cast<uint32_t>(len);
 }
 /** std string detection, ignoring the Allocator type **/
 template <typename T>
@@ -135,6 +145,23 @@ struct is_std_string<std::basic_string<char, std::char_traits<char>, Allocator>>
 {
 };
 } // namespace detail
+
+QUILL_BEGIN_EXPORT
+
+/**
+ * Codec contract notes (apply to this primary template and every specialization, including
+ * those in the quill/std headers):
+ *
+ *   compute_encoded_size() and encode() are intentionally NOT declared noexcept when they
+ *   delegate to a nested Codec<T>. User-provided codecs (DirectFormatCodec, hand-written
+ *   formatters, container element codecs that touch fs::path, std::wstring conversions, etc.)
+ *   may throw at the frontend hot path. Marking the wrapper noexcept would turn that into
+ *   std::terminate via the noexcept boundary. The exception propagates back through
+ *   log_statement() and is reported via BackendWorker error_notifier on the backend side.
+ *
+ *   Leaf specializations that only memcpy arithmetic/enum/raw-pointer payloads keep
+ *   noexcept — they cannot throw.
+ */
 
 /** typename = void for specializations with enable_if **/
 template <typename Arg, typename = void>
@@ -152,23 +179,15 @@ struct Codec
     else if constexpr (std::conjunction_v<std::is_array<Arg>, std::is_same<detail::remove_cvref_t<std::remove_extent_t<Arg>>, char>>)
     {
       size_t constexpr N = std::extent_v<Arg>;
-      size_t len = detail::safe_strnlen(arg, N) + 1u;
-      if (QUILL_UNLIKELY(len > std::numeric_limits<uint32_t>::max()))
-      {
-        len = std::numeric_limits<uint32_t>::max();
-      }
-      return conditional_arg_size_cache.push_back(static_cast<uint32_t>(len));
+      uint32_t const len = detail::clamp_encoded_string_length(detail::safe_strnlen(arg, N) + 1u);
+      return conditional_arg_size_cache.push_back(len);
     }
     else if constexpr (std::disjunction_v<std::is_same<Arg, char*>, std::is_same<Arg, char const*>>)
     {
       // for c strings we do an additional check for nullptr
       // include one extra for the zero termination
-      size_t len = detail::safe_strnlen(arg) + 1u;
-      if (QUILL_UNLIKELY(len > std::numeric_limits<uint32_t>::max()))
-      {
-        len = std::numeric_limits<uint32_t>::max();
-      }
-      return conditional_arg_size_cache.push_back(static_cast<uint32_t>(len));
+      uint32_t const len = detail::clamp_encoded_string_length(detail::safe_strnlen(arg) + 1u);
+      return conditional_arg_size_cache.push_back(len);
     }
     else if constexpr (std::disjunction_v<detail::is_std_string<Arg>, std::is_same<Arg, std::string_view>>)
     {
@@ -176,7 +195,7 @@ struct Codec
       // the reason for this is that if we create e.g:
       // std::string msg = fmtquill::format("{} {} {} {} {}", (char)0, (char)0, (char)0, (char)0,
       // "sssssssssssssssssssssss"); then strlen(msg.data()) = 0 but msg.size() = 31
-      return sizeof(uint32_t) + static_cast<uint32_t>(arg.length());
+      return sizeof(uint32_t) + detail::clamp_encoded_string_length(arg.length());
     }
     else
     {
@@ -240,13 +259,19 @@ struct Codec
     {
       // for std::string we store the size first, in order to correctly retrieve it
       // Copy the length first and then the actual string
-      auto const len = static_cast<uint32_t>(arg.length());
+      uint32_t const len = detail::clamp_encoded_string_length(arg.length());
 
       // Local copy improves generated code (avoids aliasing penalties)
       std::byte* buf_ptr = buffer;
       std::memcpy(buf_ptr, &len, sizeof(len));
       buf_ptr += sizeof(len);
-      std::memcpy(buf_ptr, arg.data(), len);
+
+      // Only copy if length > 0 to avoid UBSAN with nullptr in memcpy
+      if (QUILL_LIKELY(len != 0))
+      {
+        std::memcpy(buf_ptr, arg.data(), len);
+      }
+
       buffer = buf_ptr + len;
     }
     else
@@ -394,6 +419,9 @@ void decode_and_store_args(std::byte*& buffer, DynamicFormatArgStore& args_store
 {
   decode_and_store_arg<Args...>(buffer, &args_store);
 }
+
+template <typename... Args>
+static constexpr FormatArgsDecoder decoder_ptr = &decode_and_store_args<remove_cvref_t<Args>...>;
 } // namespace detail
 
 /** Codec helpers for user defined types convenience **/
@@ -424,5 +452,7 @@ void decode_members(std::byte*& buffer, T&, TMembers&... members)
   // T& arg is not used but if we remove it, it will crash all users who are passing the extra argument without a compile time error
   ((members = Codec<detail::remove_cvref_t<TMembers>>::decode_arg(buffer)), ...);
 }
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

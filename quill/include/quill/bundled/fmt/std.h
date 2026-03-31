@@ -76,6 +76,9 @@
 #  define FMTQUILL_CPP_LIB_VARIANT 0
 #endif
 
+FMTQUILL_MSC_WARNING(push)
+FMTQUILL_MSC_WARNING(disable : 4702) // unreachable code
+
 FMTQUILL_BEGIN_NAMESPACE
 namespace detail {
 
@@ -645,6 +648,11 @@ struct formatter<std::atomic_flag, Char> : formatter<bool, Char> {
 };
 #endif  // __cpp_lib_atomic_flag_test
 
+#if defined(__GNUC__) || defined(__clang__) || defined(__MINGW32__)
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wfloat-equal"
+#endif
+
 template <typename T, typename Char> struct formatter<std::complex<T>, Char> {
  private:
   detail::dynamic_format_specs<Char> specs_;
@@ -707,6 +715,10 @@ template <typename T, typename Char> struct formatter<std::complex<T>, Char> {
   }
 };
 
+#if defined(__GNUC__) || defined(__clang__) || defined(__MINGW32__)
+  #pragma GCC diagnostic pop
+#endif
+
 template <typename T, typename Char>
 struct formatter<std::reference_wrapper<T>, Char,
                  // Guard against format_as because reference_wrapper is
@@ -724,4 +736,6 @@ struct formatter<std::reference_wrapper<T>, Char,
 
 FMTQUILL_END_NAMESPACE
 
-#endif  // FMTQUILL_STD_H_
+FMTQUILL_MSC_WARNING(pop)
+
+#endif // FMTQUILL_STD_H_

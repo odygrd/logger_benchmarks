@@ -11,6 +11,7 @@
 #include "quill/core/LogLevel.h"
 #include "quill/core/LoggerBase.h"
 #include "quill/core/PatternFormatterOptions.h"
+#include "quill/core/QuillError.h"
 #include "quill/core/Spinlock.h"
 
 #include <algorithm>
@@ -18,6 +19,7 @@
 #include <cstdlib>
 #include <initializer_list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -25,8 +27,12 @@
 QUILL_BEGIN_NAMESPACE
 
 /** Forward Declarations **/
+QUILL_BEGIN_EXPORT
+
 class Sink;
 class UserClockSource;
+
+QUILL_END_EXPORT
 
 namespace detail
 {
@@ -148,7 +154,60 @@ public:
     }
   }
 
-  /***/
+  /**
+   * @brief Creates a new logger with the given name.
+   * @throws QuillError if a logger with the same name already exists.
+   */
+  template <typename TLogger>
+  LoggerBase* create_logger(std::string const& logger_name, std::vector<std::shared_ptr<Sink>> sinks,
+                            PatternFormatterOptions const& pattern_formatter_options,
+                            ClockSourceType clock_source, UserClockSource* user_clock)
+  {
+    LockGuard const lock{_spinlock};
+
+    LoggerBase* logger_ptr = _find_logger(logger_name);
+
+    if (logger_ptr && !logger_ptr->is_valid_logger())
+    {
+      QUILL_THROW(QuillError{"Logger with name \"" + logger_name +
+                             "\" is pending removal and cannot be recreated until the backend "
+                             "completes logger cleanup. Use remove_logger_blocking() if you need "
+                             "to recreate the logger synchronously."});
+    }
+
+    if (logger_ptr)
+    {
+      QUILL_THROW(
+        QuillError{"Logger with name \"" + logger_name +
+                   "\" already exists. "
+                   "Use create_or_get_logger() if you want to retrieve the existing logger, "
+                   "or choose a different name."});
+    }
+
+    std::unique_ptr<LoggerBase> new_logger{
+      new TLogger{logger_name, static_cast<std::vector<std::shared_ptr<Sink>>&&>(sinks),
+                  pattern_formatter_options, clock_source, user_clock}};
+
+    _insert_logger(static_cast<std::unique_ptr<LoggerBase>&&>(new_logger));
+
+    logger_ptr = _find_logger(logger_name);
+
+    if (logger_ptr && _env_log_level)
+    {
+      logger_ptr->set_log_level(*_env_log_level);
+    }
+
+    QUILL_ASSERT(logger_ptr, "logger_ptr is nullptr in LoggerManager::create_logger()");
+    QUILL_ASSERT(logger_ptr->is_valid_logger(),
+                 "logger is not valid in LoggerManager::create_logger()");
+    return logger_ptr;
+  }
+
+  /**
+   * @brief Creates a new logger or returns an existing one with the given name.
+   * @note If a logger with the specified name already exists, the existing logger is returned
+   * and the provided sinks, pattern, clock source, and user clock parameters are ignored.
+   */
   template <typename TLogger>
   LoggerBase* create_or_get_logger(std::string const& logger_name, std::vector<std::shared_ptr<Sink>> sinks,
                                    PatternFormatterOptions const& pattern_formatter_options,
@@ -157,6 +216,14 @@ public:
     LockGuard const lock{_spinlock};
 
     LoggerBase* logger_ptr = _find_logger(logger_name);
+
+    if (logger_ptr && !logger_ptr->is_valid_logger())
+    {
+      QUILL_THROW(QuillError{"Logger with name \"" + logger_name +
+                             "\" is pending removal and cannot be recreated until the backend "
+                             "completes logger cleanup. Use remove_logger_blocking() if you need "
+                             "to recreate the logger synchronously."});
+    }
 
     if (!logger_ptr)
     {
@@ -208,31 +275,38 @@ public:
   template <typename TCheckQueuesEmpty>
   void cleanup_invalidated_loggers(TCheckQueuesEmpty check_queues_empty, std::vector<std::string>& removed_loggers)
   {
-    if (_has_invalidated_loggers.load(std::memory_order_acquire))
+    if (_has_invalidated_loggers.exchange(false, std::memory_order_acq_rel))
     {
-      _has_invalidated_loggers.store(false, std::memory_order_release);
+      // Defer logger destruction until after _spinlock is released. Destroying a logger drops
+      // its sink refcounts, and the last owner runs the sink destructor here, which may invoke
+      // user-provided file-event callbacks (e.g. before_close/after_close). Running arbitrary
+      // user code under _spinlock could stall frontend logger lookups or deadlock.
+      std::vector<std::unique_ptr<LoggerBase>> loggers_to_destroy;
 
-      LockGuard const lock{_spinlock};
-      for (auto it = _loggers.begin(); it != _loggers.end();)
       {
-        if (!it->get()->is_valid_logger())
+        LockGuard const lock{_spinlock};
+        for (auto it = _loggers.begin(); it != _loggers.end();)
         {
-          // invalid logger, check if the logger has any pending records in the queue
-          if (!check_queues_empty())
+          if (!it->get()->is_valid_logger())
           {
-            // we have pending records in the queue, we can not remove the logger yet
-            ++it;
-            _has_invalidated_loggers.store(true, std::memory_order_release);
+            // invalid logger, check if the logger has any pending records in the queue
+            if (!check_queues_empty())
+            {
+              // we have pending records in the queue, we can not remove the logger yet
+              ++it;
+              _has_invalidated_loggers.store(true, std::memory_order_release);
+            }
+            else
+            {
+              removed_loggers.push_back(it->get()->get_logger_name());
+              loggers_to_destroy.push_back(static_cast<std::unique_ptr<LoggerBase>&&>(*it));
+              it = _loggers.erase(it);
+            }
           }
           else
           {
-            removed_loggers.push_back(it->get()->get_logger_name());
-            it = _loggers.erase(it);
+            ++it;
           }
-        }
-        else
-        {
-          ++it;
         }
       }
     }
@@ -252,9 +326,9 @@ public:
 
 #if defined(_MSC_VER)
     size_t len = 0;
-    char buf[128];
+    char buf[128]{};
     bool const ok = ::getenv_s(&len, buf, sizeof(buf), field) == 0;
-    if (ok)
+    if (ok && len > 0)
     {
       log_level = buf;
     }
@@ -268,7 +342,16 @@ public:
 
     if (!log_level.empty())
     {
-      _env_log_level = std::make_unique<LogLevel>(loglevel_from_string(log_level));
+      QUILL_TRY { _env_log_level = loglevel_from_string(log_level); }
+#if !defined(QUILL_NO_EXCEPTIONS)
+      QUILL_CATCH(QuillError const& e)
+      {
+        // Add the environment variable name to the error, otherwise the failure surfaces from
+        // the first logger creation with no hint about where the invalid value came from
+        QUILL_THROW(QuillError{
+          std::string{"invalid \"QUILL_LOG_LEVEL\" environment variable value - "} + e.what()});
+      }
+#endif
     }
   }
 
@@ -301,7 +384,7 @@ private:
 
 private:
   std::vector<std::unique_ptr<LoggerBase>> _loggers;
-  std::unique_ptr<LogLevel> _env_log_level;
+  std::optional<LogLevel> _env_log_level;
   mutable Spinlock _spinlock;
   std::atomic<bool> _has_invalidated_loggers{false};
 };

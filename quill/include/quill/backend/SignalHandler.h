@@ -21,7 +21,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <string>
+#include <vector>
 
 #if defined(_WIN32)
   #if !defined(WIN32_LEAN_AND_MEAN)
@@ -33,8 +35,6 @@
     #define NOMINMAX
   #endif
 
-  #include <chrono>
-  #include <thread>
   #include <windows.h>
 #else
   #include <unistd.h>
@@ -45,10 +45,15 @@ QUILL_BEGIN_NAMESPACE
 /**
  * Struct to hold options for the signal handler.
  */
+QUILL_BEGIN_EXPORT
+
 struct SignalHandlerOptions
 {
   /**
    * List of signals that the backend should catch if with_signal_handler is enabled.
+   * Enabling the built-in signal handler overrides the process handlers for these signals.
+   * On Windows, Backend::start() does not consume this list; pass the desired signals to
+   * init_signal_handler<TFrontendOptions>() on each thread that needs CRT signal handling.
    */
   std::vector<int> catchable_signals{SIGTERM, SIGINT, SIGABRT, SIGFPE, SIGILL, SIGSEGV};
 
@@ -84,8 +89,109 @@ struct SignalHandlerOptions
   std::vector<std::string> excluded_logger_substrings{"__csv__"};
 };
 
+QUILL_END_EXPORT
+
 namespace detail
 {
+using signal_handler_t = void (*)(int);
+
+struct SignalHandlerRestoreEntry
+{
+  int signal_number;
+  signal_handler_t previous_handler;
+};
+
+inline void restore_signal_handler_entries(std::vector<SignalHandlerRestoreEntry> const& previous_signal_handlers) noexcept
+{
+  for (auto it = previous_signal_handlers.rbegin(); it != previous_signal_handlers.rend(); ++it)
+  {
+    std::signal(it->signal_number, it->previous_handler);
+  }
+}
+
+/***/
+QUILL_NODISCARD inline bool is_synchronous_fault_signal(int signal_number) noexcept
+{
+  return signal_number == SIGSEGV || signal_number == SIGFPE || signal_number == SIGILL
+#if defined(SIGBUS)
+    || signal_number == SIGBUS
+#endif
+#if defined(SIGTRAP)
+    || signal_number == SIGTRAP
+#endif
+    ;
+}
+
+/***/
+QUILL_NODISCARD inline char const* get_signal_description(int32_t signal_number) noexcept
+{
+  switch (signal_number)
+  {
+  case SIGABRT:
+    return "SIGABRT";
+  case SIGFPE:
+    return "SIGFPE";
+  case SIGILL:
+    return "SIGILL";
+  case SIGINT:
+    return "SIGINT";
+  case SIGSEGV:
+    return "SIGSEGV";
+  case SIGTERM:
+    return "SIGTERM";
+#if defined(SIGBUS)
+  case SIGBUS:
+    return "SIGBUS";
+#endif
+#if defined(SIGHUP)
+  case SIGHUP:
+    return "SIGHUP";
+#endif
+#if defined(SIGQUIT)
+  case SIGQUIT:
+    return "SIGQUIT";
+#endif
+#if defined(SIGTRAP)
+  case SIGTRAP:
+    return "SIGTRAP";
+#endif
+#if defined(SIGPIPE)
+  case SIGPIPE:
+    return "SIGPIPE";
+#endif
+#if defined(SIGALRM)
+  case SIGALRM:
+    return "SIGALRM";
+#endif
+#if defined(SIGUSR1)
+  case SIGUSR1:
+    return "SIGUSR1";
+#endif
+#if defined(SIGUSR2)
+  case SIGUSR2:
+    return "SIGUSR2";
+#endif
+#if defined(SIGXCPU)
+  case SIGXCPU:
+    return "SIGXCPU";
+#endif
+#if defined(SIGXFSZ)
+  case SIGXFSZ:
+    return "SIGXFSZ";
+#endif
+#if defined(SIGVTALRM)
+  case SIGVTALRM:
+    return "SIGVTALRM";
+#endif
+#if defined(SIGPROF)
+  case SIGPROF:
+    return "SIGPROF";
+#endif
+  default:
+    return "UNKNOWN";
+  }
+}
+
 /***/
 class SignalHandlerContext
 {
@@ -126,6 +232,14 @@ public:
   std::atomic<uint32_t> backend_thread_id{0};
   std::atomic<uint32_t> signal_handler_timeout_seconds{20};
   std::atomic<bool> should_reraise_signal{true};
+  std::mutex signal_handlers_mutex;
+  std::vector<int> registered_signal_handlers{};
+  std::vector<SignalHandlerRestoreEntry> previous_signal_handlers{};
+#if defined(_WIN32)
+  LPTOP_LEVEL_EXCEPTION_FILTER previous_exception_filter{nullptr};
+  void (*exception_handler_deinit_callback)() = nullptr;
+  bool console_ctrl_handler_installed{false};
+#endif
 
 private:
   SignalHandlerContext() = default;
@@ -159,7 +273,7 @@ void on_signal(int32_t signal_number)
     // invocation of a signal-catching function.
 
 #if defined(_WIN32)
-    std::this_thread::sleep_for(std::chrono::hours{24000});
+    detail::sleep_for_ns(24'000ull * 3'600ull * 1'000'000'000ull); // 24000 hours
 #else
     pause();
 #endif
@@ -186,7 +300,7 @@ void on_signal(int32_t signal_number)
     // backend worker thread is not running or the signal handler is called in the backend worker thread
     if (signal_number == SIGINT || signal_number == SIGTERM)
     {
-      std::exit(EXIT_SUCCESS);
+      std::_Exit(EXIT_SUCCESS);
     }
 
     if (should_reraise_signal)
@@ -194,6 +308,13 @@ void on_signal(int32_t signal_number)
       // for other signals expect SIGINT and SIGTERM we re-raise
       std::signal(signal_number, SIG_DFL);
       std::raise(signal_number);
+    }
+
+    // For synchronous fault signals (SIGSEGV, SIGFPE, etc.) we must not return —
+    // returning re-executes the faulting instruction, causing an infinite loop.
+    if (is_synchronous_fault_signal(signal_number))
+    {
+      std::_Exit(EXIT_FAILURE);
     }
   }
   else
@@ -203,13 +324,9 @@ void on_signal(int32_t signal_number)
 
     if (logger_base)
     {
-#if defined(_WIN32)
-      int32_t const signal_desc = signal_number;
-#else
-      char const* const signal_desc = ::strsignal(signal_number);
-#endif
+      char const* const signal_desc = get_signal_description(signal_number);
 
-      auto logger = reinterpret_cast<LoggerImpl<TFrontendOptions>*>(logger_base);
+      auto logger = static_cast<LoggerImpl<TFrontendOptions>*>(logger_base);
       QUILL_SIGNAL_HANDLER_LOG(logger, LogLevel::Info, "Received signal: {} (signum: {})",
                                signal_desc, signal_number);
 
@@ -218,7 +335,7 @@ void on_signal(int32_t signal_number)
         // For SIGINT and SIGTERM, we are shutting down gracefully
         // Pass `0` to avoid calling std::this_thread::sleep_for()
         logger->flush_log(0);
-        std::exit(EXIT_SUCCESS);
+        std::_Exit(EXIT_SUCCESS);
       }
 
       if (should_reraise_signal)
@@ -239,12 +356,28 @@ void on_signal(int32_t signal_number)
         logger->flush_log(0);
       }
     }
+
+    // If we reach here it means we have no valid logger or should_reraise_signal is false.
+    // For synchronous fault signals we must not return to avoid re-executing the faulting instruction.
+    if (is_synchronous_fault_signal(signal_number))
+    {
+      std::_Exit(EXIT_FAILURE);
+    }
   }
 }
 } // namespace detail
 
 /**
- * Setups a signal handler to handle fatal signals
+ * Setups a signal handler to handle fatal signals.
+ *
+ * @note The POSIX path calls std::signal/std::raise and takes a timed alarm. The handler itself
+ *       also invokes LoggerManager lookups and frontend log_statement()/flush_log() calls, which
+ *       are not strictly async-signal-safe. This is intentional: the built-in handler is a
+ *       best-effort crash-preservation facility, not a universal async-signal-safe logging API.
+ *       See the FAQ ("Why is the signal handler best-effort?") and overview.rst for the full list
+ *       of caveats, in particular the requirement that any thread which may run the handler has
+ *       either already logged once, called Frontend::preallocate(), or has the handled signals
+ *       blocked on that thread.
  */
 #if defined(_WIN32)
 namespace detail
@@ -315,17 +448,17 @@ BOOL WINAPI on_console_signal(DWORD signal)
 
     if (logger_base)
     {
-      auto logger = reinterpret_cast<LoggerImpl<TFrontendOptions>*>(logger_base);
+      auto logger = static_cast<LoggerImpl<TFrontendOptions>*>(logger_base);
       QUILL_SIGNAL_HANDLER_LOG(logger, LogLevel::Info,
                                "Program interrupted by Ctrl+C or Ctrl+Break signal");
 
       // Pass `0` to avoid calling std::this_thread::sleep_for()
       logger->flush_log(0);
-      std::exit(EXIT_SUCCESS);
+      std::_Exit(EXIT_SUCCESS);
     }
   }
 
-  return TRUE;
+  return FALSE;
 }
 
 /***/
@@ -343,7 +476,7 @@ LONG WINAPI on_exception(EXCEPTION_POINTERS* exception_p)
 
     if (logger_base)
     {
-      auto logger = reinterpret_cast<LoggerImpl<TFrontendOptions>*>(logger_base);
+      auto logger = static_cast<LoggerImpl<TFrontendOptions>*>(logger_base);
 
       QUILL_SIGNAL_HANDLER_LOG(logger, LogLevel::Info, "Received exception: {} (Code: {})",
                                get_error_message(exception_p->ExceptionRecord->ExceptionCode),
@@ -370,32 +503,104 @@ LONG WINAPI on_exception(EXCEPTION_POINTERS* exception_p)
 template <typename TFrontendOptions>
 void init_exception_handler()
 {
-  SetUnhandledExceptionFilter(on_exception<TFrontendOptions>);
+  auto& ctx = detail::SignalHandlerContext::instance();
+  std::lock_guard<std::mutex> const lock{ctx.signal_handlers_mutex};
+
+  ctx.exception_handler_deinit_callback = nullptr;
+  ctx.previous_exception_filter = SetUnhandledExceptionFilter(on_exception<TFrontendOptions>);
 
   if (!SetConsoleCtrlHandler(on_console_signal<TFrontendOptions>, TRUE))
   {
+    SetUnhandledExceptionFilter(ctx.previous_exception_filter);
+    ctx.previous_exception_filter = nullptr;
     QUILL_THROW(QuillError{"Failed to call SetConsoleCtrlHandler"});
   }
+
+  ctx.exception_handler_deinit_callback = &deinit_exception_handler<TFrontendOptions>;
+  ctx.console_ctrl_handler_installed = true;
+}
+
+template <typename TFrontendOptions>
+void deinit_exception_handler()
+{
+  auto& ctx = detail::SignalHandlerContext::instance();
+  std::lock_guard<std::mutex> const lock{ctx.signal_handlers_mutex};
+
+  if (ctx.console_ctrl_handler_installed)
+  {
+    SetConsoleCtrlHandler(on_console_signal<TFrontendOptions>, FALSE);
+    ctx.console_ctrl_handler_installed = false;
+  }
+
+  SetUnhandledExceptionFilter(ctx.previous_exception_filter);
+  ctx.previous_exception_filter = nullptr;
+  ctx.exception_handler_deinit_callback = nullptr;
 }
 } // namespace detail
 
+QUILL_BEGIN_EXPORT
+
 /**
- * On windows it has to be called on each thread
+ * On windows, it has to be called on each thread
+ * Do not call it from the backend worker thread; signal handling is intended for frontend/user
+ * threads so the handler can safely flush through the backend.
  * @param catchable_signals the signals we are catching
  */
 template <typename TFrontendOptions>
 void init_signal_handler(std::vector<int> const& catchable_signals = std::vector<int>{
                            SIGTERM, SIGINT, SIGABRT, SIGFPE, SIGILL, SIGSEGV})
 {
+  auto& ctx = detail::SignalHandlerContext::instance();
+  std::lock_guard<std::mutex> const lock{ctx.signal_handlers_mutex};
+
+  std::vector<detail::SignalHandlerRestoreEntry> previous_signal_handlers;
+  previous_signal_handlers.reserve(catchable_signals.size());
+
   for (auto const& catchable_signal : catchable_signals)
   {
     // setup a signal handler per signal in the array
-    if (std::signal(catchable_signal, detail::on_signal<TFrontendOptions>) == SIG_ERR)
+    auto const previous_handler = std::signal(catchable_signal, detail::on_signal<TFrontendOptions>);
+    if (previous_handler == SIG_ERR)
     {
+      detail::restore_signal_handler_entries(previous_signal_handlers);
       QUILL_THROW(QuillError{"Failed to setup signal handler for signal: " + std::to_string(catchable_signal)});
     }
+
+    previous_signal_handlers.push_back({catchable_signal, previous_handler});
   }
+
+  ctx.registered_signal_handlers = catchable_signals;
+  ctx.previous_signal_handlers = std::move(previous_signal_handlers);
 }
+
+QUILL_END_EXPORT
+
+namespace detail
+{
+inline void deinit_signal_handler()
+{
+  auto& ctx = SignalHandlerContext::instance();
+  std::lock_guard<std::mutex> const lock{ctx.signal_handlers_mutex};
+
+  for (auto const& signal_number : ctx.registered_signal_handlers)
+  {
+    std::signal(signal_number, SIG_DFL);
+  }
+
+  ctx.registered_signal_handlers.clear();
+  ctx.previous_signal_handlers.clear();
+}
+
+inline void restore_signal_handlers()
+{
+  auto& ctx = SignalHandlerContext::instance();
+  std::lock_guard<std::mutex> const lock{ctx.signal_handlers_mutex};
+
+  restore_signal_handler_entries(ctx.previous_signal_handlers);
+  ctx.registered_signal_handlers.clear();
+  ctx.previous_signal_handlers.clear();
+}
+} // namespace detail
 #else
 namespace detail
 {
@@ -416,25 +621,68 @@ inline void on_alarm(int32_t signal_number)
 template <typename TFrontendOptions>
 void init_signal_handler(std::vector<int> const& catchable_signals)
 {
+  auto& ctx = SignalHandlerContext::instance();
+  std::lock_guard<std::mutex> const lock{ctx.signal_handlers_mutex};
+
+  std::vector<SignalHandlerRestoreEntry> previous_signal_handlers;
+  previous_signal_handlers.reserve(catchable_signals.size() + 1);
+
   for (auto const& catchable_signal : catchable_signals)
   {
     if (catchable_signal == SIGALRM)
     {
+      restore_signal_handler_entries(previous_signal_handlers);
       QUILL_THROW(QuillError{"SIGALRM can not be part of catchable_signals."});
     }
 
     // set up a signal handler per signal in the array
-    if (std::signal(catchable_signal, on_signal<TFrontendOptions>) == SIG_ERR)
+    auto const previous_handler = std::signal(catchable_signal, on_signal<TFrontendOptions>);
+    if (previous_handler == SIG_ERR)
     {
+      restore_signal_handler_entries(previous_signal_handlers);
       QUILL_THROW(QuillError{"Failed to setup signal handler for signal: " + std::to_string(catchable_signal)});
     }
+
+    previous_signal_handlers.push_back({catchable_signal, previous_handler});
   }
 
   /* Register the alarm handler */
-  if (std::signal(SIGALRM, on_alarm) == SIG_ERR)
+  auto const previous_alarm_handler = std::signal(SIGALRM, on_alarm);
+  if (previous_alarm_handler == SIG_ERR)
   {
+    restore_signal_handler_entries(previous_signal_handlers);
     QUILL_THROW(QuillError{"Failed to setup signal handler for signal: SIGALRM"});
   }
+
+  previous_signal_handlers.push_back({SIGALRM, previous_alarm_handler});
+
+  ctx.registered_signal_handlers = catchable_signals;
+  ctx.registered_signal_handlers.push_back(SIGALRM);
+  ctx.previous_signal_handlers = std::move(previous_signal_handlers);
+}
+
+inline void deinit_signal_handler()
+{
+  auto& ctx = SignalHandlerContext::instance();
+  std::lock_guard<std::mutex> const lock{ctx.signal_handlers_mutex};
+
+  for (auto const& signal_number : ctx.registered_signal_handlers)
+  {
+    std::signal(signal_number, SIG_DFL);
+  }
+
+  ctx.registered_signal_handlers.clear();
+  ctx.previous_signal_handlers.clear();
+}
+
+inline void restore_signal_handlers()
+{
+  auto& ctx = SignalHandlerContext::instance();
+  std::lock_guard<std::mutex> const lock{ctx.signal_handlers_mutex};
+
+  restore_signal_handler_entries(ctx.previous_signal_handlers);
+  ctx.registered_signal_handlers.clear();
+  ctx.previous_signal_handlers.clear();
 }
 } // namespace detail
 #endif

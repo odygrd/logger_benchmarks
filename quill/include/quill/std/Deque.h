@@ -17,21 +17,25 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #if defined(_WIN32)
   #include <string>
+  #include <string_view>
 #endif
 
 QUILL_BEGIN_NAMESPACE
+
+QUILL_BEGIN_EXPORT
 
 template <typename T, typename Allocator>
 struct Codec<std::deque<T, Allocator>>
 {
   static size_t compute_encoded_size(detail::SizeCacheVector& conditional_arg_size_cache,
-                                     std::deque<T, Allocator> const& arg) noexcept
+                                     std::deque<T, Allocator> const& arg)
   {
     // We need to store the size of the deque in the buffer, so we reserve space for it.
     // We add sizeof(size_t) bytes to accommodate the size information.
@@ -59,7 +63,7 @@ struct Codec<std::deque<T, Allocator>>
 
   template <typename Arg>
   static void encode(std::byte*& buffer, detail::SizeCacheVector const& conditional_arg_size_cache,
-                     uint32_t& conditional_arg_size_cache_index, Arg&& arg) noexcept
+                     uint32_t& conditional_arg_size_cache_index, Arg&& arg)
   {
     Codec<size_t>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, arg.size());
 
@@ -109,18 +113,20 @@ struct Codec<std::deque<T, Allocator>>
       using ReturnType = decltype(Codec<T>::decode_arg(buffer));
       using ReboundAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<ReturnType>;
       std::deque<ReturnType, ReboundAllocator> arg;
-      arg.resize(number_of_elements);
 
       for (size_t i = 0; i < number_of_elements; ++i)
       {
+        // Do not collapse this to emplace_back(Codec<T>::decode_arg(buffer)).
+        // That forwards a prvalue directly and can select a deleted move ctor
+        // for copy-only decoded types
         auto elem = Codec<T>::decode_arg(buffer);
         if constexpr (std::is_move_constructible_v<ReturnType>)
         {
-          arg[i] = std::move(elem);
+          arg.emplace_back(std::move(elem));
         }
         else
         {
-          arg[i] = elem;
+          arg.emplace_back(elem);
         }
       }
 
@@ -135,5 +141,7 @@ struct Codec<std::deque<T, Allocator>>
     args_store->push_back(decode_arg(buffer));
   }
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

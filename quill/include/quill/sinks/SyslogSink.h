@@ -20,6 +20,8 @@
 
 QUILL_BEGIN_NAMESPACE
 
+QUILL_BEGIN_EXPORT
+
 /**
  * @note IMPORTANT: Handling Macro Collisions between syslog.h and Quill
  *
@@ -92,9 +94,9 @@ public:
   /**
    * @brief Sets the mapping from quill log levels to syslog levels.
    * This mapping determines which syslog level is used for each quill log level.
-   * @param mapping An array of 12 integers representing syslog levels.
+   * @param mapping An array of LogLevelCount integers representing syslog levels, one per LogLevel value.
    */
-  QUILL_ATTRIBUTE_COLD void set_log_level_mapping(std::array<int, 12> mapping)
+  QUILL_ATTRIBUTE_COLD void set_log_level_mapping(std::array<int, LogLevelCount> mapping)
   {
     _log_level_mapping = mapping;
   }
@@ -117,14 +119,14 @@ private:
   std::string _identifier;
   int _options{0};
   int _facility{0};
-  std::array<int, 12> _log_level_mapping = {
+  std::array<int, LogLevelCount> _log_level_mapping = {
     // Mapping from quill log levels to syslog levels:
     /* "TRACE_L3" */ LOG_DEBUG,   /* "TRACE_L2" */ LOG_DEBUG,
     /* "TRACE_L1" */ LOG_DEBUG,   /* "DEBUG"    */ LOG_DEBUG,
     /* "INFO"     */ LOG_INFO,    /* "NOTICE"   */ LOG_NOTICE,
     /* "WARNING"  */ LOG_WARNING, /* "ERROR"    */ LOG_ERR,
     /* "CRITICAL" */ LOG_CRIT,    /* "BACKTRACE"*/ LOG_INFO,
-    /* "NONE"     */ LOG_INFO,    /* "DYNAMIC"  */ LOG_INFO};
+    /* "NONE"     */ LOG_INFO};
   bool _format_message{false};
 };
 
@@ -133,6 +135,10 @@ private:
  *
  * This sink leverages the syslog API to send log messages. It uses the configuration
  * provided via SyslogSinkConfig to determine how the messages are formatted and mapped.
+ *
+ * @note Syslog uses process-global state. Multiple SyslogSink instances are therefore not
+ *       independent if they use different identifiers, options, or facilities. Use a single
+ *       SyslogSink configuration per process.
  */
 class SyslogSink : public quill::Sink
 {
@@ -180,5 +186,7 @@ public:
 private:
   SyslogSinkConfig _config;
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

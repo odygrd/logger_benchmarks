@@ -12,10 +12,13 @@
 
 #include "quill/core/Attributes.h"
 #include "quill/core/LogLevel.h"
+#include "quill/core/MacroMetadata.h"
 #include "quill/core/QuillError.h"
 #include "quill/sinks/Sink.h"
 
+#include <array>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -23,6 +26,8 @@
 #include <vector>
 
 QUILL_BEGIN_NAMESPACE
+
+QUILL_BEGIN_EXPORT
 
 /**
  * @note IMPORTANT: Handling Macro Collisions between systemd.h and Quill
@@ -82,9 +87,9 @@ public:
   /**
    * @brief Sets the mapping from quill log levels to systemd levels.
    * This mapping determines which systemd level is used for each quill log level.
-   * @param mapping An array of 12 integers representing systemd levels.
+   * @param mapping An array of LogLevelCount integers representing systemd levels, one per LogLevel value.
    */
-  QUILL_ATTRIBUTE_COLD void set_log_level_mapping(std::array<int, 12> mapping)
+  QUILL_ATTRIBUTE_COLD void set_log_level_mapping(std::array<int, LogLevelCount> mapping)
   {
     _log_level_mapping = mapping;
   }
@@ -99,14 +104,14 @@ public:
 
 private:
   std::string _identifier;
-  std::array<int, 12> _log_level_mapping = {
+  std::array<int, LogLevelCount> _log_level_mapping = {
     // Mapping from quill log levels to systemd levels:
     /* "TRACE_L3" */ LOG_DEBUG,   /* "TRACE_L2" */ LOG_DEBUG,
     /* "TRACE_L1" */ LOG_DEBUG,   /* "DEBUG"    */ LOG_DEBUG,
     /* "INFO"     */ LOG_INFO,    /* "NOTICE"   */ LOG_NOTICE,
     /* "WARNING"  */ LOG_WARNING, /* "ERROR"    */ LOG_ERR,
     /* "CRITICAL" */ LOG_CRIT,    /* "BACKTRACE"*/ LOG_INFO,
-    /* "NONE"     */ LOG_INFO,    /* "DYNAMIC"  */ LOG_INFO};
+    /* "NONE"     */ LOG_INFO};
   bool _format_message{false};
 };
 
@@ -121,7 +126,7 @@ class SystemdSink : public quill::Sink
 public:
   /**
    * @brief Constructs a SystemdSink with the given configuration.
-   * This constructor initializes the systemd connection using openlog().
+   * This constructor stores the configuration used when sending log messages to systemd.
    * @param config The configuration options for the SystemdSink. Defaults to a default-configured SystemdSinkConfig.
    */
   explicit SystemdSink(SystemdSinkConfig config = SystemdSinkConfig{}) : _config(std::move(config))
@@ -129,7 +134,7 @@ public:
   }
 
   /***/
-  ~SystemdSink() override { ::closelog(); }
+  ~SystemdSink() override = default;
 
   /**
    * @brief Writes a formatted log message to the stream
@@ -177,5 +182,7 @@ public:
 private:
   SystemdSinkConfig _config;
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

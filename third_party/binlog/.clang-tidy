@@ -1,0 +1,57 @@
+# BOOST_TEST triggers C vararg warnings
+# BOOST_AUTO_TEST_CASE triggers exception in global var ctor warning (cert-err58-cpp)
+# [i,o]stream read/write usage requires reinterpret_cast
+# std::runtime_error is not nothrow copy constructible (cert-err60-cpp)
+# Rule aliases are not useful (hicpp)
+# llvm-header-guard derives the macro name from the absolute path sometimes
+# sizeof(T*) is prohibited by bugprone-sizeof-expression
+# modernize-use-trailing-return-type is nonsense
+
+Checks: "\
+  *,
+  -altera-*,\
+  -bugprone-easily-swappable-parameters,\
+  -bugprone-sizeof-expression,\
+  -cert-err58-cpp,\
+  -cert-err60-cpp,\
+  -cppcoreguidelines-avoid-c-arrays,\
+  -cppcoreguidelines-avoid-magic-numbers,\
+  -cppcoreguidelines-avoid-non-const-global-variables,\
+  -cppcoreguidelines-init-variables,\
+  -cppcoreguidelines-macro-usage,\
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,\
+  -cppcoreguidelines-pro-bounds-constant-array-index,\
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,\
+  -cppcoreguidelines-pro-type-reinterpret-cast,\
+  -cppcoreguidelines-pro-type-vararg,\
+  -fuchsia-*,\
+  -google-readability-casting,\
+  -hicpp-*,\
+  -llvm-header-guard,\
+  -misc-no-recursion,\
+  -misc-non-private-member-variables-in-classes,\
+  -modernize-avoid-c-arrays,\
+  -modernize-concat-nested-namespaces,\
+  -modernize-return-braced-init-list,\
+  -modernize-unary-static-assert,\
+  -modernize-use-auto,\
+  -modernize-use-default-member-init,\
+  -modernize-use-nodiscard,\
+  -modernize-use-trailing-return-type,\
+  -readability-convert-member-functions-to-static,\
+  -readability-function-cognitive-complexity,\
+  -readability-identifier-length,\
+  -readability-magic-numbers,\
+  -readability-named-parameter,\
+  -readability-uppercase-literal-suffix,\
+  -llvmlibc-*,\
+  -google-runtime-references"
+
+
+HeaderFilterRegex: '.*binlog/.*|.*mserialize/.*'
+
+CheckOptions:
+  - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+    value: 1
+  - key: llvm-namespace-comment.ShortNamespaceLines
+    value: 4

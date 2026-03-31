@@ -1,4 +1,5 @@
 #include "call_site_latency_bench.h"
+#include "benchmark_quill_frontend_options.h"
 
 #include "quill/Backend.h"
 #include "quill/Frontend.h"
@@ -9,27 +10,6 @@
 
 #include <string>
 
-struct CustomFrontendOptions
-{
-#ifdef QUILL_USE_BOUNDED_DROPPING_QUEUE
-  static constexpr quill::QueueType queue_type = quill::QueueType::BoundedDropping;
-  static constexpr uint32_t initial_queue_capacity = 262'144;
-#else
-  static constexpr quill::QueueType queue_type = quill::QueueType::UnboundedBlocking;
-  static constexpr uint32_t initial_queue_capacity = 131'072;
-#endif
-
-  // Set small capacity to demonstrate dropping messages in this example
-  static constexpr uint32_t blocking_queue_retry_interval_ns = 800;
-  static constexpr size_t unbounded_queue_max_capacity = 2ull * 1024u * 1024u * 1024u;
-
-#ifdef QUILL_USE_HUGE_PAGES
-  static constexpr quill::HugePagesPolicy huge_pages_policy = quill::HugePagesPolicy::Always;
-#else
-  static constexpr quill::HugePagesPolicy huge_pages_policy = quill::HugePagesPolicy::Never;
-#endif
-};
-
 using frontend_t = quill::FrontendImpl<CustomFrontendOptions>;
 using logger_t = quill::LoggerImpl<CustomFrontendOptions>;
 
@@ -39,7 +19,7 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
 
   // Setup
   quill::BackendOptions backend_options;
-  backend_options.cpu_affinity = 5;
+  backend_options.cpu_affinity = {5};
   backend_options.sleep_duration = std::chrono::nanoseconds{0};
   quill::Backend::start(backend_options);
 

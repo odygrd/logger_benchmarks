@@ -38,8 +38,7 @@
 
 QUILL_BEGIN_NAMESPACE
 
-/** Forward Declaration **/
-class MacroMetadata;
+QUILL_BEGIN_EXPORT
 
 class ConsoleSinkConfig
 {
@@ -200,30 +199,30 @@ public:
 
 #ifdef _WIN32
     /***/
-    QUILL_ATTRIBUTE_COLD void _activate_ansi_support(FILE* file) const
+    QUILL_ATTRIBUTE_COLD bool _activate_ansi_support(FILE* file) const noexcept
     {
       if (!_colour_output_supported)
       {
-        return;
+        return false;
       }
 
       // Try to enable ANSI support for Windows console
       auto const out_handle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(file)));
       if (out_handle == INVALID_HANDLE_VALUE)
       {
-        return;
+        return false;
       }
 
       DWORD dw_mode = 0;
       if (!GetConsoleMode(out_handle, &dw_mode))
       {
-        return;
+        return false;
       }
 
       dw_mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
       dw_mode |= ENABLE_PROCESSED_OUTPUT;
 
-      SetConsoleMode(out_handle, dw_mode);
+      return SetConsoleMode(out_handle, dw_mode) != 0;
     }
 #endif
 
@@ -245,12 +244,22 @@ public:
 
 #ifdef _WIN32
       // Enable ANSI color support on Windows
-      _activate_ansi_support(file);
+      if ((colour_mode == ColourMode::Automatic) && !_activate_ansi_support(file))
+      {
+        _colour_output_supported = false;
+      }
+      else if (colour_mode == ColourMode::Always)
+      {
+        static_cast<void>(_activate_ansi_support(file));
+      }
 #endif
     }
 
   private:
-    std::array<std::string_view, 10> _log_level_colours; /**< Colours per log level */
+    static_assert(static_cast<size_t>(LogLevel::None) < LogLevelCount,
+                  "_log_level_colours must be large enough to be indexed by every LogLevel value");
+
+    std::array<std::string_view, LogLevelCount> _log_level_colours; /**< Colours per log level */
     bool _colours_enabled{true};
     bool _colour_output_supported{false};
   };
@@ -310,7 +319,7 @@ public:
   }
 
   /** Getters **/
-  QUILL_NODISCARD Colours const& colours() noexcept { return _colours; }
+  QUILL_NODISCARD Colours const& colours() const noexcept { return _colours; }
   QUILL_NODISCARD ColourMode colour_mode() const noexcept { return _colour_mode; }
   QUILL_NODISCARD std::string const& stream() const noexcept { return _stream; }
   QUILL_NODISCARD std::optional<PatternFormatterOptions> const& override_pattern_formatter_options() const noexcept
@@ -335,11 +344,17 @@ public:
    * @brief Constructor with custom ConsoleColours
    * config
    */
-  explicit ConsoleSink(ConsoleSinkConfig const& config = ConsoleSinkConfig{})
-    : StreamSink{config.stream(), nullptr, config.override_pattern_formatter_options()}, _config(config)
+  explicit ConsoleSink(ConsoleSinkConfig const& config = ConsoleSinkConfig{},
+                       FileEventNotifier file_event_notifier = FileEventNotifier{})
+    : StreamSink{config.stream(), nullptr, config.override_pattern_formatter_options(),
+                 std::move(file_event_notifier)},
+      _config(config)
   {
-    QUILL_ASSERT(_config.stream() == "stdout" || config.stream() == "stderr",
-                 "Invalid stream name in ConsoleSink constructor, must be 'stdout' or 'stderr'");
+    if (QUILL_UNLIKELY(_config.stream() != "stdout" && _config.stream() != "stderr"))
+    {
+      QUILL_THROW(
+        QuillError{"Invalid stream name in ConsoleSink constructor, must be 'stdout' or 'stderr'"});
+    }
 
     if (_config.colour_mode() == ConsoleSinkConfig::ColourMode::Never)
     {
@@ -405,5 +420,7 @@ protected:
   // protected in case someone wants to derive from this class and create a custom one, e.g. for json logging to stdout
   ConsoleSinkConfig _config;
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

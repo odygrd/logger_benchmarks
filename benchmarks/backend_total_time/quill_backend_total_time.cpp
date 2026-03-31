@@ -21,11 +21,11 @@ int main()
   std::remove(log_file.c_str());
 
   // main thread affinity
-  quill::detail::set_cpu_affinity(1);
+  quill::detail::set_cpu_affinity({1});
 
   // Setup
   quill::BackendOptions backend_options;
-  backend_options.cpu_affinity = 5;
+  backend_options.cpu_affinity = {5};
   backend_options.sleep_duration = std::chrono::nanoseconds{0};
   quill::Backend::start(backend_options);
 

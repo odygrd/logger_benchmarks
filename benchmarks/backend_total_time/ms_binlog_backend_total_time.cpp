@@ -1,5 +1,5 @@
 #include "binlog/binlog.hpp"
-#include "spdlog/fmt/fmt.h"
+#include "fmt/format.h"
 #include <atomic>
 #include <filesystem>
 #include <fstream>

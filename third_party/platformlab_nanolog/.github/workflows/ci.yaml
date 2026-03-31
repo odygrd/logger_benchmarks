@@ -1,0 +1,56 @@
+name: Build Tests
+
+on: [push, pull_request]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        cxx: [g++, g++-7, g++-8, g++-9]
+
+    env:
+      CXX: ${{ matrix.cxx }}
+
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+        architecture: 'x64'
+
+    - name: Run Preprocessor Unit Tests
+      run: |
+        cd ${GITHUB_WORKSPACE}/preprocessor
+        python ./UnitTests.py
+
+    - name: Run Library Unit Tests
+      run: |
+        cd ${GITHUB_WORKSPACE}
+        git submodule update --init
+        cd runtime
+        make test -j2
+        # Excludes assert/death tests
+        ./test --gtest_filter=-NanoLogTest.StagingBuffer_finishReservation_asserts:PackerTest.nibbler_assert
+
+    - name: Build Sample App
+      run: |
+        cd ${GITHUB_WORKSPACE}/sample
+        make clean-all
+        make depend -C ../runtime
+        make -j10 > /dev/null
+
+    - name: Build Preprocessor Sample App
+      run: |
+        cd ${GITHUB_WORKSPACE}/sample_preprocessor
+        make clean-all
+        make depend -C ../runtime
+        make -j10 > /dev/null
+
+    - name: Run Integration Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/integrationTest
+        make clean-all  > /dev/null
+        ./run.sh

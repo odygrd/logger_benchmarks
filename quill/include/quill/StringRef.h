@@ -17,6 +17,8 @@
 
 QUILL_BEGIN_NAMESPACE
 
+QUILL_BEGIN_EXPORT
+
 namespace utility
 {
 /**
@@ -32,10 +34,13 @@ namespace utility
 class StringRef
 {
 public:
-  explicit StringRef(std::string const& str) : _str_view(str) {};
-  explicit StringRef(std::string_view str) : _str_view(str) {};
-  explicit StringRef(char const* str) : _str_view(str, detail::safe_strnlen(str)) {};
-  StringRef(char const* str, size_t size) : _str_view(str, size) {};
+  explicit StringRef(std::string const& str) : _str_view(str) {}
+  explicit StringRef(std::string_view str) : _str_view(str) {}
+  explicit StringRef(char const* str) : _str_view(str ? str : "", detail::safe_strnlen(str)) {}
+  StringRef(char const* str, size_t size) : _str_view(str ? str : "", str ? size : 0)
+  {
+    QUILL_ASSERT(str || size == 0, "StringRef(nullptr, size) is only valid when size is 0");
+  }
 
   QUILL_NODISCARD std::string_view const& get_string_view() const noexcept { return _str_view; }
 
@@ -83,5 +88,7 @@ struct Codec<utility::StringRef>
     args_store->push_back(decode_arg(buffer));
   }
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

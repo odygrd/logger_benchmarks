@@ -1,0 +1,9 @@
+﻿artifacts/
+dist/
+install/
+.vscode/
+.idea/
+**/cmake*/
+node_modules/
+/package-lock.json
+/package.json

@@ -3,6 +3,7 @@
 
 #include "call_site_latency_bench.h"
 
+#include "fmt/ranges.h"
 #include "xtr/logger.hpp"
 
 #include <string>

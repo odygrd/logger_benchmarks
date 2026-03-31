@@ -1,6 +1,6 @@
 #include "call_site_latency_bench.h"
 
-#include "platformlab_nanolog/include/nanolog/NanoLogCpp17.h"
+#include "platformlab_nanolog/runtime/NanoLogCpp17.h"
 
 #include <string>
 

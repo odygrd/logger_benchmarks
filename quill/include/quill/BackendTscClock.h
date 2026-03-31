@@ -15,6 +15,8 @@
 
 QUILL_BEGIN_NAMESPACE
 
+QUILL_BEGIN_EXPORT
+
 /**
  * @brief A utility class for accessing the Time Stamp Counter (TSC) clock used by the backend logging thread.
  *
@@ -60,8 +62,9 @@ public:
   /**
    * Provides the current synchronized timestamp obtained using the TSC clock maintained by the backend logging thread.
    * @return A wall clock timestamp in nanoseconds since epoch, synchronized with the backend logging thread's TSC clock.
+   * @throws QuillError if the backend TSC configuration is invalid.
    */
-  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT static time_point now() noexcept
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT static time_point now()
   {
     uint64_t const ts = detail::BackendManager::instance().convert_rdtsc_to_epoch_time(detail::rdtsc());
 
@@ -89,12 +92,15 @@ public:
    * statements, the function may return zero.
    *
    * @return The time since the Unix epoch, in nanoseconds, corresponding to the given TSC counter value.
+   * @throws QuillError if the backend TSC configuration is invalid.
    */
-  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT static time_point to_time_point(RdtscVal rdtsc) noexcept
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT static time_point to_time_point(RdtscVal rdtsc)
   {
     return time_point{std::chrono::nanoseconds{
       detail::BackendManager::instance().convert_rdtsc_to_epoch_time(rdtsc.value())}};
   }
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

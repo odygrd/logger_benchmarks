@@ -9,10 +9,11 @@
 #include "quill/core/Attributes.h"
 #include "quill/core/Common.h"
 
-#include <limits>
 #include <string>
 
 QUILL_BEGIN_NAMESPACE
+
+QUILL_BEGIN_EXPORT
 
 /**
  * @brief Configuration options for the PatternFormatter.
@@ -22,15 +23,17 @@ QUILL_BEGIN_NAMESPACE
  */
 class PatternFormatterOptions
 {
+private:
+  static constexpr char const* default_format_pattern{
+    "%(time) [%(thread_id)] %(short_source_location:<28) LOG_%(log_level:<9) %(logger:<12) "
+    "%(message)%(mdc)"};
+
 public:
   /***/
-  explicit PatternFormatterOptions(std::string format_pattern =
-                                     "%(time) [%(thread_id)] %(short_source_location:<28) "
-                                     "LOG_%(log_level:<9) %(logger:<12) %(message)",
+  explicit PatternFormatterOptions(std::string format_pattern = default_format_pattern,
                                    std::string timestamp_pattern = "%H:%M:%S.%Qns",
                                    Timezone timestamp_timezone = Timezone::LocalTime,
-                                   bool add_metadata_to_multi_line_logs = true,
-                                   char pattern_suffix = '\n')
+                                   bool add_metadata_to_multi_line_logs = true, char pattern_suffix = '\n')
     : format_pattern(static_cast<std::string&&>(format_pattern)),
       timestamp_pattern(static_cast<std::string&&>(timestamp_pattern)),
       timestamp_timezone(timestamp_timezone),
@@ -61,13 +64,12 @@ public:
    * %(source_location)         - Full source file path and line number as a single string.
    * %(short_source_location)   - Shortened source file name and line number as a single string.
    * %(tags)                    - Additional custom tags appended to the message when _TAGS macros are used.
+   * %(mdc)                     - The backend-formatted MDC block for the calling thread. Empty when no MDC is set.
    * %(named_args)              - Key-value pairs appended to the message. Only applicable when the message has named args; remains empty otherwise.
    *
    * @warning The same attribute cannot be used twice in the same format pattern.
    */
-  std::string format_pattern{
-    "%(time) [%(thread_id)] %(short_source_location:<28) LOG_%(log_level:<9) %(logger:<12) "
-    "%(message)"};
+  std::string format_pattern{default_format_pattern};
 
   /**
    * @brief The format pattern for timestamps.
@@ -83,9 +85,11 @@ public:
   /**
    * @brief Sets a path prefix to be stripped from source location paths.
    *
-   * When set, any source location paths that start with this prefix will have the prefix removed:
+   * When set, the last occurrence of this prefix in the source location path is removed:
    * - For example, with prefix "/home/user/", a path like "/home/user/project/test.cpp:5"
    *   would be displayed as "project/test.cpp:5"
+   * - The same also works with a shorter marker such as "project", which would also produce
+   *   "test.cpp:5" or "subdir/test.cpp:5" depending on the remaining suffix
    * - If empty (default), the full path is shown
    *
    * This affects only the %(source_location) attribute.
@@ -153,7 +157,7 @@ public:
   static constexpr char NO_SUFFIX = static_cast<char>(-1);
 
   /***/
-  bool operator==(PatternFormatterOptions const& other) const noexcept
+  bool operator==(PatternFormatterOptions const& other) const
   {
     return format_pattern == other.format_pattern && timestamp_pattern == other.timestamp_pattern &&
       source_location_path_strip_prefix == other.source_location_path_strip_prefix &&
@@ -164,7 +168,9 @@ public:
   }
 
   /***/
-  bool operator!=(PatternFormatterOptions const& other) const noexcept { return !(*this == other); }
+  bool operator!=(PatternFormatterOptions const& other) const { return !(*this == other); }
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

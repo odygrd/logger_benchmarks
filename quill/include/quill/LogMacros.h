@@ -6,9 +6,96 @@
 
 #pragma once
 
-#include "quill/core/Common.h"
-#include "quill/core/LogLevel.h"
-#include "quill/core/MacroMetadata.h"
+#ifndef QUILL_USE_MODULE
+  #include "quill/core/Attributes.h"
+  #include "quill/core/ChronoTimeUtils.h"
+  #include "quill/core/Common.h"
+  #include "quill/core/LogLevel.h"
+  #include "quill/core/MacroMetadata.h"
+#else
+  // Modules do not export macros, so provide the required helpers here.
+  #ifndef QUILL_LIKELY
+    #if defined(__GNUC__)
+      #define QUILL_LIKELY(x) (__builtin_expect((x), 1))
+    #else
+      #define QUILL_LIKELY(x) (x)
+    #endif
+  #endif
+
+  #ifndef QUILL_UNLIKELY
+    #if defined(__GNUC__)
+      #define QUILL_UNLIKELY(x) (__builtin_expect((x), 0))
+    #else
+      #define QUILL_UNLIKELY(x) (x)
+    #endif
+  #endif
+#endif
+
+/**
+ * Convert number to string
+ */
+#if !defined(QUILL_AS_STR)
+  #define QUILL_AS_STR(x) #x
+#endif
+#if !defined(QUILL_STRINGIFY)
+  #define QUILL_STRINGIFY(x) QUILL_AS_STR(x)
+#endif
+
+/**
+ * Function name helper
+ */
+#if !defined(QUILL_FUNCTION_NAME)
+  #if defined(QUILL_DISABLE_FUNCTION_NAME) && defined(QUILL_DETAILED_FUNCTION_NAME)
+    #error "QUILL_DISABLE_FUNCTION_NAME and QUILL_DETAILED_FUNCTION_NAME are mutually exclusive"
+  #endif
+
+  #if defined(QUILL_DISABLE_FUNCTION_NAME)
+    #define QUILL_FUNCTION_NAME ""
+  #elif defined(QUILL_DETAILED_FUNCTION_NAME)
+    #if defined(_MSC_VER)
+      #define QUILL_FUNCTION_NAME __FUNCSIG__
+    #elif defined(__clang__) || defined(__GNUC__) || defined(__INTEL_COMPILER)
+      #define QUILL_FUNCTION_NAME __PRETTY_FUNCTION__
+    #else
+      #define QUILL_FUNCTION_NAME __FUNCTION__
+    #endif
+  #else
+    #define QUILL_FUNCTION_NAME __FUNCTION__
+  #endif
+#endif
+
+/**
+ * File name helper
+ */
+#if !defined(QUILL_FILE_NAME)
+  #if defined(QUILL_DISABLE_FILE_INFO)
+    #define QUILL_FILE_NAME ""
+  #else
+    #define QUILL_FILE_NAME __FILE__
+  #endif
+#endif
+
+/**
+ * Line number helper
+ */
+#if !defined(QUILL_LINE_NO)
+  #if defined(QUILL_DISABLE_FILE_INFO)
+    #define QUILL_LINE_NO 0
+  #else
+    #define QUILL_LINE_NO __LINE__
+  #endif
+#endif
+
+/**
+ * File info helper
+ */
+#if !defined(QUILL_FILE_INFO)
+  #if defined(QUILL_DISABLE_FILE_INFO)
+    #define QUILL_FILE_INFO ""
+  #else
+    #define QUILL_FILE_INFO QUILL_FILE_NAME ":" QUILL_STRINGIFY(QUILL_LINE_NO)
+  #endif
+#endif
 
 /**
  * Allows compile-time filtering of log messages to completely compile out log levels,
@@ -313,35 +400,36 @@
     }                                                                                               \
   } while (0)
 
-#define QUILL_LOGGER_CALL_LIMIT(min_interval, likelyhood, logger, tags, log_level, fmt, ...)       \
-  do                                                                                               \
-  {                                                                                                \
-    if (likelyhood(logger->template should_log_statement<log_level>()))                            \
-    {                                                                                              \
-      thread_local std::chrono::time_point<std::chrono::steady_clock> __next_log_time__;           \
-      thread_local uint64_t __suppressed_log_count__{0};                                           \
-      auto const __now__ = std::chrono::steady_clock::now();                                       \
-                                                                                                   \
-      if (__now__ < __next_log_time__)                                                             \
-      {                                                                                            \
-        ++__suppressed_log_count__;                                                                \
-        break;                                                                                     \
-      }                                                                                            \
-                                                                                                   \
-      if constexpr (quill::MacroMetadata::_contains_named_args(fmt))                               \
-      {                                                                                            \
-        QUILL_LOGGER_CALL(likelyhood, logger, tags, log_level, fmt " ({occurred}x)",               \
-                          ##__VA_ARGS__, __suppressed_log_count__ + 1);                            \
-      }                                                                                            \
-      else                                                                                         \
-      {                                                                                            \
-        QUILL_LOGGER_CALL(likelyhood, logger, tags, log_level, fmt " ({}x)", ##__VA_ARGS__,        \
-                          __suppressed_log_count__ + 1);                                           \
-      }                                                                                            \
-                                                                                                   \
-      __next_log_time__ = __now__ + min_interval;                                                  \
-      __suppressed_log_count__ = 0;                                                                \
-    }                                                                                              \
+#define QUILL_LOGGER_CALL_LIMIT(min_interval, likelyhood, logger, tags, log_level, fmt, ...)               \
+  do                                                                                                       \
+  {                                                                                                        \
+    if (likelyhood(logger->template should_log_statement<log_level>()))                                    \
+    {                                                                                                      \
+      thread_local uint64_t quill_next_log_time_ns_{0};                                                    \
+      thread_local uint64_t quill_suppressed_log_count_{0};                                                \
+      uint64_t const quill_now_ns_ = quill::detail::get_steady_time_ns();                                  \
+                                                                                                           \
+      if (quill_now_ns_ < quill_next_log_time_ns_)                                                         \
+      {                                                                                                    \
+        ++quill_suppressed_log_count_;                                                                     \
+        break;                                                                                             \
+      }                                                                                                    \
+                                                                                                           \
+      if constexpr (quill::MacroMetadata::contains_named_args(fmt))                                        \
+      {                                                                                                    \
+        QUILL_LOGGER_CALL(likelyhood, logger, tags, log_level, fmt " ({occurred}x)",                       \
+                          ##__VA_ARGS__, quill_suppressed_log_count_ + 1);                                 \
+      }                                                                                                    \
+      else                                                                                                 \
+      {                                                                                                    \
+        QUILL_LOGGER_CALL(likelyhood, logger, tags, log_level, fmt " ({}x)", ##__VA_ARGS__,                \
+                          quill_suppressed_log_count_ + 1);                                                \
+      }                                                                                                    \
+                                                                                                           \
+      quill_next_log_time_ns_ = quill_now_ns_ +                                                            \
+        static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(min_interval).count()); \
+      quill_suppressed_log_count_ = 0;                                                                     \
+    }                                                                                                      \
   } while (0)
 
 #define QUILL_LOGGER_CALL_LIMIT_EVERY_N(n_occurrences, likelyhood, logger, tags, log_level, fmt, ...) \
@@ -349,14 +437,14 @@
   {                                                                                                   \
     if (likelyhood(logger->template should_log_statement<log_level>()))                               \
     {                                                                                                 \
-      thread_local uint64_t __call_count__ = 0;                                                       \
-      thread_local uint64_t __next_log_at__ = 0;                                                      \
-      if (__call_count__ == __next_log_at__)                                                          \
+      thread_local uint64_t quill_call_count_ = 0;                                                    \
+      thread_local uint64_t quill_next_log_at_ = 0;                                                   \
+      if (quill_call_count_ == quill_next_log_at_)                                                    \
       {                                                                                               \
         QUILL_LOGGER_CALL(likelyhood, logger, tags, log_level, fmt, ##__VA_ARGS__);                   \
-        __next_log_at__ += n_occurrences;                                                             \
+        quill_next_log_at_ += n_occurrences;                                                          \
       }                                                                                               \
-      ++__call_count__;                                                                               \
+      ++quill_call_count_;                                                                            \
     }                                                                                                 \
   } while (0)
 
@@ -424,11 +512,11 @@
   #define QUILL_LOGV_TRACE_L3(logger, fmt, ...) (void)0
   #define QUILL_LOGV_TRACE_L3_LIMIT(min_interval, logger, fmt, ...) (void)0
   #define QUILL_LOGV_TRACE_L3_LIMIT_EVERY_N(n_occurrences, logger, fmt, ...) (void)0
-  #define QUILL_LOGV_TRACE_L3_TAGS (void)0
+  #define QUILL_LOGV_TRACE_L3_TAGS(logger, tags, fmt, ...) (void)0
   #define QUILL_LOGJ_TRACE_L3(logger, fmt, ...) (void)0
   #define QUILL_LOGJ_TRACE_L3_LIMIT(min_interval, logger, fmt, ...) (void)0
   #define QUILL_LOGJ_TRACE_L3_LIMIT_EVERY_N(n_occurrences, logger, fmt, ...) (void)0
-  #define QUILL_LOGJ_TRACE_L3_TAGS (void)0
+  #define QUILL_LOGJ_TRACE_L3_TAGS(logger, tags, fmt, ...) (void)0
 #endif
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_TRACE_L2
@@ -971,7 +1059,14 @@
   QUILL_LOG_RUNTIME_METADATA_CALL(quill::MacroMetadata::Event::LogWithRuntimeMetadataShallowCopy, logger,  \
                                   log_level, file, line_number, function, tags, fmt, ##__VA_ARGS__)
 
+#define QUILL_METRIC(logger, metric_metadata, value)                                               \
+  do                                                                                               \
+  {                                                                                                \
+    logger->publish_metric((metric_metadata), value);                                              \
+  } while (0)
+
 #if !defined(QUILL_DISABLE_NON_PREFIXED_MACROS)
+  #define METRIC(logger, metric_metadata, value) QUILL_METRIC(logger, metric_metadata, value)
   #define TAGS(...) QUILL_TAGS(__VA_ARGS__)
   #define LOG_TRACE_L3(logger, fmt, ...) QUILL_LOG_TRACE_L3(logger, fmt, ##__VA_ARGS__)
   #define LOG_TRACE_L2(logger, fmt, ...) QUILL_LOG_TRACE_L2(logger, fmt, ##__VA_ARGS__)

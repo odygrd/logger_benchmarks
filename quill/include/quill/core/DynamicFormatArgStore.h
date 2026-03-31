@@ -70,9 +70,11 @@ public:
 };
 } // namespace detail
 
+QUILL_BEGIN_EXPORT
+
 /**
  * Similar to fmt::dynamic_arg_store but better suited to our needs
- * e.g does not include <functional> and requires less space
+ * e.g. does not include ``<functional>`` and requires less space
  */
 class DynamicFormatArgStore
 {
@@ -153,5 +155,7 @@ public:
 
   QUILL_NODISCARD bool has_string_related_type() const noexcept { return _has_string_related_type; }
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

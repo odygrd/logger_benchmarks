@@ -60,14 +60,16 @@ public:
 
     // look for all three special specifiers
 
-    if (size_t const search_qms = _time_format.find(specifier_name[AdditionalSpecifier::Qms]);
+    if (size_t const search_qms = StringFromTime::_find_unescaped_modifier(
+          _time_format, specifier_name[AdditionalSpecifier::Qms]);
         search_qms != std::string::npos)
     {
       _additional_format_specifier = AdditionalSpecifier::Qms;
       specifier_begin = search_qms;
     }
 
-    if (size_t const search_qus = _time_format.find(specifier_name[AdditionalSpecifier::Qus]);
+    if (size_t const search_qus = StringFromTime::_find_unescaped_modifier(
+          _time_format, specifier_name[AdditionalSpecifier::Qus]);
         search_qus != std::string::npos)
     {
       if (specifier_begin != std::string::npos)
@@ -79,7 +81,8 @@ public:
       specifier_begin = search_qus;
     }
 
-    if (size_t const search_qns = _time_format.find(specifier_name[AdditionalSpecifier::Qns]);
+    if (size_t const search_qns = StringFromTime::_find_unescaped_modifier(
+          _time_format, specifier_name[AdditionalSpecifier::Qns]);
         search_qns != std::string::npos)
     {
       if (specifier_begin != std::string::npos)
@@ -133,6 +136,7 @@ public:
     _formatted_date.append(_strftime_part_1.format_timestamp(timestamp_secs));
 
     // 2. We add any special ms/us/ns specifier if any
+    // Note: assumes timestamp_ns >= 0 (post-epoch). Pre-epoch timestamps are not supported.
     auto const extracted_ns = static_cast<uint32_t>(timestamp_ns - (timestamp_secs * 1'000'000'000));
 
     if (_additional_format_specifier == AdditionalSpecifier::Qms)
@@ -183,12 +187,28 @@ private:
   /***/
   void _write_fractional_seconds(uint32_t extracted_fractional_seconds)
   {
-    // Format the seconds and add them
-    fmtquill::format_int const extracted_ms_string{extracted_fractional_seconds};
+    uint32_t digits = 0;
+    switch (_additional_format_specifier)
+    {
+    case AdditionalSpecifier::Qms:
+      digits = 3;
+      break;
+    case AdditionalSpecifier::Qus:
+      digits = 6;
+      break;
+    case AdditionalSpecifier::Qns:
+      digits = 9;
+      break;
+    default:
+      return;
+    }
 
-    // _formatted_date.size() - extracted_ms_string.size() is where we want to begin placing the fractional seconds
-    std::memcpy(&_formatted_date[_formatted_date.size() - extracted_ms_string.size()],
-                extracted_ms_string.data(), extracted_ms_string.size());
+    char* write_pos = _formatted_date.data() + _formatted_date.size();
+    for (uint32_t i = 0; i < digits; ++i)
+    {
+      *--write_pos = static_cast<char>('0' + (extracted_fractional_seconds % 10));
+      extracted_fractional_seconds /= 10;
+    }
   }
 
 private:

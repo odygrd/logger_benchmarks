@@ -1,4 +1,4 @@
-#include "spdlog/fmt/fmt.h"
+#include "fmt/format.h"
 
 #include "reckless/file_writer.hpp"
 #include "reckless/severity_log.hpp"

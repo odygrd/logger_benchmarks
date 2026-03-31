@@ -45,18 +45,31 @@ QUILL_BEGIN_NAMESPACE
   #pragma warning(disable : 4996)
 #endif
 
+QUILL_BEGIN_EXPORT
+
 /** Forward Declaration **/
 class MacroMetadata;
 
+#if defined(_WIN32)
+using FileEventNotifierHandle = HANDLE;
+#else
+using FileEventNotifierHandle = FILE*;
+#endif
+
 /**
- * @brief Notifies on file events by calling the appropriate callback, the callback is executed on
- * the backend worker thread
+ * @brief Notifies on file events by calling the appropriate callback.
+ *
+ * @note `before_write` executes as part of the normal log write path.
+ *       `before_open`, `after_open`, `before_close`, and `after_close` execute on the thread
+ *       performing the file open/close operation. Different callbacks, and different invocations
+ *       of the same callback, may therefore run on different threads over the sink lifetime.
+ *       Callbacks must be thread-safe and must not assume a single calling thread.
  */
 struct FileEventNotifier
 {
   std::function<void(fs::path const& file_path)> before_open;
-  std::function<void(fs::path const& file_path, FILE* f)> after_open;
-  std::function<void(fs::path const& file_path, FILE* f)> before_close;
+  std::function<void(fs::path const& file_path, FileEventNotifierHandle f)> after_open;
+  std::function<void(fs::path const& file_path, FileEventNotifierHandle f)> before_close;
   std::function<void(fs::path const& file_path)> after_close;
   std::function<std::string(std::string_view message)> before_write;
 };
@@ -98,49 +111,7 @@ public:
     }
     else
     {
-      // first attempt to create any non-existing directories
-      std::error_code ec;
-      fs::path parent_path;
-
-      if (!_filename.parent_path().empty())
-      {
-        parent_path = _filename.parent_path();
-
-        // The call to fs::status is necessary due to a known issue in GCC versions 8.3.0 to 9.4.0.
-        // In these versions, fs::create_directories(path, ec) internally uses
-        // fs::symlink_status(path, ec) instead of fs::status(path, ec) for checking the path.
-        // This causes a problem because fs::symlink_status does not follow the symlink to the
-        // target directory. As a result,  it fails the is_directory() check but still indicates
-        // that the path exists, leading to a not_a_directory exception being set in the error code
-        auto const st = fs::status(parent_path, ec);
-        if (!is_directory(st))
-        {
-          fs::create_directories(parent_path, ec);
-          if (ec)
-          {
-            // use .string() to also support experimental fs
-            QUILL_THROW(QuillError{std::string{"cannot create directories for path "} +
-                                   parent_path.string() + std::string{" - error: "} + ec.message()});
-          }
-        }
-      }
-      else
-      {
-        parent_path = fs::current_path();
-      }
-
-      // convert the parent path to an absolute path
-      fs::path const canonical_path = fs::canonical(parent_path, ec);
-
-      if (ec)
-      {
-        // use .string() to also support experimental fs
-        QUILL_THROW(QuillError{std::string{"cannot create canonical path for path "} +
-                               parent_path.string() + std::string{" - error: "} + ec.message()});
-      }
-
-      // finally replace the given filename's parent_path with the equivalent canonical path
-      _filename = canonical_path / _filename.filename();
+      _filename = detail::normalize_file_sink_path(_filename);
     }
   }
 
@@ -230,15 +201,20 @@ public:
 
         if (QUILL_LIKELY(handle != INVALID_HANDLE_VALUE))
         {
-          auto const total_bytes_remaining = static_cast<DWORD>(remaining);
+          constexpr size_t max_dword = static_cast<size_t>(~DWORD{0});
+          auto const total_bytes_remaining = static_cast<DWORD>(std::min<size_t>(remaining, max_dword));
           DWORD bytes_written_this_call = 0;
 
-          if (QUILL_UNLIKELY((::WriteFile(handle, current_ptr, total_bytes_remaining,
-                                          &bytes_written_this_call, nullptr) == 0) ||
-                             (bytes_written_this_call != total_bytes_remaining)))
+          if (QUILL_UNLIKELY(::WriteFile(handle, current_ptr, total_bytes_remaining,
+                                          &bytes_written_this_call, nullptr) == 0))
           {
             QUILL_THROW(QuillError{std::string{"WriteFile failed. GetLastError: "} +
                                    std::to_string(::GetLastError())});
+          }
+
+          if (QUILL_UNLIKELY(bytes_written_this_call == 0))
+          {
+            QUILL_THROW(QuillError{"WriteFile returned 0 bytes written without error"});
           }
 
           bytes_written += bytes_written_this_call;
@@ -278,12 +254,28 @@ public:
   }
 
 protected:
+  QUILL_NODISCARD virtual size_t estimate_write_size(
+    MacroMetadata const* /* log_metadata */, uint64_t /* log_timestamp */,
+    std::string_view /* thread_id */, std::string_view /* thread_name */,
+    std::string const& /* process_id */, std::string_view /* logger_name */, LogLevel /* log_level */,
+    std::string_view /* log_level_description */, std::string_view /* log_level_short_code */,
+    std::vector<std::pair<std::string, std::string>> const* /* named_args */,
+    std::string_view /* log_message */, std::string_view log_statement)
+  {
+    return log_statement.size();
+  }
+
   /**
    * Flushes the stream
    */
   QUILL_ATTRIBUTE_HOT void flush()
   {
-    int const result = std::fflush(_file);
+    // Retry on EINTR — a signal delivered during fflush() causes it to fail transiently.
+    int result{0};
+    do
+    {
+      result = std::fflush(_file);
+    } while (result != 0 && errno == EINTR);
 
     if (QUILL_LIKELY(result == 0))
     {
@@ -306,6 +298,8 @@ protected:
   bool _is_null{false};
   bool _write_occurred{false};
 };
+
+QUILL_END_EXPORT
 
 #if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
   #pragma warning(pop)

@@ -1,6 +1,6 @@
 ﻿#pragma once
 /*
- * Copyright (C) 2024 Tencent.
+ * Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -61,6 +61,16 @@ namespace bq {
 #if defined(BQ_CPP_14)
     template <typename T>
     constexpr bool is_pod_v = is_pod<T>::value;
+#endif
+    //------------------------------------------------------------------------------------------
+
+    template <typename Base, typename Derived>
+    struct is_base_of : bool_type<__is_base_of(Base, Derived)> {
+    };
+
+#if defined(BQ_CPP_14)
+    template <typename Base, typename Derived>
+    constexpr bool is_base_of_v = is_base_of<Base, Derived>::value;
 #endif
     //------------------------------------------------------------------------------------------
 
@@ -270,7 +280,32 @@ namespace bq {
     using lazy_enable_if_t = typename lazy_enable_if<Test, T>::type;
 
     //------------------------------------------------------------------------------------------
-
+    template <typename T>
+    struct is_integer : bool_type<
+                            is_same<T, int8_t>::value
+                            || is_same<T, uint8_t>::value
+                            || is_same<T, int16_t>::value
+                            || is_same<T, uint16_t>::value
+                            || is_same<T, int32_t>::value
+                            || is_same<T, uint32_t>::value
+                            || is_same<T, int64_t>::value
+                            || is_same<T, uint64_t>::value
+                            || is_same<T, signed char>::value
+                            || is_same<T, unsigned char>::value
+                            || is_same<T, short>::value
+                            || is_same<T, unsigned short>::value
+                            || is_same<T, int>::value
+                            || is_same<T, unsigned int>::value
+                            || is_same<T, long>::value
+                            || is_same<T, unsigned long>::value
+                            || is_same<T, long long>::value
+                            || is_same<T, unsigned long long>::value> {
+    };
+#if defined(BQ_CPP_14)
+    template <typename T>
+    constexpr bool is_integer_v = is_integer<T>::value;
+#endif
+    //------------------------------------------------------------------------------------------
     template <typename T>
     typename add_rvalue_reference<T>::type declval() noexcept
     {
@@ -278,6 +313,36 @@ namespace bq {
     }
     template <typename T>
     using add_rvalue_reference_t = typename add_rvalue_reference<T>::type;
+
+    //------------------------------------------------------------------------------------------
+    namespace _is_signed_helper {
+        template <typename T, bool IsInt = is_integer<T>::value>
+        struct impl : false_type {};
+        template <typename T>
+        struct impl<T, true> : bool_type<(T(-1) < T(0))> {};
+    }
+    template <typename T>
+    struct is_signed : _is_signed_helper::impl<T> {
+    };
+#if defined(BQ_CPP_14)
+    template <typename T>
+    constexpr bool is_signed_v = is_signed<T>::value;
+#endif
+
+    //------------------------------------------------------------------------------------------
+    namespace _is_unsigned_helper {
+        template <typename T, bool IsInt = is_integer<T>::value>
+        struct impl : false_type {};
+        template <typename T>
+        struct impl<T, true> : bool_type<(T(-1) > T(0))> {};
+    }
+    template <typename T>
+    struct is_unsigned : _is_unsigned_helper::impl<T> {
+    };
+#if defined(BQ_CPP_14)
+    template <typename T>
+    constexpr bool is_unsigned_v = is_unsigned<T>::value;
+#endif
 
     //------------------------------------------------------------------------------------------
     template <typename T>
@@ -361,4 +426,5 @@ namespace bq {
     template <typename T>
     constexpr bool is_trivially_move_assignable_v = is_trivially_move_assignable<T>::value;
 #endif
+
 }

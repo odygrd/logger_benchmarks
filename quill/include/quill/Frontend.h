@@ -12,6 +12,7 @@
 #include "quill/core/Common.h"
 #include "quill/core/FrontendOptions.h"
 #include "quill/core/LoggerManager.h"
+#include "quill/core/MetricManager.h"
 #include "quill/core/PatternFormatterOptions.h"
 #include "quill/core/QuillError.h"
 #include "quill/core/SinkManager.h"
@@ -19,15 +20,15 @@
 #include "quill/sinks/Sink.h"
 
 #include <atomic>
-#include <chrono>
 #include <cstddef>
 #include <initializer_list>
 #include <memory>
 #include <string>
-#include <thread>
 #include <vector>
 
 QUILL_BEGIN_NAMESPACE
+
+QUILL_BEGIN_EXPORT
 
 template <typename TFrontendOptions>
 class FrontendImpl
@@ -111,11 +112,27 @@ public:
   }
 
   /**
+   * @brief Creates a new sink with the specified name.
+   *
+   * @param sink_name The name of the sink.
+   * @param args The arguments to pass to the sink constructor.
+   * @return std::shared_ptr<Sink> A shared pointer to the created sink.
+   * @throws QuillError if a sink with the same name already exists.
+   */
+  template <typename TSink, typename... Args>
+  static std::shared_ptr<Sink> create_sink(std::string const& sink_name, Args&&... args)
+  {
+    return detail::SinkManager::instance().create_sink<TSink>(sink_name, static_cast<Args&&>(args)...);
+  }
+
+  /**
    * @brief Creates a new sink or retrieves an existing one with the specified name.
    *
    * @param sink_name The name of the sink.
    * @param args The arguments to pass to the sink constructor.
    * @return std::shared_ptr<Sink> A shared pointer to the created or retrieved sink.
+   * @note If a sink with the specified name already exists, the existing sink is returned
+   * and the provided constructor arguments are ignored.
    */
   template <typename TSink, typename... Args>
   static std::shared_ptr<Sink> create_or_get_sink(std::string const& sink_name, Args&&... args)
@@ -127,11 +144,125 @@ public:
    * @brief Retrieves an existing sink with the specified name.
    *
    * @param sink_name The name of the sink.
-   * @return std::shared_ptr<Sink> A shared pointer to the retrieved sink, or nullptr if not found.
+   * @return std::shared_ptr<Sink> A shared pointer to the retrieved sink.
+   * @throws QuillError if the sink does not exist.
    */
   QUILL_NODISCARD static std::shared_ptr<Sink> get_sink(std::string const& sink_name)
   {
     return detail::SinkManager::instance().get_sink(sink_name);
+  }
+
+  /**
+   * @brief Registers a new runtime metric and returns owned metadata for it.
+   *
+   * The MetricManager owns the returned MetricMetadata for the process lifetime, so the returned
+   * pointer is stable and can be passed directly to QUILL_METRIC / logger->publish_metric().
+   * `metric_key` is Quill's unique registration and lookup key for the metric metadata.
+   * `metric_name` must be non-empty but does not need to be unique, so multiple metric keys may
+   * reuse the same name when that fits the sink's export model.
+   *
+   * @throws QuillError if `metric_key` has already been registered.
+   */
+  QUILL_NODISCARD static MetricMetadata const* create_metric(std::string const& metric_key,
+                                                             std::string const& metric_name,
+                                                             std::vector<MetricLabel> const& labels = {})
+  {
+    return detail::MetricManager::instance().create_metric(metric_key, metric_name, labels);
+  }
+
+  /**
+   * @brief Registers a runtime metric or returns the existing MetricMetadata pointer.
+   *
+   * `metric_key` is the unique identifier. `metric_name` must be non-empty but is not required to
+   * be unique.
+   *
+   * If a metric with the same `metric_key` already exists, the existing pointer is returned
+   * unchanged and `metric_name` and `labels` are ignored. Use create_metric() if you need strict
+   * registration by unique key.
+   */
+  QUILL_NODISCARD static MetricMetadata const* create_or_get_metric(std::string const& metric_key,
+                                                                    std::string const& metric_name,
+                                                                    std::vector<MetricLabel> const& labels = {})
+  {
+    return detail::MetricManager::instance().create_or_get_metric(metric_key, metric_name, labels);
+  }
+
+  /**
+   * Looks up an existing metric.
+   * @param metric_key metric key used during creation
+   * @return the stored metric
+   * @throws QuillError if no metric with the given key has been registered.
+   */
+  QUILL_NODISCARD static MetricMetadata const* get_metric(std::string const& metric_key)
+  {
+    return detail::MetricManager::instance().get_metric(metric_key);
+  }
+
+  /**
+   * @brief Creates a new logger with the specified name.
+   *
+   * @param logger_name The name of the logger.
+   * @param sink A shared pointer to the sink to associate with the logger.
+   * @param pattern_formatter_options Contains the formatting configuration for PatternFormatter
+   * @param clock_source The clock source for log timestamps.
+   * @param user_clock A pointer to a custom user clock.
+   *
+   * @return Logger* A pointer to the created logger.
+   * @throws QuillError if a logger with the same name already exists or is pending removal.
+   */
+  static logger_t* create_logger(std::string const& logger_name, std::shared_ptr<Sink> sink,
+                                 PatternFormatterOptions const& pattern_formatter_options = PatternFormatterOptions{},
+                                 ClockSourceType clock_source = ClockSourceType::Tsc,
+                                 UserClockSource* user_clock = nullptr)
+  {
+    std::vector<std::shared_ptr<Sink>> sinks;
+    sinks.push_back(static_cast<std::shared_ptr<Sink>&&>(sink));
+
+    return _cast_to_logger(detail::LoggerManager::instance().create_logger<logger_t>(
+      logger_name, static_cast<std::vector<std::shared_ptr<Sink>>&&>(sinks),
+      pattern_formatter_options, clock_source, user_clock));
+  }
+
+  /**
+   * @brief Creates a new logger with the specified name and multiple sinks.
+   *
+   * @param logger_name The name of the logger.
+   * @param sinks A vector of shared pointers to sinks to associate with the logger.
+   * @param pattern_formatter_options Contains the formatting configuration for PatternFormatter
+   * @param clock_source The clock source for log timestamps.
+   * @param user_clock A pointer to a custom user clock.
+   * @return Logger* A pointer to the created logger.
+   * @throws QuillError if a logger with the same name already exists or is pending removal.
+   */
+  static logger_t* create_logger(std::string const& logger_name, std::vector<std::shared_ptr<Sink>> sinks,
+                                 PatternFormatterOptions const& pattern_formatter_options = PatternFormatterOptions{},
+                                 ClockSourceType clock_source = ClockSourceType::Tsc,
+                                 UserClockSource* user_clock = nullptr)
+  {
+    return _cast_to_logger(detail::LoggerManager::instance().create_logger<logger_t>(
+      logger_name, static_cast<std::vector<std::shared_ptr<Sink>>&&>(sinks),
+      pattern_formatter_options, clock_source, user_clock));
+  }
+
+  /**
+   * @brief Creates a new logger with the specified name and multiple sinks.
+   *
+   * @param logger_name The name of the logger.
+   * @param sinks An initializer list of shared pointers to sinks to associate with the logger.
+   * @param pattern_formatter_options Contains the formatting configuration for PatternFormatter
+   * @param clock_source The clock source for log timestamps.
+   * @param user_clock A pointer to a custom user clock.
+   * @return Logger* A pointer to the created logger.
+   * @throws QuillError if a logger with the same name already exists or is pending removal.
+   */
+  static logger_t* create_logger(std::string const& logger_name,
+                                 std::initializer_list<std::shared_ptr<Sink>> sinks,
+                                 PatternFormatterOptions const& pattern_formatter_options = PatternFormatterOptions{},
+                                 ClockSourceType clock_source = ClockSourceType::Tsc,
+                                 UserClockSource* user_clock = nullptr)
+  {
+    return create_logger(logger_name, std::vector<std::shared_ptr<Sink>>{sinks},
+                         pattern_formatter_options, clock_source, user_clock);
   }
 
   /**
@@ -142,6 +273,12 @@ public:
    * @param pattern_formatter_options Contains the formatting configuration for PatternFormatter
    * @param clock_source The clock source for log timestamps.
    * @param user_clock A pointer to a custom user clock.
+   *
+   * @note If a logger with the specified name already exists, the existing logger is returned
+   *       and the provided sinks, pattern, clock source, and user clock parameters are ignored.
+   * @note Recreating a logger with the same name while a previous logger is still pending
+   *       asynchronous removal will throw `QuillError`. Use remove_logger_blocking() when you
+   *       need synchronous removal before recreating a logger.
    *
    * @return Logger* A pointer to the created or retrieved logger.
    */
@@ -166,6 +303,11 @@ public:
    * @param pattern_formatter_options Contains the formatting configuration for PatternFormatter
    * @param clock_source The clock source for log timestamps.
    * @param user_clock A pointer to a custom user clock.
+   * @note If a logger with the specified name already exists, the existing logger is returned
+   *       and the provided sinks, pattern, clock source, and user clock parameters are ignored.
+   * @note Recreating a logger with the same name while a previous logger is still pending
+   *       asynchronous removal will throw `QuillError`. Use remove_logger_blocking() when you
+   *       need synchronous removal before recreating a logger.
    * @return Logger* A pointer to the created or retrieved logger.
    */
   static logger_t* create_or_get_logger(
@@ -186,6 +328,11 @@ public:
    * @param pattern_formatter_options Contains the formatting configuration for PatternFormatter
    * @param clock_source The clock source for log timestamps.
    * @param user_clock A pointer to a custom user clock.
+   * @note If a logger with the specified name already exists, the existing logger is returned
+   *       and the provided sinks, pattern, clock source, and user clock parameters are ignored.
+   * @note Recreating a logger with the same name while a previous logger is still pending
+   *       asynchronous removal will throw `QuillError`. Use remove_logger_blocking() when you
+   *       need synchronous removal before recreating a logger.
    * @return Logger* A pointer to the created or retrieved logger.
    */
   static logger_t* create_or_get_logger(
@@ -206,12 +353,24 @@ public:
    *
    * @param logger_name The name of the logger to create or retrieve.
    * @param source_logger The logger from which to copy the configuration options.
+   * @note Recreating a logger with the same name while a previous logger is still pending
+   *       asynchronous removal will throw `QuillError`. Use remove_logger_blocking() when you
+   *       need synchronous removal before recreating a logger.
    * @return A pointer to the logger instance, either newly created or retrieved.
    */
   static logger_t* create_or_get_logger(std::string const& logger_name, detail::LoggerBase* source_logger = nullptr)
   {
-    return _cast_to_logger(
-      detail::LoggerManager::instance().create_or_get_logger<logger_t>(logger_name, source_logger));
+    detail::LoggerBase* logger_base =
+      detail::LoggerManager::instance().create_or_get_logger<logger_t>(logger_name, source_logger);
+
+    if (QUILL_UNLIKELY(!logger_base))
+    {
+      QUILL_THROW(QuillError{
+        "create_or_get_logger(logger_name, source_logger) requires a valid source_logger when "
+        "the logger does not already exist"});
+    }
+
+    return _cast_to_logger(logger_base);
   }
 
   /**
@@ -225,13 +384,18 @@ public:
    * Since the exact removal timing is unknown, you should not attempt to create a new logger
    * with the same name as the one being removed.
    *
-   * @note This function is thread-safe. However, removing the same logger (`logger_t*`) from multiple threads is not allowed. You must ensure that remove_logger_blocking is only called by a single thread for a given logger.
+   * @note This function is thread-safe. However, removing the same logger (`logger_t*`) from multiple threads is not allowed. You must ensure that remove_logger is only called by a single thread for a given logger.
    * @warning After calling this function, no thread should use this logger.
    *
    * @param logger A pointer to the logger to remove.
    */
   static void remove_logger(detail::LoggerBase* logger)
   {
+    if (!logger)
+    {
+      return;
+    }
+
     detail::LoggerManager::instance().remove_logger(logger);
   }
 
@@ -245,6 +409,8 @@ public:
    * However, no other threads should be using the logger after the call to this function.
    *
    * @note This function is thread-safe. However, removing the same logger (`logger_t*`) from multiple threads is not allowed. You must ensure that remove_logger_blocking is only called by a single thread for a given logger.
+   * @note This function should only be called when the backend worker is running after Backend::start(...).
+   * @note This function must not be called from backend-thread callbacks because it waits for the backend worker.
    * @warning After calling this function, no thread should use this logger.
    *
    * @param logger A pointer to the logger to remove.
@@ -252,6 +418,17 @@ public:
    */
   static void remove_logger_blocking(logger_t* logger, uint32_t sleep_duration_ns = 100)
   {
+    if (!logger)
+    {
+      return;
+    }
+
+    if (QUILL_UNLIKELY(detail::LoggerBase::is_current_thread_backend_thread()))
+    {
+      QUILL_THROW(QuillError{
+        "Frontend::remove_logger_blocking() cannot be called from the backend worker thread"});
+    }
+
     static constexpr MacroMetadata macro_metadata{
       "", "", "", nullptr, LogLevel::Critical, MacroMetadata::Event::LoggerRemovalRequest};
 
@@ -264,11 +441,11 @@ public:
       // We do not want to drop the message if a dropping queue is used
       if (sleep_duration_ns > 0)
       {
-        std::this_thread::sleep_for(std::chrono::nanoseconds{sleep_duration_ns});
+        detail::sleep_for_ns(sleep_duration_ns);
       }
       else
       {
-        std::this_thread::yield();
+        detail::yield_thread();
       }
     }
 
@@ -279,11 +456,11 @@ public:
       // The caller thread keeps checking the flag until the logger is removed
       if (sleep_duration_ns > 0)
       {
-        std::this_thread::sleep_for(std::chrono::nanoseconds{sleep_duration_ns});
+        detail::sleep_for_ns(sleep_duration_ns);
       }
       else
       {
-        std::this_thread::yield();
+        detail::yield_thread();
       }
     }
   }
@@ -293,6 +470,11 @@ public:
    *
    * @param logger_name The name of the logger.
    * @return Logger* A pointer to the retrieved logger, or nullptr if not found.
+   *
+   * @note Returns nullptr on miss on purpose so callers can check for a removed logger
+   *       without catching an exception (e.g., after the async remove_logger() path).
+   *       get_sink() and get_metric() are stricter and throw — they have no comparable
+   *       use case for an expected miss.
    */
   QUILL_NODISCARD static logger_t* get_logger(std::string const& logger_name)
   {
@@ -368,5 +550,7 @@ private:
 };
 
 using Frontend = FrontendImpl<FrontendOptions>;
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

@@ -1,26 +1,31 @@
-# library name
-set(TARGET_NAME fmtlog)
+cmake_minimum_required(VERSION 3.15)
 
-# header files
-set(HEADER_FILES
-        include/fmtlog/fmtlog-inl.h
-        include/fmtlog/fmtlog.h
-        )
+project(fmtlog CXX)
 
-# source files
-set(SOURCE_FILES
-        src/fmtlog.cc
-        src/fmt/format.cc
-        src/fmt/os.cc
-        )
+if(MSVC)
+    add_compile_options(/std:c++latest)
+else()
+    add_compile_options(-Wall -O3 -std=c++17)
+    #add_compile_options(-Wall -Ofast -std=c++2a -DNDEBUG -march=skylake -flto -fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -DFMTLOG_NO_CHECK_LEVEL=1)
+    #SET(CMAKE_AR  "gcc-ar")
+    #SET(CMAKE_RANLIB  "gcc-ranlib")
+    link_libraries(pthread)
+endif()
 
-# Add as a library
-add_library(${TARGET_NAME} STATIC "")
+link_directories(.)
+include_directories(fmt/include)
 
-# Add target sources
-target_sources(${TARGET_NAME} PRIVATE ${SOURCE_FILES} ${HEADER_FILES})
+add_library(fmtlog-shared SHARED fmtlog.cc)
+if(MSVC)
+  target_link_libraries(fmtlog-shared fmt)
+endif()
+install(TARGETS fmtlog-shared)
 
-# Link dependencies
-target_link_libraries(${TARGET_NAME} PUBLIC rt)
+add_library(fmtlog-static fmtlog.cc)
+if(MSVC)
+  target_link_libraries(fmtlog-static fmt)
+endif()
+install(TARGETS fmtlog-static)
 
-target_include_directories(${TARGET_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include )
+add_subdirectory(fmt)
+add_subdirectory(test)

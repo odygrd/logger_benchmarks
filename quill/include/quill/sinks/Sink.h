@@ -25,15 +25,21 @@
 
 QUILL_BEGIN_NAMESPACE
 
-/** Forward Declarations **/
-class MacroMetadata;
-class PatternFormatter;
-
 namespace detail
 {
 class BackendWorker;
 }
 
+/** Forward Declarations **/
+QUILL_BEGIN_EXPORT
+
+class MacroMetadata;
+class MetricMetadata;
+class PatternFormatter;
+
+QUILL_END_EXPORT
+
+QUILL_BEGIN_EXPORT
 /**
  * Base class for sinks
  */
@@ -84,20 +90,28 @@ public:
    */
   void add_filter(std::unique_ptr<Filter> filter)
   {
+    if (QUILL_UNLIKELY(!filter))
+    {
+      QUILL_THROW(QuillError{"Filter pointer is nullptr"});
+    }
+
+    // Call the user-overridable name accessor before taking the lock.
+    std::string filter_name = filter->get_filter_name();
+
     // Lock and add this filter to our global collection
     detail::LockGuard const lock{_global_filters_lock};
 
     // Check if the same filter already exists
-    auto const search_filter_it = std::find_if(
-      _global_filters.cbegin(), _global_filters.cend(), [&filter](std::unique_ptr<Filter> const& elem_filter)
-      { return elem_filter->get_filter_name() == filter->get_filter_name(); });
+    auto const search_filter_it = std::find_if(_global_filters.cbegin(), _global_filters.cend(),
+                                               [&filter_name](RegisteredFilter const& elem_filter)
+                                               { return elem_filter.filter_name == filter_name; });
 
     if (QUILL_UNLIKELY(search_filter_it != _global_filters.cend()))
     {
       QUILL_THROW(QuillError{"Filter with the same name already exists"});
     }
 
-    _global_filters.push_back(std::move(filter));
+    _global_filters.emplace_back(std::move(filter_name), std::move(filter));
 
     // Indicate a new filter was added - here relaxed is okay as the spinlock will do acq-rel on destruction
     _new_filter.store(true, std::memory_order_relaxed);
@@ -126,6 +140,21 @@ protected:
     LogLevel log_level, std::string_view log_level_description, std::string_view log_level_short_code,
     std::vector<std::pair<std::string, std::string>> const* named_args,
     std::string_view log_message, std::string_view log_statement) = 0;
+
+  /**
+   * @brief Publishes a metric sample to the sink.
+   * @note Accessor for backend processing.
+   *
+   * The default implementation ignores metric events so existing log-only sinks do not need to
+   * implement metrics support.
+   */
+  QUILL_ATTRIBUTE_HOT virtual void write_metric(MetricMetadata const* /* metric_metadata */,
+                                                uint64_t /* log_timestamp */, std::string_view /* thread_id */,
+                                                std::string_view /* thread_name */,
+                                                std::string const& /* process_id */,
+                                                std::string_view /* logger_name */, double /* value */)
+  {
+  }
 
   /**
    * @brief Flushes the sink, synchronizing the associated sink with its controlled output sequence.
@@ -164,7 +193,7 @@ protected:
     }
 
     // Update our local collection of the filters
-    if (QUILL_UNLIKELY(_new_filter.load(std::memory_order_relaxed)))
+    if (QUILL_UNLIKELY(_new_filter.exchange(false, std::memory_order_relaxed)))
     {
       // if there is a new filter we have to update
       _local_filters.clear();
@@ -173,11 +202,8 @@ protected:
 
       for (auto const& filter : _global_filters)
       {
-        _local_filters.push_back(filter.get());
+        _local_filters.push_back(filter.filter.get());
       }
-
-      // all filters loaded so change to false
-      _new_filter.store(false, std::memory_order_relaxed);
     }
 
     if (_local_filters.empty())
@@ -199,6 +225,17 @@ protected:
 private:
   friend class detail::BackendWorker;
 
+  struct RegisteredFilter
+  {
+    RegisteredFilter(std::string filter_name_arg, std::unique_ptr<Filter> filter_arg)
+      : filter_name(std::move(filter_name_arg)), filter(std::move(filter_arg))
+    {
+    }
+
+    std::string filter_name;
+    std::unique_ptr<Filter> filter;
+  };
+
   /** Override PatternFormatter for this sink **/
   std::optional<PatternFormatterOptions> _override_pattern_formatter_options; /* Set by the frontend and accessed by the backend to initialise PatternFormatter */
   std::shared_ptr<PatternFormatter> _override_pattern_formatter; /* The backend thread will set this once */
@@ -207,12 +244,14 @@ private:
   std::vector<Filter*> _local_filters;
 
   /** Global filter for this sink **/
-  std::vector<std::unique_ptr<Filter>> _global_filters;
+  std::vector<RegisteredFilter> _global_filters;
   detail::Spinlock _global_filters_lock;
   /** Indicator that a new filter was added **/
   std::atomic<bool> _new_filter{false};
 
   std::atomic<LogLevel> _log_level{LogLevel::TraceL3};
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

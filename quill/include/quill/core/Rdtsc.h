@@ -9,16 +9,12 @@
 #include "quill/core/Attributes.h"
 #include <cstdint>
 
-#include "quill/core/Attributes.h"
-#include <cstdint>
-
 #if defined(__ARM_ARCH) || defined(_M_ARM) || defined(_M_ARM64) || defined(__PPC64__)
   // ARM or PowerPC — use ChronoTimeUtils for timestamping
   #include "quill/core/ChronoTimeUtils.h"
-  #include <chrono>
 
 #elif defined(__riscv) || defined(__s390x__) || defined(__loongarch64)
-  // RISC-V, IBM Z (s390x), or LoongArch — no special intrinsics required
+// RISC-V, IBM Z (s390x), or LoongArch — no special intrinsics required
 
 #else
   // Assume x86 or x86-64 platform
@@ -72,7 +68,7 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t rdtsc() noexcept
   #endif
 
   // soft failover
-  return detail::get_timestamp_ns<std::chrono::steady_clock>();
+  return detail::get_steady_time_ns();
 }
 #elif defined(__riscv)
 QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t rdtsc() noexcept
@@ -95,11 +91,11 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t rdtsc() noexcept
   __asm__ volatile("stck %0" : "=Q"(tsc) : : "cc");
   return tsc;
 }
-#elif (defined(_M_ARM) || defined(_M_ARM64) || defined(__PPC64__))
+#elif (defined(_M_ARM) || defined(_M_ARM64) || defined(__PPC64__) || defined(__PPC__))
 QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t rdtsc() noexcept
 {
   // soft failover
-  return detail::get_timestamp_ns<std::chrono::steady_clock>();
+  return detail::get_steady_time_ns();
 }
 #else
 /**

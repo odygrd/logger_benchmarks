@@ -16,8 +16,15 @@
 
 QUILL_BEGIN_NAMESPACE
 
+QUILL_BEGIN_EXPORT
+
 /**
- * Log level enum
+ * Log level enum.
+ *
+ * The TraceL* levels form a trace-only verbosity band:
+ * - TraceL3 is the most detailed trace level
+ * - TraceL2 is the middle trace level
+ * - TraceL1 is the least detailed trace level
  */
 enum class LogLevel : uint8_t
 {
@@ -33,6 +40,10 @@ enum class LogLevel : uint8_t
   Backtrace, /**< This is only used for backtrace logging. Should not be set by the user. */
   None
 };
+
+static constexpr size_t LogLevelCount = 11;
+
+QUILL_END_EXPORT
 
 namespace detail
 {
@@ -52,10 +63,14 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline std::string_view log_level_to_string(
 }
 } // namespace detail
 
+QUILL_BEGIN_EXPORT
+
 /**
  * Converts a string to a LogLevel enum value
  * @param log_level the log level string to convert
- * "tracel3", "tracel2", "tracel1", "debug", "info", "notice", "warning", "error", "critical", "backtrace", "none"
+ * "tracel3", "tracel2", "tracel1", "debug", "info", "notice", "warning" (or "warn"),
+ * "error" (or "err"), "critical", "backtrace", "none"
+ * TraceL3 is the most detailed trace level, while TraceL1 is the least detailed trace level.
  * @return the corresponding LogLevel enum value
  */
 QUILL_NODISCARD LogLevel inline loglevel_from_string(std::string log_level)
@@ -96,12 +111,12 @@ QUILL_NODISCARD LogLevel inline loglevel_from_string(std::string log_level)
     return LogLevel::Notice;
   }
 
-  if (log_level == "warning")
+  if (log_level == "warning" || log_level == "warn")
   {
     return LogLevel::Warning;
   }
 
-  if (log_level == "error")
+  if (log_level == "error" || log_level == "err")
   {
     return LogLevel::Error;
   }
@@ -124,5 +139,7 @@ QUILL_NODISCARD LogLevel inline loglevel_from_string(std::string log_level)
   std::string const error_msg = "LogLevel enum value does not exist for \"" + log_level + "\"";
   QUILL_THROW(QuillError{error_msg});
 }
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

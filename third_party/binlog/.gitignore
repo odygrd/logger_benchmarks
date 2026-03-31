@@ -1,0 +1,6 @@
+Builds/
+Debug/
+Release/
+Sanitized/
+Coverage/
+__pycache__

@@ -1,0 +1,73 @@
+{
+  "dependencies": [
+    {
+      "name": "quill",
+      "repo_url": "https://github.com/odygrd/quill.git",
+      "ref": "6737745d424aa0e02bbc7f0bdac944596b0d53ad",
+      "target_dir": "quill",
+      "skip_update": true
+    },
+    {
+      "name": "Iyengar_NanoLog",
+      "repo_url": "https://github.com/Iyengar111/NanoLog.git",
+      "ref": "40a53c36e0336af45f7664abeb939f220f78273e",
+      "target_dir": "third_party/Iyengar_NanoLog"
+    },
+    {
+      "name": "binlog",
+      "repo_url": "https://github.com/Morgan-Stanley/binlog.git",
+      "ref": "fd20f5a7592f040141ccbdcc737386235bc8b0cf",
+      "target_dir": "third_party/binlog"
+    },
+    {
+      "name": "bqlog",
+      "repo_url": "https://github.com/Tencent/BqLog.git",
+      "ref": "4d0b9a97dc374f5ddfa077efca0c1539517866ea",
+      "target_dir": "third_party/bqlog"
+    },
+    {
+      "name": "fmtlog",
+      "repo_url": "https://github.com/MengRao/fmtlog.git",
+      "ref": "308b2317d4e9c21d3b203d104007fde127dcdbfa",
+      "target_dir": "third_party/fmtlog"
+    },
+    {
+      "name": "fmt",
+      "repo_url": "https://github.com/fmtlib/fmt.git",
+      "ref": "12.1.0",
+      "target_dir": "third_party/fmt",
+      "skip_update": true
+    },
+    {
+      "name": "g3log",
+      "repo_url": "https://github.com/KjellKod/g3log.git",
+      "ref": "d1cf820443d857d7488fae6d3ef0d7de2af55fb8",
+      "target_dir": "third_party/g3log"
+    },
+    {
+      "name": "platformlab_nanolog",
+      "repo_url": "https://github.com/PlatformLab/NanoLog.git",
+      "ref": "2a94d70f9d1db4da416053b1b926387fa068a59b",
+      "target_dir": "third_party/platformlab_nanolog"
+    },
+    {
+      "name": "reckless",
+      "repo_url": "https://github.com/mattiasflodin/reckless.git",
+      "ref": "1f0d8471cb3f75b785441ad4cea81b16f6ef8814",
+      "target_dir": "third_party/reckless"
+    },
+    {
+      "name": "spdlog",
+      "repo_url": "https://github.com/gabime/spdlog.git",
+      "ref": "45b67eee668507813743f84f1b1b9ab674ea221e",
+      "target_dir": "third_party/spdlog",
+      "update_branch": "v1.x"
+    },
+    {
+      "name": "xtr",
+      "repo_url": "https://github.com/choll/xtr.git",
+      "ref": "71913d9a0d61c0d6c8d858ae3b1e4636a076a05e",
+      "target_dir": "third_party/xtr"
+    }
+  ]
+}

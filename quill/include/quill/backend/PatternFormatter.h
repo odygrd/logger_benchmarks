@@ -30,6 +30,8 @@
 
 QUILL_BEGIN_NAMESPACE
 
+QUILL_BEGIN_EXPORT
+
 class PatternFormatter
 {
   /** Public classes **/
@@ -61,6 +63,7 @@ public:
     SourceLocation,
     ShortSourceLocation,
     Message,
+    Mdc,
     Tags,
     NamedArgs,
     ATTR_NR_ITEMS
@@ -98,7 +101,8 @@ public:
     uint64_t timestamp, std::string_view thread_id, std::string_view thread_name,
     std::string_view process_id, std::string_view logger, std::string_view log_level_description,
     std::string_view log_level_short_code, MacroMetadata const& log_statement_metadata,
-    std::vector<std::pair<std::string, std::string>> const* named_args, std::string_view log_msg)
+    std::vector<std::pair<std::string, std::string>> const* named_args, std::string_view log_msg,
+    std::string_view mdc)
   {
     if (_options.format_pattern.empty())
     {
@@ -115,7 +119,7 @@ public:
     {
       // Process an empty message
       return _format(timestamp, thread_id, thread_name, process_id, logger, log_level_description,
-                     log_level_short_code, log_statement_metadata, named_args, log_msg);
+                     log_level_short_code, log_statement_metadata, named_args, log_msg, mdc);
     }
 
     std::string_view formatted_log_msg;
@@ -136,7 +140,7 @@ public:
           formatted_log_msg =
             _format(timestamp, thread_id, thread_name, process_id, logger, log_level_description,
                     log_level_short_code, log_statement_metadata, named_args,
-                    std::string_view(log_msg.data() + start, log_msg.size() - start));
+                    std::string_view(log_msg.data() + start, log_msg.size() - start), mdc);
           break;
         }
 
@@ -147,10 +151,10 @@ public:
           // When suffix is not '\n', include the newline character in the message
           line_length++;
         }
-        
-        formatted_log_msg = _format(timestamp, thread_id, thread_name, process_id, logger,
-                                    log_level_description, log_level_short_code, log_statement_metadata,
-                                    named_args, std::string_view(log_msg.data() + start, line_length));
+
+        formatted_log_msg = _format(timestamp, thread_id, thread_name, process_id, logger, log_level_description,
+                                    log_level_short_code, log_statement_metadata, named_args,
+                                    std::string_view(log_msg.data() + start, line_length), mdc);
         start = end + 1;
       }
     }
@@ -170,7 +174,7 @@ public:
 
       formatted_log_msg = _format(timestamp, thread_id, thread_name, process_id, logger,
                                   log_level_description, log_level_short_code, log_statement_metadata,
-                                  named_args, std::string_view{log_msg.data(), log_message_size});
+                                  named_args, std::string_view{log_msg.data(), log_message_size}, mdc);
     }
 
     return formatted_log_msg;
@@ -240,7 +244,8 @@ private:
       "caller_function"_a = "", "log_level"_a = "", "log_level_short_code"_a = "",
       "line_number"_a = "", "logger"_a = "", "full_path"_a = "", "thread_id"_a = "",
       "thread_name"_a = "", "process_id"_a = "", "source_location"_a = "",
-      "short_source_location"_a = "", "message"_a = "", "tags"_a = "", "named_args"_a = "");
+      "short_source_location"_a = "", "message"_a = "", "mdc"_a = "", "tags"_a = "",
+      "named_args"_a = "");
 
     _set_arg<Attribute::Time>(std::string_view("time"));
     _set_arg<Attribute::FileName>(std::string_view("file_name"));
@@ -256,6 +261,7 @@ private:
     _set_arg<Attribute::SourceLocation>("source_location");
     _set_arg<Attribute::ShortSourceLocation>("short_source_location");
     _set_arg<Attribute::Message>(std::string_view("message"));
+    _set_arg<Attribute::Mdc>(std::string_view("mdc"));
     _set_arg<Attribute::Tags>(std::string_view("tags"));
     _set_arg<Attribute::NamedArgs>(std::string_view("named_args"));
   }
@@ -270,6 +276,7 @@ private:
   template <size_t I, typename T>
   void _set_arg_val(T const& arg)
   {
+    // This relies on the internal layout used by the bundled fmtquill copy
     fmtquill::detail::value<fmtquill::format_context>& value_ =
       *(reinterpret_cast<fmtquill::detail::value<fmtquill::format_context>*>(
         std::addressof(_args[_order_index[I]])));
@@ -280,34 +287,79 @@ private:
   /***/
   PatternFormatter::Attribute static _attribute_from_string(std::string const& attribute_name)
   {
-    // don't make this static as it breaks on windows with atexit when backend worker stops
-    std::unordered_map<std::string, PatternFormatter::Attribute> const attr_map = {
-      {"time", PatternFormatter::Attribute::Time},
-      {"file_name", PatternFormatter::Attribute::FileName},
-      {"caller_function", PatternFormatter::Attribute::CallerFunction},
-      {"log_level", PatternFormatter::Attribute::LogLevel},
-      {"log_level_short_code", PatternFormatter::Attribute::LogLevelShortCode},
-      {"line_number", PatternFormatter::Attribute::LineNumber},
-      {"logger", PatternFormatter::Attribute::Logger},
-      {"full_path", PatternFormatter::Attribute::FullPath},
-      {"thread_id", PatternFormatter::Attribute::ThreadId},
-      {"thread_name", PatternFormatter::Attribute::ThreadName},
-      {"process_id", PatternFormatter::Attribute::ProcessId},
-      {"source_location", PatternFormatter::Attribute::SourceLocation},
-      {"short_source_location", PatternFormatter::Attribute::ShortSourceLocation},
-      {"message", PatternFormatter::Attribute::Message},
-      {"tags", PatternFormatter::Attribute::Tags},
-      {"named_args", PatternFormatter::Attribute::NamedArgs}};
-
-    auto const search = attr_map.find(attribute_name);
-
-    if (QUILL_UNLIKELY(search == attr_map.cend()))
+    if (attribute_name == "time")
     {
-      QUILL_THROW(QuillError{
-        std::string{"Attribute enum value does not exist for attribute with name " + attribute_name}});
+      return PatternFormatter::Attribute::Time;
+    }
+    if (attribute_name == "file_name")
+    {
+      return PatternFormatter::Attribute::FileName;
+    }
+    if (attribute_name == "caller_function")
+    {
+      return PatternFormatter::Attribute::CallerFunction;
+    }
+    if (attribute_name == "log_level")
+    {
+      return PatternFormatter::Attribute::LogLevel;
+    }
+    if (attribute_name == "log_level_short_code")
+    {
+      return PatternFormatter::Attribute::LogLevelShortCode;
+    }
+    if (attribute_name == "line_number")
+    {
+      return PatternFormatter::Attribute::LineNumber;
+    }
+    if (attribute_name == "logger")
+    {
+      return PatternFormatter::Attribute::Logger;
+    }
+    if (attribute_name == "full_path")
+    {
+      return PatternFormatter::Attribute::FullPath;
+    }
+    if (attribute_name == "thread_id")
+    {
+      return PatternFormatter::Attribute::ThreadId;
+    }
+    if (attribute_name == "thread_name")
+    {
+      return PatternFormatter::Attribute::ThreadName;
+    }
+    if (attribute_name == "process_id")
+    {
+      return PatternFormatter::Attribute::ProcessId;
+    }
+    if (attribute_name == "source_location")
+    {
+      return PatternFormatter::Attribute::SourceLocation;
+    }
+    if (attribute_name == "short_source_location")
+    {
+      return PatternFormatter::Attribute::ShortSourceLocation;
+    }
+    if (attribute_name == "message")
+    {
+      return PatternFormatter::Attribute::Message;
+    }
+    if (attribute_name == "mdc")
+    {
+      return PatternFormatter::Attribute::Mdc;
+    }
+    if (attribute_name == "tags")
+    {
+      return PatternFormatter::Attribute::Tags;
+    }
+    if (attribute_name == "named_args")
+    {
+      return PatternFormatter::Attribute::NamedArgs;
     }
 
-    return search->second;
+    QUILL_THROW(QuillError{
+      std::string{"Attribute enum value does not exist for attribute with name " + attribute_name}});
+
+    return PatternFormatter::Attribute::Message; // unreachable, silences any warning
   }
 
   /***/
@@ -446,10 +498,15 @@ private:
           QUILL_THROW(QuillError{"Invalid format pattern, attribute with name \"" + attr_name + "\" is invalid"});
         }
 
-        order_index[static_cast<size_t>(id)] = arg_idx++;
-
         // Also set the value as used in the pattern in our bitset for lazy evaluation
         PatternFormatter::Attribute const attr_enum_value = _attribute_from_string(attr_name);
+        if (is_set_in_pattern.test(attr_enum_value))
+        {
+          QUILL_THROW(QuillError{"Invalid format pattern, attribute with name \"" + attr_name +
+                                 "\" is used more than once"});
+        }
+
+        order_index[static_cast<size_t>(id)] = arg_idx++;
         is_set_in_pattern.set(attr_enum_value);
 
         // Look for the next pattern to replace
@@ -466,11 +523,13 @@ private:
   }
 
   /***/
-  QUILL_ATTRIBUTE_HOT std::string_view _format(
-    uint64_t timestamp, std::string_view thread_id, std::string_view thread_name,
-    std::string_view process_id, std::string_view logger, std::string_view log_level_description,
-    std::string_view log_level_short_code, MacroMetadata const& log_statement_metadata,
-    std::vector<std::pair<std::string, std::string>> const* named_args, std::string_view log_msg)
+  QUILL_ATTRIBUTE_HOT std::string_view _format(uint64_t timestamp, std::string_view thread_id,
+                                               std::string_view thread_name, std::string_view process_id,
+                                               std::string_view logger, std::string_view log_level_description,
+                                               std::string_view log_level_short_code,
+                                               MacroMetadata const& log_statement_metadata,
+                                               std::vector<std::pair<std::string, std::string>> const* named_args,
+                                               std::string_view log_msg, std::string_view mdc)
   {
     if (_is_set_in_pattern[Attribute::Time])
     {
@@ -536,7 +595,6 @@ private:
       _set_arg_val<Attribute::SourceLocation>(_process_source_location_path(
         log_statement_metadata.source_location(), _options.source_location_path_strip_prefix,
         _options.source_location_remove_relative_paths));
-      ;
     }
 
     if (_is_set_in_pattern[Attribute::ShortSourceLocation])
@@ -565,6 +623,11 @@ private:
 
       _set_arg_val<Attribute::NamedArgs>(
         std::string_view{_formatted_named_args_buffer.data(), _formatted_named_args_buffer.size()});
+    }
+
+    if (_is_set_in_pattern[Attribute::Mdc])
+    {
+      _set_arg_val<Attribute::Mdc>(mdc);
     }
 
     if (_is_set_in_pattern[Attribute::Tags])
@@ -604,5 +667,7 @@ private:
   fmtquill::basic_memory_buffer<char, 512> _formatted_log_message_buffer;
   fmtquill::basic_memory_buffer<char, 512> _formatted_named_args_buffer;
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

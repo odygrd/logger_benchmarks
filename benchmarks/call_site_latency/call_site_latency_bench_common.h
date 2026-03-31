@@ -3,27 +3,27 @@
 #include <pthread.h>
 
 #if defined(_WIN32)
-#include <intrin.h>
+  #include <intrin.h>
 #else
-#include <x86intrin.h>
+  #include <x86intrin.h>
 #endif
-#include <array>
 #include <algorithm>
-
+#include <array>
 
 // perf c2c record -g --call-graph dwarf,8192  ./benchmark_quill_call_site_latency
 // perf c2c report -NN -g --call-graph -c pid,iaddr --stdio
 #define BENCH_WITHOUT_PERF
 
-#define THREAD_LIST_COUNT std::vector<int32_t> { 1, 4 }
+#define THREAD_LIST_COUNT std::vector<int32_t>{1, 4}
 
-#define ITERATIONS std::size_t { 10'000 }
-#define MESSAGES std::size_t { 20 }
-#define MIN_WAIT_DURATION std::chrono::microseconds { 2000 }
-#define MAX_WAIT_DURATION std::chrono::microseconds { 2200 }
+#define ITERATIONS std::size_t{10'000}
+// Total messages emitted per iteration across all logging threads.
+#define MESSAGES std::size_t{20}
+#define MIN_WAIT_DURATION std::chrono::microseconds{2000}
+#define MAX_WAIT_DURATION std::chrono::microseconds{2200}
 
-//#define BENCH_INT_INT_DOUBLE
-//#define BENCH_INT_INT_LARGESTR
+// #define BENCH_INT_INT_DOUBLE
+// #define BENCH_INT_INT_LARGESTR
 
 inline void set_pthread_affinity(pthread_t thread, int cpu)
 {
@@ -60,7 +60,7 @@ inline double ns_per_rdtsc_tick()
         std::chrono::nanoseconds{std::chrono::steady_clock::now().time_since_epoch().count()};
       end_tsc = __rdtsc();
 
-      elapsed_ns = end_ts - beg_ts;       // calculates ns between two timespecs
+      elapsed_ns = end_ts - beg_ts; // calculates ns between two timespecs
     } while (elapsed_ns < spin_duration); // busy spin for 10ms
 
     rates[i] = static_cast<double>(end_tsc - beg_tsc) / static_cast<double>(elapsed_ns.count());

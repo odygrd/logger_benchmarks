@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -13,6 +14,8 @@
 #include "quill/core/Attributes.h"
 
 QUILL_BEGIN_NAMESPACE
+
+QUILL_BEGIN_EXPORT
 
 namespace utility
 {
@@ -40,7 +43,7 @@ QUILL_NODISCARD std::string to_hex(T const* buffer, size_t size, bool uppercase 
     "404142434445464748494a4b4c4d4e4f"
     "505152535455565758595a5b5c5d5e5f"
     "606162636465666768696a6b6c6d6e6f"
-    "707172737475767778797a7b7c7c7e7f"
+    "707172737475767778797a7b7c7d7e7f"
     "808182838485868788898a8b8c8d8e8f"
     "909192939495969798999a9b9c9d9e9f"
     "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf"
@@ -117,4 +120,21 @@ QUILL_NODISCARD std::string to_hex(T const* buffer, size_t size, bool uppercase 
 }
 } // namespace utility
 
+QUILL_END_EXPORT
+
 QUILL_END_NAMESPACE
+
+#ifndef QUILL_DEFINE_SEQUENTIAL_THREAD_ID
+  #if defined(QUILL_USE_SEQUENTIAL_THREAD_ID)
+    #define QUILL_DEFINE_SEQUENTIAL_THREAD_ID                                                      \
+      QUILL_BEGIN_NAMESPACE                                                                        \
+      namespace detail                                                                             \
+      {                                                                                            \
+      std::atomic<uint32_t> g_next_thread_id{0};                                                   \
+      QUILL_THREAD_LOCAL uint32_t g_cached_thread_id{0};                                           \
+      }                                                                                            \
+      QUILL_END_NAMESPACE
+  #else
+    #define QUILL_DEFINE_SEQUENTIAL_THREAD_ID
+  #endif
+#endif

@@ -1,8 +1,18 @@
-cmake_minimum_required(VERSION 3.5.0)
-project(logger_benchmarks)
+cmake_minimum_required(VERSION 3.16)
+project(logger_benchmarks LANGUAGES CXX)
+
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+if(POLICY CMP0074)
+    cmake_policy(SET CMP0074 NEW)
+endif()
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 OLD)
+endif()
+set(CMAKE_POLICY_DEFAULT_CMP0074 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0167 OLD)
 
 # set(CMAKE_CXX_FLAGS "-m64 -march=native" CACHE STRING "" FORCE)
-set(CMAKE_CXX_FLAGS "-m64 -march=x86-64" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS "-m64 -march=x86-64-v3" CACHE STRING "" FORCE)
 
 set(CMAKE_VERBOSE_MAKEFILE TRUE CACHE BOOL "Verbose output" FORCE)
 set(BUILD_SHARED_LIBS "OFF")
@@ -27,28 +37,22 @@ endif ()
 #-------------------------------------------------------------------------------------------------------
 find_package(Threads REQUIRED)
 
+include(cmake/ThirdPartyDependencies.cmake)
+
 #---------------------------------------------------------------------------------------
 # Subdirectories
 #-------------------------------------------------------------------------------------------------------
+logger_benchmarks_add_spdlog()
+logger_benchmarks_add_fmt()
 add_subdirectory(quill)
-add_subdirectory(third_party/Iyengar_NanoLog)
-add_subdirectory(third_party/reckless)
-add_subdirectory(third_party/platformlab_nanolog)
-
-set(ADD_G3LOG_UNIT_TEST OFF)
-add_subdirectory(third_party/g3log)
-
-add_subdirectory(third_party/binlog)
-add_subdirectory(third_party/fmtlog)
-add_subdirectory(third_party/xtr)
-add_subdirectory(third_party/bqlog)
-
-# Boost.Log is optional - run setup_boost_simple.py to install it
-if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/boost/CMakeLists.txt")
-    message(STATUS "Boost.Log found - including in build")
-    add_subdirectory(third_party/boost)
-else ()
-    message(STATUS "Boost.Log not found - run './setup_boost_simple.py' to install it")
-endif ()
+logger_benchmarks_add_iyengar_nanolog()
+logger_benchmarks_add_reckless()
+logger_benchmarks_add_platformlab_nanolog()
+logger_benchmarks_add_g3log()
+logger_benchmarks_add_binlog()
+logger_benchmarks_add_fmtlog()
+logger_benchmarks_add_xtr()
+logger_benchmarks_add_bqlog()
+logger_benchmarks_add_boost_log()
 
 add_subdirectory(benchmarks)

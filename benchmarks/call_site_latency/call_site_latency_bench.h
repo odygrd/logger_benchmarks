@@ -2,32 +2,34 @@
 
 #include "call_site_latency_bench_common.h"
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <iostream>
 #include <numeric>
 #include <random>
+#include <sched.h>
 #include <string>
 #include <thread>
 #include <vector>
-#include <sched.h>
 
 // Instead of sleep
-inline void wait(std::chrono::nanoseconds min, std::chrono::nanoseconds max)
+inline void wait([[maybe_unused]] std::chrono::nanoseconds min, std::chrono::nanoseconds max)
 {
 #ifdef BENCH_WITHOUT_PERF
-  static std::random_device rd;
-  static std::mt19937 gen(rd());
-  static std::uniform_int_distribution<> dis(min.count(), max.count());
+  thread_local std::mt19937 gen{std::random_device{}()};
+  std::uniform_int_distribution<int64_t> dis(min.count(), max.count());
 
   auto const start_time = std::chrono::steady_clock::now();
-  auto const end_time = start_time.time_since_epoch() + std::chrono::nanoseconds{dis(gen)};
+  auto const end_time = start_time + std::chrono::nanoseconds{dis(gen)};
   std::chrono::nanoseconds time_now;
   do
   {
     time_now = std::chrono::steady_clock::now().time_since_epoch();
-  } while (time_now < end_time);
+  } while (time_now < end_time.time_since_epoch());
 #else
   // when in perf use sleep as the other variables add noise
   std::this_thread::sleep_for(max);
@@ -49,30 +51,57 @@ inline void set_thread_affinity(size_t cpu_num)
   }
 }
 
+inline size_t messages_for_thread(size_t messages_per_iteration, size_t thread_count, size_t thread_num) noexcept
+{
+  if (thread_count == 0)
+  {
+    return 0;
+  }
+
+  size_t const base_messages_per_thread = messages_per_iteration / thread_count;
+  size_t const remainder = messages_per_iteration % thread_count;
+  return base_messages_per_thread + (thread_num < remainder ? 1u : 0u);
+}
+
+inline void wait_for_all_threads_to_start(std::atomic<size_t>& started_threads, size_t participant_count) noexcept
+{
+  started_threads.fetch_add(1, std::memory_order_acq_rel);
+  while (started_threads.load(std::memory_order_acquire) != participant_count) {}
+}
+
 #ifdef BENCH_WITHOUT_PERF
 /***/
 
   #ifdef BENCH_INT_INT_DOUBLE
 inline void run_log_benchmark(size_t num_iterations,
+                              size_t messages_per_iteration,
                               std::function<void()> on_thread_start,
                               std::function<void(uint64_t, uint64_t, double)> log_func,
                               std::function<void()> on_thread_exit,
+                              std::atomic<size_t>& started_threads,
+                              size_t participant_count,
                               size_t current_thread_num,
                               std::vector<uint64_t>& latencies,
                               double ns_rdtsc_tick)
   #elif defined(BENCH_INT_INT_LARGESTR)
 inline void run_log_benchmark(size_t num_iterations,
+                              size_t messages_per_iteration,
                               std::function<void()> on_thread_start,
                               std::function<void(uint64_t, uint64_t, std::string const&)> log_func,
                               std::function<void()> on_thread_exit,
+                              std::atomic<size_t>& started_threads,
+                              size_t participant_count,
                               size_t current_thread_num,
                               std::vector<uint64_t>& latencies,
                               double ns_rdtsc_tick)
   #elif defined(BENCH_VECTOR_LARGESTR)
 inline void run_log_benchmark(size_t num_iterations,
+                              size_t messages_per_iteration,
                               std::function<void()> on_thread_start,
                               std::function<void(uint64_t, uint64_t, std::vector<std::string> const&)> log_func,
                               std::function<void()> on_thread_exit,
+                              std::atomic<size_t>& started_threads,
+                              size_t participant_count,
                               size_t current_thread_num,
                               std::vector<uint64_t>& latencies,
                               double ns_rdtsc_tick)
@@ -81,37 +110,35 @@ inline void run_log_benchmark(size_t num_iterations,
   // running thread affinity
   set_thread_affinity(current_thread_num);
 
-//  sched_param param{};
-//  param.sched_priority = 99;
-//  if (sched_setscheduler(0, SCHED_FIFO, &param) != 0)
-//    perror("sched_setscheduler");
+  //  sched_param param{};
+  //  param.sched_priority = 99;
+  //  if (sched_setscheduler(0, SCHED_FIFO, &param) != 0)
+  //    perror("sched_setscheduler");
 
   on_thread_start();
+  wait_for_all_threads_to_start(started_threads, participant_count);
 
-  // Always ignore the first log statement as it will be doing initialisation for most loggers - quill and nanolog don't need this as they have preallocate
+  if (messages_per_iteration == 0)
+  {
+    on_thread_exit();
+    return;
+  }
 
   #ifdef BENCH_INT_INT_DOUBLE
-  // generate a double from i
-  log_func(100, 100, 1.1);
   #elif defined(BENCH_INT_INT_LARGESTR)
-  log_func(100, 100, "init");
   #elif defined(BENCH_VECTOR_LARGESTR)
-  log_func(100, 100, std::vector<std::string>{});
-
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_int_distribution<int> length_dist(50, 60); // large strings
   std::uniform_int_distribution<int> char_dist(65, 90);   // ASCII uppercase letters
   #endif
 
-  unsigned int aux;
-
   // Main Benchmark
-  for (int i = 0; i < num_iterations; ++i)
+  for (size_t i = 0; i < num_iterations; ++i)
   {
   #ifdef BENCH_INT_INT_DOUBLE
     // generate a double from i
-    double const v = i + (0.1 * i);
+    double const v = static_cast<double>(i) + (0.1 * static_cast<double>(i));
   #elif defined(BENCH_INT_INT_LARGESTR)
     std::string v{"Lorem ipsum dolor sit amet, consectetur "};
     v += std::to_string(i);
@@ -122,21 +149,22 @@ inline void run_log_benchmark(size_t num_iterations,
     {
       int length = length_dist(gen);
       str.reserve(length);
-      for (int i = 0; i < length; ++i)
+      for (int char_idx = 0; char_idx < length; ++char_idx)
       {
         str.push_back(static_cast<char>(char_dist(gen)));
       }
     }
   #endif
 
-    auto const start = __rdtscp(&aux);
-    for (size_t j = 0; j < MESSAGES; ++j)
+    auto const start = __rdtsc();
+    for (size_t j = 0; j < messages_per_iteration; ++j)
     {
       log_func(i, j, v);
     }
-    auto const end = __rdtscp(&aux);
+    auto const end = __rdtsc();
 
-    uint64_t const latency{static_cast<uint64_t>((end - start) / MESSAGES * ns_rdtsc_tick)};
+    uint64_t const latency{static_cast<uint64_t>(
+      (static_cast<double>(end - start) / static_cast<double>(messages_per_iteration)) * ns_rdtsc_tick)};
     latencies.push_back(latency);
 
     // send the next log after x time
@@ -148,26 +176,33 @@ inline void run_log_benchmark(size_t num_iterations,
 #else
 /***/
 inline void run_log_benchmark(size_t num_iterations,
+                              size_t messages_per_iteration,
                               std::function<void()> on_thread_start,
                               std::function<void(uint64_t, uint64_t, double)> log_func,
                               std::function<void()> on_thread_exit,
+                              std::atomic<size_t>& started_threads,
+                              size_t participant_count,
                               size_t current_thread_num)
 {
   // running thread affinity
   set_thread_affinity(current_thread_num);
 
   on_thread_start();
+  wait_for_all_threads_to_start(started_threads, participant_count);
 
-  // Always ignore the first log statement as it will be doing initialisation for most loggers - quill and nanolog don't need this as they have preallocate
-  log_func(100, 100, 1.0);
+  if (messages_per_iteration == 0)
+  {
+    on_thread_exit();
+    return;
+  }
 
   // Main Benchmark
-  for (int i = 0; i < num_iterations; ++i)
+  for (size_t i = 0; i < num_iterations; ++i)
   {
     // generate a double from i
-    double const d = i + (0.1 * i);
+    double const d = static_cast<double>(i) + (0.1 * static_cast<double>(i));
 
-    for (size_t j = 0; j < MESSAGES; ++j)
+    for (size_t j = 0; j < messages_per_iteration; ++j)
     {
       log_func(i, j, d);
     }
@@ -204,6 +239,16 @@ inline void run_benchmark(char const* benchmark_name,
                           std::function<void()> on_thread_exit)
 #endif
 {
+  if (thread_count <= 0)
+  {
+#ifdef BENCH_WITHOUT_PERF
+    std::cout << "Thread Count 0 - Total messages 0 - " << benchmark_name << "\n | no latency samples |\n\n";
+#endif
+    return;
+  }
+
+  size_t const thread_count_size = static_cast<size_t>(thread_count);
+
   // main thread affinity
   set_thread_affinity(0);
 
@@ -212,7 +257,7 @@ inline void run_benchmark(char const* benchmark_name,
 #ifdef BENCH_WITHOUT_PERF
   // each thread gets a vector of latencies
   std::vector<std::vector<uint64_t>> latencies;
-  latencies.resize(thread_count);
+  latencies.resize(thread_count_size);
   for (auto& elem : latencies)
   {
     elem.reserve(num_iterations);
@@ -220,22 +265,27 @@ inline void run_benchmark(char const* benchmark_name,
 #endif
 
   std::vector<std::thread> threads;
-  threads.reserve(thread_count);
-  for (int thread_num = 0; thread_num < thread_count; ++thread_num)
+  threads.reserve(thread_count_size);
+  std::atomic<size_t> started_threads{0};
+  for (size_t thread_num = 0; thread_num < thread_count_size; ++thread_num)
   {
+    size_t const thread_messages_per_iteration = messages_for_thread(MESSAGES, thread_count_size, thread_num);
+
 #ifdef BENCH_WITHOUT_PERF
     // Spawn num threads
-    threads.emplace_back(run_log_benchmark, num_iterations, on_thread_start, log_func, on_thread_exit,
+    threads.emplace_back(run_log_benchmark, num_iterations, thread_messages_per_iteration, on_thread_start,
+                         log_func, on_thread_exit, std::ref(started_threads), thread_count_size,
                          thread_num + 1, std::ref(latencies[thread_num]), ns_rdtsc_tick);
 #else
     // Spawn num threads
-    threads.emplace_back(run_log_benchmark, num_iterations, on_thread_start, log_func,
-                         on_thread_exit, thread_num + 1);
+    threads.emplace_back(run_log_benchmark, num_iterations, thread_messages_per_iteration,
+                         on_thread_start, log_func, on_thread_exit, std::ref(started_threads),
+                         thread_count_size, thread_num + 1);
 #endif
   }
 
   // Wait for threads to finish
-  for (int i = 0; i < thread_count; ++i)
+  for (size_t i = 0; i < thread_count_size; ++i)
   {
     threads[i].join();
   }
@@ -252,14 +302,30 @@ inline void run_benchmark(char const* benchmark_name,
   // Sort all latencies
   std::sort(latencies_combined.begin(), latencies_combined.end());
 
-  std::cout << "Thread Count " << thread_count << " - Total messages " << latencies_combined.size()
-            << " - " << benchmark_name << "\n |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |\n"
-            << " |  " << latencies_combined[(size_t)(num_iterations * thread_count) * 0.5]
-            << "  |  " << latencies_combined[(size_t)(num_iterations * thread_count) * 0.75]
-            << "  |  " << latencies_combined[(size_t)(num_iterations * thread_count) * 0.9]
-            << "  |  " << latencies_combined[(size_t)(num_iterations * thread_count) * 0.95]
-            << "  |  " << latencies_combined[(size_t)(num_iterations * thread_count) * 0.99]
-            << "  |  " << latencies_combined[(size_t)(num_iterations * thread_count) * 0.999]
-            << "  |  " << latencies_combined[latencies_combined.size() - 1] << "  |\n\n";
+  size_t const total_messages = num_iterations * MESSAGES;
+  if (latencies_combined.empty())
+  {
+    std::cout << "Thread Count " << thread_count << " - Total messages " << total_messages << " - "
+              << benchmark_name << "\n | no latency samples |\n\n";
+    return;
+  }
+
+  size_t const sample_count = latencies_combined.size();
+  auto percentile_index = [sample_count](double percentile)
+  {
+    size_t const nearest_rank =
+      static_cast<size_t>(std::ceil(static_cast<double>(sample_count) * percentile));
+    return std::min(sample_count - 1, nearest_rank == 0 ? size_t{0} : (nearest_rank - 1));
+  };
+
+  std::cout << "Thread Count " << thread_count << " - Total messages " << total_messages << " - "
+            << benchmark_name << "\n |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |\n"
+            << " |  " << latencies_combined[percentile_index(0.5)] << "  |  "
+            << latencies_combined[percentile_index(0.75)] << "  |  "
+            << latencies_combined[percentile_index(0.9)] << "  |  "
+            << latencies_combined[percentile_index(0.95)] << "  |  "
+            << latencies_combined[percentile_index(0.99)] << "  |  "
+            << latencies_combined[percentile_index(0.999)] << "  |  "
+            << latencies_combined[latencies_combined.size() - 1] << "  |\n\n";
 #endif
 }

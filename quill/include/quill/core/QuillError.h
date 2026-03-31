@@ -21,7 +21,7 @@
     {                                                                                              \
       if (QUILL_UNLIKELY(!(expression)))                                                           \
       {                                                                                            \
-        printf("Quill fatal error: %s (%s:%d)\n", error, QUILL_FILE_NAME, QUILL_LINE_NO);          \
+        printf("Quill fatal error: %s\n", error);                                                  \
         std::abort();                                                                              \
       }                                                                                            \
     } while (0)
@@ -39,6 +39,8 @@
 
 QUILL_BEGIN_NAMESPACE
 
+QUILL_BEGIN_EXPORT
+
 /**
  * custom exception
  */
@@ -48,10 +50,12 @@ public:
   explicit QuillError(std::string s) : _error(static_cast<std::string&&>(s)) {}
   explicit QuillError(char const* s) : _error(s) {}
 
-  QUILL_NODISCARD char const* what() const noexcept override { return _error.data(); }
+  QUILL_NODISCARD char const* what() const noexcept override { return _error.c_str(); }
 
 private:
   std::string _error;
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

@@ -1,6 +1,6 @@
 #define FMTLOG_BLOCK 1
 
-#include "spdlog/fmt/fmt.h"
+#include "fmt/format.h"
 #include "bq_log/bq_log.h"
 #include <atomic>
 #include <filesystem>

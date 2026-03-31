@@ -22,6 +22,8 @@ QUILL_BEGIN_NAMESPACE
  * @note The derived class must be thread-safe if the Logger object is used across multiple threads.
  * If a Logger is used within a single thread only, thread safety is not a concern.
  */
+QUILL_BEGIN_EXPORT
+
 class UserClockSource
 {
 public:
@@ -33,9 +35,17 @@ public:
 
   /**
    * Returns time since epoch in nanoseconds
+   *
+   * @note Values returned by successive calls to now() should be monotonically non-decreasing.
+   *       The backend skips strict timestamp-ordering enforcement for logger objects using a
+   *       UserClockSource (the clock is assumed authoritative), so a clock that steps backwards
+   *       will produce log lines that appear out of timestamp order in the output.
+   *
    * @return The current timestamp in nanoseconds
    */
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT virtual uint64_t now() const = 0;
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

@@ -18,6 +18,8 @@
 
 QUILL_BEGIN_NAMESPACE
 
+QUILL_BEGIN_EXPORT
+
 /**
  * # Macro-Free Logging Interface
  *
@@ -60,13 +62,8 @@ struct Tags
    */
   explicit Tags(char const* tag)
   {
-    if (QUILL_UNLIKELY(!tag))
-    {
-      return;
-    }
-
-    _value += tag;
-    _value += ' ';
+    append_tag(tag);
+    _append_trailing_space_if_needed();
   }
 
   /**
@@ -84,14 +81,14 @@ struct Tags
     append_tag(first_tag);
     append_tag(second_tag);
     (append_tag(rest_tags), ...);
-    _value += ' ';
+    _append_trailing_space_if_needed();
   }
 
   // Get the combined tags string
   QUILL_NODISCARD char const* value() const noexcept { return _value.c_str(); }
 
 private:
-  std::string _value{'#'};
+  std::string _value;
 
   void append_tag(char const* tag)
   {
@@ -100,13 +97,24 @@ private:
       return;
     }
 
-    if (_value.size() > 1)
+    if (!_value.empty())
     {
-      // when not empty, 1 is for initial '#'
       _value += " #";
+    }
+    else
+    {
+      _value += '#';
     }
 
     _value += tag;
+  }
+
+  void _append_trailing_space_if_needed()
+  {
+    if (!_value.empty())
+    {
+      _value += ' ';
+    }
   }
 };
 
@@ -325,6 +333,11 @@ template <typename TLogger, typename... Args>
 QUILL_ATTRIBUTE_HOT void log(TLogger* logger, char const* tags, LogLevel log_level, char const* fmt,
                              SourceLocation const& location, Args&&... args)
 {
+  if (QUILL_UNLIKELY(!logger))
+  {
+    return;
+  }
+
   static constexpr MacroMetadata macro_metadata{
     "[placeholder]", "[placeholder]", "[placeholder]",
     nullptr,         LogLevel::None,  MacroMetadata::Event::LogWithRuntimeMetadataHybridCopy};
@@ -336,5 +349,7 @@ QUILL_ATTRIBUTE_HOT void log(TLogger* logger, char const* tags, LogLevel log_lev
       log_level, std::forward<Args>(args)...);
   }
 }
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE

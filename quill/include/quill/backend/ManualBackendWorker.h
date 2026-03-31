@@ -13,8 +13,19 @@
 
 QUILL_BEGIN_NAMESPACE
 
+QUILL_BEGIN_EXPORT
+
 /**
  * This class can be used when you want to run the backend worker on your own thread.
+ *
+ * Threading contract:
+ * - The thread running `ManualBackendWorker` may log.
+ * - That same thread must not use any path that waits for the backend to flush its own queue.
+ *   In particular, it must not call `logger->flush_log()` or `Frontend::remove_logger_blocking()`.
+ *   If a logger has immediate flush enabled, the implicit flush is skipped for log calls from this
+ *   thread.
+ * - The thread that calls `init()` must also call `shutdown()` explicitly before it exits.
+ *   Do not rely on the destructor to perform shutdown for you.
  */
 class ManualBackendWorker
 {
@@ -24,12 +35,15 @@ public:
   {
   }
 
+  ManualBackendWorker(ManualBackendWorker const&) = delete;
+  ManualBackendWorker& operator=(ManualBackendWorker const&) = delete;
+  ManualBackendWorker(ManualBackendWorker&&) = delete;
+  ManualBackendWorker& operator=(ManualBackendWorker&&) = delete;
+
   ~ManualBackendWorker()
   {
-    if (_started)
-    {
-      _backend_worker->_exit();
-    }
+    // Preserve legacy behavior for callers that forgot explicit shutdown().
+    shutdown();
   }
 
   /**
@@ -42,10 +56,36 @@ public:
    */
   void init(BackendOptions options)
   {
+    QUILL_ASSERT(!_started, "ManualBackendWorker::init() must not be called more than once");
+
     options.sleep_duration = std::chrono::nanoseconds{0};
     options.enable_yield_when_idle = false;
     _backend_worker->_init(options);
     _started = true;
+  }
+
+  /**
+   * Flushes remaining frontend queues and marks the manual backend worker as stopped.
+   *
+   * This function must be called from the same thread that called init() and performs the same
+   * shutdown work that the automatic backend thread executes during stop().
+   * Call this explicitly before the manual backend thread exits. Do not rely on the destructor to
+   * do this for you.
+   */
+  void shutdown()
+  {
+    if (!_started)
+    {
+      return;
+    }
+
+    QUILL_ASSERT(_backend_worker->_worker_thread_id.load() == detail::get_thread_id(),
+                 "ManualBackendWorker::shutdown() must be called from the same thread that "
+                 "called init()");
+
+    _backend_worker->_exit();
+    _backend_worker->_worker_thread_id.store(0);
+    _started = false;
   }
 
   /**
@@ -71,11 +111,15 @@ public:
 
     QUILL_TRY { _backend_worker->_poll(); }
 #if !defined(QUILL_NO_EXCEPTIONS)
-    QUILL_CATCH(std::exception const& e) { _backend_worker->_options.error_notifier(e.what()); }
+    QUILL_CATCH(std::exception const& e)
+    {
+      detail::BackendWorker::_notify_error(_backend_worker->_options.error_notifier, e.what());
+    }
     QUILL_CATCH_ALL()
     {
-      _backend_worker->_options.error_notifier(std::string{"Caught unhandled exception."});
-    } // clang-format on
+      detail::BackendWorker::_notify_error(_backend_worker->_options.error_notifier,
+                                           std::string{"Caught unhandled exception."});
+    }
 #endif
   }
 
@@ -116,5 +160,7 @@ private:
   detail::BackendWorker* _backend_worker;
   bool _started{false};
 };
+
+QUILL_END_EXPORT
 
 QUILL_END_NAMESPACE
