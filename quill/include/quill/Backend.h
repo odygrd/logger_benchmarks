@@ -24,10 +24,10 @@ QUILL_BEGIN_NAMESPACE
 QUILL_BEGIN_EXPORT
 
 /** Version Info - When updating VersionMajor please also update the namespace in Attributes.h **/
-constexpr uint32_t VersionMajor{12};
-constexpr uint32_t VersionMinor{0};
-constexpr uint32_t VersionPatch{0};
-constexpr uint32_t Version{VersionMajor * 10000 + VersionMinor * 100 + VersionPatch};
+inline constexpr uint32_t VersionMajor{12};
+inline constexpr uint32_t VersionMinor{1};
+inline constexpr uint32_t VersionPatch{0};
+inline constexpr uint32_t Version{VersionMajor * 10000 + VersionMinor * 100 + VersionPatch};
 
 class Backend
 {
@@ -39,6 +39,10 @@ public:
    */
   QUILL_ATTRIBUTE_COLD static void start(BackendOptions const& options = BackendOptions{})
   {
+    // Keep deterministic validation outside call_once: TSan's pthread_once interceptor cannot
+    // recover its once state when the callable exits with an exception.
+    detail::BackendWorker::validate_options(options);
+
     std::call_once(detail::BackendManager::instance().get_start_once_flag(),
                    [options]()
                    {
@@ -99,6 +103,8 @@ public:
   QUILL_ATTRIBUTE_COLD static void start(BackendOptions const& backend_options,
                                          SignalHandlerOptions const& signal_handler_options)
   {
+    detail::BackendWorker::validate_options(backend_options);
+
     std::call_once(
       detail::BackendManager::instance().get_start_once_flag(),
       [backend_options, signal_handler_options]()
@@ -204,14 +210,17 @@ public:
    */
   QUILL_ATTRIBUTE_COLD static void stop()
   {
-    uint32_t const backend_thread_id = detail::BackendManager::instance().get_backend_thread_id();
+    detail::BackendManager& backend_manager = detail::BackendManager::instance();
+    uint32_t const backend_thread_id = backend_manager.get_backend_thread_id();
     if (QUILL_UNLIKELY((backend_thread_id != 0) && (backend_thread_id == detail::get_thread_id())))
     {
       QUILL_THROW(QuillError{"Backend::stop() cannot be called from the backend worker thread"});
     }
 
+    detail::LockGuard const stop_lock{backend_manager._stop_spinlock};
+
     detail::SignalHandlerContext::instance().backend_thread_id.store(0);
-    detail::BackendManager::instance().stop_backend_thread();
+    backend_manager.stop_backend_thread();
 #if defined(_WIN32)
     if (auto const fn = detail::SignalHandlerContext::instance().exception_handler_deinit_callback)
     {

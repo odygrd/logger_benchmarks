@@ -411,9 +411,12 @@ private:
  * Non-template implementation that owns the thread local context. This ensures that when building
  * with shared libraries, the thread-local context is shared accross all shared libraries
  */
-QUILL_NODISCARD QUILL_ATTRIBUTE_HOT QUILL_EXPORT inline ThreadContext* get_scoped_thread_context_impl(
-  QueueType queue_type, size_t initial_queue_capacity, size_t unbounded_queue_max_capacity,
-  HugePagesPolicy huge_pages_policy)
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT QUILL_EXPORT
+#ifndef QUILL_MODULE
+  inline
+#endif
+  ThreadContext* get_scoped_thread_context_impl(QueueType queue_type, size_t initial_queue_capacity,
+                                                size_t unbounded_queue_max_capacity, HugePagesPolicy huge_pages_policy)
 {
   thread_local ScopedThreadContext scoped_thread_context{
     queue_type, initial_queue_capacity, unbounded_queue_max_capacity, huge_pages_policy};
@@ -425,6 +428,10 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT QUILL_EXPORT inline ThreadContext* get_scope
 template <typename TFrontendOptions>
 QUILL_NODISCARD QUILL_ATTRIBUTE_HOT ThreadContext* get_local_thread_context()
 {
+  static_assert(TFrontendOptions::unbounded_queue_max_capacity >= TFrontendOptions::initial_queue_capacity,
+                "FrontendOptions::unbounded_queue_max_capacity must be greater than or equal to "
+                "FrontendOptions::initial_queue_capacity");
+
   return get_scoped_thread_context_impl(
     TFrontendOptions::queue_type, TFrontendOptions::initial_queue_capacity,
     TFrontendOptions::unbounded_queue_max_capacity, TFrontendOptions::huge_pages_policy);

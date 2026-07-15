@@ -137,7 +137,7 @@ public:
       if (should_write_header)
       {
         // For subsequent rotations, if header writing is enabled, append the header directly
-        _write_header(file);
+        _write_header(file, true);
       }
     };
 
@@ -203,6 +203,10 @@ public:
   /**
    * Appends a row to the CSV file. This function is also thread safe.
    *
+   * @note Fields are written verbatim. A string field containing a comma, double quote or line
+   * break corrupts the CSV structure; pass such fields through utility::csv_escape_field() from
+   * quill/Utility.h or sanitize them beforehand.
+   *
    * @param fields The fields to append to the CSV row.
    */
   template <typename... Args>
@@ -225,7 +229,7 @@ public:
    * Writes the csv header to the specified file
    * @param file file to write
    */
-  void write_header(FileEventNotifierHandle file) { _write_header(file); }
+  void write_header(FileEventNotifierHandle file) { _write_header(file, false); }
 
   /**
    * @brief Removes the logger synchronously and closes the underlying file sink before returning.
@@ -263,7 +267,18 @@ private:
       return should_write_header;
     }
 
+#if QUILL_USE_RTTI
+    auto const stream_sink = std::dynamic_pointer_cast<StreamSink>(sink);
+
+    if (!stream_sink)
+    {
+      // not a file backed sink, there is no existing file to inspect
+      return should_write_header;
+    }
+#else
     auto const stream_sink = std::static_pointer_cast<StreamSink>(sink);
+#endif
+
     std::error_code ec;
     auto const size = fs::file_size(stream_sink->get_filename(), ec);
     return ec || (size == 0);
@@ -277,22 +292,32 @@ private:
     }
   }
 
-  static void _write_header(FileEventNotifierHandle file)
+  static void _write_header(FileEventNotifierHandle file, QUILL_MAYBE_UNUSED bool append)
   {
 #if defined(_WIN32)
+    OVERLAPPED overlapped{};
+    OVERLAPPED* overlapped_ptr{nullptr};
+    if (append)
+    {
+      overlapped.Offset = 0xFFFFFFFF;
+      overlapped.OffsetHigh = 0xFFFFFFFF;
+      overlapped_ptr = &overlapped;
+    }
+
     DWORD bytes_written = 0;
     if (!::WriteFile(file, TCsvSchema::header, static_cast<DWORD>(std::strlen(TCsvSchema::header)),
-                     &bytes_written, nullptr) ||
+                     &bytes_written, overlapped_ptr) ||
         (bytes_written != std::strlen(TCsvSchema::header)))
     {
       QUILL_THROW(QuillError{"CsvWriter failed to write header"});
     }
 
-    if (!::WriteFile(file, "\n", 1, &bytes_written, nullptr) || (bytes_written != 1))
+    if (!::WriteFile(file, "\n", 1, &bytes_written, overlapped_ptr) || (bytes_written != 1))
     {
       QUILL_THROW(QuillError{"CsvWriter failed to write newline"});
     }
 #else
+    (void)append;
     StreamSink::safe_fwrite(TCsvSchema::header, sizeof(char), std::strlen(TCsvSchema::header), file);
     StreamSink::safe_fwrite("\n", sizeof(char), 1, file);
 #endif

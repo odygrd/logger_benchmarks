@@ -357,6 +357,12 @@ void on_signal(int32_t signal_number)
       }
     }
 
+    // SIGINT and SIGTERM must still terminate when no valid logger was found.
+    if (signal_number == SIGINT || signal_number == SIGTERM)
+    {
+      std::_Exit(EXIT_SUCCESS);
+    }
+
     // If we reach here it means we have no valid logger or should_reraise_signal is false.
     // For synchronous fault signals we must not return to avoid re-executing the faulting instruction.
     if (is_synchronous_fault_signal(signal_number))
@@ -501,6 +507,24 @@ LONG WINAPI on_exception(EXCEPTION_POINTERS* exception_p)
 
 /***/
 template <typename TFrontendOptions>
+void deinit_exception_handler()
+{
+  auto& ctx = detail::SignalHandlerContext::instance();
+  std::lock_guard<std::mutex> const lock{ctx.signal_handlers_mutex};
+
+  if (ctx.console_ctrl_handler_installed)
+  {
+    SetConsoleCtrlHandler(on_console_signal<TFrontendOptions>, FALSE);
+    ctx.console_ctrl_handler_installed = false;
+  }
+
+  SetUnhandledExceptionFilter(ctx.previous_exception_filter);
+  ctx.previous_exception_filter = nullptr;
+  ctx.exception_handler_deinit_callback = nullptr;
+}
+
+/***/
+template <typename TFrontendOptions>
 void init_exception_handler()
 {
   auto& ctx = detail::SignalHandlerContext::instance();
@@ -518,23 +542,6 @@ void init_exception_handler()
 
   ctx.exception_handler_deinit_callback = &deinit_exception_handler<TFrontendOptions>;
   ctx.console_ctrl_handler_installed = true;
-}
-
-template <typename TFrontendOptions>
-void deinit_exception_handler()
-{
-  auto& ctx = detail::SignalHandlerContext::instance();
-  std::lock_guard<std::mutex> const lock{ctx.signal_handlers_mutex};
-
-  if (ctx.console_ctrl_handler_installed)
-  {
-    SetConsoleCtrlHandler(on_console_signal<TFrontendOptions>, FALSE);
-    ctx.console_ctrl_handler_installed = false;
-  }
-
-  SetUnhandledExceptionFilter(ctx.previous_exception_filter);
-  ctx.previous_exception_filter = nullptr;
-  ctx.exception_handler_deinit_callback = nullptr;
 }
 } // namespace detail
 

@@ -84,12 +84,14 @@
  * Portable maybe_unused
  */
 #ifndef QUILL_MAYBE_UNUSED
-  #if QUILL_HAS_CPP_ATTRIBUTE(maybe_unused) && (__cplusplus >= 201703L)
+  // MSVC reports __cplusplus as 199711L unless /Zc:__cplusplus is passed; check _MSVC_LANG too
+  #if QUILL_HAS_CPP_ATTRIBUTE(maybe_unused) &&                                                     \
+    ((__cplusplus >= 201703L) || (defined(_MSVC_LANG) && (_MSVC_LANG >= 201703L)))
     #define QUILL_MAYBE_UNUSED [[maybe_unused]]
   #elif QUILL_HAS_ATTRIBUTE(__unused__)
     #define QUILL_MAYBE_UNUSED __attribute__((__unused__))
   #elif defined(_MSC_VER)
-    #define QUILL_MAYBE_UNUSED __pragma(warning(suppress : 4100))
+    #define QUILL_MAYBE_UNUSED __pragma(warning(suppress : 4100 4189))
   #else
     #define QUILL_MAYBE_UNUSED
   #endif
@@ -206,9 +208,7 @@
  */
 #ifndef QUILL_BEGIN_EXPORT
   #if defined(QUILL_MODULE)
-    #define QUILL_BEGIN_EXPORT                                                                     \
-      export                                                                                       \
-      {
+    #define QUILL_BEGIN_EXPORT export {
     #define QUILL_END_EXPORT }
   #else
     #define QUILL_BEGIN_EXPORT
