@@ -10,8 +10,8 @@
 /***/
 void bqlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterations_per_thread)
 {
-  // Seems there is no way to set the backend worker affinity for bqlog
-  // I have edited `bg_log/log/log_worker.cpp:102` so that the backend thread pins to cpu 5
+  // BqLog does not expose its backend worker affinity. tools/run_all.py starts this process on
+  // CPU 5 so the worker inherits that affinity before the benchmark moves caller threads.
 
   bq::log log_obj = bq::log::create_log("text", R"(
         log.buffer_size=131072

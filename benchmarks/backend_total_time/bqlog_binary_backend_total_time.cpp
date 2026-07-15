@@ -34,8 +34,8 @@ int main()
 
   set_thread_affinity(1);
 
-  // Seems there is no way to set the backend worker affinity for bqlog
-  // I have edited `bg_log/log/log_worker.cpp:102` so that the backend thread pins to cpu 5
+  // BqLog does not expose its backend worker affinity. tools/run_all.py starts this process on
+  // CPU 5 so the worker inherits that affinity before this caller thread moves to CPU 1.
 
   bq::log log_obj = bq::log::create_log("text", R"(
         log.buffer_size=131072

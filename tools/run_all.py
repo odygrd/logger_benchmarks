@@ -69,6 +69,14 @@ def benchmark_paths() -> list[Path]:
     return paths
 
 
+def benchmark_command(bench: Path) -> list[str]:
+    # BqLog creates its asynchronous worker before main() changes the caller
+    # thread's affinity. Start it on CPU 5 so the worker inherits the backend
+    # CPU; the benchmark then moves its caller threads to CPUs 0-4.
+    cpu_set = "5" if "bqlog" in bench.name.lower() else "1-5"
+    return ["taskset", "-c", cpu_set, str(bench)]
+
+
 def main() -> int:
     benchmarks = benchmark_paths()
 
@@ -83,8 +91,9 @@ def main() -> int:
 
         with output_path.open("w", encoding="utf-8") as output:
             output.write(f"bench: {bench}\n")
+            output.flush()
             print(f"Running {bench}")
-            subprocess.call(["taskset", "-c", "1-5", str(bench)], cwd=repo_root(), stdout=output)
+            subprocess.run(benchmark_command(bench), cwd=repo_root(), stdout=output, check=True)
 
     return 0
 

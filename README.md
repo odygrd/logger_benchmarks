@@ -107,8 +107,10 @@ The `--update` path does not reapply or refresh `vendor_patches`; it stages the 
 
 ## Running Benchmarks
 
-`tools/run_all.py` runs the configured `call_site_latency` benchmark executables and
-writes their stdout into `bench_results_*.txt` files in the repo root.
+`tools/run_all.py` sequentially runs the configured `call_site_latency` and
+`backend_total_time` benchmark executables and writes their stdout into
+`bench_results_*.txt` files in the repo root. It waits for each executable to finish
+before starting the next one and stops if an executable fails.
 It expects every benchmark binary to exist and exits with an error if any are missing.
 
 Example:
@@ -117,7 +119,9 @@ Example:
 python3 tools/run_all.py
 ```
 
-That script does not currently run the `backend_total_time` executables.
+The benchmarks use CPUs 0-5 for their caller and backend threads, so those CPUs must be
+available to the process. The runner gives BqLog's worker an initial CPU 5 affinity because
+BqLog creates that worker before the benchmark repins its caller threads.
 
 ## Generating Tables
 
