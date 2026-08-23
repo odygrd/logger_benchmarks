@@ -51,6 +51,7 @@ android {
     externalNativeBuild {
         cmake {
             path = file("../../../../../src/CMakeLists.txt")
+            version = "3.22.1"
         }
     }
     
@@ -84,11 +85,44 @@ fun createCopyAarTask(taskName: String, buildType: String, relativePath: String)
     }
 }
 
+// Javadoc task for the Android AAR (sources live in wrapper/java/src)
+val androidJavadoc by tasks.registering(Javadoc::class) {
+    source = fileTree("../../../../../wrapper/java/src") { include("**/*.java") }
+    classpath += files(android.bootClasspath)
+    setDestinationDir(layout.buildDirectory.dir("outputs/javadoc").get().asFile)
+    options {
+        encoding = "UTF-8"
+        (this as StandardJavadocDocletOptions).charSet("UTF-8")
+    }
+    isFailOnError = false
+}
+
+val androidJavadocJar by tasks.registering(Jar::class) {
+    dependsOn(androidJavadoc)
+    archiveClassifier.set("javadoc")
+    from(androidJavadoc.get().destinationDir)
+    archiveBaseName.set("bqlog")
+    archiveVersion.set(project.version.toString())
+}
+
+fun createCopyJavadocJarTask(taskName: String, relativePath: String) {
+    tasks.register<Copy>(taskName) {
+        dependsOn(androidJavadocJar)
+        val destDir = rootProject.file(relativePath)
+        from(androidJavadocJar.get().archiveFile)
+        into(destDir)
+        doFirst {
+            destDir.mkdirs()
+        }
+    }
+}
+
 createCopyAarTask("copyAarRelease", "release", "../../../../install/dynamic_lib")
 createCopyAarTask("copyAarDebug", "debug", "../../../../install/dynamic_lib")
+createCopyJavadocJarTask("copyJavadocJar", "../../../../install/dynamic_lib")
 
 tasks.named("assemble") {
     finalizedBy("copyAarRelease")
     finalizedBy("copyAarDebug")
+    finalizedBy("copyJavadocJar")
 }
-

@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 
 #include "bq_common/bq_common_public_include.h"
 #include "bq_common/utils/utility_types.h"
@@ -129,7 +128,7 @@ namespace bq {
             const napi_extended_error_info* _info = nullptr;                                                                                                                          \
             napi_get_last_error_info((env), &_info);                                                                                                                                  \
             char msg_[256];                                                                                                                                                           \
-            snprintf(msg_, sizeof(msg_), "%s:%d:%s : NAPI call failed: %s", __FILE__, __LINE__, __FUNCTION__, (_info && _info->error_message) ? _info->error_message : "napi error"); \
+            snprintf(msg_, sizeof(msg_), "%s:%" PRId32 ":%s : NAPI call failed: %s", __FILE__, __LINE__, __FUNCTION__, (_info && _info->error_message) ? _info->error_message : "napi error"); \
             napi_throw_error((env), nullptr, msg_);                                                                                                                                   \
             return return_value;                                                                                                                                                      \
         }                                                                                                                                                                             \
@@ -142,7 +141,7 @@ namespace bq {
             const napi_extended_error_info* _info = nullptr;                                                                                                                          \
             napi_get_last_error_info((env), &_info);                                                                                                                                  \
             char msg_[256];                                                                                                                                                           \
-            snprintf(msg_, sizeof(msg_), "%s:%d:%s : NAPI call failed: %s", __FILE__, __LINE__, __FUNCTION__, (_info && _info->error_message) ? _info->error_message : "napi error"); \
+            snprintf(msg_, sizeof(msg_), "%s:%" PRId32 ":%s : NAPI call failed: %s", __FILE__, __LINE__, __FUNCTION__, (_info && _info->error_message) ? _info->error_message : "napi error"); \
             napi_throw_error((env), nullptr, msg_);                                                                                                                                   \
             return;                                                                                                                                                                   \
         }                                                                                                                                                                             \

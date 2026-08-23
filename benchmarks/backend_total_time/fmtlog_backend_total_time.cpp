@@ -40,7 +40,7 @@ int main()
       do
       {
         fmtlog::poll(false);
-      } while (!done.load(std::memory_order_relaxed));
+      } while (!done.load(std::memory_order_acquire));
 
       fmtlog::poll(true);
     });
@@ -58,7 +58,7 @@ int main()
   FMTLOG(fmtlog::ERR, "End");
 
   // block until all messages are flushed
-  done.store(true, std::memory_order_relaxed);
+  done.store(true, std::memory_order_release);
   backend.join();
 
   auto const end_time = std::chrono::steady_clock::now();

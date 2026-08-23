@@ -117,30 +117,30 @@ namespace bq {
 
         ///Core log functions with category param, there are 6 log levels:
         ///verbose, debug, info, warning, error, fatal
-        template<typename STR, uint32_t CAT_INDEX>
-        bq::enable_if_t<is_demo_category_log_format_type<STR>::value, bool> verbose(const demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_content) const;
-        template<typename STR, uint32_t CAT_INDEX, typename...Args>
-        bq::enable_if_t<is_demo_category_log_format_type<STR>::value, bool> verbose(const demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_format_content, const Args&... args) const;
-        template<typename STR, uint32_t CAT_INDEX>
-        bq::enable_if_t<is_demo_category_log_format_type<STR>::value, bool> debug(const demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_content) const;
-        template<typename STR, uint32_t CAT_INDEX, typename...Args>
-        bq::enable_if_t<is_demo_category_log_format_type<STR>::value, bool> debug(const demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_format_content, const Args&... args) const;
-        template<typename STR, uint32_t CAT_INDEX>
-        bq::enable_if_t<is_demo_category_log_format_type<STR>::value, bool> info(const demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_content) const;
-        template<typename STR, uint32_t CAT_INDEX, typename...Args>
-        bq::enable_if_t<is_demo_category_log_format_type<STR>::value, bool> info(const demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_format_content, const Args&... args) const;
-        template<typename STR, uint32_t CAT_INDEX>
-        bq::enable_if_t<is_demo_category_log_format_type<STR>::value, bool> warning(const demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_content) const;
-        template<typename STR, uint32_t CAT_INDEX, typename...Args>
-        bq::enable_if_t<is_demo_category_log_format_type<STR>::value, bool> warning(const demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_format_content, const Args&... args) const;
-        template<typename STR, uint32_t CAT_INDEX>
-        bq::enable_if_t<is_demo_category_log_format_type<STR>::value, bool> error(const demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_content) const;
-        template<typename STR, uint32_t CAT_INDEX, typename...Args>
-        bq::enable_if_t<is_demo_category_log_format_type<STR>::value, bool> error(const demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_format_content, const Args&... args) const;
-        template<typename STR, uint32_t CAT_INDEX>
-        bq::enable_if_t<is_demo_category_log_format_type<STR>::value, bool> fatal(const demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_content) const;
-        template<typename STR, uint32_t CAT_INDEX, typename...Args>
-        bq::enable_if_t<is_demo_category_log_format_type<STR>::value, bool> fatal(const demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_format_content, const Args&... args) const;
+        template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool> = true>
+        bool verbose(const demo_category_log_category_base<CAT_INDEX>& category, const STR& log_content) const;
+        template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool> = true, typename...Args>
+        bool verbose(const demo_category_log_category_base<CAT_INDEX>& category, const STR& log_format_content, const Args&... args) const;
+        template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool> = true>
+        bool debug(const demo_category_log_category_base<CAT_INDEX>& category, const STR& log_content) const;
+        template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool> = true, typename...Args>
+        bool debug(const demo_category_log_category_base<CAT_INDEX>& category, const STR& log_format_content, const Args&... args) const;
+        template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool> = true>
+        bool info(const demo_category_log_category_base<CAT_INDEX>& category, const STR& log_content) const;
+        template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool> = true, typename...Args>
+        bool info(const demo_category_log_category_base<CAT_INDEX>& category, const STR& log_format_content, const Args&... args) const;
+        template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool> = true>
+        bool warning(const demo_category_log_category_base<CAT_INDEX>& category, const STR& log_content) const;
+        template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool> = true, typename...Args>
+        bool warning(const demo_category_log_category_base<CAT_INDEX>& category, const STR& log_format_content, const Args&... args) const;
+        template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool> = true>
+        bool error(const demo_category_log_category_base<CAT_INDEX>& category, const STR& log_content) const;
+        template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool> = true, typename...Args>
+        bool error(const demo_category_log_category_base<CAT_INDEX>& category, const STR& log_format_content, const Args&... args) const;
+        template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool> = true>
+        bool fatal(const demo_category_log_category_base<CAT_INDEX>& category, const STR& log_content) const;
+        template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool> = true, typename...Args>
+        bool fatal(const demo_category_log_category_base<CAT_INDEX>& category, const STR& log_format_content, const Args&... args) const;
     };
 
     template<typename T>
@@ -154,7 +154,7 @@ namespace bq {
         log result = get_log_by_id(log_id);
         return result;
     }
-    
+
     inline demo_category_log demo_category_log::get_log_by_name(const bq::string& log_name)
     {
         demo_category_log result = log::get_log_by_name(log_name);
@@ -177,76 +177,76 @@ namespace bq {
         return result;
     }
 
-    template<typename STR, uint32_t CAT_INDEX>
-    inline bq::enable_if_t<demo_category_log::is_demo_category_log_format_type<STR>::value, bool> demo_category_log::verbose(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_content) const
+    template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool>>
+    inline bool demo_category_log::verbose(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& category, const STR& log_content) const
     {
-        (void)cat;
+        (void)category;
         return do_log(CAT_INDEX, log_level::verbose, log_content);
     }
-    template<typename STR, uint32_t CAT_INDEX, typename...Args>
-    inline bq::enable_if_t<demo_category_log::is_demo_category_log_format_type<STR>::value, bool> demo_category_log::verbose(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_format_content, const Args&... args) const
+    template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool>, typename...Args>
+    inline bool demo_category_log::verbose(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& category, const STR& log_format_content, const Args&... args) const
     {
-        (void)cat;
+        (void)category;
         return do_log(CAT_INDEX, log_level::verbose, log_format_content, args...);
     }
-    template<typename STR, uint32_t CAT_INDEX>
-    inline bq::enable_if_t<demo_category_log::is_demo_category_log_format_type<STR>::value, bool> demo_category_log::debug(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_content) const
+    template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool>>
+    inline bool demo_category_log::debug(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& category, const STR& log_content) const
     {
-        (void)cat;
+        (void)category;
         return do_log(CAT_INDEX, log_level::debug, log_content);
     }
-    template<typename STR, uint32_t CAT_INDEX, typename...Args>
-    inline bq::enable_if_t<demo_category_log::is_demo_category_log_format_type<STR>::value, bool> demo_category_log::debug(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_format_content, const Args&... args) const
+    template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool>, typename...Args>
+    inline bool demo_category_log::debug(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& category, const STR& log_format_content, const Args&... args) const
     {
-        (void)cat;
+        (void)category;
         return do_log(CAT_INDEX, log_level::debug, log_format_content, args...);
     }
-    template<typename STR, uint32_t CAT_INDEX>
-    inline bq::enable_if_t<demo_category_log::is_demo_category_log_format_type<STR>::value, bool> demo_category_log::info(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_content) const
+    template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool>>
+    inline bool demo_category_log::info(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& category, const STR& log_content) const
     {
-        (void)cat;
+        (void)category;
         return do_log(CAT_INDEX, log_level::info, log_content);
     }
-    template<typename STR, uint32_t CAT_INDEX, typename...Args>
-    inline bq::enable_if_t<demo_category_log::is_demo_category_log_format_type<STR>::value, bool> demo_category_log::info(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_format_content, const Args&... args) const
+    template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool>, typename...Args>
+    inline bool demo_category_log::info(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& category, const STR& log_format_content, const Args&... args) const
     {
-        (void)cat;
+        (void)category;
         return do_log(CAT_INDEX, log_level::info, log_format_content, args...);
     }
-    template<typename STR, uint32_t CAT_INDEX>
-    inline bq::enable_if_t<demo_category_log::is_demo_category_log_format_type<STR>::value, bool> demo_category_log::warning(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_content) const
+    template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool>>
+    inline bool demo_category_log::warning(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& category, const STR& log_content) const
     {
-        (void)cat;
+        (void)category;
         return do_log(CAT_INDEX, log_level::warning, log_content);
     }
-    template<typename STR, uint32_t CAT_INDEX, typename...Args>
-    inline bq::enable_if_t<demo_category_log::is_demo_category_log_format_type<STR>::value, bool> demo_category_log::warning(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_format_content, const Args&... args) const
+    template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool>, typename...Args>
+    inline bool demo_category_log::warning(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& category, const STR& log_format_content, const Args&... args) const
     {
-        (void)cat;
+        (void)category;
         return do_log(CAT_INDEX, log_level::warning, log_format_content, args...);
     }
-    template<typename STR, uint32_t CAT_INDEX>
-    inline bq::enable_if_t<demo_category_log::is_demo_category_log_format_type<STR>::value, bool> demo_category_log::error(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_content) const
+    template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool>>
+    inline bool demo_category_log::error(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& category, const STR& log_content) const
     {
-        (void)cat;
+        (void)category;
         return do_log(CAT_INDEX, log_level::error, log_content);
     }
-    template<typename STR, uint32_t CAT_INDEX, typename...Args>
-    inline bq::enable_if_t<demo_category_log::is_demo_category_log_format_type<STR>::value, bool> demo_category_log::error(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_format_content, const Args&... args) const
+    template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool>, typename...Args>
+    inline bool demo_category_log::error(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& category, const STR& log_format_content, const Args&... args) const
     {
-        (void)cat;
+        (void)category;
         return do_log(CAT_INDEX, log_level::error, log_format_content, args...);
     }
-    template<typename STR, uint32_t CAT_INDEX>
-    inline bq::enable_if_t<demo_category_log::is_demo_category_log_format_type<STR>::value, bool> demo_category_log::fatal(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_content) const
+    template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool>>
+    inline bool demo_category_log::fatal(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& category, const STR& log_content) const
     {
-        (void)cat;
+        (void)category;
         return do_log(CAT_INDEX, log_level::fatal, log_content);
     }
-    template<typename STR, uint32_t CAT_INDEX, typename...Args>
-    inline bq::enable_if_t<demo_category_log::is_demo_category_log_format_type<STR>::value, bool> demo_category_log::fatal(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& cat, const STR& log_format_content, const Args&... args) const
+    template<typename STR, uint32_t CAT_INDEX, bq::enable_if_t<bq::demo_category_log::is_demo_category_log_format_type<STR>::value, bool>, typename...Args>
+    inline bool demo_category_log::fatal(const demo_category_log::demo_category_log_category_base<CAT_INDEX>& category, const STR& log_format_content, const Args&... args) const
     {
-        (void)cat;
+        (void)category;
         return do_log(CAT_INDEX, log_level::fatal, log_format_content, args...);
     }
 }

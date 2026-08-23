@@ -8,6 +8,7 @@
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks/async_frontend.hpp>
 #include <boost/log/sinks/text_ostream_backend.hpp>
+#include <boost/log/sources/record_ostream.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/log/support/date_time.hpp>
 #include <boost/log/trivial.hpp>
@@ -105,14 +106,21 @@ void boost_log_benchmark(std::vector<int32_t> thread_count_array, size_t num_ite
 
   auto log_func = [&logger](uint64_t i, uint64_t j, std::vector<std::string> const& v)
   {
-    BOOST_LOG_SEV(logger, logging::trivial::info) << "Logging int: " << i << ", int: " << j << ", vector: [";
-    for (size_t idx = 0; idx < v.size(); ++idx)
+    logging::record record = logger.open_record(keywords::severity = logging::trivial::info);
+    if (record)
     {
-      if (idx > 0)
-        BOOST_LOG_SEV(logger, logging::trivial::info) << ", ";
-      BOOST_LOG_SEV(logger, logging::trivial::info) << v[idx];
+      logging::record_ostream stream{record};
+      stream << "Logging int: " << i << ", int: " << j << ", vector: [";
+      for (size_t idx = 0; idx < v.size(); ++idx)
+      {
+        if (idx > 0)
+          stream << ", ";
+        stream << '"' << v[idx] << '"';
+      }
+      stream << "]";
+      stream.flush();
+      logger.push_record(std::move(record));
     }
-    BOOST_LOG_SEV(logger, logging::trivial::info) << "]";
   };
 #else
   static_assert(false,
@@ -139,7 +147,8 @@ void boost_log_benchmark(std::vector<int32_t> thread_count_array, size_t num_ite
 
   for (auto thread_count : thread_count_array)
   {
-    run_benchmark(benchmark_name.c_str(), thread_count, num_iterations_per_thread, on_start, log_func, on_exit);
+    run_benchmark(benchmark_name.c_str(), thread_count, num_iterations_per_thread,
+                  MESSAGES_PER_ITERATION, on_start, log_func, on_exit);
   }
 
   // Stop logging and cleanup

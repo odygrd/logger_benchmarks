@@ -12,7 +12,7 @@
          */
 
         /*!
-         * Generated Wrapper For demo_category_log (TypeScript)
+         * Generated Wrapper For demo_category_log (TypeScript - Node.js)
          *
          * A category_log that supports attaching a category to each log entry.
          * Categories can be used to filter logs within the appender settings.
@@ -28,10 +28,10 @@
         /****************************************************************************************************************/
 
         // ESM and TypeScript (TS will compile this to require when module=CommonJS)
-        import { bq } from "bqlog";
+        import { bq } from "@pippocao/bqlog";
 
         // Plain Node CommonJS (no "type":"module"): use this instead
-        // const { bq } = require("bqlog");
+        // const { bq } = require("@pippocao/bqlog");
 
         class demo_category_log_category_base extends bq.log_category_base {
             protected constructor(index: number) {
@@ -39,77 +39,52 @@
             }
         }
 
-        
+
         class  demo_category_log_category_root
         {
-            public readonly Shop = new (class demo_category_log_Shop extends demo_category_log_category_base {
+            public readonly node_2 = new (class demo_category_log_node_2 extends demo_category_log_category_base {
                 constructor() {
                     super(1);
                 }
-                public readonly Manager = new (class demo_category_log_Manager extends demo_category_log_category_base {
+                public readonly node_5 = new (class demo_category_log_node_5 extends demo_category_log_category_base {
                     constructor() {
                         super(2);
                     }
                 })();
-                public readonly Seller = new (class demo_category_log_Seller extends demo_category_log_category_base {
+            })();
+            public readonly node_3 = new (class demo_category_log_node_3 extends demo_category_log_category_base {
+                constructor() {
+                    super(3);
+                }
+                public readonly node_6 = new (class demo_category_log_node_6 extends demo_category_log_category_base {
                     constructor() {
-                        super(3);
+                        super(4);
                     }
                 })();
-            })();
-            public readonly Factory = new (class demo_category_log_Factory extends demo_category_log_category_base {
-                constructor() {
-                    super(4);
-                }
-                public readonly People = new (class demo_category_log_People extends demo_category_log_category_base {
+                public readonly node_10 = new (class demo_category_log_node_10 extends demo_category_log_category_base {
                     constructor() {
                         super(5);
                     }
-                    public readonly Manager = new (class demo_category_log_Manager extends demo_category_log_category_base {
-                        constructor() {
-                            super(6);
-                        }
-                    })();
-                    public readonly Worker = new (class demo_category_log_Worker extends demo_category_log_category_base {
-                        constructor() {
-                            super(7);
-                        }
-                    })();
-                })();
-                public readonly Machine = new (class demo_category_log_Machine extends demo_category_log_category_base {
-                    constructor() {
-                        super(8);
-                    }
-                })();
-                public readonly House = new (class demo_category_log_House extends demo_category_log_category_base {
-                    constructor() {
-                        super(9);
-                    }
                 })();
             })();
-            public readonly Transport = new (class demo_category_log_Transport extends demo_category_log_category_base {
+            public readonly node_4 = new (class demo_category_log_node_4 extends demo_category_log_category_base {
                 constructor() {
-                    super(10);
+                    super(6);
                 }
-                public readonly Vehicles = new (class demo_category_log_Vehicles extends demo_category_log_category_base {
+                public readonly node_7 = new (class demo_category_log_node_7 extends demo_category_log_category_base {
                     constructor() {
-                        super(11);
+                        super(7);
                     }
-                    public readonly Driver = new (class demo_category_log_Driver extends demo_category_log_category_base {
+                    public readonly node_8 = new (class demo_category_log_node_8 extends demo_category_log_category_base {
                         constructor() {
-                            super(12);
+                            super(8);
                         }
                     })();
-                    public readonly Maintenance = new (class demo_category_log_Maintenance extends demo_category_log_category_base {
+                    public readonly node_9 = new (class demo_category_log_node_9 extends demo_category_log_category_base {
                         constructor() {
-                            super(13);
+                            super(9);
                         }
                     })();
-                })();
-                public readonly Trains = new (class demo_category_log_Trains extends demo_category_log_category_base {
-                    constructor() {
-                        super(14);
-                    }
                 })();
             })();
         }
@@ -118,20 +93,15 @@
         export class demo_category_log extends bq.category_log {
             private static readonly category_names: string[] = [
                                                                    ""
-                                                                   , "Shop"
-                                                                   , "Shop.Manager"
-                                                                   , "Shop.Seller"
-                                                                   , "Factory"
-                                                                   , "Factory.People"
-                                                                   , "Factory.People.Manager"
-                                                                   , "Factory.People.Worker"
-                                                                   , "Factory.Machine"
-                                                                   , "Factory.House"
-                                                                   , "Transport"
-                                                                   , "Transport.Vehicles"
-                                                                   , "Transport.Vehicles.Driver"
-                                                                   , "Transport.Vehicles.Maintenance"
-                                                                   , "Transport.Trains"
+                                                                   , "node_2"
+                                                                   , "node_2.node_5"
+                                                                   , "node_3"
+                                                                   , "node_3.node_6"
+                                                                   , "node_3.node_10"
+                                                                   , "node_4"
+                                                                   , "node_4.node_7"
+                                                                   , "node_4.node_7.node_8"
+                                                                   , "node_4.node_7.node_9"
                                                                ];
             private static readonly categories_count: number = demo_category_log.category_names.length;
 
@@ -146,8 +116,8 @@
 
             /**
              * Create a log object
-             * @param name 
-             *             If the log name is an empty string, bqLog will automatically assign you a unique name. 
+             * @param name
+             *             If the log name is an empty string, bqLog will automatically assign you a unique name.
              *             If the log name already exists, it will return the previously existing log object and overwrite the previous configuration with the new config.
              * @param config
              *             log config string
@@ -162,11 +132,11 @@
                 if (result.get_categories_count() != demo_category_log.categories_count) {
                     console.log("expected:" + demo_category_log.categories_count + ", but:" + result.get_categories_count());
 
-                    return new demo_category_log(0n);
+                    return new demo_category_log(BigInt(0));
                 }
                 for (let i = 0; i < result.get_categories_count(); ++i) {
                     if (demo_category_log.category_names[i] != demo_category_log.category_names[i]) {
-                        return new demo_category_log(0n);
+                        return new demo_category_log(BigInt(0));
                     }
                 }
                 return result;

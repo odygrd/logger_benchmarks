@@ -16,6 +16,7 @@
 #include "template/category_log_template_csharp.h"
 #include "template/category_log_template_java.h"
 #include "template/category_log_template_typescript.h"
+#include "template/category_log_template_python.h"
 #include "template/category_log_template_unreal.h"
 
 namespace bq {
@@ -102,10 +103,20 @@ namespace bq {
         bq::file_manager::instance().write_all_text(bq::file_manager::combine_path(abs_dir, class_name + ".java"), code);
         bq::util::log_device_console(log_level::info, "code generated:%s", bq::file_manager::combine_path(abs_dir, class_name + ".java").c_str());
 
-        category_log_template_typescript ts(class_name);
-        code = ts.generate(root_node);
-        bq::file_manager::instance().write_all_text(bq::file_manager::combine_path(abs_dir, class_name + ".ts"), code);
-        bq::util::log_device_console(log_level::info, "code generated:%s", bq::file_manager::combine_path(abs_dir, class_name + ".ts").c_str());
+        category_log_template_typescript_nodejs ts_nodejs(class_name);
+        code = ts_nodejs.generate(root_node);
+        bq::file_manager::instance().write_all_text(bq::file_manager::combine_path(abs_dir, class_name + "_nodejs.ts"), code);
+        bq::util::log_device_console(log_level::info, "code generated:%s", bq::file_manager::combine_path(abs_dir, class_name + "_nodejs.ts").c_str());
+
+        category_log_template_typescript_ohos ts_ohos(class_name);
+        code = ts_ohos.generate(root_node);
+        bq::file_manager::instance().write_all_text(bq::file_manager::combine_path(abs_dir, class_name + "_ohos.ts"), code);
+        bq::util::log_device_console(log_level::info, "code generated:%s", bq::file_manager::combine_path(abs_dir, class_name + "_ohos.ts").c_str());
+
+        category_log_template_python python(class_name);
+        code = python.generate(root_node);
+        bq::file_manager::instance().write_all_text(bq::file_manager::combine_path(abs_dir, class_name + ".py"), code);
+        bq::util::log_device_console(log_level::info, "code generated:%s", bq::file_manager::combine_path(abs_dir, class_name + ".py").c_str());
 
         category_log_template_unreal unreal(class_name);
         code = unreal.generate(root_node);

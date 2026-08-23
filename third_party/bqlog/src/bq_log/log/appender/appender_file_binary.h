@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -9,13 +7,14 @@
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *
+ */
+/*!
  * appender_file_binary.h
  * -----------------------------------------------------------------------------
  * Overview
  * - Binary container used by the appender subsystem.
  * - The file consists of a global File Header followed by a linked list of Segments.
- * - Each Segment contains a Segment Header, optional Encryption Info, and Data.
+ * - Each Segment contains a Segment Header, optional Encryption Metadata, and Data.
  *
  * Top-level binary layout
  * -----------------------------------------------------------------------------
@@ -31,7 +30,7 @@
  *    0x0005     3  char padding[3]
  *
  * 2. Segment Structure
- *    Each segment begins with a Segment Header, followed by Encryption Info (if enabled),
+ *    Each segment begins with a Segment Header, followed by Encryption Metadata (if enabled),
  *    and then the Segment Payload.
  *
  *    A. Segment Header (12 bytes)
@@ -40,15 +39,15 @@
  *       +0x00      8  uint64_t next_seg_pos  (Abs offset of next segment, or UINT64_MAX)
  *       +0x08      1  appender_segment_type seg_type
  *       +0x09      1  appender_encryption_type enc_type
- *       +0x0A      1  bool has_key (Whether encryption keys are present)
- *       +0x0B      1  char padding[2]
+ *       +0x0A      2  char padding[2]
  *
- *    B. Encryption Keys (Optional, Present only if enc_type == rsa_aes_xor and only has_key is true in Segment Header)
+ *    B. Encryption Metadata (Present only if enc_type == rsa_aes_xor)
  *       Offset  Size       Field
  *       ------  ---------  ---------------------------------------------------
- *       +0x00   256        RSA-2048 ciphertext of AES_256 key
- *       +0x100  16         AES IV in plaintext
- *       +0x110  32768      AES-encrypted XOR key blob (32 KiB)
+ *       +0x000  8          64-bit hash of RSA public modulus and exponent
+ *       +0x008  256        RSA-2048 ciphertext of AES_256 key
+ *       +0x108  16         AES IV in plaintext
+ *       +0x118  32768      AES-encrypted XOR key blob (32 KiB)
  *
  *    C. Segment Payload (Optional, The content depends on whether it is the First Segment or a subsequent one.)
  *
@@ -79,6 +78,7 @@
  *   must be written/read as-is; do not rely on compiler-inserted padding.
  *
  */
+#pragma once
 #include "bq_common/bq_common.h"
 #include "bq_log/bq_log.h"
 #include "bq_log/log/appender/appender_file_base.h"
@@ -113,9 +113,8 @@ namespace bq {
             uint64_t next_seg_pos;
             appender_segment_type seg_type;
             appender_encryption_type enc_type;
-            bool has_key;
-            char padding[1];
-        } BQ_PACK_END static_assert(sizeof(appender_file_segment_head) == 12, "appender_file_header size error");
+            char padding[2];
+        } BQ_PACK_END static_assert(sizeof(appender_file_segment_head) == 12, "appender_file_segment_head size error");
 
         // Only exist in first segment
         BQ_PACK_BEGIN
@@ -129,10 +128,18 @@ namespace bq {
             uint32_t category_count;
         } BQ_PACK_END
 
-            struct seg_info {
+        struct seg_info {
             uint64_t start_pos;
             uint64_t end_pos;
             appender_encryption_type enc_type_;
+        };
+
+        struct segment_topology_info {
+            bool has_segment = false;
+            bool all_segments_are_plaintext = true;
+            bool has_encrypted_segment = false;
+            uint64_t rsa_key_fingerprint = 0;
+            uint64_t last_segment_start_pos = 0;
         };
 
     public:
@@ -143,7 +150,8 @@ namespace bq {
 
         bq_forceinline static constexpr size_t get_encryption_keys_size()
         {
-            return 256 // size of RSA-2048 ciphertext of AES key
+            return sizeof(uint64_t) // size of RSA public-key fingerprint
+                + 256 // size of RSA-2048 ciphertext of AES key
                 + 16 // size of AES IV in plaintext
                 + get_xor_key_blob_size(); // size of AES-encrypted XOR key blob
         }
@@ -160,21 +168,24 @@ namespace bq {
         virtual uint32_t get_binary_format_version() const = 0;
         virtual bool on_appender_file_recovery_begin() override;
         virtual void on_appender_file_recovery_end() override;
-        virtual void on_log_item_recovery_begin(bq::log_entry_handle& read_handle) override;
+        virtual bool on_log_item_recovery_begin(bq::log_entry_handle& read_handle) override;
         virtual void on_log_item_recovery_end() override;
-        virtual void on_log_item_new_begin(bq::log_entry_handle& read_handle) override;
+        virtual bool on_log_item_new_begin(bq::log_entry_handle& read_handle) override;
         virtual read_with_cache_handle read_with_cache(size_t size) override;
 
     private:
         bool read_to_correct_segment();
         bool read_to_next_segment();
-        void append_new_segment(appender_segment_type type);
+        bool scan_segment_topology(segment_topology_info& result);
+        bool append_new_segment(appender_segment_type type);
         void update_write_cache_padding();
 
     private:
         bq::rsa::public_key rsa_pub_key_;
+        uint64_t rsa_key_fingerprint_ = 0;
         seg_info cur_read_seg_;
         appender_encryption_type enc_type_;
+        bool current_file_is_new_created_ = false;
         bq::array<uint8_t, bq::aligned_allocator<uint8_t, appender_file_base::DEFAULT_BUFFER_ALIGNMENT>> xor_key_blob_;
     };
 }

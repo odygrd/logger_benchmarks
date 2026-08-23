@@ -13,7 +13,7 @@ echo "===== Building BqLog Dynamic Library (Unix) ====="
     cd "$BUILD_LIB_DIR" || exit 1
     # dont_execute_this.sh build [arch] [compiler] [java] [node] [static_lib|dynamic_lib]
     chmod +x ./dont_execute_this.sh
-    ./dont_execute_this.sh build native clang ON OFF dynamic_lib
+    ./dont_execute_this.sh build native clang ON OFF OFF dynamic_lib
 )
 
 echo "===== Building Java Test Jar ====="

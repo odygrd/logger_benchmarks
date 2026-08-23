@@ -18,7 +18,7 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
 
   auto on_backend_start = []()
   {
-    // Set the spdlog backend thread cpu affinity to zero
+    // Pin the spdlog backend thread away from the producers.
     set_thread_affinity(5);
   };
 
@@ -42,7 +42,7 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   { SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, string: {}", i, j, s); };
 #elif defined(BENCH_VECTOR_LARGESTR)
   auto log_func = [logger](uint64_t i, uint64_t j, std::vector<std::string> const& s)
-  { SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, string: {}", i, j, s); };
+  { SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, vector: {}", i, j, s); };
 #endif
 
   auto on_start = [logger]()
@@ -57,7 +57,7 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   for (auto thread_count : thread_count_array)
   {
     run_benchmark("Logger: Spdlog - Benchmark: Caller Thread Latency", thread_count,
-                  num_iterations_per_thread, on_start, log_func, on_exit);
+                  num_iterations_per_thread, MESSAGES_PER_ITERATION, on_start, log_func, on_exit);
   }
 }
 /***/

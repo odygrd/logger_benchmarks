@@ -1,3 +1,13 @@
+/* Copyright (C) 2025 Tencent.
+* BQLOG is licensed under the Apache License, Version 2.0.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ */
 #include "K2Node_BqLog.h"
 #include "BqLogFunctionLibrary.h"
 #include "BqLog.h"
@@ -14,7 +24,11 @@
 #include "EdGraphSchema_K2.h"
 
 #if WITH_EDITOR
+#if ENGINE_MAJOR_VERSION >= 5 || (ENGINE_MAJOR_VERSION == 4 && ENGINE_MINOR_VERSION >= 24)
 #include "ToolMenus.h"
+#else
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#endif
 #include "GraphEditorActions.h"
 #include "Framework/Commands/UIAction.h"
 #include "ScopedTransaction.h"
@@ -161,48 +175,91 @@ void UK2Node_BqLogFormat::RemoveArgumentPin(UEdGraphPin* Pin)
     RemoveInputPin(Pin);
 }
 
-// UE5 Details Panel Support
-void UK2Node_BqLogFormat::GetNodeContextMenuActions(UToolMenu* Menu, UGraphNodeContextMenuContext* Context) const
+void UK2Node_BqLogFormat::CollectBqLogMenuItems(TArray<FBqLogMenuItem>& OutItems) const
 {
-    Super::GetNodeContextMenuActions(Menu, Context);
-    if (Context && Context->Node)
-    {
-        FToolMenuSection& Section = Menu->AddSection("BqLogActions", NSLOCTEXT("BqLog", "BqLogActions", "BqLog Actions"));
-        
-        Section.AddMenuEntry(
-            "AddArgument",
-            NSLOCTEXT("BqLog", "AddArgument", "Add Argument"),
-            NSLOCTEXT("BqLog", "AddArgumentTooltip", "Add a new argument pin"),
-            FSlateIcon(),
-            FUIAction(FExecuteAction::CreateLambda([this]() {
-                const_cast<UK2Node_BqLogFormat*>(this)->AddInputPin();
-            }))
-        );
-
-        TArray<UEdGraphPin*> ArgPins;
-        GetArgPins(const_cast<TArray<UEdGraphPin*>&>(ArgPins));
-        
-        for (int32 i = 0; i < ArgPins.Num(); ++i)
+    OutItems.Add(FBqLogMenuItem{
+        FName(TEXT("AddArgument")),
+        NSLOCTEXT("BqLog", "AddArgument", "Add Argument"),
+        NSLOCTEXT("BqLog", "AddArgumentTooltip", "Add a new argument pin"),
+        [this]()
         {
-            UEdGraphPin* Pin = ArgPins[i];
-            if (Pin && CanRemovePin(Pin))
-            {
-                Section.AddMenuEntry(
-                    *FString::Printf(TEXT("RemoveArgument_%d"), i),
-                    FText::Format(NSLOCTEXT("BqLog", "RemoveArgument", "Remove {0}"), FText::FromName(Pin->PinName)),
-                    FText::Format(NSLOCTEXT("BqLog", "RemoveArgumentTooltip", "Remove argument {0}"), FText::FromName(Pin->PinName)),
-                    FSlateIcon(),
-                    FUIAction(FExecuteAction::CreateLambda([this, Pin]() {
+            const_cast<UK2Node_BqLogFormat*>(this)->AddInputPin();
+        }
+    });
+
+    TArray<UEdGraphPin*> ArgPins;
+    GetArgPins(const_cast<TArray<UEdGraphPin*>&>(ArgPins));
+
+    for (int32 i = 0; i < ArgPins.Num(); ++i)
+    {
+        UEdGraphPin* Pin = ArgPins[i];
+        if (Pin && CanRemovePin(Pin))
+        {
+            OutItems.Add(FBqLogMenuItem{
+                FName(*FString::Printf(TEXT("RemoveArgument_%d"), i)),
+                FText::Format(NSLOCTEXT("BqLog", "RemoveArgument", "Remove {0}"), FText::FromName(Pin->PinName)),
+                FText::Format(NSLOCTEXT("BqLog", "RemoveArgumentTooltip", "Remove argument {0}"), FText::FromName(Pin->PinName)),
+                [this, Pin]()
+                {
 #if WITH_EDITOR
-                        const FScopedTransaction Transaction(NSLOCTEXT("BqLog", "RemoveArgumentPin", "Remove Argument Pin"));
+                    const FScopedTransaction Transaction(NSLOCTEXT("BqLog", "RemoveArgumentPin", "Remove Argument Pin"));
 #endif
-                        const_cast<UK2Node_BqLogFormat*>(this)->RemoveArgumentPin(Pin);
-                    }))
-                );
-            }
+                    const_cast<UK2Node_BqLogFormat*>(this)->RemoveArgumentPin(Pin);
+                }
+            });
         }
     }
 }
+
+#if ENGINE_MAJOR_VERSION >= 5 || (ENGINE_MAJOR_VERSION == 4 && ENGINE_MINOR_VERSION >= 24)
+void UK2Node_BqLogFormat::GetNodeContextMenuActions(UToolMenu* Menu, UGraphNodeContextMenuContext* Context) const
+{
+    Super::GetNodeContextMenuActions(Menu, Context);
+    if (!Context || !Context->Node)
+    {
+        return;
+    }
+
+    TArray<FBqLogMenuItem> Items;
+    CollectBqLogMenuItems(Items);
+
+    FToolMenuSection& Section = Menu->AddSection("BqLogActions", NSLOCTEXT("BqLog", "BqLogActions", "BqLog Actions"));
+    for (const FBqLogMenuItem& Item : Items)
+    {
+        Section.AddMenuEntry(
+            Item.Id,
+            Item.Label,
+            Item.Tooltip,
+            FSlateIcon(),
+            FUIAction(FExecuteAction::CreateLambda(Item.Action))
+        );
+    }
+}
+#else
+void UK2Node_BqLogFormat::GetContextMenuActions(const FGraphNodeContextMenuBuilder& Context) const
+{
+    Super::GetContextMenuActions(Context);
+    if (!Context.Node || !Context.MenuBuilder)
+    {
+        return;
+    }
+
+    TArray<FBqLogMenuItem> Items;
+    CollectBqLogMenuItems(Items);
+
+    Context.MenuBuilder->BeginSection("BqLogActions", NSLOCTEXT("BqLog", "BqLogActions", "BqLog Actions"));
+    for (const FBqLogMenuItem& Item : Items)
+    {
+        Context.MenuBuilder->AddMenuEntry(
+            Item.Label,
+            Item.Tooltip,
+            FSlateIcon(),
+            FUIAction(FExecuteAction::CreateLambda(Item.Action))
+        );
+    }
+    Context.MenuBuilder->EndSection();
+}
+#endif
 
 #if WITH_EDITOR
 int32 UK2Node_BqLogFormat::GetNumArguments() const
@@ -260,8 +317,8 @@ void UK2Node_BqLogFormat::RemoveInputPin(UEdGraphPin* Pin)
         Pin->BreakAllPinLinks();
         ReconstructNode();
         FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(GetBlueprint());
-        if (UEdGraph* Graph = GetGraph()) { 
-#if ENGINE_MAJOR_VERSION >= 5
+        if (UEdGraph* Graph = GetGraph()) {
+#if (ENGINE_MAJOR_VERSION > 5) || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3)
             Graph->NotifyNodeChanged(this);
 #else
             Graph->NotifyGraphChanged();
@@ -310,7 +367,7 @@ void UK2Node_BqLogFormat::ValidateNodeDuringCompilation(FCompilerResultsLog& Mes
         }
 
 #if ENGINE_MAJOR_VERSION >= 5 || ENGINE_MINOR_VERSION >= 22
-        Index = CategoryEnum->GetIndexByName(FName(CategoryEnum->GenerateEnumPrefix() + FString(TEXT("::")) + *CleanName));
+        Index = CategoryEnum->GetIndexByName(FName(*(CategoryEnum->GenerateEnumPrefix() + FString(TEXT("::")) + *CleanName)));
 #else
         Index = CategoryEnum->GetIndexByNameString(CategoryEnum->GenerateEnumPrefix() + FString(TEXT("::")) + CleanName);
 #endif
@@ -810,7 +867,7 @@ void UK2Node_BqLogFormat::PostEditChangeProperty(struct FPropertyChangedEvent& P
     Super::PostEditChangeProperty(PropertyChangedEvent);
     if (UEdGraph* Graph = GetGraph())
     {
-#if ENGINE_MAJOR_VERSION >= 5
+#if (ENGINE_MAJOR_VERSION > 5) || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3)
         Graph->NotifyNodeChanged(this);
 #else
         Graph->NotifyGraphChanged();

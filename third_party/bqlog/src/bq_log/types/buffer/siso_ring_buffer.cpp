@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -67,7 +66,7 @@ namespace bq {
             if (write_thread_id_ == empty_thread_id_) {
                 write_thread_id_ = current_thread_id;
             } else if (current_thread_id != write_thread_id_) {
-                bq::util::log_device_console(bq::log_level::error, "only single thread writing is supported for siso_ring_buffer! expected:%" PRIu64 ", but:%" PRIu64 "", write_thread_id_, current_thread_id);
+                bq::util::log_device_console(bq::log_level::error, "only single thread writing is supported for siso_ring_buffer! expected:%" PRIu64 ", but:%" PRIu64, write_thread_id_, current_thread_id);
                 assert(false && "only single thread writing is supported for siso_ring_buffer!");
             }
         }

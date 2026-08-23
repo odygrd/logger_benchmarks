@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -20,7 +19,7 @@ bool bq::appender_decoder_helper::decode(const bq::string& in_file_path, const b
     uint32_t handle = 0;
     auto result = bq::api::__api_log_decoder_create(in_file_path.c_str(), priv_key.c_str(), &handle);
     if (result != bq::appender_decode_result::success) {
-        bq::util::log_device_console(log_level::error, "create decoder failed:%d %s", result, in_file_path.c_str());
+        bq::util::log_device_console(log_level::error, "create decoder failed:%" PRId32 " %s", result, in_file_path.c_str());
         return false;
     }
 

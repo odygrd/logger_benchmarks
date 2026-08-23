@@ -15,24 +15,24 @@ void xtr_benchmark(std::vector<int32_t> thread_count_array, size_t num_iteration
 
   xtr::logger log("xtr_call_site_latency_percentile_linux_benchmark.log");
 
-  set_pthread_affinity(log.consumer_thread_native_handle(), 1);
+  set_pthread_affinity(log.consumer_thread_native_handle(), 5);
 
   // wait for the backend thread to start
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Define a logging lambda
 #ifdef BENCH_INT_INT_DOUBLE
-  auto log_func = [&log](uint64_t i, uint64_t j, double d) mutable {
+  auto log_func = [&log](uint64_t i, uint64_t j, double d) {
     thread_local auto sink = log.get_sink("main");
     XTR_LOGL_TSC(info, sink, "Logging int: {}, int: {}, double: {}", i, j, d);
   };
 #elif defined(BENCH_INT_INT_LARGESTR)
-  auto log_func = [&log](uint64_t i, uint64_t j, std::string const& s) mutable {
+  auto log_func = [&log](uint64_t i, uint64_t j, std::string const& s) {
     thread_local auto sink = log.get_sink("main");
     XTR_LOGL_TSC(info, sink, "Logging int: {}, int: {}, string: {}", i, j, s);
   };
 #elif defined(BENCH_VECTOR_LARGESTR)
-  auto log_func = [&log](uint64_t i, uint64_t j, std::vector<std::string> const& s) mutable
+  auto log_func = [&log](uint64_t i, uint64_t j, std::vector<std::string> const& s)
   {
     thread_local auto sink = log.get_sink("main");
     XTR_LOGL_TSC(info, sink, "Logging int: {}, int: {}, vector: {}", i, j, s);
@@ -52,7 +52,7 @@ void xtr_benchmark(std::vector<int32_t> thread_count_array, size_t num_iteration
   for (auto thread_count : thread_count_array)
   {
     run_benchmark("Logger: XTR - Benchmark: Caller Thread Latency", thread_count,
-                  num_iterations_per_thread, on_start, log_func, on_exit);
+                  num_iterations_per_thread, MESSAGES_PER_ITERATION, on_start, log_func, on_exit);
   }
 }
 

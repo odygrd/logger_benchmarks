@@ -30,6 +30,7 @@ namespace bq.test
 
                 test_manager.add_test(new test_log_1("Test Log Basic"));
                 test_manager.add_test(new test_log_2("Test Log MultiThread"));
+                test_manager.add_test(new test_log_category("Test Log Category"));
                 
                 bool result = test_manager.test();
                 if (result)

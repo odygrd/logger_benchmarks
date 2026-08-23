@@ -10,6 +10,8 @@ package bq;
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+/** Native library definition. */
 public class lib_def {
+    /** Native library name. */
     public static final String lib_name = "BqLog";
 }

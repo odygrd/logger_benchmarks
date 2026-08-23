@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -109,7 +108,7 @@ namespace bq {
             } else if (handle.result == enum_buffer_result_code::err_wait_and_retry) {
                 bq::platform::thread::yield();
             } else {
-                util::log_device_console(log_level::error, "failed to insert data entry to console fetch buffer, ring_buffer error code:%d", (int32_t)handle.result);
+                util::log_device_console(log_level::error, "failed to insert data entry to console fetch buffer, ring_buffer error code:%" PRId32, (int32_t)handle.result);
             }
         } while (!finished);
     }
@@ -148,7 +147,7 @@ namespace bq {
         } else if (read_handle.result == enum_buffer_result_code::err_empty_log_buffer) {
             // do nothing
         } else {
-            bq::util::log_device_console(bq::log_level::error, "failed to fetch data entry from console buffer, ring_buffer error code:%d", (int32_t)read_handle.result);
+            bq::util::log_device_console(bq::log_level::error, "failed to fetch data entry from console buffer, ring_buffer error code:%" PRId32, (int32_t)read_handle.result);
         }
         return read_handle.result == enum_buffer_result_code::success;
     }
@@ -200,12 +199,12 @@ namespace bq {
         return true;
     }
 
-    void appender_console::log_impl(const log_entry_handle& handle)
+    bool appender_console::log_impl(const log_entry_handle& handle)
     {
         auto layout_result = layout_ptr_->do_layout(handle, time_zone_, &parent_log_->get_categories_name());
         if (layout_result != layout::enum_layout_result::finished) {
-            bq::util::log_device_console(log_level::error, "console layout error, result:%d, format str:%s", (int32_t)layout_result, handle.get_format_string_data());
-            return;
+            bq::util::log_device_console(log_level::error, "console layout error, result:%" PRId32 ", format str:%s", (int32_t)layout_result, handle.get_format_string_data());
+            return false;
         }
         log_entry_cache_.erase(log_entry_cache_.begin() + static_cast<ptrdiff_t>(log_name_prefix_.size()), (log_entry_cache_.size() - log_name_prefix_.size()));
         {
@@ -225,12 +224,14 @@ namespace bq {
         } else {
             util::log_device_console_plain_text(level, log_entry_cache_.c_str());
         }
+        return true;
     }
 
-    void appender_console::on_log_item_recovery_begin(bq::log_entry_handle& read_handle)
+    bool appender_console::on_log_item_recovery_begin(bq::log_entry_handle& read_handle)
     {
         appender_base::on_log_item_recovery_begin(read_handle);
         util::log_device_console_plain_text(bq::log_level::info, log_global_vars::get().log_recover_start_str_);
+        return true;
     }
 
     void appender_console::on_log_item_recovery_end()

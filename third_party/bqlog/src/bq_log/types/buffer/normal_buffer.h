@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 /*!
  * \class bq::normal_buffer
  *
@@ -50,6 +49,8 @@ namespace bq {
         bq_forceinline create_memory_map_result get_mmap_result() const { return mmap_result_; }
 
         bq_forceinline void set_delete_mmap_when_destruct(bool delete_mmap) { delete_mmap_when_destruct_ = delete_mmap; }
+
+        bq_forceinline bool is_valid() const { return buffer_data_ != nullptr;}
 
         void resize(size_t new_size);
 

@@ -43,7 +43,7 @@ namespace bq {
                 for (int64_t i = INT64_MIN; i < INT64_MAX - 0x123456789AB; i += 0x123456789AB) {
                     uint64_t i_encode = bq::log_utils::zigzag::encode(i);
                     int64_t i_decode = bq::log_utils::zigzag::decode(i_encode);
-                    result.add_result(i == i_decode, "zigzag test %d", i);
+                    result.add_result(i == i_decode, "zigzag test %" PRId32, i);
                 }
 
                 // test vlq
@@ -54,28 +54,28 @@ namespace bq {
                         auto len = bq::log_utils::vlq::vlq_encode(i, target_data, 16);
                         decltype(i) i_decode;
                         auto len_decode = bq::log_utils::vlq::vlq_decode(i_decode, target_data);
-                        result.add_result(i == i_decode && len == len_decode, "vlq test %d", i);
+                        result.add_result(i == i_decode && len == len_decode, "vlq test %" PRId32, i);
                     }
                     {
                         uint64_t i = 0xFF326943FFFFFF;
                         auto len = bq::log_utils::vlq::vlq_encode(i, target_data, 16);
                         decltype(i) i_decode;
                         auto len_decode = bq::log_utils::vlq::vlq_decode(i_decode, target_data);
-                        result.add_result(i == i_decode && len == len_decode, "vlq test %d", i);
+                        result.add_result(i == i_decode && len == len_decode, "vlq test %" PRId32, i);
                     }
                     {
                         uint64_t i = 0x326943FFFFFF;
                         auto len = bq::log_utils::vlq::vlq_encode(i, target_data, 16);
                         decltype(i) i_decode;
                         auto len_decode = bq::log_utils::vlq::vlq_decode(i_decode, target_data);
-                        result.add_result(i == i_decode && len == len_decode, "vlq test %d", i);
+                        result.add_result(i == i_decode && len == len_decode, "vlq test %" PRId32, i);
                     }
                     {
                         uint64_t i = 0x6943FFFFFF;
                         auto len = bq::log_utils::vlq::vlq_encode(i, target_data, 16);
                         decltype(i) i_decode;
                         auto len_decode = bq::log_utils::vlq::vlq_decode(i_decode, target_data);
-                        result.add_result(i == i_decode && len == len_decode, "vlq test %d", i);
+                        result.add_result(i == i_decode && len == len_decode, "vlq test %" PRId32, i);
                     }
                 }
                 for (uint64_t add = 0; add <= UINT8_MAX; ++add) {
@@ -83,21 +83,21 @@ namespace bq {
                     auto len = bq::log_utils::vlq::vlq_encode(i, target_data, 16);
                     decltype(i) i_decode;
                     auto len_decode = bq::log_utils::vlq::vlq_decode(i_decode, target_data);
-                    result.add_result(i == i_decode && len == len_decode, "vlq test %d", i);
+                    result.add_result(i == i_decode && len == len_decode, "vlq test %" PRId32, i);
                 }
                 for (uint64_t add = 0; add <= UINT16_MAX; ++add) {
                     uint16_t i = (uint16_t)add;
                     auto len = bq::log_utils::vlq::vlq_encode(i, target_data, 16);
                     decltype(i) i_decode;
                     auto len_decode = bq::log_utils::vlq::vlq_decode(i_decode, target_data);
-                    result.add_result(i == i_decode && len == len_decode, "vlq test %d", i);
+                    result.add_result(i == i_decode && len == len_decode, "vlq test %" PRId32, i);
                 }
                 for (uint64_t add = 0; add <= UINT32_MAX; add += 77) {
                     uint32_t i = (uint32_t)add;
                     auto len = bq::log_utils::vlq::vlq_encode(i, target_data, 16);
                     decltype(i) i_decode;
                     auto len_decode = bq::log_utils::vlq::vlq_decode(i_decode, target_data);
-                    result.add_result(i == i_decode && len == len_decode, "vlq test %d", i);
+                    result.add_result(i == i_decode && len == len_decode, "vlq test %" PRId32, i);
                 }
 
                 // test vlq + zigzag

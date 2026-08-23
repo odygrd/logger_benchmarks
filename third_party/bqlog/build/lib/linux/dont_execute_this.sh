@@ -4,16 +4,17 @@ set -euo pipefail
 # Unified build/generate/pack driver for Linux
 #
 # Usage (all parameters optional; missing ones will be prompted):
-#   dont_execute_this.sh all [arch] [compiler] [java] [node]
-#   dont_execute_this.sh build [arch] [compiler] [java] [node] [static_lib|dynamic_lib]
-#   dont_execute_this.sh gen-vsproj [arch] [compiler] [java] [node] [static_lib|dynamic_lib]
+#   dont_execute_this.sh all [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both]
+#   dont_execute_this.sh build [arch] [compiler] [java] [node] [dynamic_lib|static_lib|both]
+#   dont_execute_this.sh gen-vsproj [arch] [compiler] [java] [node] [dynamic_lib|static_lib|both]
 #   dont_execute_this.sh pack [arch]
 #
 # Normalized values:
 #   arch      : arm64 | x86 | x86_64 | native
 #   compiler  : gcc | clang
-#   java,node : ON | OFF
+#   java,node,python : ON | OFF
 #   lib type  : static_lib | dynamic_lib
+#   all lib type : dynamic_lib | static_lib | both  (default: both)
 # ------------------------------------------------------------
 
 # Ensure running under bash
@@ -37,11 +38,13 @@ ARG2="${3:-}"
 ARG3="${4:-}"
 ARG4="${5:-}"
 ARG5="${6:-}"
+ARG6="${7:-}"
 
 ARCH_PARAM=""
 COMPILER_TYPE=""
 JAVA_SUPPORT=""
 NODE_API_SUPPORT=""
+PYTHON_SUPPORT=""
 BUILD_LIB_TYPE=""
 
 to_upper() { echo "$1" | tr '[:lower:]' '[:upper:]'; }
@@ -74,6 +77,7 @@ normalize_build_lib_type() {
   case "$(to_lower "$1")" in
     static_lib)  echo "static_lib" ;;
     dynamic_lib) echo "dynamic_lib" ;;
+    both)        echo "both" ;;
     *)           echo "" ;;
   esac
 }
@@ -153,6 +157,9 @@ ensure_common_params() {
   if [[ -z "$NODE_API_SUPPORT" ]]; then
     NODE_API_SUPPORT="$(ask_yes_no "Enable Node-API (Node.js) support?")"
   fi
+  if [[ -z "$PYTHON_SUPPORT" ]]; then
+    PYTHON_SUPPORT="$(ask_yes_no "Enable Python (CPython C Extension) support?")"
+  fi
   ensure_resolved_toolchain
 }
 ensure_arch_only() {
@@ -171,7 +178,8 @@ ARCH_PARAM="$(normalize_arch "$ARG1")"
 COMPILER_TYPE="$(normalize_compiler "$ARG2")"
 JAVA_SUPPORT="$(normalize_onoff "$ARG3")"
 NODE_API_SUPPORT="$(normalize_onoff "$ARG4")"
-BUILD_LIB_TYPE="$(normalize_build_lib_type "$ARG5")"
+PYTHON_SUPPORT="$(normalize_onoff "$ARG5")"
+BUILD_LIB_TYPE="$(normalize_build_lib_type "$ARG6")"
 
 # Echo parsed params summary so "no output" never happens
 echo "Parsed params:"
@@ -180,6 +188,7 @@ echo "  ARCH_PARAM:    ${ARCH_PARAM:-<unset>}"
 echo "  COMPILER_TYPE: ${COMPILER_TYPE:-<unset>}"
 echo "  JAVA_SUPPORT:  ${JAVA_SUPPORT:-<unset>}"
 echo "  NODE_API:      ${NODE_API_SUPPORT:-<unset>}"
+echo "  PYTHON:        ${PYTHON_SUPPORT:-<unset>}"
 echo "  BUILD_LIB_TYPE:${BUILD_LIB_TYPE:-<unset>}"
 
 # Resolve C++ compiler and CMake cross arguments + set USER_DEF_ARCH
@@ -305,6 +314,7 @@ build_one() {
   echo "  CXX               : ${RESOLVED_CXX_BIN}"
   echo "  JAVA_SUPPORT      : ${JAVA_SUPPORT}"
   echo "  NODE_API_SUPPORT  : ${NODE_API_SUPPORT}"
+  echo "  PYTHON_SUPPORT    : ${PYTHON_SUPPORT}"
   echo "  Generator         : ${GEN}"
   ((${#ARCH_ARGS[@]})) && echo "  CMake cross args  : ${ARCH_ARGS[*]}"
   echo "  USER_DEF_ARCH     : ${USER_DEF_ARCH:-}"
@@ -318,11 +328,14 @@ build_one() {
 
   for cfg in "${BuildConfigs[@]}"; do
     echo "  BUILD FOR CONFIG ${BUILD_LIB_TYPE_ARG} : ${cfg}"
+    local CFG_DIR="build_${cfg}"
+    rm -rf "${CFG_DIR}"; mkdir "${CFG_DIR}"; cd "${CFG_DIR}" || exit 1
     cmake "${SRC_DIR}" -G "${GEN}" \
       -DTARGET_PLATFORM:STRING=linux \
       -DBUILD_LIB_TYPE="${BUILD_LIB_TYPE_ARG}" \
       -DJAVA_SUPPORT:BOOL="${JAVA_SUPPORT}" \
       -DNODE_API_SUPPORT:BOOL="${NODE_API_SUPPORT}" \
+      -DPYTHON_SUPPORT:BOOL="${PYTHON_SUPPORT}" \
       -DCMAKE_BUILD_TYPE="${cfg}" \
       -DBUILD_SHARED_LIBS="${SHARED}" \
       -DCMAKE_CXX_COMPILER="${RESOLVED_CXX_BIN}" \
@@ -331,6 +344,7 @@ build_one() {
 
     cmake --build . -- -j "${BUILD_JOBS}"
     cmake --install .
+    cd ..
   done
 
   popd >/dev/null
@@ -351,6 +365,7 @@ gen_vsproj() {
   echo "  CXX               : ${RESOLVED_CXX_BIN}"
   echo "  JAVA_SUPPORT      : ${JAVA_SUPPORT}"
   echo "  NODE_API_SUPPORT  : ${NODE_API_SUPPORT}"
+  echo "  PYTHON_SUPPORT    : ${PYTHON_SUPPORT}"
   echo "  BUILD_LIB_TYPE    : ${BUILD_LIB_TYPE}"
   echo "  Generator         : ${GEN}"
   ((${#ARCH_ARGS[@]})) && echo "  CMake cross args  : ${ARCH_ARGS[*]}"
@@ -404,8 +419,15 @@ rm -rf "../../../install"
 # Dispatch
 if [[ "$ACTION" == "all" ]]; then
   ensure_common_params
-  build_one dynamic_lib
-  build_one static_lib
+  BUILD_LIB_TYPE_ALL="${BUILD_LIB_TYPE:-both}"
+  if [[ "$BUILD_LIB_TYPE_ALL" == "dynamic_lib" ]]; then
+    build_one dynamic_lib
+  elif [[ "$BUILD_LIB_TYPE_ALL" == "static_lib" ]]; then
+    build_one static_lib
+  else
+    build_one dynamic_lib
+    build_one static_lib
+  fi
   do_pack
   echo "---------"; echo "Finished!"; echo "---------"
   exit 0

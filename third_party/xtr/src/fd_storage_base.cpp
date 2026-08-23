@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "xtr/io/detail/fd_storage_base.hpp"
+#include "xtr/io/detail/open.hpp"
 #include "xtr/detail/retry.hpp"
 #include "xtr/detail/throw.hpp"
 
@@ -57,22 +58,18 @@ int xtr::detail::fd_storage_base::reopen() noexcept
     if (reopen_path_ == null_reopen_path)
         return ENOENT;
 
-    const int newfd = XTR_TEMP_FAILURE_RETRY(
-        ::open(
-            reopen_path_.c_str(),
-            O_CREAT | O_APPEND | O_WRONLY,
-            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
+    auto fd = detail::open_at_end(reopen_path_.c_str());
 
-    if (newfd == -1)
+    if (!fd)
         return errno;
 
-    replace_fd(newfd);
+    replace_fd(std::move(fd));
 
     return 0;
 }
 
 XTR_FUNC
-void xtr::detail::fd_storage_base::replace_fd(int newfd) noexcept
+void xtr::detail::fd_storage_base::replace_fd(file_descriptor fd) noexcept
 {
-    fd_.reset(newfd);
+    fd_ = std::move(fd);
 }

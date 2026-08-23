@@ -493,7 +493,7 @@ namespace bq {
                             src_16[stop_pos] = 0x4E00; // Chinese
                             uint32_t r = bq::util::utf16_to_utf8_ascii(src_16.data(), (uint32_t)t_len, dst_8.data(), (uint32_t)dst_8.size());
                             if (r > stop_pos) {
-                                result.add_result(false, "utf16_to_utf8_ascii truncation fail. len=%" PRIu64 " stop=%" PRIu64 " ret=%u", static_cast<uint64_t>(t_len), static_cast<uint64_t>(stop_pos), r);
+                                result.add_result(false, "utf16_to_utf8_ascii truncation fail. len=%" PRIu64 " stop=%" PRIu64 " ret=%" PRIu32, static_cast<uint64_t>(t_len), static_cast<uint64_t>(stop_pos), r);
                                 all_pass = false;
                                 break;
                             }

@@ -13,6 +13,8 @@ package bq.def;
 
 import java.util.AbstractMap.SimpleEntry;
 
+/** Internal Java wrapper constants. */
 public class constants {
+	/** Runtime class of packed parameter wrappers. */
 	public static final Class<?> cls_param_wrapper = new SimpleEntry<int[], long[]>(new int[1], new long[2]).getClass();
 }

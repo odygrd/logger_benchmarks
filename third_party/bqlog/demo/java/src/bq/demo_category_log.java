@@ -1,4 +1,16 @@
-﻿package bq;
+package bq;
+/*
+ * Copyright (C) 2025 Tencent.
+ * BQLOG is licensed under the Apache License, Version 2.0.
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ */
+
 import bq.def.*;
 import bq.impl.log_invoker;
 
@@ -26,14 +38,14 @@ public class demo_category_log extends category_log{
     }
     
     /**
-     * Create a log object
+     * Create a demo_category_log object
      * @param name 
-     *             If the log name is an empty string, bqLog will automatically assign you a unique name. 
-     *             If the log name already exists, it will return the previously existing log object and overwrite the previous configuration with the new config.
+     *             If the demo_category_log name is an empty string, bqLog will automatically assign you a unique name. 
+     *             If the demo_category_log name already exists, it will return the previously existing demo_category_log object and overwrite the previous configuration with the new config.
      * @param config
-     *             log config string
+     *             demo_category_log config string
      * @return
-     *             A log object, if create failed, the is_valid() method of it will return false
+     *             A demo_category_log object, if create failed, the is_valid() method of it will return false
      */
     public static demo_category_log create_log(String name, String config)
     {
@@ -47,11 +59,11 @@ public class demo_category_log extends category_log{
     }
     
     /**
-     * Get a log object by it's name
+     * Get a demo_category_log object by it's name
      * @param log_name
-     *             Name of the log you want to find
+     *             Name of the demo_category_log you want to find
      * @return
-     *             A log object, if the log object with specific name was not found, the is_valid() method of it will return false
+     *             A demo_category_log object, if the demo_category_log object with specific name was not found, the is_valid() method of it will return false
      */
     public static demo_category_log get_log_by_name(String log_name)
     {
@@ -78,29 +90,29 @@ public class demo_category_log extends category_log{
 
     ///Core log functions with category param, there are 6 log levels:
     ///verbose, debug, info, warning, error, fatal
-    public boolean verbose(demo_category_log_category_base cat, String log_format_content, Object... args)
+    public boolean verbose(demo_category_log_category_base category, String log_format_content, Object... args)
     {
-        return do_log(cat, log_level.verbose, log_format_content, args);
+        return do_log(category, log_level.verbose, log_format_content, args);
     }
-    public boolean debug(demo_category_log_category_base cat, String log_format_content, Object... args)
+    public boolean debug(demo_category_log_category_base category, String log_format_content, Object... args)
     {
-        return do_log(cat, log_level.debug, log_format_content, args);
+        return do_log(category, log_level.debug, log_format_content, args);
     }
-    public boolean info(demo_category_log_category_base cat, String log_format_content, Object... args)
+    public boolean info(demo_category_log_category_base category, String log_format_content, Object... args)
     {
-        return do_log(cat, log_level.info, log_format_content, args);
+        return do_log(category, log_level.info, log_format_content, args);
     }
-    public boolean warning(demo_category_log_category_base cat, String log_format_content, Object... args)
+    public boolean warning(demo_category_log_category_base category, String log_format_content, Object... args)
     {
-        return do_log(cat, log_level.warning, log_format_content, args);
+        return do_log(category, log_level.warning, log_format_content, args);
     }
-    public boolean error(demo_category_log_category_base cat, String log_format_content, Object... args)
+    public boolean error(demo_category_log_category_base category, String log_format_content, Object... args)
     {
-        return do_log(cat, log_level.error, log_format_content, args);
+        return do_log(category, log_level.error, log_format_content, args);
     }
-    public boolean fatal(demo_category_log_category_base cat, String log_format_content, Object... args)
+    public boolean fatal(demo_category_log_category_base category, String log_format_content, Object... args)
     {
-        return do_log(cat, log_level.fatal, log_format_content, args);
+        return do_log(category, log_level.fatal, log_format_content, args);
     }
     
     
@@ -125,7 +137,7 @@ public class demo_category_log extends category_log{
     private static class demo_category_log_category_base extends log_category_base
     {
     }
-    public class demo_category_log_category_root
+    public static class demo_category_log_category_root
     {
         public static class demo_category_log_node_2 extends demo_category_log_category_base
         {
@@ -134,9 +146,9 @@ public class demo_category_log extends category_log{
             {
                 public demo_category_log_node_5(){index = 2L;}
             }
-            public demo_category_log_node_5 node_5 = new demo_category_log_node_5(); 	//node_2.node_5
+            public demo_category_log_node_5 node_5 = new demo_category_log_node_5();     //node_2.node_5
         }
-        public demo_category_log_node_2 node_2 = new demo_category_log_node_2(); 	//node_2
+        public demo_category_log_node_2 node_2 = new demo_category_log_node_2();     //node_2
         public static class demo_category_log_node_3 extends demo_category_log_category_base
         {
             public demo_category_log_node_3(){index = 3L;}
@@ -144,14 +156,14 @@ public class demo_category_log extends category_log{
             {
                 public demo_category_log_node_6(){index = 4L;}
             }
-            public demo_category_log_node_6 node_6 = new demo_category_log_node_6(); 	//node_3.node_6	//comment Test
+            public demo_category_log_node_6 node_6 = new demo_category_log_node_6();     //node_3.node_6    //comment Test
             public static class demo_category_log_node_10 extends demo_category_log_category_base
             {
                 public demo_category_log_node_10(){index = 5L;}
             }
-            public demo_category_log_node_10 node_10 = new demo_category_log_node_10(); 	//node_3.node_10
+            public demo_category_log_node_10 node_10 = new demo_category_log_node_10();     //node_3.node_10
         }
-        public demo_category_log_node_3 node_3 = new demo_category_log_node_3(); 	//node_3
+        public demo_category_log_node_3 node_3 = new demo_category_log_node_3();     //node_3
         public static class demo_category_log_node_4 extends demo_category_log_category_base
         {
             public demo_category_log_node_4(){index = 6L;}
@@ -162,16 +174,16 @@ public class demo_category_log extends category_log{
                 {
                     public demo_category_log_node_8(){index = 8L;}
                 }
-                public demo_category_log_node_8 node_8 = new demo_category_log_node_8(); 	//node_4.node_7.node_8
+                public demo_category_log_node_8 node_8 = new demo_category_log_node_8();     //node_4.node_7.node_8
                 public static class demo_category_log_node_9 extends demo_category_log_category_base
                 {
                     public demo_category_log_node_9(){index = 9L;}
                 }
-                public demo_category_log_node_9 node_9 = new demo_category_log_node_9(); 	//node_4.node_7.node_9
+                public demo_category_log_node_9 node_9 = new demo_category_log_node_9();     //node_4.node_7.node_9
             }
-            public demo_category_log_node_7 node_7 = new demo_category_log_node_7(); 	//node_4.node_7
+            public demo_category_log_node_7 node_7 = new demo_category_log_node_7();     //node_4.node_7
         }
-        public demo_category_log_node_4 node_4 = new demo_category_log_node_4(); 	//node_4
+        public demo_category_log_node_4 node_4 = new demo_category_log_node_4();     //node_4
     }
 
     

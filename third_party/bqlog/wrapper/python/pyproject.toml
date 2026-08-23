@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bqlog"
+version = "1.0.0"
+description = "BqLog - High Performance Cross-Platform Logging Library"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.7"
+authors = [
+    {name = "Tencent"},
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Logging",
+]
+
+[project.urls]
+Homepage = "https://github.com/Tencent/BqLog"
+Repository = "https://github.com/Tencent/BqLog"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+bq = ["*.so", "*.pyd", "*.dylib"]
+
+[tool.setuptools.exclude-package-data]
+bq = ["*.pdb"]

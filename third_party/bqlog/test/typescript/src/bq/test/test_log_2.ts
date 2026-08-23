@@ -11,7 +11,7 @@
  */
 import { test_base } from "./test_base.ts";
 import { test_result } from "./test_result.ts";
-import { bq } from "./bq_lib.ts";
+import { bq } from "@pippocao/bqlog";
 import { test_manager } from "./test_manager.ts";
 import { Worker } from "worker_threads";
 import { pathToFileURL, fileURLToPath } from "url";
@@ -54,7 +54,7 @@ export class test_log_2 extends test_base {
 
         console.log("Starting Sync Test (NodeJS Workers)...");
         
-        const lib_path = process.env.BQLOG_LIB_PATH || require.resolve("../../../../../wrapper/typescript/dist/cjs/index.js");
+        const lib_path = process.env.BQLOG_LIB_PATH || require.resolve("@pippocao/bqlog");
 
         await this.run_worker_pool("sync_log", 128, 5, 128, lib_path);
         console.log("Sync Test Finished");
@@ -74,7 +74,7 @@ export class test_log_2 extends test_base {
                     `);
         bq.log.set_console_buffer_enable(false);
         bq.log.register_console_callback((log_id: bigint, category_idx: number, log_level: any, content: string) => {
-            if(log_id != 0n)
+            if(log_id != BigInt(0))
             {
                 result.add_result(log_id == log_inst_console.get_id(), "console callback test 1");
                 result.add_result(log_level == bq.log_level.debug, "console callback test 2");

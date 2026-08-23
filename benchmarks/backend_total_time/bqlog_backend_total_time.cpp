@@ -32,7 +32,7 @@ int main()
 
   std::string log_file = fmt::format("benchmark_bqlog_backend_total_time_{}_1.log", date_str);
 
-  set_thread_affinity(1);
+  set_thread_affinity(5);
 
   // BqLog does not expose its backend worker affinity. tools/run_all.py starts this process on
   // CPU 5 so the worker inherits that affinity before this caller thread moves to CPU 1.
@@ -46,6 +46,8 @@ int main()
         appenders_config.appender_0.file_name= benchmark_bqlog_backend_total_time
         appenders_config.appender_0.capacity_limit= 1
     )");
+
+  set_thread_affinity(1);
 
   log_obj.info("Warm up");
   log_obj.force_flush();

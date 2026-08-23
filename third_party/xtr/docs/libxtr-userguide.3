@@ -29,7 +29,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "LIBXTR-USERGUIDE" "3" "February 2026" "" "xtr"
+.TH "LIBXTR-USERGUIDE" "3" "August 2026" "" "xtr"
 .SH NAME
 libxtr-userguide \- C++ logging library user guide
 .SH OVERVIEW
@@ -164,7 +164,7 @@ XTR_LOG(s, \(dqHello {:.1f}\(dq, 123.456); // Hello 123.1
 .UNINDENT
 .UNINDENT
 .sp
-View this example on Compiler Explorer \%<https://\:godbolt\:.org/\:z/\:zxs7WThM6>\&.
+View this example on Compiler Explorer \%<https://\:godbolt\:.org/\:z/\:xn3z5fnj3>\&.
 .SH PASSING ARGUMENTS BY VALUE OR REFERENCE
 .sp
 The default behaviour of the logger is to copy format arguments into the
@@ -230,6 +230,33 @@ copied. The user is then responsible for ensuring that the string data remains
 valid long enough for the logger to process the log statement. Note that only
 the string data must remain valid\-\-\-so for std::string_view the
 object itself does not need to remain valid, just the data it references.
+.SH VARIABLE-LENGTH ARGUMENTS
+.sp
+Objects whose total size is known only at runtime\-\-\-for example a struct with
+a flexible array member\-\-\-may be logged by wrapping them in a call to
+\fBxtr::vcopy()\fP \%<#\:_CPPv4I0EN3xtr5vcopyEDaRK1TNSt6size_tE>, passing the object and its total byte size:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+struct packet {
+    std::size_t size;
+    int data[];
+};
+
+// Allocate \(gap\(ga with \(gasizeof(packet) + n * sizeof(int)\(ga bytes...
+XTR_LOG(s, \(dqGot {}\(dq, vcopy(*p, total_size));
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+The object\(aqs bytes are copied into the sink via memcpy, so the type must
+be trivially copyable. A formatter for the type must still be provided.
+.sp
+Unlike string arguments (which may be truncated when the sink is full),
+vcopy arguments cannot truncate: if the ring buffer cannot accommodate
+the full object, the entire log record is dropped and the sink\(aqs dropped
+message counter is incremented.
 .SH LOG LEVELS
 .sp
 The logger supports debug, info, warning, error and fatal log levels, which
@@ -330,7 +357,7 @@ int main()
 
     xtr::sink s = log.get_sink(\(dqMain\(dq);
 
-    XTR_LOG(s, \(dqHello {}\(dq, xtr::streamed_copy(custom()));
+    XTR_LOG(s, \(dqHello {}\(dq, streamed_copy(custom()));
 
     return 0;
 }

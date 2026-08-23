@@ -507,13 +507,13 @@ namespace bq {
                 result.insert_batch(result.end(), value, N);
                 return result;
             }
-            template <typename T>
-            static typename bq::enable_if<(bq::tools::_is_utf8_c_style_string<T>::value && bq::is_array<T>::value), bq::string>::type trans(const T& value)
+            template <typename T, bq::enable_if_t<(bq::tools::_is_utf8_c_style_string<T>::value && bq::is_array<T>::value), bool> = true>
+            static bq::string trans(const T& value)
             {
                 return trans_utf8_char_array_impl(value);
             }
-            template <typename T>
-            static typename bq::enable_if<(bq::tools::_is_utf8_c_style_string<T>::value && bq::is_pointer<T>::value), bq::string>::type trans(const T& value)
+            template <typename T, bq::enable_if_t<(bq::tools::_is_utf8_c_style_string<T>::value && bq::is_pointer<T>::value), bool> = true>
+            static bq::string trans(const T& value)
             {
                 if (!value) {
                     return "null";
@@ -528,13 +528,13 @@ namespace bq {
                 result.insert_batch(result.end(), (const char16_t*)value, N);
                 return get_utf8_from_utf16(result.c_str());
             }
-            template <typename T>
-            static typename bq::enable_if<bq::tools::_is_utf16_c_style_string<T>::value && bq::is_array<T>::value, bq::string>::type trans(const T& value)
+            template <typename T, bq::enable_if_t<bq::tools::_is_utf16_c_style_string<T>::value && bq::is_array<T>::value, bool> = true>
+            static bq::string trans(const T& value)
             {
                 return trans_utf16_char_array_impl(value);
             }
-            template <typename T>
-            static typename bq::enable_if<bq::tools::_is_utf16_c_style_string<T>::value && bq::is_pointer<T>::value, bq::string>::type trans(const T& value)
+            template <typename T, bq::enable_if_t<bq::tools::_is_utf16_c_style_string<T>::value && bq::is_pointer<T>::value, bool> = true>
+            static bq::string trans(const T& value)
             {
                 if (!value) {
                     return "null";
@@ -549,13 +549,13 @@ namespace bq {
                 result.insert_batch(result.end(), (const char32_t*)value, N);
                 return get_utf8_from_utf16(result.c_str());
             }
-            template <typename T>
-            static typename bq::enable_if<bq::tools::_is_utf32_c_style_string<T>::value && bq::is_array<T>::value, bq::string>::type trans(const T& value)
+            template <typename T, bq::enable_if_t<bq::tools::_is_utf32_c_style_string<T>::value && bq::is_array<T>::value, bool> = true>
+            static bq::string trans(const T& value)
             {
                 return trans_utf32_char_array_impl(value);
             }
-            template <typename T>
-            static typename bq::enable_if<bq::tools::_is_utf32_c_style_string<T>::value && bq::is_pointer<T>::value, bq::string>::type trans(const T& value)
+            template <typename T, bq::enable_if_t<bq::tools::_is_utf32_c_style_string<T>::value && bq::is_pointer<T>::value, bool> = true>
+            static bq::string trans(const T& value)
             {
                 if (!value) {
                     return "null";
@@ -563,14 +563,14 @@ namespace bq {
                 return get_utf8_from_utf32(value);
             }
 
-            template <typename T>
-            static typename bq::enable_if<bq::tools::_is_std_string_view_like<T>::value, bq::string>::type trans(const T& value)
+            template <typename T, bq::enable_if_t<bq::tools::_is_std_string_view_like<T>::value, bool> = true>
+            static bq::string trans(const T& value)
             {
                 return trans(value.data());
             }
 
-            template <typename T>
-            static typename bq::enable_if<bq::tools::_is_bq_string_like<T>::value, bq::string>::type trans(const T& value)
+            template <typename T, bq::enable_if_t<bq::tools::_is_bq_string_like<T>::value, bool> = true>
+            static bq::string trans(const T& value)
             {
                 return trans(value.c_str());
             }
@@ -600,7 +600,7 @@ namespace bq {
                 char buffer[fmt_text_count];
                 char buffer_idx[fmt_text_count];
                 for (size_t i = 0; i < fmt_text_count; ++i) {
-                    auto idx_char_count = (size_t)snprintf(buffer_idx, fmt_text_count, "%d_", (int32_t)i);
+                    auto idx_char_count = (size_t)snprintf(buffer_idx, fmt_text_count, "%" PRId32 "_", (int32_t)i);
                     buffer[i] = static_cast<char>('a' + (i % 26));
                     log_str_templates_standard_utf8[i] = "test log:";
                     log_str_templates_standard_utf8[i].insert_batch(log_str_templates_standard_utf8[i].begin(), buffer, i);
@@ -619,7 +619,7 @@ namespace bq {
                 char buffer_idx[fmt_text_count];
                 char16_t buffer_idx_utf16[fmt_text_count];
                 for (size_t i = 0; i < fmt_text_count; ++i) {
-                    auto idx_char_count = (size_t)snprintf(buffer_idx, fmt_text_count, "%d_", (int32_t)i);
+                    auto idx_char_count = (size_t)snprintf(buffer_idx, fmt_text_count, "%" PRId32 "_", (int32_t)i);
                     idx_char_count = (size_t)bq::util::utf8_to_utf16(buffer_idx, (uint32_t)idx_char_count, buffer_idx_utf16, (uint32_t)fmt_text_count);
                     buffer[i] = static_cast<char16_t>(u'唉' + i);
                     log_str_templates_standard_utf16[i] = u"test log:";
@@ -667,13 +667,16 @@ namespace bq {
                 bq::array<bq::string> file_list;
                 bq::string path = TO_ABSOLUTE_PATH("bqLog/UnitTestLog", 1);
                 bq::file_manager::get_all_files(path, file_list);
-                uint64_t earliest_modify_epoch_ms = UINT64_MAX;
+                int32_t earliest_file_index = INT32_MAX;
                 for (auto iter = file_list.begin(); iter != file_list.end(); ++iter) {
                     if (iter->end_with(ext_name)) {
-                        uint64_t modify_time = bq::file_manager::get_file_last_modified_epoch_ms(*iter);
-                        if (modify_time < earliest_modify_epoch_ms) {
+                        const char* index_begin = strrchr(iter->c_str(), '_');
+                        char* index_end = nullptr;
+                        int64_t file_index = index_begin ? strtoll(index_begin + 1, &index_end, 10) : -1;
+                        const char* ext_begin = iter->c_str() + iter->size() - ext_name.size();
+                        if (file_index >= 0 && file_index < earliest_file_index && index_end == ext_begin) {
                             file_path = *iter;
-                            earliest_modify_epoch_ms = modify_time;
+                            earliest_file_index = static_cast<int32_t>(file_index);
                         }
                     }
                 }
@@ -690,7 +693,7 @@ namespace bq {
                 decoder.pick_new_log_file();
                 result = decoder.get().decode();
             }
-            result_ptr->add_result(result == bq::appender_decode_result::success, "decoder failed, error code:%d", (int32_t)result);
+            result_ptr->add_result(result == bq::appender_decode_result::success, "decoder failed, error code:%" PRId32, (int32_t)result);
             return decoder.get().get_last_decoded_log_entry();
         }
 
@@ -702,8 +705,17 @@ namespace bq {
                 decoder.pick_new_log_file();
                 result = decoder.get().decode();
             }
-            result_ptr->add_result(result == bq::appender_decode_result::success, "decoder failed, error code:%d", (int32_t)result);
+            result_ptr->add_result(result == bq::appender_decode_result::success, "decoder failed, error code:%" PRId32, (int32_t)result);
             return decoder.get().get_last_decoded_log_entry();
+        }
+
+        static bool decoded_item_matches_console_output(const bq::string& decoded_item, const bq::string& console_output)
+        {
+            if (decoded_item == console_output) {
+                return true;
+            }
+            return decoded_item.begin_with("/************************************* BQLOG RECOVER START")
+                && decoded_item.end_with(console_output);
         }
 
         template <typename First>
@@ -984,7 +996,7 @@ namespace bq {
                 size_t new_percent = (size_t)(current_tested_num * 100 / total_test_num);
                 if (new_percent != current_tested_percent) {
                     current_tested_percent = new_percent;
-                    test_output_dynamic_param(bq::log_level::info, "full log test percent %d/100              \r", (int32_t)current_tested_percent);
+                    test_output_dynamic_param(bq::log_level::info, "full log test percent %" PRId32 "/100              \r", (int32_t)current_tested_percent);
                 }
             }
 
@@ -1090,14 +1102,15 @@ namespace bq {
             bool is_encrypted = !get_encript_config().is_empty();
             for (size_t i = 0; i < test_log_3_all_console_outputs.size(); ++i) {
                 const bq::string& raw_item = decode_raw_item();
-                result_ptr->add_result(test_log_3_all_console_outputs[i] == (raw_item), "%s test idx:%" PRIu64 ", raw test, \ndecoded: %s, \nconsole: %s", (is_encrypted ? "encrypt" : ""), static_cast<uint64_t>(i), raw_item.c_str(), test_log_3_all_console_outputs[i].c_str());
+                result_ptr->add_result(decoded_item_matches_console_output(raw_item, test_log_3_all_console_outputs[i]), "%s test idx:%" PRIu64 ", raw test, \ndecoded: %s, \nconsole: %s", (is_encrypted ? "encrypt" : ""), static_cast<uint64_t>(i), raw_item.c_str(), test_log_3_all_console_outputs[i].c_str());
                 const bq::string& compressed_item = decode_compressed_item();
-                result_ptr->add_result(test_log_3_all_console_outputs[i] == (compressed_item), "%s test idx:%" PRIu64 ", compressed test, \ndecoded: %s, \nconsole: %s", (is_encrypted ? "encrypt" : ""), static_cast<uint64_t>(i), compressed_item.c_str(), test_log_3_all_console_outputs[i].c_str());
+                result_ptr->add_result(decoded_item_matches_console_output(compressed_item, test_log_3_all_console_outputs[i]), "%s test idx:%" PRIu64 ", compressed test, \ndecoded: %s, \nconsole: %s", (is_encrypted ? "encrypt" : ""), static_cast<uint64_t>(i), compressed_item.c_str(), test_log_3_all_console_outputs[i].c_str());
             }
         }
 
         void test_log::test_3(test_result& result, const test_category_log& log_inst)
         {
+            clear_test_output_folder();
             snapshot_thread snapeshot1(log_inst);
             snapeshot1.start();
             snapshot_thread snapeshot2(log_inst);
@@ -1106,7 +1119,6 @@ namespace bq {
             create_test_log_3_file_appender("snapshot.buffer_size=65536");
 
             test_output(bq::log_level::info, "full log test begin, this will take minutes, and need about 50M free disk space.\n");
-            clear_test_output_folder();
             init_fmt_strings<MAX_PARAM>();
             log_head = "[" + log_inst.get_name() + "]\t";
             result_ptr = &result;

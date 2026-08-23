@@ -1,5 +1,4 @@
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  * 
@@ -12,7 +11,6 @@
 
 #include "bq_common/platform/mac_misc.h"
 #if defined(BQ_MAC)
-#import <Foundation/Foundation.h>
 #include <pthread.h>
 #include <sys/time.h>
 #include <sys/types.h>

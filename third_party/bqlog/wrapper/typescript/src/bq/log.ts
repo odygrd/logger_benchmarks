@@ -24,7 +24,7 @@ export type console_callback = (
 ) => void;
 
 export class log {
-    private log_id_: bigint = 0n;
+    private log_id_: bigint = BigInt(0);
     private name_: string = "";
     protected categories_name_array_: Array<string> = [];
     protected static callback_: console_callback | null = null;
@@ -83,7 +83,7 @@ export class log {
      */
     public static create_log(name: string, config: string): log {
         if (!config || config.length == 0) {
-            return new log(0n);
+            return new log(BigInt(0));
         }
         let log_id: bigint = log_invoker.__api_create_log(name, config, 0, null);
         return new log(log_id);
@@ -98,7 +98,7 @@ export class log {
      */
     public static get_log_by_name(log_name: string): log {
         if (!log_name || log_name.length == 0) {
-            return new log(0n);
+            return new log(BigInt(0));
         }
         let log_count = log_invoker.__api_get_logs_count();
         for (let i = 0; i < log_count; ++i) {
@@ -108,7 +108,7 @@ export class log {
                 return new log(id);
             }
         }
-        return new log(0n);
+        return new log(BigInt(0));
     }
 
     /**
@@ -116,7 +116,7 @@ export class log {
      * to ensure that all data in the buffer is processed after the call.
      */
     public static force_flush_all_logs(): void {
-        log_invoker.__api_force_flush(0n);
+        log_invoker.__api_force_flush(BigInt(0));
     }
     /**
      * Register a callback that will be invoked whenever a console log message is output. 
@@ -193,7 +193,7 @@ export class log {
             this.log_id_ = arg;
             let name = log_invoker.__api_get_log_name_by_id(this.log_id_);
             if (!name) {
-                this.log_id_ = 0n;
+                this.log_id_ = BigInt(0);
                 return;
             }
             this.name_ = name;
@@ -248,7 +248,7 @@ export class log {
      * @return
      */
     public is_valid(): boolean {
-        return this.get_id() != 0n;
+        return this.get_id() != BigInt(0);
     }
 
     /**

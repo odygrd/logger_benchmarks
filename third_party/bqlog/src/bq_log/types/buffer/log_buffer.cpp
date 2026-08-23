@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -145,6 +144,8 @@ namespace bq {
             rt_cache_.current_reading_.version_ = 0;
             clear_recovery_data();
         }
+        rt_cache_.current_reading_.is_in_recovery_reading_
+            = (rt_cache_.current_reading_.version_ != version_);
 
         block_node_head::alignment_assert();
 
@@ -160,7 +161,7 @@ namespace bq {
 
     log_buffer_write_handle log_buffer::alloc_write_chunk(uint32_t size, uint64_t current_epoch_ms)
     {
-        auto& tls_buffer = log_tls_info_.get().get_buffer_info(this);
+        auto& tls_buffer = log_tls_info__get_direct().get_buffer_info(this);
 
         block_node_head*& block_cache = tls_buffer.cur_block_;
         uint64_t& thread_last_update_epoch_ms = tls_buffer.last_update_epoch_ms_;
@@ -257,7 +258,7 @@ namespace bq {
 
     void log_buffer::commit_write_chunk(const log_buffer_write_handle& handle)
     {
-        auto& tls_buffer_info = log_tls_info_.get().get_buffer_info_directly(this);
+        auto& tls_buffer_info = log_tls_info__get_direct().get_buffer_info_directly(this);
         block_node_head*& block_cache = tls_buffer_info.cur_block_;
         bool is_high_frequency = (block_cache != nullptr);
         if (is_high_frequency) {
@@ -282,9 +283,9 @@ namespace bq {
         }
     }
 
-    log_buffer_read_handle log_buffer::read_chunk()
-    {
 #if defined(BQ_LOG_BUFFER_DEBUG)
+    void log_buffer::debug_check_read_thread()
+    {
         if (log_global_vars::get().is_thread_check_enabled()) {
             if (empty_thread_id_ == read_thread_id_) {
                 read_thread_id_ = bq::platform::thread::get_current_thread_id();
@@ -292,15 +293,12 @@ namespace bq {
             bq::platform::thread::thread_id current_thread_id = bq::platform::thread::get_current_thread_id();
             assert(current_thread_id == read_thread_id_ && "only single thread reading is supported for log_buffer!");
         }
+    }
 #endif
+
+    log_buffer_read_handle log_buffer::read_chunk_full_impl()
+    {
         auto& rt_reading = rt_cache_.current_reading_;
-        if (rt_reading.hp_handle_cache_.result == enum_buffer_result_code::success) {
-            if (rt_reading.hp_handle_cache_.has_next()) {
-                return rt_reading.hp_handle_cache_.next();
-            } else {
-                rt_reading.hp_handle_cache_.result = enum_buffer_result_code::err_empty_log_buffer;
-            }
-        }
         log_buffer_read_handle read_handle;
         context_verify_result verify_result = context_verify_result::version_invalid;
         refresh_traverse_end_mark();
@@ -397,39 +395,10 @@ namespace bq {
         return read_handle;
     }
 
-    void log_buffer::return_read_chunk(const log_buffer_read_handle& handle)
+    void log_buffer::return_read_chunk_full_impl(const log_buffer_read_handle& handle)
     {
-#if defined(BQ_LOG_BUFFER_DEBUG)
-        if (log_global_vars::get().is_thread_check_enabled()) {
-            bq::platform::thread::thread_id current_thread_id = bq::platform::thread::get_current_thread_id();
-            assert(current_thread_id == read_thread_id_ && "only single thread reading is supported for log_buffer!");
-        }
-#endif
-        if (rt_cache_.current_reading_.hp_handle_cache_.result == enum_buffer_result_code::success) {
-#if defined(BQ_LOG_BUFFER_DEBUG)
-            assert(rt_cache_.current_reading_.hp_handle_cache_.verify_chunk(handle) && "log_buffer::return_read_chunk hp chunk return verify failed");
-#endif
-            if (!rt_cache_.current_reading_.hp_handle_cache_.has_next()) {
-#if defined(BQ_LOG_BUFFER_DEBUG)
-                assert(rt_cache_.current_reading_.cur_block_);
-#endif
-                rt_cache_.current_reading_.cur_block_->get_buffer().return_batch_read_chunks(rt_cache_.current_reading_.hp_handle_cache_);
-            }
-            return;
-        }
         if (rt_cache_.current_reading_.cur_block_) {
-            if (rt_cache_.current_reading_.hp_handle_cache_.result == enum_buffer_result_code::success) {
-#if defined(BQ_LOG_BUFFER_DEBUG)
-                assert(rt_cache_.current_reading_.hp_handle_cache_.verify_chunk(handle) && "log_buffer::return_read_chunk hp chunk return verify failed");
-#endif
-                if (!rt_cache_.current_reading_.hp_handle_cache_.has_next()) {
-                    rt_cache_.current_reading_.cur_block_->get_buffer().return_batch_read_chunks(rt_cache_.current_reading_.hp_handle_cache_);
-                }
-                return;
-            } else {
-                rt_cache_.current_reading_.cur_block_->get_buffer().return_batch_read_chunks(rt_cache_.current_reading_.hp_handle_cache_);
-            }
-
+            rt_cache_.current_reading_.cur_block_->get_buffer().return_batch_read_chunks(rt_cache_.current_reading_.hp_handle_cache_);
         } else if (enum_buffer_result_code::success == handle.result) {
             log_buffer_read_handle handle_cpy = handle;
             handle_cpy.data_addr -= sizeof(context_head);
@@ -455,7 +424,7 @@ namespace bq {
 #if defined(BQ_LOG_BUFFER_DEBUG)
         assert((this->id_ == log_tls_info_.get().cur_log_buffer_id_) && "tls cur_log_buffer_ check failed");
 #endif
-        auto& current_buffer_info = log_tls_info_.get().get_buffer_info_directly(this);
+        auto& current_buffer_info = log_tls_info__get_direct().get_buffer_info_directly(this);
         java_buffer_info result;
         result.buffer_array_obj_ = nullptr;
         result.offset_store_ = &current_buffer_info.java_.buffer_offset_;
@@ -514,7 +483,7 @@ namespace bq {
 
     bq::block_node_head* log_buffer::alloc_new_hp_block()
     {
-        log_tls_buffer_info& tls_buffer_info = log_tls_info_.get().get_buffer_info_directly(this);
+        log_tls_buffer_info& tls_buffer_info = log_tls_info__get_direct().get_buffer_info_directly(this);
         block_misc_data misc_data;
         memset(&misc_data, 0, sizeof(misc_data));
         misc_data.context_.set_tls_info(&tls_buffer_info);
@@ -821,6 +790,7 @@ namespace bq {
         rt_cache_.current_reading_.recovery_seq_records_[static_cast<uint16_t>(version_ - 1 - rt_reading.version_)].clear();
 #endif
         ++rt_reading.version_;
+        rt_reading.is_in_recovery_reading_ = (rt_reading.version_ != version_);
     }
 
     void log_buffer::refresh_traverse_end_mark()
@@ -839,7 +809,7 @@ namespace bq {
 
     log_buffer_write_handle log_buffer::wt_alloc_oversize_write_chunk(uint32_t size, uint64_t current_epoch_ms)
     {
-        auto& tls_buffer = log_tls_info_.get().get_buffer_info(this);
+        auto& tls_buffer = log_tls_info__get_direct().get_buffer_info(this);
         auto& block_cache = tls_buffer.cur_block_;
         if (block_cache) {
             mark_block_removed(block_cache, true); // mark removed;
@@ -853,7 +823,6 @@ namespace bq {
             if ((config_.policy == log_memory_policy::auto_expand_when_full
                     || config_.policy == log_memory_policy::block_when_full)
                 && parent_result.result == enum_buffer_result_code::err_not_enough_space) {
-
                 parent_result.result = enum_buffer_result_code::err_wait_and_retry;
             }
             return parent_result;
@@ -895,24 +864,79 @@ namespace bq {
             if (config_.need_recovery) {
                 auto new_index = current_oversize_buffer_index_.add_fetch(1, bq::platform::memory_order::relaxed);
                 char tmp[32];
-                snprintf(tmp, sizeof(tmp), "_%" PRIu64 "", new_index);
+                snprintf(tmp, sizeof(tmp), "_%" PRIu64, new_index);
                 abs_recovery_file_path = TO_ABSOLUTE_PATH("bqlog_mmap/mmap_" + config_.log_name + "/os/" + config_.log_name + tmp + ".mmap", 0);
             }
             bq::platform::scoped_spin_lock_write_crazy w_lock(temprorary_oversize_buffer_.array_lock_);
             temprorary_oversize_buffer_.buffers_array_.emplace_back(bq::make_unique<oversize_buffer_obj_def>(default_buffer_size, abs_recovery_file_path, true));
             auto& new_buffer = *(temprorary_oversize_buffer_.buffers_array_.end() - 1);
-            new_buffer->buffer_lock_.read_lock();
-            auto& oversize_buffer_context = new_buffer->buffer_.get_misc_data<context_head>();
-            oversize_buffer_context.version_ = version_;
-            oversize_buffer_context.is_thread_finished_ = false;
-            oversize_buffer_context.seq_ = UINT32_MAX;
-            oversize_buffer_context.is_external_ref_ = true;
-            oversize_buffer_context.set_tls_info(&tls_buffer);
-            over_size_handle = new_buffer->buffer_.alloc_write_chunk(size + static_cast<uint32_t>(sizeof(context_head)));
-            assert(enum_buffer_result_code::success == over_size_handle.result && "New created oversize buffer shouldn't fail when allocating");
-            new_buffer->last_used_epoch_ms_ = current_epoch_ms;
-            tls_buffer.oversize_target_buffer_ = new_buffer.operator->();
+            // Defensive: if the oversize_buffer's mmap failed AND its heap fallback
+            // also returned null (real OOM, or test_inject::set_normal_buffer_alloc_fail),
+            // its data() is null. Calling alloc_write_chunk would dereference a null
+            // siso_ring_buffer base and segv. Bail out before touching the buffer.
+            if (!new_buffer->buffer_.is_valid()) {
+                temprorary_oversize_buffer_.buffers_array_.pop_back();
+                // over_size_handle.result stays != success → falls through to the
+                // unified failure path below.
+            } else {
+                new_buffer->buffer_lock_.read_lock();
+                auto& oversize_buffer_context = new_buffer->buffer_.get_misc_data<context_head>();
+                oversize_buffer_context.version_ = version_;
+                oversize_buffer_context.is_thread_finished_ = false;
+                oversize_buffer_context.seq_ = UINT32_MAX;
+                oversize_buffer_context.is_external_ref_ = true;
+                oversize_buffer_context.set_tls_info(&tls_buffer);
+                over_size_handle = new_buffer->buffer_.alloc_write_chunk(size + static_cast<uint32_t>(sizeof(context_head)));
+                if (enum_buffer_result_code::success == over_size_handle.result) {
+                    new_buffer->last_used_epoch_ms_ = current_epoch_ms;
+                    tls_buffer.oversize_target_buffer_ = new_buffer.operator->();
+                } else {
+                    // Theoretically unreachable: a brand-new siso_ring_buffer sized at
+                    // (size << 1) should always fit `size + sizeof(context_head)`.
+                    // But never assert here in production - earlier this was an
+                    // assert(success) that abort()ed when oversize_buffer's heap
+                    // fallback gave a degenerate buffer. Keep the bail-out path and
+                    // let the producer drop the entry instead.
+                    new_buffer->buffer_lock_.read_unlock();
+                    temprorary_oversize_buffer_.buffers_array_.pop_back();
+                }
+            }
         }
+
+        if (enum_buffer_result_code::success != over_size_handle.result) {
+            // Both "find existing" and "alloc new" failed. Most likely cause:
+            // need_recovery=true and the recovery mmap file could not be created
+            // because the disk is full (or some other unrecoverable IO error).
+            //
+            // The lp_buffer parent slot is already populated with a real
+            // version/seq/tls_info pointing at this tls_buffer. We must commit
+            // it (otherwise the lp_buffer cursor is stuck), but the reader must
+            // NOT later try to read an oversize payload that doesn't exist.
+            // Two surgical adjustments make this clean:
+            //   1. Bump version_ on the parent so verify_context() classifies it
+            //      as version_invalid - the reader returns the chunk and skips
+            //      it without ever calling deregister_seq() or
+            //      rt_read_oversize_chunk().
+            //   2. Roll back the write_seq we already incremented; the next alloc
+            //      from this tls thread reuses the same seq value. The reader's
+            //      current_read_seq_ is NEVER advanced for this entry (because it
+            //      was version_invalid), so write/read seqs stay aligned.
+            // is_external_ref_ no longer matters - the version_invalid branch in
+            // rt_read_from_lp_buffer (case version_invalid) goes straight to
+            // return_read_chunk without inspecting it.
+            //
+            // Return err_io_failure_drop (NOT err_not_enough_space) so the upper
+            // layer (__api_log_write_begin) drops this entry immediately and
+            // never enters the wait_and_retry spin loop. Disk-full is not a
+            // back-pressure scenario - waiting is futile.
+            --tls_buffer.wt_data_.current_write_seq_;
+            parent_context->version_ = static_cast<uint16_t>(version_ + 1);
+            lp_buffer_.commit_write_chunk(parent_result);
+            log_buffer_write_handle fail;
+            fail.result = enum_buffer_result_code::err_io_failure_drop;
+            return fail;
+        }
+
         auto* oversize_context = reinterpret_cast<context_head*>(over_size_handle.data_addr);
         oversize_context->version_ = version_;
         oversize_context->is_thread_finished_ = false;
@@ -926,7 +950,7 @@ namespace bq {
 
     void log_buffer::wt_commit_oversize_write_chunk(const log_buffer_write_handle& oversize_handle)
     {
-        auto& tls_buffer_info = log_tls_info_.get().get_buffer_info_directly(this);
+        auto& tls_buffer_info = log_tls_info__get_direct().get_buffer_info_directly(this);
         tls_buffer_info.oversize_target_buffer_->buffer_.commit_write_chunk(oversize_handle);
         tls_buffer_info.oversize_target_buffer_->buffer_lock_.read_unlock();
         tls_buffer_info.oversize_target_buffer_ = nullptr;
@@ -1073,7 +1097,7 @@ namespace bq {
 #if defined(BQ_UNIT_TEST)
     const log_buffer::log_tls_buffer_info& log_buffer::get_buffer_info_for_this_thread() const
     {
-        return log_tls_info_.get().get_buffer_info(this);
+        return log_tls_info__get_direct().get_buffer_info(this);
     }
 #endif
 
@@ -1100,7 +1124,7 @@ namespace bq {
             context_head& context = *reinterpret_cast<context_head*>(data);
             if (context.version_ == buffer.version_) {
 #ifdef BQ_UNIT_TEST
-                bq::util::log_device_console(bq::log_level::error, "fix invalid log data in lp_buffer when recovering, version:%" PRIu16 ", seq:%" PRIu32 "", context.version_, context.seq_);
+                bq::util::log_device_console(bq::log_level::error, "fix invalid log data in lp_buffer when recovering, version:%" PRIu16 ", seq:%" PRIu32, context.version_, context.seq_);
 #endif
                 context.version_++; // mark invalid
             } else if (static_cast<uint16_t>(buffer.version_ - 1 - context.version_) < MAX_RECOVERY_VERSION_RANGE) {
@@ -1131,7 +1155,7 @@ namespace bq {
                 auto& context = block->get_misc_data<block_misc_data>().context_;
                 if (context.version_ == version_) {
 #ifdef BQ_UNIT_TEST
-                    bq::util::log_device_console(bq::log_level::error, "fix invalid log data in hp_buffer used list when recovering, version:%" PRIu16 ", seq:%" PRIu32 "", context.version_, context.seq_);
+                    bq::util::log_device_console(bq::log_level::error, "fix invalid log data in hp_buffer used list when recovering, version:%" PRIu16 ", seq:%" PRIu32, context.version_, context.seq_);
 #endif
                     context.version_++; // mark invalid
                 } else if (static_cast<uint16_t>(version_ - 1 - context.version_) < MAX_RECOVERY_VERSION_RANGE) {
@@ -1158,7 +1182,7 @@ namespace bq {
                 auto& context = block->get_misc_data<block_misc_data>().context_;
                 if (context.version_ == version_) {
 #ifdef BQ_UNIT_TEST
-                    bq::util::log_device_console(bq::log_level::error, "fix invalid log data in hp_buffer stage list when recovering, version:%" PRIu16 ", seq:%" PRIu32 "", context.version_, context.seq_);
+                    bq::util::log_device_console(bq::log_level::error, "fix invalid log data in hp_buffer stage list when recovering, version:%" PRIu16 ", seq:%" PRIu32, context.version_, context.seq_);
 #endif
                     context.version_++; // mark invalid
                 } else if (static_cast<uint16_t>(version_ - 1 - context.version_) < MAX_RECOVERY_VERSION_RANGE) {
@@ -1228,6 +1252,7 @@ namespace bq {
                     || oversize_buffer_context.is_external_ref_ != true
                     || !is_version_valid(oversize_buffer_context.version_)) {
                     bq::util::log_device_console(bq::log_level::warning, "remove invalid mmap file when recovery:%s, invalid context", full_path.c_str());
+                    recovery_buffer.reset();
                     bq::file_manager::remove_file_or_dir(full_path);
                 } else {
                     temprorary_oversize_buffer_.buffers_array_.emplace_back(bq::move(recovery_buffer));
@@ -1250,7 +1275,7 @@ namespace bq {
                     if (seq_iter == seq_map.end()) {
                         bq::util::log_device_console(bq::log_level::error, "miss seq:%" PRIu32, cur_min_seq);
                     } else if (seq_iter->value() != 1) {
-                        bq::util::log_device_console(bq::log_level::error, "duplicate seq:%" PRIu32 ", count:%" PRIu16 "", cur_min_seq, seq_iter->value());
+                        bq::util::log_device_console(bq::log_level::error, "duplicate seq:%" PRIu32 ", count:%" PRIu16, cur_min_seq, seq_iter->value());
                     }
                     --left_count;
                     ++cur_min_seq;

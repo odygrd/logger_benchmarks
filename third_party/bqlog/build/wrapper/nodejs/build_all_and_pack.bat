@@ -1,4 +1,12 @@
 @echo off
+REM =============================================================================
+REM CI-ONLY SCRIPT
+REM This script is designed to run in the GitHub Actions CI pipeline.
+REM It assumes all native prebuilt binaries (.node files) have already been
+REM built and staged by earlier CI jobs (nodejs_build_* and
+REM nodejs_collect_and_stage_prebuilds). It only packages them into the
+REM npm tarball — it does NOT compile any native code itself.
+REM =============================================================================
 SETLOCAL ENABLEEXTENSIONS
 
 if exist "..\..\..\artifacts" rmdir /s /q "..\..\..\artifacts"

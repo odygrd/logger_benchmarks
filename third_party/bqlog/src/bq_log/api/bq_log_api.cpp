@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -146,12 +145,12 @@ namespace bq {
         static void log_crash_handler(int32_t signal, siginfo_ptr_type info, void*)
         {
             (void)info;
-            bq::util::log_device_console(log_level::error, "crash occurred, signal:%d, now try to force flush logs", signal);
+            bq::util::log_device_console(log_level::error, "crash occurred, signal:%" PRId32 ", now try to force flush logs", signal);
             log_manager::instance().force_flush_all();
 #ifdef BQ_UNIT_TEST
             bq::_api_string_def stack_trace_str;
             bq::api::__api_get_stack_trace(&stack_trace_str, 0);
-            bq::util::log_device_console(log_level::fatal, "crash occurred, signal:%d, Stack, Trace:%s", signal, stack_trace_str.str);
+            bq::util::log_device_console(log_level::fatal, "crash occurred, signal:%" PRId32 ", Stack, Trace:%s", signal, stack_trace_str.str);
 #endif
         }
 #endif
@@ -466,7 +465,7 @@ namespace bq {
             } else if (1 == base_dir_type) {
                 return common_global_vars::get().base_dir_init_inst_.set_base_dir_1(dir);
             } else {
-                bq::util::log_device_console(bq::log_level::warning, "[reset_base_dir] unknown base dir type:%d", base_dir_type);
+                bq::util::log_device_console(bq::log_level::warning, "[reset_base_dir] unknown base dir type:%" PRId32, base_dir_type);
             }
         }
 

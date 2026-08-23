@@ -13,6 +13,7 @@ endif()
 
 OPTION(JAVA_SUPPORT "Support Java" OFF)
 OPTION(NODE_API_SUPPORT "Support Node-API(NodeJs)" OFF)
+OPTION(PYTHON_SUPPORT "Support Python (CPython C Extension)" OFF)
 
 set(BQ_ENABLE_ASAN_UPPER "")
 if(DEFINED ENV{BQ_ENABLE_ASAN})
@@ -230,6 +231,24 @@ if(NODE_API_SUPPORT)
         )
     endif()
 endif()
+if(PYTHON_SUPPORT)
+    add_compile_definitions(BQ_PYTHON)
+    find_package(Python3 COMPONENTS Development REQUIRED)
+    include_directories(${Python3_INCLUDE_DIRS})
+    message(STATUS "Python3_INCLUDE_DIRS: ${Python3_INCLUDE_DIRS}")
+    message(STATUS "Python3_LIBRARIES: ${Python3_LIBRARIES}")
+    # Use Python Stable ABI (python3.lib / libpython3.so) so a single
+    # compiled extension works across all Python 3.7+ versions.
+    # On Windows, python3.lib is the stable ABI import library
+    # (always present alongside python3XX.lib).
+    if(MSVC)
+        get_filename_component(_PY_LIB_DIR "${Python3_LIBRARY_RELEASE}" DIRECTORY)
+        set(BQ_PYTHON_LINK_LIBRARIES "${_PY_LIB_DIR}/python3.lib")
+        message(STATUS "BqLog: Using Stable ABI library: ${BQ_PYTHON_LINK_LIBRARIES}")
+    else()
+        set(BQ_PYTHON_LINK_LIBRARIES ${Python3_LIBRARIES})
+    endif()
+endif()
 
 
 
@@ -256,6 +275,27 @@ else()
     if(NODE_API_SUPPORT)
         add_library(BqLog MODULE ${SRC_LIST} ${THIRD_PARTY_LIST} ${INC_LIST})
         set_target_properties(BqLog PROPERTIES PREFIX "" SUFFIX ".node")
+    elseif(PYTHON_SUPPORT)
+        # MODULE (not SHARED): Python C extensions are loaded at runtime
+        # by the interpreter via dlopen, not linked by other binaries.
+        # MODULE allows undefined symbols on macOS, which is required to
+        # build a universal binary without linking a single-arch libpython.
+        add_library(BqLog MODULE ${SRC_LIST} ${THIRD_PARTY_LIST} ${INC_LIST})
+        # Python C Extension naming: _bqlog.pyd (Windows) or _bqlog.so (Linux/macOS)
+        set_target_properties(BqLog PROPERTIES OUTPUT_NAME "_bqlog")
+        if(WIN32)
+            set_target_properties(BqLog PROPERTIES SUFFIX ".pyd")
+        else()
+            set_target_properties(BqLog PROPERTIES PREFIX "" SUFFIX ".so")
+        endif()
+        # On macOS, Python C extensions must not link libpython directly.
+        # The symbols (_PyArg_ParseTuple, etc.) are resolved at runtime by
+        # the Python interpreter that loads this module via dlopen.
+        # Explicitly allow undefined symbols so the linker doesn't fail
+        # when building universal (x86_64+arm64) binaries.
+        if(APPLE)
+            target_link_options(BqLog PRIVATE "-undefined" "dynamic_lookup")
+        endif()
     else()
         add_library(BqLog SHARED ${SRC_LIST} ${THIRD_PARTY_LIST} ${INC_LIST})
     endif()
@@ -381,6 +421,11 @@ elseif(TARGET_PLATFORM STREQUAL "win64")
         endif()
         message(STATUS "Using Node import library: ${NODEJS_IMPORT_LIB}")
         target_link_libraries(BqLog PRIVATE "${NODEJS_IMPORT_LIB}")
+    endif()
+    if(PYTHON_SUPPORT)
+        if(NOT APPLE)
+            target_link_libraries(BqLog PRIVATE ${BQ_PYTHON_LINK_LIBRARIES})
+        endif()
     endif()
 endif()
 

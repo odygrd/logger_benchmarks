@@ -12,7 +12,7 @@ if "%CONFIG%"=="" set "CONFIG=RelWithDebInfo"
 
 echo ===== Building BqLog Dynamic Library (Windows) =====
 pushd "%BUILD_LIB_DIR%"
-call dont_execute_this.bat build native msvc ON OFF dynamic_lib
+call dont_execute_this.bat build native msvc ON OFF OFF dynamic_lib
 popd
 
 echo ===== Building Java Test Jar =====

@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 #include "bq_common/bq_common.h"
 #include "bq_log/misc/bq_log_def.h"
 namespace bq {
@@ -79,6 +78,8 @@ namespace bq {
         {
             return get_log_head().category_idx;
         }
+
+        bool validate() const;
     };
 
     BQ_PACK_BEGIN

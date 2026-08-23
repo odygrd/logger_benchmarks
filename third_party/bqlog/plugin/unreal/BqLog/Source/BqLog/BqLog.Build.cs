@@ -1,3 +1,13 @@
+/* Copyright (C) 2025 Tencent.
+ * BQLOG is licensed under the Apache License, Version 2.0.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ */
 using UnrealBuildTool;
 using System;
 using System.Collections.Generic;
@@ -5,22 +15,46 @@ using System.IO;
 
 public class BqLog : ModuleRules
 {
-    private readonly HashSet<string> RuntimeDependencyCache = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private readonly List<string> RuntimeDependencyCache = new List<string>();
     private const string BqLogMajorVersion = "2";
 
     public BqLog(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+        PublicDefinitions.Add("BQ_LOG_UE_PLUGIN=1");
+
         PublicDependencyModuleNames.AddRange(new[]
         {
             "Core", "CoreUObject", "Engine"
         });
 
+        ConfigureSourceBuild();
         ConfigurePrebuilt(Target);
         //OptimizeCode = CodeOptimization.Never;
         //bUseUnity = false;
         //MinFilesUsingPrecompiledHeaderOverride = 1;
+    }
+
+    /// <summary>
+    /// Source build: BqLog core headers live under ThirdParty/BqLog/include (kept in the
+    /// ThirdParty tree for Fab's third-party attribution requirement). The core .cpp
+    /// files are shipped inside Source/BqLog/Private/BqLogCore/ by the packaging scripts
+    /// </summary>
+    private void ConfigureSourceBuild()
+    {
+        string thirdParty = Path.Combine(ModuleDirectory, "..", "ThirdParty", "BqLog");
+        string includeDir = Path.Combine(thirdParty, "include");
+        if (Directory.Exists(includeDir))
+        {
+            PublicIncludePaths.Add(includeDir);
+        }
+
+        string coreSrcDir = Path.Combine(ModuleDirectory, "Private", "BqLogCore");
+        if (Directory.Exists(coreSrcDir))
+        {
+            PrivateIncludePaths.Add(coreSrcDir);
+        }
     }
 
     private void ConfigurePrebuilt(ReadOnlyTargetRules Target)
@@ -28,7 +62,9 @@ public class BqLog : ModuleRules
         string moduleDir = ModuleDirectory;
         string pluginRoot = Path.GetFullPath(Path.Combine(moduleDir, "..", ".."));
         string thirdPartyRoot = Path.Combine(moduleDir, "ThirdParty", "BqLog");
-        if (!Directory.Exists(thirdPartyRoot))
+        // Only proceed if this is the prebuilt variant (has Shared/ with platform binaries).
+        // The source-compile variant also has ThirdParty/BqLog/ but with include/ and src/ instead.
+        if (!Directory.Exists(Path.Combine(thirdPartyRoot, "Shared")))
         {
             return;
         }
@@ -38,16 +74,19 @@ public class BqLog : ModuleRules
         }else if (Target.Platform.Equals(UnrealTargetPlatform.Linux))
         {
             ConfigureLinux(thirdPartyRoot, pluginRoot, "x86_64", UnrealTargetPlatform.Linux.ToString());
-        }else if (Target.Platform.Equals(UnrealTargetPlatform
+        }
 #if UE_5_0_OR_LATER
-                      .LinuxArm64
-#else
-                      .LinuxAArch64
-#endif
-                      ))
+        else if (Target.Platform.Equals(UnrealTargetPlatform.LinuxArm64))
         {
             ConfigureLinux(thirdPartyRoot, pluginRoot, "arm64", "LinuxAArch64");
-        }else if (Target.Platform.Equals(UnrealTargetPlatform.Mac))
+        }
+#elif UE_4_24_OR_LATER
+        else if (Target.Platform.Equals(UnrealTargetPlatform.LinuxAArch64))
+        {
+            ConfigureLinux(thirdPartyRoot, pluginRoot, "arm64", "LinuxAArch64");
+        }
+#endif
+        else if (Target.Platform.Equals(UnrealTargetPlatform.Mac))
         {
             ConfigureMac(thirdPartyRoot, pluginRoot);
         }else if (Target.Platform.Equals(UnrealTargetPlatform.IOS))
@@ -140,8 +179,9 @@ public class BqLog : ModuleRules
         if (Directory.Exists(full))
         {
             string normalized = "$(PluginDir)/" + stagedRelative.Replace("\\", "/") + "/**";
-            if (RuntimeDependencyCache.Add(normalized))
+            if (!RuntimeDependencyCache.Contains(normalized))
             {
+                RuntimeDependencyCache.Add(normalized);
                 RuntimeDependencies.Add(normalized);
             }
         }

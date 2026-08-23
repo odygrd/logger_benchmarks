@@ -25,6 +25,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 QUILL_BEGIN_NAMESPACE
@@ -47,6 +48,28 @@ namespace detail
 class LoggerManager;
 
 class BackendWorker;
+
+template <typename Arg>
+constexpr bool can_pass_slow_path_arg_by_value() noexcept
+{
+  using arg_t = remove_cvref_t<Arg>;
+
+  // The Microsoft x64 ABI passes 16-byte aggregates indirectly, so copying them into a
+  // temporary before a noinline call is strictly worse than forwarding the existing reference.
+  // System V x64 and AArch64 can pass two-word aggregates in registers.
+#if defined(_WIN32) && (defined(__x86_64__) || defined(_M_X64))
+  constexpr size_t max_by_value_size = sizeof(uintptr_t);
+#else
+  constexpr size_t max_by_value_size = sizeof(uintptr_t) * 2u;
+#endif
+
+  return std::is_trivially_copyable_v<arg_t> && std::is_trivially_copy_constructible_v<arg_t> &&
+    !std::is_array_v<arg_t> && (sizeof(arg_t) <= max_by_value_size);
+}
+
+template <typename Arg>
+using slow_path_arg_t =
+  std::conditional_t<can_pass_slow_path_arg_by_value<Arg>(), remove_cvref_t<Arg>, Arg&&>;
 } // namespace detail
 
 QUILL_BEGIN_EXPORT
@@ -632,14 +655,14 @@ private:
   }
 
   /**
-   * Slow path for log_statement. Handles all cold conditions: non-TSC clock,
-   * thread_context initialization, and queue cache miss.
-   * Kept NOINLINE so log_statement's hot path avoids a full stack frame.
+   * Slow path for log_statement. Small, safely copyable arguments are accepted by value so the hot
+   * caller can keep them in registers; all other arguments retain their original reference type.
    * If current_timestamp is 0, a non-TSC timestamp is fetched.
    */
-  template <bool enable_immediate_flush, typename... OriginalArgs, typename... Args>
+  template <bool enable_immediate_flush, typename... OriginalArgs>
   QUILL_NODISCARD QUILL_NOINLINE bool _log_statement_noinline(MacroMetadata const* macro_metadata,
-                                                              uint64_t current_timestamp, Args&&... fmt_args)
+                                                              uint64_t current_timestamp,
+                                                              detail::slow_path_arg_t<OriginalArgs>... fmt_args)
   {
     if (current_timestamp == 0)
     {
@@ -675,7 +698,7 @@ private:
                   reinterpret_cast<uintptr_t>(detail::decoder_ptr<OriginalArgs...>)});
 
     detail::encode(write_buffer, thread_context->get_conditional_arg_size_cache(),
-                   static_cast<decltype(fmt_args)&&>(fmt_args)...);
+                   static_cast<OriginalArgs&&>(fmt_args)...);
 
     QUILL_ASSERT_WITH_FMT(write_buffer > write_begin,
                           "write_buffer must be greater than write_begin after encoding in "
@@ -882,16 +905,28 @@ private:
       return;
     }
 
-    uint32_t const prev = _messages_since_last_flush.fetch_add(1, std::memory_order_relaxed);
-    if ((prev + 1) >= threshold)
+    if (threshold == 1)
     {
-      _messages_since_last_flush.store(0, std::memory_order_relaxed);
-
-      // Skip the implicit flush on the backend thread so generic logging code reused
-      // there (e.g. backend hooks, custom sinks) does not throw via flush_log().
       if (QUILL_LIKELY(!detail::LoggerBase::is_current_thread_backend_thread()))
       {
         this->flush_log();
+      }
+      return;
+    }
+
+    uint32_t message_count =
+      _messages_since_last_flush.fetch_add(1, std::memory_order_relaxed) + 1;
+    while (message_count >= threshold)
+    {
+      // Only the thread that successfully resets the counter is allowed to flush.
+      if (_messages_since_last_flush.compare_exchange_weak(
+            message_count, 0, std::memory_order_relaxed, std::memory_order_relaxed))
+      {
+        if (QUILL_LIKELY(!detail::LoggerBase::is_current_thread_backend_thread()))
+        {
+          this->flush_log();
+        }
+        return;
       }
     }
   }
@@ -899,9 +934,9 @@ private:
   /**
    * Encodes header information into the write buffer.
    *
-   * Header fields are passed as PackedQword pairs (16 bytes each) so that on x86-64 the
-   * System V ABI delivers them in XMM registers, enabling the compiler to emit vmovdqu/movups
-   * stores instead of individual 8-byte movs.
+   * Header fields are passed as PackedQword pairs (16 bytes each) with the intent that on x86-64
+   * the System V ABI delivers them in XMM registers and the compiler emits two 16-byte stores
+   * rather than four 8-byte movs.
    *
    * @return Updated pointer to the write buffer after encoding the header.
    */

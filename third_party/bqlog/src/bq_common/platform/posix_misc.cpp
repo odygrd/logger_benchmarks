@@ -1,5 +1,4 @@
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -356,7 +355,10 @@ namespace bq {
 
         uint64_t file_node_info::hash_code() const
         {
-            return bq::util::get_hash_64(this, sizeof(file_node_info));
+            uint8_t buf[sizeof(dev) + sizeof(ino)];
+            memcpy(buf, &dev, sizeof(dev));
+            memcpy(buf + sizeof(dev), &ino, sizeof(ino));
+            return bq::util::get_hash_64(buf, sizeof(buf));
         }
 
         static bool add_file_execlusive_check(const platform_file_handle& file_handle, file_open_mode_enum mode)
@@ -371,18 +373,27 @@ namespace bq {
                 lock.l_whence = SEEK_SET;
                 lock.l_start = 0;
                 lock.l_len = 0;
-                if (fcntl(file_handle, F_SETLK, &lock) == -1) {
+                constexpr int32_t max_retry = 5;
+                int32_t retry = 0;
+                while (fcntl(file_handle, F_SETLK, &lock) == -1) {
+                    int32_t err = errno;
+                    if ((err == EAGAIN || err == EACCES || err == EINTR) && ++retry < max_retry) {
+                        bq::platform::thread::sleep(3);
+                        continue;
+                    }
+                    bq::util::log_device_console(log_level::error, "add_file_execlusive_check fcntl(F_SETLK) failed, fd:%" PRId32 ", errno:%" PRId32, file_handle, err);
                     return false;
                 }
             }
             struct stat file_info;
             if (fstat(file_handle, &file_info) < 0) {
-                bq::util::log_device_console(log_level::error, "add_file_execlusive_check fstat failed, fd:%d, error code:%d", file_handle, errno);
+                bq::util::log_device_console(log_level::error, "add_file_execlusive_check fstat failed, fd:%" PRId32 ", error code:%" PRId32, file_handle, errno);
                 return false;
             }
             auto& file_exclusive_cache = common_global_vars::get().file_exclusive_cache_;
             bq::platform::scoped_mutex lock(common_global_vars::get().file_exclusive_mutex_);
             file_node_info node_info;
+            node_info.dev = file_info.st_dev;
             node_info.ino = file_info.st_ino;
             auto iter = file_exclusive_cache.find(node_info);
             if (iter == file_exclusive_cache.end()) {
@@ -399,18 +410,26 @@ namespace bq {
         {
             struct stat file_info;
             if (fstat(file_handle, &file_info) < 0) {
-                bq::util::log_device_console(log_level::error, "remove_file_execlusive_check fstat failed, fd:%d, error code:%d", file_handle, errno);
+                bq::util::log_device_console(log_level::error, "remove_file_execlusive_check fstat failed, fd:%" PRId32 ", error code:%" PRId32, file_handle, errno);
                 return;
             }
             auto& file_exclusive_cache = common_global_vars::get().file_exclusive_cache_;
             bq::platform::scoped_mutex lock(common_global_vars::get().file_exclusive_mutex_);
             file_node_info node_info;
+            node_info.dev = file_info.st_dev;
             node_info.ino = file_info.st_ino;
             file_exclusive_cache.erase(node_info);
         }
 
         int32_t open_file(const char* path, file_open_mode_enum mode, platform_file_handle& out_file_handle)
         {
+#if defined(BQ_UNIT_TEST)
+            if (test_inject::get_fault() == test_inject::fault_kind::enospc_on_open
+                && test_inject::path_matches_filter(path)) {
+                out_file_handle = invalid_platform_file_handle;
+                return ENOSPC;
+            }
+#endif
             int32_t flags = 0;
             if ((mode & file_open_mode_enum::read_write) == file_open_mode_enum::read_write) {
                 flags |= O_RDWR;
@@ -451,14 +470,15 @@ namespace bq {
         {
             out_real_read_size = 0;
             size_t max_size_pertime = static_cast<size_t>(SSIZE_MAX);
-            size_t max_read_size_current = 0;
+            char* current_target = static_cast<char*>(target_addr);
             while (out_real_read_size < read_size) {
-                size_t need_read_size_this_time = bq::min_value(max_size_pertime, read_size - max_read_size_current);
-                ssize_t out_size = read(file_handle, target_addr, need_read_size_this_time);
+                size_t need_read_size_this_time = bq::min_value(max_size_pertime, read_size - out_real_read_size);
+                ssize_t out_size = read(file_handle, current_target, need_read_size_this_time);
                 if (out_size < 0) {
                     return errno;
                 }
                 out_real_read_size += static_cast<size_t>(out_size);
+                current_target += out_size;
                 if (out_size < static_cast<ssize_t>(need_read_size_this_time)) {
                     return 0;
                 }
@@ -469,6 +489,13 @@ namespace bq {
         int32_t write_file(const platform_file_handle& file_handle, const void* src_addr, size_t write_size, size_t& out_real_write_size)
         {
             out_real_write_size = 0;
+#if defined(BQ_UNIT_TEST)
+            if (test_inject::get_fault() == test_inject::fault_kind::enospc_on_write) {
+                // Filter doesn't apply to write_file because we don't have a path here;
+                // tests should scope by clearing the fault before/after the targeted op.
+                return ENOSPC;
+            }
+#endif
             const char* current_src = static_cast<const char*>(src_addr);
             size_t remaining = write_size;
 

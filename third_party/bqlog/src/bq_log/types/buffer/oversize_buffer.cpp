@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -25,6 +24,9 @@ namespace bq {
     oversize_buffer::oversize_buffer(uint32_t required_siso_buffer_size, const bq::string& mmap_file_abs_path, bool auto_create)
         : normal_buffer(static_cast<size_t>(calculate_size_of_memory(required_siso_buffer_size)), mmap_file_abs_path, auto_create)
     {
+        if (!is_valid()) {
+            return;
+        }
         auto mmap_result = get_mmap_result();
         switch (mmap_result) {
         case bq::create_memory_map_result::failed:
@@ -48,6 +50,11 @@ namespace bq {
 
     oversize_buffer::~oversize_buffer()
     {
+        if (!is_valid()) {
+            // ctor skipped placement-new; nothing to destruct. The base normal_buffer
+            // dtor still cleans up correctly (free(nullptr) is a no-op).
+            return;
+        }
         bq::object_destructor<bq::siso_ring_buffer>::destruct(&get_buffer());
     }
 

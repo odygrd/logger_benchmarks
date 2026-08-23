@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 /*!
  *
  * \tools
@@ -342,14 +341,14 @@ namespace bq {
                 return ((str[N - 1] == '\0') ? (N - 1) : N) * sizeof(CHAR_TYPE);
             }
 
-            template <typename T>
-            static bq_forceinline bq::enable_if_t<_custom_type_helper<T>::has_member_size_func, size_t> get_custom_string_storage_size(const T& str)
+            template <typename T, bq::enable_if_t<_custom_type_helper<T>::has_member_size_func, bool> = true>
+            static bq_forceinline size_t get_custom_string_storage_size(const T& str)
             {
                 return str.bq_log_format_str_size() * sizeof(CHAR_TYPE);
             }
 
-            template <typename T>
-            static bq_forceinline bq::enable_if_t<_custom_type_helper<T>::has_global_size_func, size_t> get_custom_string_storage_size(const T& str)
+            template <typename T, bq::enable_if_t<_custom_type_helper<T>::has_global_size_func, bool> = true>
+            static bq_forceinline size_t get_custom_string_storage_size(const T& str)
             {
                 return bq_log_format_str_size(str) * sizeof(CHAR_TYPE);
             }
@@ -464,30 +463,6 @@ namespace bq {
         struct null_str_impl {
         };
 
-        template <typename T>
-        struct null_str_impl<1, T> {
-            static constexpr char value[4] = { 'n', 'u', 'l', 'l' };
-        };
-        template <typename T>
-        constexpr char null_str_impl<1, T>::value[4];
-
-        template <typename T>
-        struct null_str_impl<2, T> {
-            static constexpr char16_t value[4] = { u'n', u'u', u'l', u'l' };
-        };
-        template <typename T>
-        constexpr char16_t null_str_impl<2, T>::value[4];
-
-        template <typename T>
-        struct null_str_impl<4, T> {
-            static constexpr char16_t value[4] = { u'n', u'u', u'l', u'l' };
-        };
-        template <typename T>
-        constexpr char16_t null_str_impl<4, T>::value[4];
-
-        template <typename CHAR_TYPE>
-        using null_str = null_str_impl<sizeof(CHAR_TYPE)>;
-
         template <typename CHAR_TYPE>
         struct _serialize_str_helper_by_encode : public _serialize_str_helper_by_encode_impl<CHAR_TYPE, sizeof(CHAR_TYPE)> {
         };
@@ -525,12 +500,49 @@ namespace bq {
         };
         template <>
         struct _serialize_str_helper_by_type_impl<_string_type::c_style_type> {
+            template <typename CHAR_TYPE, bq::enable_if_t<sizeof(CHAR_TYPE) == 1, bool> = true>
+            static bq_forceinline size_t get_null_str_size()
+            {
+                char null_str[4] = { 'n', 'u', 'l', 'l' };
+                return _serialize_str_helper_by_type_impl<_string_type::array_type>::get_storage_data_size(null_str);
+            }
+            template <typename CHAR_TYPE, bq::enable_if_t<sizeof(CHAR_TYPE) == 2, bool> = true>
+            static bq_forceinline size_t get_null_str_size()
+            {
+                char16_t null_str[4] = { u'n', u'u', u'l', u'l' };
+                return _serialize_str_helper_by_type_impl<_string_type::array_type>::get_storage_data_size(null_str);
+            }
+            template <typename CHAR_TYPE, bq::enable_if_t<sizeof(CHAR_TYPE) == 4, bool> = true>
+            static bq_forceinline size_t get_null_str_size()
+            {
+                char32_t null_str[4] = { U'n', U'u', U'l', U'l' };
+                return _serialize_str_helper_by_type_impl<_string_type::array_type>::get_storage_data_size(null_str);
+            }
+            template <typename CHAR_TYPE, bq::enable_if_t<sizeof(CHAR_TYPE) == 1, bool> = true>
+            static bq_forceinline void null_str_copy(uint8_t* data_addr, size_t data_size)
+            {
+                char null_str[4] = { 'n', 'u', 'l', 'l' };
+                _serialize_str_helper_by_type_impl<_string_type::array_type>::type_copy(null_str, data_addr, data_size);
+            }
+            template <typename CHAR_TYPE, bq::enable_if_t<sizeof(CHAR_TYPE) == 2, bool> = true>
+            static bq_forceinline void null_str_copy(uint8_t* data_addr, size_t data_size)
+            {
+                char16_t null_str[4] = { u'n', u'u', u'l', u'l' };
+                _serialize_str_helper_by_type_impl<_string_type::array_type>::type_copy(null_str, data_addr, data_size);
+            }
+            template <typename CHAR_TYPE, bq::enable_if_t<sizeof(CHAR_TYPE) == 4, bool> = true>
+            static bq_forceinline void null_str_copy(uint8_t* data_addr, size_t data_size)
+            {
+                char32_t null_str[4] = { U'n', U'u', U'l', U'l' };
+                _serialize_str_helper_by_type_impl<_string_type::array_type>::type_copy(null_str, data_addr, data_size);
+            }
+
             template <typename CHAR_TYPE>
             static bq_forceinline size_t get_storage_data_size(const CHAR_TYPE* str)
             {
                 static_assert(sizeof(CHAR_TYPE) == 1 || sizeof(CHAR_TYPE) == 2 || sizeof(CHAR_TYPE) == 4, "invalid char type!");
                 if (!str) {
-                    return _serialize_str_helper_by_type_impl<_string_type::array_type>::get_storage_data_size(null_str<CHAR_TYPE>::value);
+                    return get_null_str_size<CHAR_TYPE>();
                 }
                 size_t str_data_len = _serialize_str_helper_by_encode<CHAR_TYPE>::get_c_style_string_storage_size(str);
                 return str_data_len;
@@ -546,7 +558,7 @@ namespace bq {
             {
                 static_assert(sizeof(CHAR_TYPE) == 1 || sizeof(CHAR_TYPE) == 2 || sizeof(CHAR_TYPE) == 4, "invalid char type!");
                 if (!value) {
-                    _serialize_str_helper_by_type_impl<_string_type::array_type>::type_copy(null_str<CHAR_TYPE>::value, data_addr, data_size);
+                    null_str_copy<CHAR_TYPE>(data_addr, data_size);
                 } else {
                     // potential risk, data_size may bigger than max uint32_t
                     uint32_t string_size = static_cast<uint32_t>(data_size - sizeof(uint32_t));
@@ -841,16 +853,16 @@ void fill_size_seq_impl(size_seq<INCLUDE_TYPE_INFO, TYPES...>& seq, const T& val
     (void)is_constexpr;
 }
 
-template <bool INCLUDE_TYPE_INFO, typename FIRST>
-bq::enable_if_t<_get_serialize_func_type<FIRST>() != _serialize_func_type::others, void> fill_size_seq(size_seq<INCLUDE_TYPE_INFO, FIRST>& seq, const FIRST& first)
+template <bool INCLUDE_TYPE_INFO, typename FIRST, bq::enable_if_t<_get_serialize_func_type<FIRST>() != _serialize_func_type::others, bool> = true>
+void fill_size_seq(size_seq<INCLUDE_TYPE_INFO, FIRST>& seq, const FIRST& first)
 {
     using element_type = typename bq::remove_reference_t<decltype(seq)>::element_type;
     constexpr bool is_constexpr = element_type::is_constexpr;
     fill_size_seq_impl(seq, first, bq::bool_type<is_constexpr> {});
 }
 
-template <bool INCLUDE_TYPE_INFO, typename FIRST, typename... REST>
-bq::enable_if_t<_get_serialize_func_type<FIRST>() != _serialize_func_type::others, void> fill_size_seq(size_seq<INCLUDE_TYPE_INFO, FIRST, REST...>& seq, const FIRST& first, const REST&... rest)
+template <bool INCLUDE_TYPE_INFO, typename FIRST, typename... REST, bq::enable_if_t<_get_serialize_func_type<FIRST>() != _serialize_func_type::others, bool> = true>
+void fill_size_seq(size_seq<INCLUDE_TYPE_INFO, FIRST, REST...>& seq, const FIRST& first, const REST&... rest)
 {
     using element_type = typename bq::remove_reference_t<decltype(seq)>::element_type;
     constexpr bool is_constexpr = element_type::is_constexpr;
@@ -858,8 +870,8 @@ bq::enable_if_t<_get_serialize_func_type<FIRST>() != _serialize_func_type::other
     fill_size_seq(seq.get_next(), rest...);
 }
 
-template <bool INCLUDE_TYPE_INFO, typename... PARAMS>
-bq::enable_if_t<is_params_valid_type_helper<PARAMS...>::value, size_seq<INCLUDE_TYPE_INFO, PARAMS...>> make_size_seq(const PARAMS&... params)
+template <bool INCLUDE_TYPE_INFO, typename... PARAMS, bq::enable_if_t<is_params_valid_type_helper<PARAMS...>::value, bool> = true>
+size_seq<INCLUDE_TYPE_INFO, PARAMS...> make_size_seq(const PARAMS&... params)
 {
     size_seq<INCLUDE_TYPE_INFO, PARAMS...> init_seq;
     fill_size_seq(init_seq, params...);

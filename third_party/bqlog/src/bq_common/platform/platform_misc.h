@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 
 #include "bq_common/bq_common_public_include.h"
 #if defined(BQ_POSIX)
@@ -137,5 +136,31 @@ namespace bq {
 
         void* aligned_alloc(size_t alignment, size_t size);
         void aligned_free(void* ptr);
+
+#if defined(BQ_UNIT_TEST)
+        // Test-only fault-injection hooks for disk-full / OOM scenarios.
+        // These let the unit tests reproduce ENOSPC and heap-exhaustion code paths
+        // deterministically across all platforms without needing a real full disk.
+        // Compiled out entirely in release builds.
+        namespace test_inject {
+            enum class fault_kind : int32_t {
+                none = 0,
+                enospc_on_open, // open_file() returns ENOSPC / ERROR_DISK_FULL
+                enospc_on_write, // write_file() returns ENOSPC and writes zero bytes
+            };
+            void set_fault(fault_kind kind);
+            fault_kind get_fault();
+
+            // When a path filter is set, only paths that contain the filter substring
+            // trigger the fault. nullptr / empty filter triggers on all paths.
+            void set_path_filter(const char* substring);
+            bool path_matches_filter(const char* path);
+
+            // Independent OOM hook: makes bq::normal_buffer's heap fallback alloc
+            // return null, simulating "mmap fails AND heap fails" on disk full + OOM.
+            void set_normal_buffer_alloc_fail(bool fail);
+            bool get_normal_buffer_alloc_fail();
+        }
+#endif
     }
 }

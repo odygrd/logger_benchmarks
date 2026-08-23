@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -29,7 +28,7 @@ namespace bq {
         }
         read_from_file_directly(&file_head_, sizeof(file_head_));
         if (file_head_.version != format_version) {
-            util::log_device_console(log_level::error, "decode log file failed, unsupported binary log format version, tools version:%d, log file version:%d", format_version, file_head_.version);
+            util::log_device_console(log_level::error, "decode log file failed, unsupported binary log format version, tools version:%" PRIu32 ", log file version:%" PRIu32, format_version, file_head_.version);
             return appender_decode_result::failed_decode_error;
         }
         if (!private_key_str.trim().is_empty()) {
@@ -49,9 +48,13 @@ namespace bq {
             return resut;
         }
         auto read_handle = read_with_cache(sizeof(payload_metadata_));
+        if (read_handle.len() != sizeof(payload_metadata_)) {
+            util::log_device_console(log_level::error, "decode log file failed, read payload metadata failed");
+            return appender_decode_result::failed_io_error;
+        }
         memcpy(&payload_metadata_, read_handle.data(), sizeof(payload_metadata_));
         if (payload_metadata_.magic_number[0] != 2 || payload_metadata_.magic_number[1] != 2 || payload_metadata_.magic_number[2] != 7) {
-            if (cur_read_seg_.xor_key_blob.is_empty()) {
+            if (cur_read_seg_.enc_type == appender_file_binary::appender_encryption_type::plaintext) {
                 util::log_device_console(log_level::error, "decode log file failed, magic number mismatch");
             } else {
                 util::log_device_console(log_level::error, "decode log file failed, magic number mismatch, please check your private key");
@@ -161,7 +164,7 @@ namespace bq {
                 seek_read_file_absolute(adjusted_file_cursor);
             }
             size_t read_offset = 0;
-            if (!cur_read_seg_.xor_key_blob.is_empty()) {
+            if (cur_read_seg_.enc_type == appender_file_binary::appender_encryption_type::rsa_aes_xor) {
                 size_t file_pos_alignment = current_file_cursor_ % appender_file_base::DEFAULT_BUFFER_ALIGNMENT;
                 read_offset = file_pos_alignment;
             }
@@ -181,7 +184,7 @@ namespace bq {
                 cache_read_.erase(cache_read_.begin() + static_cast<ptrdiff_t>(read_offset + read_size), total_size - read_offset - read_size);
             }
 
-            if (!cur_read_seg_.xor_key_blob.is_empty() && read_size > 0) {
+            if (cur_read_seg_.enc_type == appender_file_binary::appender_encryption_type::rsa_aes_xor && read_size > 0) {
                 size_t file_offset_start = current_file_cursor_ - read_size;
                 vernam::vernam_encrypt_32bytes_aligned(
                     cache_read_.begin() + static_cast<ptrdiff_t>(read_offset),
@@ -219,7 +222,7 @@ namespace bq {
         time_zone time_zone_tmp(payload_metadata_.use_local_time, payload_metadata_.gmt_offset_hours, payload_metadata_.gmt_offset_minutes, payload_metadata_.time_zone_diff_to_gmt_ms, payload_metadata_.time_zone_str);
         auto layout_result = layout_.do_layout(item, time_zone_tmp, &category_names_);
         if (layout_result != layout::enum_layout_result::finished) {
-            util::log_device_console(log_level::error, "decode compressed log file failed, layout error code:%d", (int32_t)layout_result);
+            util::log_device_console(log_level::error, "decode compressed log file failed, layout error code:%" PRId32, (int32_t)layout_result);
             return appender_decode_result::failed_decode_error;
         }
         if (layout_.get_formated_str_len() > 0) {
@@ -232,9 +235,7 @@ namespace bq {
     appender_decode_result appender_decoder_base::read_to_next_segment()
     {
         auto new_seg_start_pos = cur_read_seg_.end_pos;
-        if (new_seg_start_pos == UINT64_MAX) {
-            return appender_decode_result::eof;
-        }
+        current_file_size_ = file_manager::instance().get_file_size(file_);
         if (!seek_read_file_absolute(static_cast<size_t>(new_seg_start_pos))) {
             return appender_decode_result::eof;
         }
@@ -243,11 +244,16 @@ namespace bq {
         if (read_size < sizeof(seg_head)) {
             return appender_decode_result::eof;
         }
-        if (seg_head.next_seg_pos < current_file_cursor_) {
-            bq::util::log_device_console(bq::log_level::error, "file format of segment start pos: %" PRIu64 ", invalid segment end pos:%" PRIu64, new_seg_start_pos, seg_head.next_seg_pos);
-            return appender_decode_result::eof;
+        if ((seg_head.enc_type != appender_file_binary::appender_encryption_type::plaintext
+                && seg_head.enc_type != appender_file_binary::appender_encryption_type::rsa_aes_xor)
+            || (seg_head.seg_type != appender_file_binary::appender_segment_type::normal
+                && seg_head.seg_type != appender_file_binary::appender_segment_type::recovery_by_appender
+                && seg_head.seg_type != appender_file_binary::appender_segment_type::recovery_by_log_buffer)) {
+            bq::util::log_device_console(bq::log_level::error, "decode log file failed, invalid segment header");
+            return appender_decode_result::failed_decode_error;
         }
-        if (seg_head.enc_type == appender_file_binary::appender_encryption_type::rsa_aes_xor && seg_head.has_key) {
+        cur_read_seg_.xor_key_blob.clear();
+        if (seg_head.enc_type == appender_file_binary::appender_encryption_type::rsa_aes_xor) {
             if (private_key_.n_.size() != 256) {
                 bq::util::log_device_console(bq::log_level::error, "It's an encrypted log file, private key is not specified");
                 return appender_decode_result::failed_decode_error;
@@ -265,23 +271,31 @@ namespace bq {
             aes aes_obj(aes::enum_cipher_mode::AES_CBC, aes::enum_key_bits::AES_256);
             size_t aes_key_ciphertext_size = private_key_.n_.size();
             size_t aes_iv_size = aes_obj.get_iv_size();
-            aes_key_ciphertext.insert_batch(aes_key_ciphertext.end(), static_cast<uint8_t*>(enc_data.begin()), aes_key_ciphertext_size);
-            aes_iv.insert_batch(aes_iv.end(), static_cast<uint8_t*>(enc_data.begin()) + aes_key_ciphertext_size, aes_iv_size);
+            uint8_t* encryption_data = enc_data.begin() + static_cast<ptrdiff_t>(sizeof(uint64_t));
+            aes_key_ciphertext.insert_batch(aes_key_ciphertext.end(), encryption_data, aes_key_ciphertext_size);
+            aes_iv.insert_batch(aes_iv.end(), encryption_data + static_cast<ptrdiff_t>(aes_key_ciphertext_size), aes_iv_size);
             if (!rsa::decrypt(private_key_, aes_key_ciphertext, aes_key)) {
                 util::log_device_console(log_level::error, "decode log file failed, decrypt aes key failed");
                 return appender_decode_result::failed_decode_error;
             }
-            cur_read_seg_.xor_key_blob.clear();
             cur_read_seg_.xor_key_blob.fill_uninitialized(appender_file_binary::get_xor_key_blob_size());
-            if (!aes_obj.decrypt(aes_key, aes_iv, static_cast<uint8_t*>(enc_data.begin()) + aes_key_ciphertext_size + aes_iv_size, appender_file_binary::get_xor_key_blob_size(), cur_read_seg_.xor_key_blob.begin(), appender_file_binary::get_xor_key_blob_size())) {
+            if (!aes_obj.decrypt(aes_key, aes_iv, encryption_data + static_cast<ptrdiff_t>(aes_key_ciphertext_size + aes_iv_size), appender_file_binary::get_xor_key_blob_size(), cur_read_seg_.xor_key_blob.begin(), appender_file_binary::get_xor_key_blob_size())) {
                 util::log_device_console(log_level::error, "decode log file failed, decrypt VERNAM key failed");
                 return appender_decode_result::failed_decode_error;
             }
         }
+        const uint64_t current_file_size = static_cast<uint64_t>(current_file_size_);
+        if (seg_head.next_seg_pos != UINT64_MAX
+            && (seg_head.next_seg_pos < current_file_cursor_
+                || seg_head.next_seg_pos > current_file_size
+                || current_file_size - seg_head.next_seg_pos < sizeof(seg_head))) {
+            bq::util::log_device_console(bq::log_level::error, "file format of segment start pos: %" PRIu64 ", invalid segment end pos:%" PRIu64, new_seg_start_pos, seg_head.next_seg_pos);
+            return appender_decode_result::failed_decode_error;
+        }
         auto last_seg_type = (new_seg_start_pos == sizeof(file_head_) ? appender_file_binary::appender_segment_type::normal : cur_read_seg_.seg_type);
         cur_read_seg_.enc_type = seg_head.enc_type;
         cur_read_seg_.start_pos = new_seg_start_pos;
-        cur_read_seg_.end_pos = seg_head.next_seg_pos;
+        cur_read_seg_.end_pos = seg_head.next_seg_pos == UINT64_MAX ? current_file_size : seg_head.next_seg_pos;
         cur_read_seg_.seg_type = seg_head.seg_type;
 
         bool is_last_seg_recover = (last_seg_type == appender_file_binary::appender_segment_type::recovery_by_appender

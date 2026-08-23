@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 // author: eggdai
 
 #include "bq_common/bq_common_public_include.h"
@@ -274,39 +273,40 @@ namespace bq {
         const property_value& operator[](const typename array_type::size_type idx) const;
         property_value& operator[](const typename array_type::size_type idx);
 
-        template <typename T>
-        bq::enable_if_t<property_value_trait<T>::value == enum_property_value_type::null_type, bq::property_value&> operator=(T value)
+        template <typename T, bq::enable_if_t<property_value_trait<T>::value == enum_property_value_type::null_type, bool> = true>
+        bq::property_value& operator=(T value)
         {
             (void)value;
             clear_data();
             type_ = enum_property_value_type::null_type;
+            return *this;
         }
 
-        template <typename T>
-            bq::enable_if_t < property_value_trait<T>::value<enum_property_value_type::invalid_type, bq::property_value&> add_array_item(T&& value)
+        template <typename T, bq::enable_if_t<(property_value_trait<T>::value < enum_property_value_type::invalid_type), bool> = true>
+        bq::property_value& add_array_item(T&& value)
         {
             auto& new_item = add_null_array_item();
             new_item = bq::forward<T>(value);
             return new_item;
         }
-        template <typename T>
-        bq::enable_if_t<bq::is_same<bq::decay_t<T>, property_value>::value, bq::property_value&> add_array_item(T&& value)
+        template <typename T, bq::enable_if_t<bq::is_same<bq::decay_t<T>, property_value>::value, bool> = true>
+        bq::property_value& add_array_item(T&& value)
         {
             auto& new_item = add_null_array_item();
             new_item = bq::forward<T>(value);
             return new_item;
         }
 
-        template <typename T>
-            bq::enable_if_t < property_value_trait<T>::value<enum_property_value_type::invalid_type, bq::property_value&> add_array_item(const bq::string& key, T&& value)
+        template <typename T, bq::enable_if_t<(property_value_trait<T>::value < enum_property_value_type::invalid_type), bool> = true>
+        bq::property_value& add_array_item(const bq::string& key, T&& value)
         {
             auto& obj = (*this)[key];
             obj.add_array_item(value);
             return obj;
         }
 
-        template <typename T>
-        bq::enable_if_t<bq::is_same<bq::decay_t<T>, property_value>::value, bq::property_value&> add_array_item(const bq::string& key, T&& value)
+        template <typename T, bq::enable_if_t<bq::is_same<bq::decay_t<T>, property_value>::value, bool> = true>
+        bq::property_value& add_array_item(const bq::string& key, T&& value)
         {
             auto& obj = (*this)[key];
             obj.add_array_item(value);
@@ -318,15 +318,15 @@ namespace bq {
         void erase_array_item(array_type::size_type idx);
         void clear_array_item();
 
-        template <typename T>
-            bq::enable_if_t < property_value_trait<T>::value<enum_property_value_type::invalid_type, bq::property_value&> add_object_item(const bq::string& key, T&& value)
+        template <typename T, bq::enable_if_t<(property_value_trait<T>::value < enum_property_value_type::invalid_type), bool> = true>
+        bq::property_value& add_object_item(const bq::string& key, T&& value)
         {
             auto& new_item = add_null_object_item(key);
             new_item = bq::forward<T>(value);
             return new_item;
         }
-        template <typename T>
-        bq::enable_if_t<bq::is_same<bq::decay_t<T>, property_value>::value, bq::property_value&> add_object_item(const bq::string& key, T&& value)
+        template <typename T, bq::enable_if_t<bq::is_same<bq::decay_t<T>, property_value>::value, bool> = true>
+        bq::property_value& add_object_item(const bq::string& key, T&& value)
         {
             auto& new_item = add_null_object_item(key);
             new_item = bq::forward<T>(value);

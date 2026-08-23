@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -104,7 +103,7 @@ namespace bq {
                     continue;
                 }
                 char tmp[64];
-                snprintf(tmp, sizeof(tmp), "\n#%d %p ", idx, addr);
+                snprintf(tmp, sizeof(tmp), "\n#%" PRId32 " %p ", idx, addr);
                 stack_trace_str_ref += tmp;
                 stack_trace_str_ref += symbol;
             }

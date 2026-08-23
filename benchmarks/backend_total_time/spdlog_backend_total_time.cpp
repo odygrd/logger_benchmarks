@@ -64,18 +64,16 @@ int main()
 
   SPDLOG_LOGGER_ERROR(logger, "End");
 
-  // Wait for the queue to empty before flush
-  while (spdlog_tp->queue_size() != 0) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-  }
-
-  // Send flush request
+  // Queue a flush after the final record. Merely observing an empty queue does
+  // not prove that the worker has finished the item it already dequeued.
   logger->flush();
 
-  // Wait for the flush to be processed (queue empty again)
-  while (spdlog_tp->queue_size() != 0) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-  }
+  // The thread-pool destructor queues its termination marker after all pending
+  // work and joins the worker. Keep this inside the timed region so completion
+  // means that every record and the final sink flush have actually finished.
+  logger.reset();
+  spdlog_tp.reset();
+  spdlog::shutdown();
 
   auto const end_time = std::chrono::steady_clock::now();
   auto const delta = end_time - start_time;

@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,7 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
-#include "bq_common/platform/build_type.h"
+#pragma once
 #include <stddef.h>
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 #define BQ_WIN 1
@@ -116,6 +114,8 @@
 #define bq_forceinline inline
 #endif
 
+#include "bq_common/platform/build_type.h"
+
 #if defined(_MSC_VER)
 #define BQ_API_EXPORT extern "C" __declspec(dllexport)
 #define BQ_API_IMPORT extern "C" __declspec(dllimport)
@@ -170,7 +170,15 @@ namespace bq {
             return *____BQ_TLS_##Name##_ptr;                                     \
         }                                                                        \
     };                                                                           \
-    thread_local BQ_TLS_CONCAT(_bq_non_pod_holder_##Name##_, __LINE__) Name;
+    thread_local BQ_TLS_CONCAT(_bq_non_pod_holder_##Name##_, __LINE__) Name;     \
+    bq_forceinline Type& BQ_TLS_CONCAT(Name, _get_direct)()                      \
+    {                                                                            \
+        Type* ____p = ____BQ_TLS_##Name##_ptr;                                   \
+        if (____p) {                                                             \
+            return *____p;                                                        \
+        }                                                                        \
+        return Name.get();                                                       \
+    }
 #define BQ_TLS_NON_POD(Type, Name) BQ_TLS_DEFINE(Type, Name)
 
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -297,4 +305,10 @@ namespace bq {
 #define BQ_NO_ASAN __declspec(no_sanitize_address)
 #else
 #define BQ_NO_ASAN
+#endif
+
+#if defined(BQ_LATE_BINDING)
+#include "bq_common/platform/api_dynamic_binding.h"
+#else
+#define BQ_API_DEF(return_type, name, parameters, arguments) BQ_API return_type name parameters
 #endif

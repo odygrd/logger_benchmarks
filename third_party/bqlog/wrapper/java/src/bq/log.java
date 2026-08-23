@@ -10,7 +10,12 @@ package bq;
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+import java.io.File;
+import java.io.InputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.ArrayList;
 import bq.def.*;
@@ -23,20 +28,92 @@ import bq.impl.*;
 public class log {
 	static {
 		try {
-			System.loadLibrary(bq.lib_def.lib_name);
+			// On Android the .so is extracted by the OS installer from the AAR,
+			// so the standard loadLibrary path always works.
+			boolean is_android = System.getProperty("java.vm.name", "").contains("Dalvik")
+					|| System.getProperty("java.vendor", "").toLowerCase().contains("android");
+			if (is_android) {
+				System.loadLibrary(bq.lib_def.lib_name);
+			} else {
+				// For fat-JAR (Maven) distribution: try to locate the bundled native
+				// library under /natives/<os_token>-<arch_token>/<lib_file_name> inside
+				// the JAR, extract it to a temp file, and load it from there.
+				// Falls back to System.loadLibrary so that developers who build
+				// locally and manage java.library.path themselves are unaffected.
+				boolean loaded = false;
+				String os_name  = System.getProperty("os.name",  "").toLowerCase();
+				String os_arch  = System.getProperty("os.arch",  "").toLowerCase();
+
+				// Normalise arch to match CI staging directory names
+				String arch_token;
+				if      (os_arch.equals("amd64")   || os_arch.equals("x86_64"))                      arch_token = "x86_64";
+				else if (os_arch.equals("aarch64") || os_arch.equals("arm64"))                        arch_token = "arm64";
+				else if (os_arch.equals("x86")     || os_arch.equals("i386") || os_arch.equals("i686")) arch_token = "x86";
+				else                                                                                   arch_token = os_arch;
+
+				// Normalise OS and choose the library file name
+				String os_token;
+				String lib_file_name;
+				if (os_name.contains("win")) {
+					os_token      = "windows";
+					lib_file_name = bq.lib_def.lib_name + ".dll";
+				} else if (os_name.contains("mac") || os_name.contains("darwin")) {
+					os_token      = "macos";
+					lib_file_name = "lib" + bq.lib_def.lib_name + ".dylib";
+				} else if (os_name.contains("freebsd")) {
+					os_token      = "freebsd";
+					lib_file_name = "lib" + bq.lib_def.lib_name + ".so";
+				} else if (os_name.contains("openbsd")) {
+					os_token      = "openbsd";
+					lib_file_name = "lib" + bq.lib_def.lib_name + ".so";
+				} else if (os_name.contains("netbsd")) {
+					os_token      = "netbsd";
+					lib_file_name = "lib" + bq.lib_def.lib_name + ".so";
+				} else if (os_name.contains("dragonfly")) {
+					os_token      = "dragonfly";
+					lib_file_name = "lib" + bq.lib_def.lib_name + ".so";
+				} else if (os_name.contains("sunos") || os_name.contains("solaris")) {
+					os_token      = "sunos";
+					lib_file_name = "lib" + bq.lib_def.lib_name + ".so";
+				} else {
+					// Linux and any other POSIX-like system
+					os_token      = "linux";
+					lib_file_name = "lib" + bq.lib_def.lib_name + ".so";
+				}
+
+				// Suffix for the temp file so the OS links the right extension
+				String lib_suffix = lib_file_name.substring(lib_file_name.lastIndexOf('.'));
+				String resource_path = "/natives/" + os_token + "-" + arch_token + "/" + lib_file_name;
+
+				try (InputStream in = log.class.getResourceAsStream(resource_path)) {
+					if (in != null) {
+						File tmp = File.createTempFile(bq.lib_def.lib_name + "_", lib_suffix);
+						tmp.deleteOnExit();
+						Files.copy(in, tmp.toPath(), StandardCopyOption.REPLACE_EXISTING);
+						System.load(tmp.getAbsolutePath());
+						loaded = true;
+					}
+				} catch (IOException e) {
+					// Extraction failed; fall through to loadLibrary
+				}
+
+				if (!loaded) {
+					System.loadLibrary(bq.lib_def.lib_name);
+				}
+			}
 			Runtime.getRuntime().addShutdownHook(new Thread() {
 				@Override
 				public void run() {
 					log_invoker.__api_mark_jvm_destroyed();
 				}
-			}); 
-		}catch(Exception e)
-		{
+			});
+		} catch(Exception e) {
 			System.err.println("Failed to Load " + bq.lib_def.lib_name);
 			System.err.println(e.getMessage());
 		}
 	}
 
+	/** Receives console log entries. */
     @FunctionalInterface
     public interface console_callback_delegate{
         void callback(long log_id, int category_idx, bq.def.log_level log_level, String content);
@@ -53,6 +130,7 @@ public class log {
     private ByteBuffer merged_log_level_bitmap_ = null;
     private ByteBuffer categories_mask_array_ = null;
     private ByteBuffer print_stack_level_bitmap_ = null;
+	/** Category names configured for this log. */
     protected List<String> categories_name_array_ = null;
     private log_context context_ = null;
     
@@ -145,7 +223,7 @@ public class log {
     
     /**
      * Get bqLog lib version
-     * @return
+     * @return The bqLog library version.
      */
     public static String get_version()
     {
@@ -165,8 +243,8 @@ public class log {
     /**
      * If bqLog is stored in a relative path, the base dir is determined by the value of base_dir_type.
      * This will return the absolute paths corresponding to both scenarios.
-     * @param base_dir_type
-     * @return
+     * @param base_dir_type The base directory type.
+     * @return The corresponding absolute base directory path.
      */
     public static String get_file_base_dir(int base_dir_type)
     {
@@ -175,8 +253,8 @@ public class log {
 	
 	/**
 	 * Reset the base dir
-	 * @param base_dir_type
-	 * @param dir
+	 * @param base_dir_type The base directory type.
+	 * @param dir The new base directory path.
 	 */
 	public static void reset_base_dir(int base_dir_type, String dir)
 	{
@@ -242,7 +320,7 @@ public class log {
     /**
      * Register a callback that will be invoked whenever a console log message is output. 
      * This can be used for an external system to monitor console log output.
-     * @param callback
+     * @param callback The callback to register, or {@code null} to disable callbacks.
      */
     public static void register_console_callback(console_callback_delegate callback)
     {
@@ -256,7 +334,7 @@ public class log {
 
     /**
      * Unregister a previously registered console callback.
-     * @param callback
+     * @param callback The callback to unregister.
      */
     public static void unregister_console_callback(console_callback_delegate callback)
     {
@@ -270,7 +348,7 @@ public class log {
      * Enable or disable the console appender buffer. 
      * Since our wrapper may run in both C# and Java virtual machines, and we do not want to directly invoke callbacks from a native thread, 
      * we can enable this option. This way, all console outputs will be saved in the buffer until we fetch them.
-     * @param enable
+     * @param enable Whether console appender buffering is enabled.
      */
     public static void set_console_buffer_enable(boolean enable)
     {
@@ -294,22 +372,23 @@ public class log {
     /**
      * Output to console with log_level.
      * Important: This is not log entry, and can not be caught by console callback which was registered by register_console_callback or fetch_and_remove_console_buffer
-     * @param level
-     * @param str
+     * @param level The console log level.
+     * @param str The text to output.
      */
     public static void console(log_level level, String str)
     {
     	log_invoker.__api_log_device_console(level.ordinal(), str);
     }
     
-    protected log()
+	/** Creates an empty log instance. */
+	protected log()
     {
     	
     }
     
     /**
      * copy constructor
-     * @param rhs
+     * @param rhs The log object to copy.
      */
     protected log(log rhs)
     {
@@ -335,7 +414,7 @@ public class log {
     
     /**
      * Modify the log configuration, but some fields, such as buffer_size, cannot be modified.
-     * @param config
+     * @param config The new log configuration string.
      */
     public void reset_config(String config)
     {
@@ -348,8 +427,8 @@ public class log {
 
     /**
      * Temporarily disable or enable a specific Appender.
-     * @param appender_name
-     * @param enable
+     * @param appender_name The appender name.
+     * @param enable Whether the appender is enabled.
      */
     public void set_appender_enable(String appender_name, boolean enable)
     {
@@ -367,7 +446,7 @@ public class log {
 
     /**
      * Get id of this log object
-     * @return
+     * @return The log object identifier.
      */
     public long get_id()
     {
@@ -376,7 +455,7 @@ public class log {
     
     /**
      * Whether a log object is valid
-     * @return
+     * @return {@code true} if this log object is valid; otherwise {@code false}.
      */
     public boolean is_valid()
     {
@@ -385,7 +464,7 @@ public class log {
 
     /**
      * Get the name of a log
-     * @return
+     * @return The log name.
      */
     public String get_name()
     {
@@ -434,6 +513,11 @@ public class log {
         return do_log(default_category_, log_level.verbose, log_format_content, args);
     }
     
+    /**
+     * Writes a debug log without format arguments.
+     * @param log_format_content The log content.
+     * @return Whether the log was written successfully.
+     */
     public boolean debug(String log_format_content)
     {
         return do_log(default_category_, log_level.debug, log_format_content);

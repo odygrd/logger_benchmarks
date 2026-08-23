@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -55,7 +54,7 @@ bq::appender_decode_result bq::appender_decoder_compressed::decode_private()
             result = parse_log_entry(bq::get<2>(read_result));
             break;
         default:
-            bq::util::log_device_console(log_level::error, "decode compressed log file failed, unknown data item type %d", (int32_t)type);
+            bq::util::log_device_console(log_level::error, "decode compressed log file failed, unknown data item type %" PRId32, (int32_t)type);
             return appender_decode_result::failed_io_error;
             break;
         }
@@ -128,7 +127,7 @@ bq::appender_decode_result bq::appender_decoder_compressed::parse_formate_templa
         return appender_decode_result::failed_decode_error;
     }
     if (info.category_idx >= category_names_.size()) {
-        bq::util::log_device_console(log_level::error, "decode compressed log file failed, formate template data vlq decode error, invalid category index:%d", info.category_idx);
+        bq::util::log_device_console(log_level::error, "decode compressed log file failed, formate template data vlq decode error, invalid category index:%" PRIu32, info.category_idx);
         return appender_decode_result::failed_decode_error;
     }
     if (cursor < read_handle.len()) {
@@ -209,7 +208,7 @@ bq::appender_decode_result bq::appender_decoder_compressed::parse_log_entry(cons
     }
     cursor += formate_template_idx_len;
     if (formate_template_idx >= log_templates_array_.size()) {
-        bq::util::log_device_console(log_level::error, "decode compressed log file failed, invalid formate_template_idx: %d", formate_template_idx);
+        bq::util::log_device_console(log_level::error, "decode compressed log file failed, invalid formate_template_idx: %" PRIu32, formate_template_idx);
         return appender_decode_result::failed_decode_error;
     }
     if (cursor >= read_handle.len()) {
@@ -260,7 +259,7 @@ bq::appender_decode_result bq::appender_decoder_compressed::parse_log_entry(cons
         size_t vlq_decode_length_tmp = 0;
         switch (type_info) {
         case bq::log_arg_type_enum::unsupported_type:
-            bq::util::log_device_console(bq::log_level::error, "decode compressed log file failed : non_primitivi_type is not supported yet, type:%d", (int32_t)type_info);
+            bq::util::log_device_console(bq::log_level::error, "decode compressed log file failed : non_primitivi_type is not supported yet, type:%" PRId32, (int32_t)type_info);
             return appender_decode_result::failed_decode_error;
             break;
         case bq::log_arg_type_enum::null_type:
@@ -365,7 +364,7 @@ bq::appender_decode_result bq::appender_decoder_compressed::parse_log_entry(cons
             }
             cursor += vlq_decode_length_tmp;
             if (cursor + len > read_handle.len()) {
-                bq::util::log_device_console(bq::log_level::error, "decode compressed log file failed : param utf8 string length overflow log entry data item length :%d", len);
+                bq::util::log_device_console(bq::log_level::error, "decode compressed log file failed : param utf8 string length overflow log entry data item length :%" PRIu32, len);
                 return bq::appender_decode_result::failed_decode_error;
             }
             raw_cursor += 4;
@@ -390,7 +389,7 @@ bq::appender_decode_result bq::appender_decoder_compressed::parse_log_entry(cons
             }
             cursor += vlq_decode_length_tmp;
             if (cursor + mixed_len > read_handle.len()) {
-                bq::util::log_device_console(bq::log_level::error, "decode compressed log file failed : param utf8 string length overflow log entry data item length :%d", mixed_len);
+                bq::util::log_device_console(bq::log_level::error, "decode compressed log file failed : param utf8 string length overflow log entry data item length :%" PRIu32, mixed_len);
                 return bq::appender_decode_result::failed_decode_error;
             }
             raw_data_[raw_cursor] = (uint8_t)bq::log_arg_type_enum::string_utf8_type;
@@ -423,16 +422,16 @@ bq::appender_decode_result bq::appender_decoder_compressed::parse_log_entry(cons
         }
         continue;
     }
-    size_t ext_info_size = sizeof(_log_entry_ext_head_def) + thread_info_iter->value().thread_name.size();
+    size_t ext_info_size = sizeof(_log_entry_ext_head_def) + bq::min_value(static_cast<size_t>(UINT8_MAX), thread_info_iter->value().thread_name.size());
     size_t ext_info_offset = bq::align_4(raw_data_.size());
-    size_t fill_size = ext_info_offset - +ext_info_size + raw_data_.size();
+    size_t fill_size = ext_info_offset + ext_info_size - raw_data_.size();
     raw_data_.fill_uninitialized(fill_size);
-    bq::log_entry_handle entry(raw_data_.begin(), (uint32_t)raw_data_.size());
+    bq::log_entry_handle entry(raw_data_.begin(), static_cast<uint32_t>(raw_data_.size()));
     // head is invalid now, because raw_data may have expanded it's capacity.
-    entry.get_log_head().ext_info_offset = (uint32_t)ext_info_offset;
+    entry.get_log_head().ext_info_offset = static_cast<uint32_t>(ext_info_offset);
     auto& ext_info = const_cast<_log_entry_ext_head_def&>(entry.get_ext_head());
     memcpy(&entry.get_log_head().log_thread_id, &thread_info_iter->value().thread_id, sizeof(thread_info_iter->value().thread_id));
-    ext_info.thread_name_len_ = (uint8_t)thread_info_iter->value().thread_name.size();
-    memcpy((uint8_t*)&ext_info + sizeof(_log_entry_ext_head_def), thread_info_iter->value().thread_name.c_str(), ext_info.thread_name_len_);
+    ext_info.thread_name_len_ = static_cast<uint8_t>(thread_info_iter->value().thread_name.size());
+    memcpy(reinterpret_cast<uint8_t*>(&ext_info) + sizeof(_log_entry_ext_head_def), thread_info_iter->value().thread_name.c_str(), ext_info.thread_name_len_);
     return do_decode_by_log_entry_handle(entry);
 }

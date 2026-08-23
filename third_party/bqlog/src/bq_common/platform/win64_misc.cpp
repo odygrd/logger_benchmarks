@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -372,6 +371,13 @@ namespace bq {
 
         int32_t open_file(const char* path, file_open_mode_enum mode, platform_file_handle& out_file_handle)
         {
+#if defined(BQ_UNIT_TEST)
+            if (test_inject::get_fault() == test_inject::fault_kind::enospc_on_open
+                && test_inject::path_matches_filter(path)) {
+                out_file_handle = invalid_platform_file_handle;
+                return static_cast<int32_t>(ERROR_DISK_FULL);
+            }
+#endif
             bq::u16string file_path_w = u"\\\\?\\" + trans_to_windows_wide_string(force_to_abs_path(get_lexically_path(path)));
             out_file_handle = CreateFileW((LPCWSTR)file_path_w.c_str(), ((int32_t)(mode & file_open_mode_enum::read) ? GENERIC_READ : 0) | ((int32_t)(mode & file_open_mode_enum::write) ? GENERIC_WRITE : 0), ((int32_t)(mode & file_open_mode_enum::exclusive) ? FILE_SHARE_READ : (FILE_SHARE_READ | FILE_SHARE_WRITE)), NULL, ((int32_t)(mode & file_open_mode_enum::auto_create) ? OPEN_ALWAYS : OPEN_EXISTING), FILE_ATTRIBUTE_NORMAL, NULL);
             if (!is_platform_handle_valid(out_file_handle)) {
@@ -400,15 +406,16 @@ namespace bq {
         {
             out_real_read_size = 0;
             size_t max_size_pertime = static_cast<size_t>(UINT32_MAX);
-            size_t max_read_size_current = 0;
+            char* current_target = static_cast<char*>(target_addr);
             while (out_real_read_size < read_size) {
-                size_t need_read_size_this_time = bq::min_value(max_size_pertime, read_size - max_read_size_current);
+                size_t need_read_size_this_time = bq::min_value(max_size_pertime, read_size - out_real_read_size);
                 DWORD out_size = 0;
-                bool result = ReadFile(file_handle, target_addr, static_cast<DWORD>(need_read_size_this_time), &out_size, NULL);
+                bool result = ReadFile(file_handle, current_target, static_cast<DWORD>(need_read_size_this_time), &out_size, NULL);
                 if (!result) {
                     return static_cast<int32_t>(GetLastError());
                 }
                 out_real_read_size += static_cast<size_t>(out_size);
+                current_target += out_size;
                 if (out_size != need_read_size_this_time) {
                     return 0;
                 }
@@ -419,6 +426,11 @@ namespace bq {
         int32_t write_file(const platform_file_handle& file_handle, const void* src_addr, size_t write_size, size_t& out_real_write_size)
         {
             out_real_write_size = 0;
+#if defined(BQ_UNIT_TEST)
+            if (test_inject::get_fault() == test_inject::fault_kind::enospc_on_write) {
+                return static_cast<int32_t>(ERROR_DISK_FULL);
+            }
+#endif
             const char* current_src = static_cast<const char*>(src_addr);
             size_t remaining = write_size;
 
@@ -459,7 +471,8 @@ namespace bq {
             default:
                 break;
             }
-            if (INVALID_SET_FILE_POINTER == SetFilePointer(file_handle, offset_low, &offset_high, opt_platform)) {
+            SetLastError(NO_ERROR);
+            if (INVALID_SET_FILE_POINTER == SetFilePointer(file_handle, offset_low, &offset_high, opt_platform) && NO_ERROR != GetLastError()) {
                 auto error_code = static_cast<int32_t>(GetLastError());
                 return error_code;
             }
@@ -501,13 +514,9 @@ namespace bq {
 
         int32_t truncate_file(const platform_file_handle& file_handle, size_t offset)
         {
-            LONG offset_low = (LONG)(static_cast<int64_t>(offset) & 0xFFFFFFFF);
-            LONG offset_high = (LONG)(static_cast<int64_t>(offset) >> 32);
-            if (INVALID_SET_FILE_POINTER == SetFilePointer(file_handle, offset_low, &offset_high, FILE_BEGIN)) {
-                auto error_code = static_cast<int32_t>(GetLastError());
-                return error_code;
-            }
-            if (!SetEndOfFile(file_handle)) {
+            FILE_END_OF_FILE_INFO eof_info;
+            eof_info.EndOfFile.QuadPart = static_cast<LONGLONG>(offset);
+            if (!SetFileInformationByHandle(file_handle, FileEndOfFileInfo, &eof_info, sizeof(eof_info))) {
                 auto error_code = static_cast<int32_t>(GetLastError());
                 return error_code;
             }
@@ -729,7 +738,11 @@ namespace bq {
 
         uint64_t file_node_info::hash_code() const
         {
-            return bq::util::get_hash_64(this, sizeof(file_node_info));
+            uint8_t buf[sizeof(volumn) + sizeof(idx_high) + sizeof(idx_low)];
+            memcpy(buf, &volumn, sizeof(volumn));
+            memcpy(buf + sizeof(volumn), &idx_high, sizeof(idx_high));
+            memcpy(buf + sizeof(volumn) + sizeof(idx_high), &idx_low, sizeof(idx_low));
+            return bq::util::get_hash_64(buf, sizeof(buf));
         }
 
         static windows_version_info win_version_info_;

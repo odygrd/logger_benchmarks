@@ -9,6 +9,9 @@ void platformlab_nanolog(std::vector<int32_t> thread_count_array, size_t num_ite
 {
   std::remove("platformlab_nanolog_call_site_latency_percentile_linux_benchmark.log");
 
+  // setLogFile restarts NanoLog's worker. Pin this thread first so the new
+  // worker inherits the backend CPU.
+  set_thread_affinity(5);
   NanoLog::setLogFile("platformlab_nanolog_call_site_latency_percentile_linux_benchmark.log");
 
   // wait for the backend thread to start
@@ -36,7 +39,7 @@ void platformlab_nanolog(std::vector<int32_t> thread_count_array, size_t num_ite
   for (auto thread_count : thread_count_array)
   {
     run_benchmark("Logger: PlatformLab NanoLog - Benchmark: Caller Thread Latency", thread_count,
-                  num_iterations_per_thread, on_start, log_func, on_exit);
+                  num_iterations_per_thread, MESSAGES_PER_ITERATION, on_start, log_func, on_exit);
   }
 }
 

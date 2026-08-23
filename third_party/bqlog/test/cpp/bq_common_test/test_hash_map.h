@@ -218,8 +218,8 @@ namespace bq {
                     for (typename decltype(str_map)::size_type i = 0; i < loop_count; ++i) {
                         char format_key[16];
                         char format_value[16];
-                        snprintf(format_key, 16, "test_%d", i % count_per_round);
-                        snprintf(format_value, 16, "test_%d", i);
+                        snprintf(format_key, 16, "test_%" PRId32, i % count_per_round);
+                        snprintf(format_value, 16, "test_%" PRId32, i);
                         str_map[format_key] = format_value;
                     }
                     add_test_result(str_map.size() == count_per_round);
@@ -267,14 +267,14 @@ namespace bq {
                     bq::hash_map<int32_t, int32_t>::size_type result_count = 0;
                     for (int32_t i = 0; i < 1000; ++i) {
                         char tmp_str[128];
-                        snprintf(tmp_str, sizeof(tmp_str), "key:%d", i);
+                        snprintf(tmp_str, sizeof(tmp_str), "key:%" PRId32, i);
                         result_total += i;
                         ++result_count;
                         erase_test_map[tmp_str] = i;
                     }
                     for (int32_t i = 999; i >= 0; i -= 2) {
                         char tmp_str[128];
-                        snprintf(tmp_str, sizeof(tmp_str), "key:%d", i);
+                        snprintf(tmp_str, sizeof(tmp_str), "key:%" PRId32, i);
                         result_total -= erase_test_map[tmp_str];
                         --result_count;
                         add_test_result(erase_test_map.erase(tmp_str), "erase_test");

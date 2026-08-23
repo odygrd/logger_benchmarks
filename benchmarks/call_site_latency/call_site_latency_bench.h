@@ -17,10 +17,15 @@
 #include <vector>
 
 // Instead of sleep
-inline void wait([[maybe_unused]] std::chrono::nanoseconds min, std::chrono::nanoseconds max)
+inline void wait([[maybe_unused]] std::chrono::nanoseconds min,
+                 std::chrono::nanoseconds max,
+                 [[maybe_unused]] size_t stream_id)
 {
 #ifdef BENCH_WITHOUT_PERF
-  thread_local std::mt19937 gen{std::random_device{}()};
+  // Use a separate, repeatable sequence per producer so every logger sees the
+  // same pacing without artificially synchronizing all producer threads.
+  thread_local std::mt19937 gen{
+    static_cast<std::mt19937::result_type>(0x51ee'50a7u + stream_id)};
   std::uniform_int_distribution<int64_t> dis(min.count(), max.count());
 
   auto const start_time = std::chrono::steady_clock::now();
@@ -72,40 +77,17 @@ inline void wait_for_all_threads_to_start(std::atomic<size_t>& started_threads, 
 #ifdef BENCH_WITHOUT_PERF
 /***/
 
-  #ifdef BENCH_INT_INT_DOUBLE
+template <typename TOnThreadStart, typename TLogFunc, typename TOnThreadExit>
 inline void run_log_benchmark(size_t num_iterations,
                               size_t messages_per_iteration,
-                              std::function<void()> on_thread_start,
-                              std::function<void(uint64_t, uint64_t, double)> log_func,
-                              std::function<void()> on_thread_exit,
+                              TOnThreadStart const& on_thread_start,
+                              TLogFunc const& log_func,
+                              TOnThreadExit const& on_thread_exit,
                               std::atomic<size_t>& started_threads,
                               size_t participant_count,
                               size_t current_thread_num,
                               std::vector<uint64_t>& latencies,
                               double ns_rdtsc_tick)
-  #elif defined(BENCH_INT_INT_LARGESTR)
-inline void run_log_benchmark(size_t num_iterations,
-                              size_t messages_per_iteration,
-                              std::function<void()> on_thread_start,
-                              std::function<void(uint64_t, uint64_t, std::string const&)> log_func,
-                              std::function<void()> on_thread_exit,
-                              std::atomic<size_t>& started_threads,
-                              size_t participant_count,
-                              size_t current_thread_num,
-                              std::vector<uint64_t>& latencies,
-                              double ns_rdtsc_tick)
-  #elif defined(BENCH_VECTOR_LARGESTR)
-inline void run_log_benchmark(size_t num_iterations,
-                              size_t messages_per_iteration,
-                              std::function<void()> on_thread_start,
-                              std::function<void(uint64_t, uint64_t, std::vector<std::string> const&)> log_func,
-                              std::function<void()> on_thread_exit,
-                              std::atomic<size_t>& started_threads,
-                              size_t participant_count,
-                              size_t current_thread_num,
-                              std::vector<uint64_t>& latencies,
-                              double ns_rdtsc_tick)
-  #endif
 {
   // running thread affinity
   set_thread_affinity(current_thread_num);
@@ -127,8 +109,10 @@ inline void run_log_benchmark(size_t num_iterations,
   #ifdef BENCH_INT_INT_DOUBLE
   #elif defined(BENCH_INT_INT_LARGESTR)
   #elif defined(BENCH_VECTOR_LARGESTR)
-  std::random_device rd;
-  std::mt19937 gen(rd());
+  // Keep vector contents identical for the same producer in every executable.
+  // This matters for loggers that compress or defer formatting the payload.
+  std::mt19937 gen{
+    static_cast<std::mt19937::result_type>(0xc001'c0deu + current_thread_num)};
   std::uniform_int_distribution<int> length_dist(50, 60); // large strings
   std::uniform_int_distribution<int> char_dist(65, 90);   // ASCII uppercase letters
   #endif
@@ -156,30 +140,31 @@ inline void run_log_benchmark(size_t num_iterations,
     }
   #endif
 
-    auto const start = __rdtsc();
+    auto const start = serialized_rdtsc();
     for (size_t j = 0; j < messages_per_iteration; ++j)
     {
       log_func(i, j, v);
     }
-    auto const end = __rdtsc();
+    auto const end = serialized_rdtsc();
 
     uint64_t const latency{static_cast<uint64_t>(
       (static_cast<double>(end - start) / static_cast<double>(messages_per_iteration)) * ns_rdtsc_tick)};
     latencies.push_back(latency);
 
     // send the next log after x time
-    wait(MIN_WAIT_DURATION, MAX_WAIT_DURATION);
+    wait(MIN_WAIT_DURATION, MAX_WAIT_DURATION, current_thread_num);
   }
 
   on_thread_exit();
 }
 #else
 /***/
+template <typename TOnThreadStart, typename TLogFunc, typename TOnThreadExit>
 inline void run_log_benchmark(size_t num_iterations,
                               size_t messages_per_iteration,
-                              std::function<void()> on_thread_start,
-                              std::function<void(uint64_t, uint64_t, double)> log_func,
-                              std::function<void()> on_thread_exit,
+                              TOnThreadStart const& on_thread_start,
+                              TLogFunc const& log_func,
+                              TOnThreadExit const& on_thread_exit,
                               std::atomic<size_t>& started_threads,
                               size_t participant_count,
                               size_t current_thread_num)
@@ -208,7 +193,7 @@ inline void run_log_benchmark(size_t num_iterations,
     }
 
     // send the next log after x time
-    wait(MIN_WAIT_DURATION, MAX_WAIT_DURATION);
+    wait(MIN_WAIT_DURATION, MAX_WAIT_DURATION, current_thread_num);
   }
 
   on_thread_exit();
@@ -216,28 +201,14 @@ inline void run_log_benchmark(size_t num_iterations,
 #endif
 
 /***/
-#ifdef BENCH_INT_INT_DOUBLE
+template <typename TOnThreadStart, typename TLogFunc, typename TOnThreadExit>
 inline void run_benchmark(char const* benchmark_name,
                           int32_t thread_count,
                           size_t num_iterations,
-                          std::function<void()> on_thread_start,
-                          std::function<void(uint64_t, uint64_t, double)> log_func,
-                          std::function<void()> on_thread_exit)
-#elif defined(BENCH_INT_INT_LARGESTR)
-inline void run_benchmark(char const* benchmark_name,
-                          int32_t thread_count,
-                          size_t num_iterations,
-                          std::function<void()> on_thread_start,
-                          std::function<void(uint64_t, uint64_t, std::string const&)> log_func,
-                          std::function<void()> on_thread_exit)
-#elif defined(BENCH_VECTOR_LARGESTR)
-inline void run_benchmark(char const* benchmark_name,
-                          int32_t thread_count,
-                          size_t num_iterations,
-                          std::function<void()> on_thread_start,
-                          std::function<void(uint64_t, uint64_t, std::vector<std::string> const&)> log_func,
-                          std::function<void()> on_thread_exit)
-#endif
+                          size_t messages_per_iteration,
+                          TOnThreadStart const& on_thread_start,
+                          TLogFunc const& log_func,
+                          TOnThreadExit const& on_thread_exit)
 {
   if (thread_count <= 0)
   {
@@ -269,18 +240,22 @@ inline void run_benchmark(char const* benchmark_name,
   std::atomic<size_t> started_threads{0};
   for (size_t thread_num = 0; thread_num < thread_count_size; ++thread_num)
   {
-    size_t const thread_messages_per_iteration = messages_for_thread(MESSAGES, thread_count_size, thread_num);
+    size_t const thread_messages_per_iteration =
+      messages_for_thread(messages_per_iteration, thread_count_size, thread_num);
 
 #ifdef BENCH_WITHOUT_PERF
     // Spawn num threads
-    threads.emplace_back(run_log_benchmark, num_iterations, thread_messages_per_iteration, on_thread_start,
-                         log_func, on_thread_exit, std::ref(started_threads), thread_count_size,
-                         thread_num + 1, std::ref(latencies[thread_num]), ns_rdtsc_tick);
+    threads.emplace_back(
+      run_log_benchmark<TOnThreadStart, TLogFunc, TOnThreadExit>, num_iterations,
+      thread_messages_per_iteration, std::cref(on_thread_start), std::cref(log_func),
+      std::cref(on_thread_exit), std::ref(started_threads), thread_count_size, thread_num + 1,
+      std::ref(latencies[thread_num]), ns_rdtsc_tick);
 #else
     // Spawn num threads
-    threads.emplace_back(run_log_benchmark, num_iterations, thread_messages_per_iteration,
-                         on_thread_start, log_func, on_thread_exit, std::ref(started_threads),
-                         thread_count_size, thread_num + 1);
+    threads.emplace_back(
+      run_log_benchmark<TOnThreadStart, TLogFunc, TOnThreadExit>, num_iterations,
+      thread_messages_per_iteration, std::cref(on_thread_start), std::cref(log_func),
+      std::cref(on_thread_exit), std::ref(started_threads), thread_count_size, thread_num + 1);
 #endif
   }
 
@@ -302,7 +277,7 @@ inline void run_benchmark(char const* benchmark_name,
   // Sort all latencies
   std::sort(latencies_combined.begin(), latencies_combined.end());
 
-  size_t const total_messages = num_iterations * MESSAGES;
+  size_t const total_messages = num_iterations * messages_per_iteration;
   if (latencies_combined.empty())
   {
     std::cout << "Thread Count " << thread_count << " - Total messages " << total_messages << " - "

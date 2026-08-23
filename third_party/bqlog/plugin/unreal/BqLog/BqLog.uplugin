@@ -1,21 +1,33 @@
 {
 	"FileVersion": 3,
+	"EngineVersion": "5.8",
 	"Version": 1,
 	"VersionName": "1.0",
 	"FriendlyName": "BqLog",
-	"Description": "",
-	"Category": "Other",
-	"CreatedBy": "",
-	"CreatedByURL": "",
-	"DocsURL": "",
+	"Description": "BqLog is a super high-performance logging system for games and real-time applications. It supports multiple platforms including Windows, Linux, macOS, iOS, Android, HarmonyOS.",
+	"Category": "Logging",
+	"CreatedBy": "Tencent",
+	"CreatedByURL": "https://github.com/Tencent/BqLog",
+	"DocsURL": "https://github.com/Tencent/BqLog",
 	"MarketplaceURL": "",
-	"SupportURL": "",
+	"SupportURL": "https://github.com/Tencent/BqLog/issues",
+	"Copyright": "Copyright (C) 2025 Tencent. All rights reserved.",
 	"CanContainContent": false,
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": false,
 	"Installed": false,
     "Modules": [
-        { "Name": "BqLog", "Type": "Runtime", "LoadingPhase": "PreDefault" },
-        { "Name": "BqLogBPNodes", "Type": "UncookedOnly", "LoadingPhase": "Default" }
+        {
+            "Name": "BqLog",
+            "Type": "Runtime",
+            "LoadingPhase": "PreDefault",
+            "PlatformAllowList": [ "Win64", "Linux", "LinuxArm64", "Mac", "IOS", "Android" ]
+        },
+        {
+            "Name": "BqLogBPNodes",
+            "Type": "UncookedOnly",
+            "LoadingPhase": "Default",
+            "PlatformAllowList": [ "Win64", "Linux", "LinuxArm64", "Mac" ]
+        }
     ]
 }

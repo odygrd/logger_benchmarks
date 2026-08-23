@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  id-token: write  # Required for OIDC
   contents: write
 
 jobs:
@@ -15,7 +16,7 @@ jobs:
     needs: build
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set version outputs
         id: version
@@ -59,14 +60,18 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: downloaded_artifacts/
 
       - name: Pack release assets
         run: |
           set -euo pipefail
-          mkdir -p release_assets
+          # Fab assets go to a separate repository (pippocao/BqLogFabRelease) so the
+          # main Tencent/BqLog release page stays clean. Artifact names starting with
+          # "_dont_download_this_only_for_fab" are routed to release_assets_fab/;
+          # everything else goes to release_assets/ and ships to the main repo.
+          mkdir -p release_assets release_assets_fab
 
           for artifact_dir in downloaded_artifacts/*/; do
             name="$(basename "$artifact_dir")"
@@ -78,12 +83,18 @@ jobs:
               continue
             fi
 
-            archive_name="${name}.zip"
-            (cd "$artifact_dir" && zip -qry "$OLDPWD/release_assets/$archive_name" .)
-            echo "  Packed: $archive_name"
+            if [[ "$name" == _dont_download_this_only_for_fab* ]]; then
+              dest_dir="release_assets_fab"
+            else
+              dest_dir="release_assets"
+            fi
 
-            (cd release_assets && sha256sum "$archive_name" > "$archive_name.sha256")
-            echo "  Checksum: $archive_name.sha256"
+            archive_name="${name}.zip"
+            (cd "$artifact_dir" && zip -qry "$OLDPWD/$dest_dir/$archive_name" .)
+            echo "  Packed: $dest_dir/$archive_name"
+
+            (cd "$dest_dir" && sha256sum "$archive_name" > "$archive_name.sha256")
+            echo "  Checksum: $dest_dir/$archive_name.sha256"
           done
 
           rm -rf downloaded_artifacts/
@@ -91,30 +102,35 @@ jobs:
       - name: Verify SHA-256 checksums
         run: |
           set -euo pipefail
-          cd release_assets
           shopt -s nullglob
 
-          files=( *.sha256 )
-          if ((${#files[@]} == 0)); then
-            echo "No .sha256 files found, skipping checksum verification"
-            exit 0
-          fi
-
           status=0
-          for f in "${files[@]}"; do
-            if ! sha256sum -c "$f"; then
-              echo "::error::SHA-256 check failed: $f"
-              status=1
+          for dir in release_assets release_assets_fab; do
+            if [[ ! -d "$dir" ]]; then
+              continue
             fi
+            pushd "$dir" >/dev/null
+            files=( *.sha256 )
+            if ((${#files[@]} > 0)); then
+              for f in "${files[@]}"; do
+                if ! sha256sum -c "$f"; then
+                  echo "::error::SHA-256 check failed: $dir/$f"
+                  status=1
+                fi
+              done
+            fi
+            popd >/dev/null
           done
           exit $status
 
       - name: List release assets
         run: |
-          echo "=== Release assets ==="
-          find release_assets/ -type f | sort
+          echo "=== Main release assets (Tencent/BqLog) ==="
+          find release_assets/ -type f 2>/dev/null | sort || true
+          echo "=== Fab release assets (pippocao/BqLogFabRelease) ==="
+          find release_assets_fab/ -type f 2>/dev/null | sort || true
           echo "=== Total size ==="
-          du -sh release_assets/
+          du -sh release_assets/ release_assets_fab/ 2>/dev/null || true
 
       - name: Create Git tag
         run: |
@@ -131,8 +147,8 @@ jobs:
             echo "Created and pushed tag: ${TAG}"
           fi
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Create GitHub Release (main repo — Tencent/BqLog)
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.release_name }}
@@ -142,3 +158,369 @@ jobs:
           files: release_assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Fab review requires long-lived, anonymous-downloadable URLs. We publish the
+      # 14 per-engine-version Fab zips to a dedicated repository so the main
+      # Tencent/BqLog /releases page stays clean — users don't see the noisy
+      # `_dont_download_this_only_for_fab_ue_X_Y_*.zip` entries at all.
+      #
+      # FAB_RELEASE_TOKEN is a fine-grained PAT with Contents:Read+Write scoped to
+      # pippocao/BqLogFabRelease. GITHUB_TOKEN cannot write across repositories.
+      - name: Create GitHub Release (Fab repo — pippocao/BqLogFabRelease)
+        if: ${{ hashFiles('release_assets_fab/*') != '' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          token: ${{ secrets.FAB_RELEASE_TOKEN }}
+          repository: pippocao/BqLogFabRelease
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.release_name }} (Fab assets)
+          body: |
+            Fab Marketplace submission assets for BqLog ${{ steps.version.outputs.version }}.
+
+            These ZIPs exist solely to be consumed by the Fab review pipeline. Each zip's
+            `.uplugin` declares a specific `EngineVersion` matching its Fab Project Version.
+            Regular users should NOT download these — use the main release at
+            https://github.com/Tencent/BqLog/releases instead.
+          draft: false
+          prerelease: false
+          files: release_assets_fab/*
+
+  # Publish Python wheel to PyPI
+  publish_pypi:
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      id-token: write  # Required for Trusted Publisher (OIDC)
+    steps:
+      - name: Download Python wheel artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: python_wrapper_*
+          merge-multiple: true
+          path: python_dist/
+
+      - name: Collect wheel files
+        run: |
+          mkdir -p dist/
+          # Exclude FreeBSD wheels — PyPI rejects non-whitelisted platform tags
+          find python_dist/ -name "*.whl" ! -name "*freebsd*" -exec cp {} dist/ \;
+          echo "=== Wheels to publish ==="
+          ls -la dist/
+          # Warn about excluded wheels
+          EXCLUDED=$(find python_dist/ -name "*freebsd*.whl" -printf '%f\n' 2>/dev/null || true)
+          if [[ -n "$EXCLUDED" ]]; then
+            echo "::warning::Excluded from PyPI upload (unsupported platform): $EXCLUDED"
+          fi
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+
+  # Publish Node.js package to npm (via Trusted Publishing / OIDC)
+  publish_npm:
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      id-token: write  # Required for OIDC Trusted Publishing
+      contents: read
+    steps:
+      - name: Download Node.js npm artifact
+        uses: actions/download-artifact@v8
+        with:
+          pattern: nodejs_npm_*
+          merge-multiple: true
+          path: npm_dist/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish to npm
+        run: |
+          TGZ=$(find npm_dist/ -name "*.tgz" | head -n1)
+          if [[ -z "$TGZ" ]]; then
+            echo "::error::No .tgz file found in npm_dist/"
+            exit 1
+          fi
+          echo "Publishing: $TGZ"
+          npm publish "$TGZ"
+
+  # Publish Java fat JAR to Maven Central
+  publish_java_maven:
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java 11
+        uses: actions/setup-java@v5
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      - name: Set version
+        id: version
+        run: |
+          VERSION="${{ needs.build.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then echo "::error::Failed to get version" >&2; exit 1; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download fat JAR artifact
+        uses: actions/download-artifact@v8
+        with:
+          pattern: java_maven_fat_jar_*
+          merge-multiple: true
+          path: maven_java/
+
+      - name: List downloaded files
+        run: ls -lh maven_java/
+
+      - name: Import GPG key
+        run: echo "${{ secrets.GPG_SIGNING_KEY }}" | gpg --batch --import
+
+      - name: Build Maven bundle and upload to Central Portal
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GPG_SIGNING_KEY_ID: ${{ secrets.GPG_SIGNING_KEY_ID }}
+          GPG_SIGNING_PASSWORD: ${{ secrets.GPG_SIGNING_PASSWORD }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${VERSION:?}" "${GPG_SIGNING_KEY_ID:?}" "${GPG_SIGNING_PASSWORD:?}"
+          : "${MAVEN_CENTRAL_USERNAME:?}" "${MAVEN_CENTRAL_PASSWORD:?}"
+
+          WORK="$(pwd)/maven_java"
+          BUNDLE_DIR="$(pwd)/bundle_java"
+          GROUP_PATH="com/tencent/bqlog"
+          ARTIFACT_ID="java"
+          BUNDLE_PKG="$BUNDLE_DIR/$GROUP_PATH/$ARTIFACT_ID/$VERSION"
+          BASE_NAME="${ARTIFACT_ID}-${VERSION}"
+          mkdir -p "$BUNDLE_PKG"
+
+          # ── rename JARs to Maven artifact naming convention ──────────────
+          cp -f "$WORK/BqLogWrapper_Java-${VERSION}.jar"         "$BUNDLE_PKG/${BASE_NAME}.jar"
+          cp -f "$WORK/BqLogWrapper_Java-${VERSION}-sources.jar" "$BUNDLE_PKG/${BASE_NAME}-sources.jar"
+          cp -f "$WORK/BqLogWrapper_Java-${VERSION}-javadoc.jar" "$BUNDLE_PKG/${BASE_NAME}-javadoc.jar"
+
+          # ── generate POM ─────────────────────────────────────────────────
+          cat > "$BUNDLE_PKG/${BASE_NAME}.pom" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <project xmlns="http://maven.apache.org/POM/4.0.0"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                                       http://maven.apache.org/xsd/maven-4.0.0.xsd">
+            <modelVersion>4.0.0</modelVersion>
+            <groupId>com.tencent.bqlog</groupId>
+            <artifactId>java</artifactId>
+            <version>${VERSION}</version>
+            <packaging>jar</packaging>
+            <name>BqLog Java</name>
+            <description>BqLog high-performance logging library — Java wrapper with bundled native binaries (Windows x86_64/arm64, Linux x86_64/arm64/x86, macOS universal, FreeBSD, OpenBSD, NetBSD, DragonFlyBSD, SunOS)</description>
+            <url>https://github.com/Tencent/BqLog</url>
+            <licenses>
+              <license>
+                <name>Apache License, Version 2.0</name>
+                <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+              </license>
+            </licenses>
+            <developers>
+              <developer>
+                <id>pippocao</id>
+                <name>pippocao</name>
+                <organization>tencent</organization>
+              </developer>
+            </developers>
+            <scm>
+              <connection>scm:git:git://github.com/Tencent/BqLog.git</connection>
+              <developerConnection>scm:git:ssh://github.com/Tencent/BqLog.git</developerConnection>
+              <url>https://github.com/Tencent/BqLog</url>
+            </scm>
+          </project>
+          EOF
+
+          # ── GPG sign every file ───────────────────────────────────────────
+          for f in "$BUNDLE_PKG"/*.jar "$BUNDLE_PKG"/*.pom; do
+            gpg --batch --yes --pinentry-mode loopback \
+                --passphrase "$GPG_SIGNING_PASSWORD" \
+                -u "$GPG_SIGNING_KEY_ID" \
+                --armor --detach-sign "$f"
+          done
+
+          # ── MD5 + SHA1 checksums ─────────────────────────────────────────
+          for f in "$BUNDLE_PKG"/*.jar "$BUNDLE_PKG"/*.pom; do
+            md5sum  "$f" | awk '{print $1}' > "${f}.md5"
+            sha1sum "$f" | awk '{print $1}' > "${f}.sha1"
+          done
+
+          echo "Bundle contents:"
+          find "$BUNDLE_DIR" -type f | sort
+
+          # ── zip and upload ────────────────────────────────────────────────
+          BUNDLE_ZIP="$(pwd)/bqlog-java-${VERSION}-bundle.zip"
+          pushd "$BUNDLE_DIR" >/dev/null
+          zip -qr "$BUNDLE_ZIP" .
+          popd >/dev/null
+
+          HTTP_CODE=$(curl --silent --output /tmp/central_java_resp.json --write-out "%{http_code}" \
+            -u "${MAVEN_CENTRAL_USERNAME}:${MAVEN_CENTRAL_PASSWORD}" \
+            -F "bundle=@${BUNDLE_ZIP};type=application/zip" \
+            "https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC")
+
+          echo "Central Portal response (HTTP $HTTP_CODE):"
+          cat /tmp/central_java_resp.json
+
+          if [[ "$HTTP_CODE" != "201" ]]; then
+            echo "::error::Upload failed with HTTP $HTTP_CODE" >&2; exit 1
+          fi
+
+  # Publish Android AAR to Maven Central
+  publish_android_maven:
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set version
+        id: version
+        run: |
+          VERSION="${{ needs.build.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then echo "::error::Failed to get version" >&2; exit 1; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download Android artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: android_libs_*
+          merge-multiple: true
+          path: android_libs/
+
+      - name: Locate AAR and javadoc JAR
+        id: aar
+        run: |
+          AAR=$(find android_libs -type f -name "bqlog-release.aar" | head -n1 || true)
+          if [[ -z "$AAR" ]]; then echo "::error::bqlog-release.aar not found" >&2; exit 1; fi
+          echo "path=$AAR" >> "$GITHUB_OUTPUT"
+          echo "Found AAR: $AAR"
+
+          JAVADOC_JAR=$(find android_libs -type f -name "*-javadoc.jar" | head -n1 || true)
+          if [[ -z "$JAVADOC_JAR" ]]; then echo "::error::javadoc jar not found" >&2; exit 1; fi
+          echo "javadoc_path=$JAVADOC_JAR" >> "$GITHUB_OUTPUT"
+          echo "Found javadoc JAR: $JAVADOC_JAR"
+
+      - name: Import GPG key
+        run: echo "${{ secrets.GPG_SIGNING_KEY }}" | gpg --batch --import
+
+      - name: Build Maven bundle and upload to Central Portal
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          AAR_PATH: ${{ steps.aar.outputs.path }}
+          JAVADOC_JAR_PATH: ${{ steps.aar.outputs.javadoc_path }}
+          GPG_SIGNING_KEY_ID: ${{ secrets.GPG_SIGNING_KEY_ID }}
+          GPG_SIGNING_PASSWORD: ${{ secrets.GPG_SIGNING_PASSWORD }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${VERSION:?}" "${AAR_PATH:?}" "${JAVADOC_JAR_PATH:?}" "${GPG_SIGNING_KEY_ID:?}" "${GPG_SIGNING_PASSWORD:?}"
+          : "${MAVEN_CENTRAL_USERNAME:?}" "${MAVEN_CENTRAL_PASSWORD:?}"
+
+          BUNDLE_DIR="$(pwd)/bundle_android"
+          GROUP_PATH="com/tencent/bqlog"
+          ARTIFACT_ID="android"
+          BUNDLE_PKG="$BUNDLE_DIR/$GROUP_PATH/$ARTIFACT_ID/$VERSION"
+          BASE_NAME="${ARTIFACT_ID}-${VERSION}"
+          mkdir -p "$BUNDLE_PKG"
+
+          # ── AAR ───────────────────────────────────────────────────────────
+          cp -f "$AAR_PATH" "$BUNDLE_PKG/${BASE_NAME}.aar"
+
+          # ── sources JAR from real Java sources ────────────────────────────
+          EMPTY_DIR="$(mktemp -d)"
+          jar cf "$BUNDLE_PKG/${BASE_NAME}-sources.jar" -C wrapper/java/src .
+          rm -rf "$EMPTY_DIR"
+
+          # ── javadoc JAR (built by Gradle during android AAR build) ────────
+          cp -f "$JAVADOC_JAR_PATH" "$BUNDLE_PKG/${BASE_NAME}-javadoc.jar"
+
+          # ── generate POM ─────────────────────────────────────────────────
+          cat > "$BUNDLE_PKG/${BASE_NAME}.pom" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <project xmlns="http://maven.apache.org/POM/4.0.0"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                                       http://maven.apache.org/xsd/maven-4.0.0.xsd">
+            <modelVersion>4.0.0</modelVersion>
+            <groupId>com.tencent.bqlog</groupId>
+            <artifactId>android</artifactId>
+            <version>${VERSION}</version>
+            <packaging>aar</packaging>
+            <name>BqLog Android</name>
+            <description>BqLog high-performance logging library for Android (AAR, includes native .so for armeabi-v7a, arm64-v8a, x86, x86_64)</description>
+            <url>https://github.com/Tencent/BqLog</url>
+            <licenses>
+              <license>
+                <name>Apache License, Version 2.0</name>
+                <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+              </license>
+            </licenses>
+            <developers>
+              <developer>
+                <id>pippocao</id>
+                <name>pippocao</name>
+                <organization>tencent</organization>
+              </developer>
+            </developers>
+            <scm>
+              <connection>scm:git:git://github.com/Tencent/BqLog.git</connection>
+              <developerConnection>scm:git:ssh://github.com/Tencent/BqLog.git</developerConnection>
+              <url>https://github.com/Tencent/BqLog</url>
+            </scm>
+          </project>
+          EOF
+
+          # ── GPG sign every file ───────────────────────────────────────────
+          for f in "$BUNDLE_PKG"/*.aar "$BUNDLE_PKG"/*.jar "$BUNDLE_PKG"/*.pom; do
+            gpg --batch --yes --pinentry-mode loopback \
+                --passphrase "$GPG_SIGNING_PASSWORD" \
+                -u "$GPG_SIGNING_KEY_ID" \
+                --armor --detach-sign "$f"
+          done
+
+          # ── MD5 + SHA1 checksums ─────────────────────────────────────────
+          for f in "$BUNDLE_PKG"/*.aar "$BUNDLE_PKG"/*.jar "$BUNDLE_PKG"/*.pom; do
+            md5sum  "$f" | awk '{print $1}' > "${f}.md5"
+            sha1sum "$f" | awk '{print $1}' > "${f}.sha1"
+          done
+
+          echo "Bundle contents:"
+          find "$BUNDLE_DIR" -type f | sort
+
+          # ── zip and upload ────────────────────────────────────────────────
+          BUNDLE_ZIP="$(pwd)/bqlog-android-${VERSION}-bundle.zip"
+          pushd "$BUNDLE_DIR" >/dev/null
+          zip -qr "$BUNDLE_ZIP" .
+          popd >/dev/null
+
+          HTTP_CODE=$(curl --silent --output /tmp/central_android_resp.json --write-out "%{http_code}" \
+            -u "${MAVEN_CENTRAL_USERNAME}:${MAVEN_CENTRAL_PASSWORD}" \
+            -F "bundle=@${BUNDLE_ZIP};type=application/zip" \
+            "https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC")
+
+          echo "Central Portal response (HTTP $HTTP_CODE):"
+          cat /tmp/central_android_resp.json
+
+          if [[ "$HTTP_CODE" != "201" ]]; then
+            echo "::error::Upload failed with HTTP $HTTP_CODE" >&2; exit 1
+          fi

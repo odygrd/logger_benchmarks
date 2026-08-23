@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -9,7 +7,8 @@
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *
+ */
+/*!
  * \file rsa.h
  * \date 2025/08/18 01:22
  *
@@ -21,6 +20,7 @@
  * - Private key: PKCS#1 PEM "-----BEGIN RSA PRIVATE KEY-----"
  *
  */
+#pragma once
 
 #include "bq_common/bq_common.h"
 
@@ -67,6 +67,8 @@ namespace bq {
 
         // Parse PKCS#1 PEM private key text (bq::string)
         static bool parse_private_key_pem(const bq::string& pem, private_key& out);
+
+        static uint64_t get_public_key_fingerprint(const public_key& key);
 
         // Encrypt: output ciphertext is k bytes, plaintext must be integer < modulus
         static bool encrypt(const public_key& pub,

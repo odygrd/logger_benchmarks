@@ -1,16 +1,17 @@
 #!/bin/sh
 #
 # Usage (all parameters optional; missing ones will be prompted):
-#   dont_execute_this.sh all [arch] [compiler] [java] [node]
-#   dont_execute_this.sh build [arch] [compiler] [java] [node] [static_lib|dynamic_lib]
-#   dont_execute_this.sh gen-vsproj [arch] [compiler] [java] [node] [static_lib|dynamic_lib]
+#   dont_execute_this.sh all [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both]
+#   dont_execute_this.sh build [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both]
+#   dont_execute_this.sh gen-vsproj [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both]
 #   dont_execute_this.sh pack [arch]
 #
 # Normalized values:
-#   arch      : arm64 | x86 | x86_64 | native
-#   compiler  : gcc | clang
-#   java,node : ON | OFF
-#   lib type  : static_lib | dynamic_lib
+#   arch         : arm64 | x86 | x86_64 | native
+#   compiler     : gcc | clang
+#   java,node,python : ON | OFF
+#   lib type     : static_lib | dynamic_lib
+#   all lib type : dynamic_lib | static_lib | both  (default: both)
 # ------------------------------------------------------------
 
 set -eu
@@ -25,11 +26,13 @@ ARG2="${3:-}"
 ARG3="${4:-}"
 ARG4="${5:-}"
 ARG5="${6:-}"
+ARG6="${7:-}"
 
 ARCH_PARAM=""
 COMPILER_TYPE=""
 JAVA_SUPPORT=""
 NODE_API_SUPPORT=""
+PYTHON_SUPPORT=""
 BUILD_LIB_TYPE=""
 
 to_lower() { printf "%s" "$1" | tr '[:upper:]' '[:lower:]'; }
@@ -70,6 +73,7 @@ normalize_build_lib_type() {
   case "$(to_lower "$1")" in
     static_lib|static|s) echo "static_lib" ;;
     dynamic_lib|shared|dynamic|d) echo "dynamic_lib" ;;
+    both|b) echo "both" ;;
     *) echo "" ;;
   esac
 }
@@ -161,12 +165,14 @@ ensure_common_params() {
   [ -z "$COMPILER_TYPE" ] && ask_compiler
   [ -z "$JAVA_SUPPORT" ] && JAVA_SUPPORT=$(ask_yes_no "Enable Java/JNI support?")
   [ -z "$NODE_API_SUPPORT" ] && NODE_API_SUPPORT=$(ask_yes_no "Enable Node-API (Node.js) support?")
+  [ -z "$PYTHON_SUPPORT" ] && PYTHON_SUPPORT=$(ask_yes_no "Enable Python (CPython C Extension) support?")
   echo
   echo "Parameters:"
   echo "  ARCH             : $ARCH_PARAM"
   echo "  COMPILER         : $COMPILER_TYPE"
   echo "  JAVA_SUPPORT     : $JAVA_SUPPORT"
   echo "  NODE_API_SUPPORT : $NODE_API_SUPPORT"
+  echo "  PYTHON_SUPPORT   : $PYTHON_SUPPORT"
   echo
 }
 ensure_arch_only() {
@@ -183,7 +189,8 @@ if [ -n "$ARG1" ]; then ARCH_PARAM="$(normalize_arch "$ARG1")"; fi
 COMPILER_TYPE="$(normalize_compiler "$ARG2")"
 JAVA_SUPPORT="$(normalize_onoff "$ARG3")"
 NODE_API_SUPPORT="$(normalize_onoff "$ARG4")"
-BUILD_LIB_TYPE="$(normalize_build_lib_type "$ARG5")"
+PYTHON_SUPPORT="$(normalize_onoff "$ARG5")"
+BUILD_LIB_TYPE="$(normalize_build_lib_type "$ARG6")"
 
 build_one() {
   BUILD_LIB_TYPE_ARG="$1"
@@ -206,17 +213,21 @@ build_one() {
   echo
   for cfg in $BuildConfigs; do
     echo "  BUILD FOR CONFIG $BUILD_LIB_TYPE_ARG : $cfg"
+    CFG_DIR="build_${cfg}"
+    rm -rf "$CFG_DIR"; mkdir "$CFG_DIR"; cd "$CFG_DIR" || exit 1
     cmake "$SRC_DIR" -G "Unix Makefiles" \
       -DTARGET_PLATFORM:STRING=unix \
       -DBUILD_LIB_TYPE="$BUILD_LIB_TYPE_ARG" \
       -DJAVA_SUPPORT:BOOL="$JAVA_SUPPORT" \
       -DNODE_API_SUPPORT:BOOL="$NODE_API_SUPPORT" \
+      -DPYTHON_SUPPORT:BOOL="$PYTHON_SUPPORT" \
       -DCMAKE_BUILD_TYPE="$cfg" \
       -DBUILD_SHARED_LIBS="$SHARED" \
       -DCMAKE_C_COMPILER="$CC" \
       -DCMAKE_CXX_COMPILER="$CXX"
     cmake --build . -- -j 4 || exit 1
     cmake --install . || exit 1
+    cd ..
   done
   cd ..
 }
@@ -270,8 +281,15 @@ rm -rf "../../../install"
 
 if [ "$ACTION" = "all" ]; then
   ensure_common_params
-  build_one dynamic_lib
-  build_one static_lib
+  BUILD_LIB_TYPE_ALL="${BUILD_LIB_TYPE:-both}"
+  if [ "$BUILD_LIB_TYPE_ALL" = "dynamic_lib" ]; then
+    build_one dynamic_lib
+  elif [ "$BUILD_LIB_TYPE_ALL" = "static_lib" ]; then
+    build_one static_lib
+  else
+    build_one dynamic_lib
+    build_one static_lib
+  fi
   do_pack
   echo "---------"; echo "Finished!"; echo "---------"
   exit 0

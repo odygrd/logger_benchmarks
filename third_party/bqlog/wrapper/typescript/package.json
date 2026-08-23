@@ -1,8 +1,32 @@
 {
-  "name": "bqlog",
+  "name": "@pippocao/bqlog",
   "version": "1.0.0",
-  "description": "BQ Log Node.js binding",
+  "description": "High-performance cross-platform logging library for Node.js, with native C++ core. Supports sync/async modes, compressed file appenders, category logging, and more.",
   "license": "Apache-2.0",
+  "author": "pippocao",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tencent/BqLog.git",
+    "directory": "wrapper/typescript"
+  },
+  "homepage": "https://github.com/Tencent/BqLog",
+  "bugs": {
+    "url": "https://github.com/Tencent/BqLog/issues"
+  },
+  "keywords": [
+    "log",
+    "logger",
+    "logging",
+    "bqlog",
+    "high-performance",
+    "native",
+    "napi",
+    "async",
+    "compressed",
+    "category",
+    "cross-platform",
+    "game-engine"
+  ],
   "type": "module",
   "exports": {
     ".": {
@@ -30,7 +54,8 @@
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "postbuild:cjs": "node -e \"const fs=require('fs');const p='src/bq/utils/lib_loader.ts',bak='src/bq/utils/lib_loader.bak';if(fs.existsSync(bak)){fs.copyFileSync(bak,p);fs.unlinkSync(bak)}\" && node -e \"const fs=require('fs');fs.mkdirSync('dist/cjs',{recursive:true});fs.writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'},null,2))\"",
     "build": "npm run build:esm && npm run build:cjs",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "node -e \"require('fs').copyFileSync('README.nodejs.md','README.md')\" && npm run build",
+    "postpublish": "node -e \"try{require('fs').unlinkSync('README.md')}catch(e){}\""
   },
   "devDependencies": {
     "@types/node": "^22.18.6",

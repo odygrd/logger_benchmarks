@@ -56,7 +56,12 @@ add_custom_target(nodejs_pack ALL
   COMMAND "${CMAKE_COMMAND}" -E chdir "${CMAKE_CURRENT_SOURCE_DIR}" ${NPM} i -D typescript @types/node
   COMMAND "${CMAKE_COMMAND}" -E chdir "${CMAKE_CURRENT_SOURCE_DIR}" ${NPM} run build
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${ARTIFACTS_DIR}"
+  # Copy README.nodejs.md -> README.md so npm pack includes it (prepublishOnly hook doesn't run with npm pack)
+  COMMAND "${CMAKE_COMMAND}" -E copy "${CMAKE_CURRENT_SOURCE_DIR}/README.nodejs.md" "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_CURRENT_SOURCE_DIR}/README.nodejs.md"
+  COMMAND "${CMAKE_COMMAND}" -E remove "${CMAKE_CURRENT_SOURCE_DIR}/README.ohos.md"
   COMMAND "${CMAKE_COMMAND}" -E chdir "${CMAKE_CURRENT_SOURCE_DIR}" ${NPM} pack --pack-destination "${ARTIFACTS_DIR}"
+  # Clean up generated README.md
   USES_TERMINAL
 )
 

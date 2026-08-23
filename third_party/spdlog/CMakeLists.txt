@@ -30,7 +30,9 @@ endif()
 # Compiler config
 # ---------------------------------------------------------------------------------------
 if(SPDLOG_USE_STD_FORMAT)
+if(NOT DEFINED CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 20)
+endif()
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 elseif(NOT CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 11)
@@ -392,6 +394,19 @@ if(SPDLOG_INSTALL)
     string(CONCAT PKG_CONFIG_DEFINES "-D" "${PKG_CONFIG_DEFINES}")
     configure_file("cmake/${PROJECT_NAME}.pc.in" "${pkg_config}" @ONLY)
     install(FILES "${pkg_config}" DESTINATION "${pkgconfig_install_dir}")
+
+    # Header-only pkg-config file: no libspdlog to link and no SPDLOG_COMPILED_LIB,
+    # so header-only consumers get the correct flags.
+    set(pkg_config_header_only "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}_header_only.pc")
+    get_target_property(PKG_CONFIG_HO_DEFINES spdlog_header_only INTERFACE_COMPILE_DEFINITIONS)
+    if(PKG_CONFIG_HO_DEFINES)
+        string(REPLACE ";" " -D" PKG_CONFIG_HO_DEFINES "${PKG_CONFIG_HO_DEFINES}")
+        string(CONCAT PKG_CONFIG_HO_DEFINES "-D" "${PKG_CONFIG_HO_DEFINES}")
+    else()
+        set(PKG_CONFIG_HO_DEFINES "")
+    endif()
+    configure_file("cmake/${PROJECT_NAME}_header_only.pc.in" "${pkg_config_header_only}" @ONLY)
+    install(FILES "${pkg_config_header_only}" DESTINATION "${pkgconfig_install_dir}")
 
     # ---------------------------------------------------------------------------------------
     # Install CMake config files

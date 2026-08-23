@@ -223,7 +223,7 @@ namespace bq {
                         move_position_test_array.push_back(test_array_position_move_struct1());
                     }
                     for (auto it = move_position_test_array.begin(); it != move_position_test_array.end(); ++it) {
-                        result.add_result(it->ptr == &(it->value), "array move non trivial constructor test phase 1, index:%d", (it - move_position_test_array.begin()));
+                        result.add_result(it->ptr == &(it->value), "array move non trivial constructor test phase 1, index:%" PRId32, (it - move_position_test_array.begin()));
                     }
                     decltype(move_position_test_array)::size_type remove_index = 0;
                     while (remove_index < move_position_test_array.size()) {
@@ -236,14 +236,14 @@ namespace bq {
                         remove_index += (random_seed() % 10);
                     }
                     for (auto it = move_position_test_array.begin(); it != move_position_test_array.end(); ++it) {
-                        result.add_result(it->ptr == &(it->value), "array move non trivial constructor test phase 2, index:%d", (it - move_position_test_array.begin()));
+                        result.add_result(it->ptr == &(it->value), "array move non trivial constructor test phase 2, index:%" PRId32, (it - move_position_test_array.begin()));
                     }
                     random_size = (decltype(max_size))(random_seed()) % max_size;
                     for (decltype(move_position_test_array)::size_type i = 0; i < random_size; ++i) {
                         move_position_test_array.push_back(test_array_position_move_struct1());
                     }
                     for (auto it = move_position_test_array.begin(); it != move_position_test_array.end(); ++it) {
-                        result.add_result(it->ptr == &(it->value), "array move non trivial constructor test phase 3, index:%d", (it - move_position_test_array.begin()));
+                        result.add_result(it->ptr == &(it->value), "array move non trivial constructor test phase 3, index:%" PRId32, (it - move_position_test_array.begin()));
                     }
                 }
 
@@ -338,22 +338,22 @@ namespace bq {
                     bq::array<bq::string> find_test_array;
                     for (int32_t i = 0; i < 10000; ++i) {
                         char tmp[10];
-                        snprintf(tmp, sizeof(tmp), "%d", i);
+                        snprintf(tmp, sizeof(tmp), "%" PRId32, i);
                         find_test_array.push_back(tmp);
                     }
                     for (int32_t i = 0; i < 10000; ++i) {
                         char tmp[10];
-                        snprintf(tmp, sizeof(tmp), "%d", i);
+                        snprintf(tmp, sizeof(tmp), "%" PRId32, i);
                         auto iter = find_test_array.find(tmp);
-                        result.add_result(iter == (find_test_array.begin() + i), "array find test %d", i);
+                        result.add_result(iter == (find_test_array.begin() + i), "array find test %" PRId32, i);
                         iter = find_test_array.find(tmp, true);
-                        result.add_result(iter == (find_test_array.begin() + i), "array reverse find test %d", i);
+                        result.add_result(iter == (find_test_array.begin() + i), "array reverse find test %" PRId32, i);
                     }
                     for (int32_t i = 10000; i < 20000; ++i) {
                         char tmp[10];
-                        snprintf(tmp, sizeof(tmp), "%d", i);
+                        snprintf(tmp, sizeof(tmp), "%" PRId32, i);
                         auto iter = find_test_array.find(tmp);
-                        result.add_result(iter == find_test_array.end(), "array find none exist test %d", i);
+                        result.add_result(iter == find_test_array.end(), "array find none exist test %" PRId32, i);
                     }
                     auto find_if1 = find_test_array.find_if([](const bq::string& str) { return str == "1234"; });
                     result.add_result(find_if1 == find_test_array.begin() + 1234, "array find_if test 1");
@@ -368,11 +368,11 @@ namespace bq {
                     uint8_t tmp_test_array[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
                     insert_test_array.insert_batch(insert_test_array.end(), tmp_test_array, sizeof(tmp_test_array));
                     for (decltype(insert_test_array)::size_type i = 0; i < insert_test_array.size(); ++i) {
-                        result.add_result(insert_test_array[i] == ((i % sizeof(tmp_test_array)) + 1), "array insert test %d", i);
+                        result.add_result(insert_test_array[i] == ((i % sizeof(tmp_test_array)) + 1), "array insert test %" PRId32, i);
                     }
                     insert_test_array.insert_batch(insert_test_array.end(), tmp_test_array, sizeof(tmp_test_array));
                     for (decltype(insert_test_array)::size_type i = 0; i < insert_test_array.size(); ++i) {
-                        result.add_result(insert_test_array[i] == ((i % sizeof(tmp_test_array)) + 1), "array insert test %d", i);
+                        result.add_result(insert_test_array[i] == ((i % sizeof(tmp_test_array)) + 1), "array insert test %" PRId32, i);
                     }
                 }
 
@@ -388,21 +388,21 @@ namespace bq {
                         std::mt19937 random_seed((uint32_t)bq::platform::high_performance_epoch_ms());
                         size_t random_size = (size_t)(random_seed()) % 10000 + 1;
                         alignement_test_array.fill_uninitialized(random_size);
-                        result.add_result(((uintptr_t)(&alignement_test_array[0])) % 64 == 0, "Array Alignment 64 test %d", i);
+                        result.add_result(((uintptr_t)(&alignement_test_array[0])) % 64 == 0, "Array Alignment 64 test %" PRId32, i);
                     }
                     for (int32_t i = 0; i < 100000; ++i) {
                         bq::array<char, bq::aligned_allocator<char, 32>> alignement_test_array;
                         std::mt19937 random_seed((uint32_t)bq::platform::high_performance_epoch_ms());
                         size_t random_size = (size_t)(random_seed()) % 10000 + 1;
                         alignement_test_array.fill_uninitialized(random_size);
-                        result.add_result(((uintptr_t)(&alignement_test_array[0])) % 32 == 0, "Array Alignment 32 test %d", i);
+                        result.add_result(((uintptr_t)(&alignement_test_array[0])) % 32 == 0, "Array Alignment 32 test %" PRId32, i);
                     }
                     for (int32_t i = 0; i < 100000; ++i) {
                         bq::array<char, bq::aligned_allocator<char, 16>> alignement_test_array;
                         std::mt19937 random_seed((uint32_t)bq::platform::high_performance_epoch_ms());
                         size_t random_size = (size_t)(random_seed()) % 10000 + 1;
                         alignement_test_array.fill_uninitialized(random_size);
-                        result.add_result(((uintptr_t)(&alignement_test_array[0])) % 16 == 0, "Array Alignment 16 test %d", i);
+                        result.add_result(((uintptr_t)(&alignement_test_array[0])) % 16 == 0, "Array Alignment 16 test %" PRId32, i);
                     }
                 }
 

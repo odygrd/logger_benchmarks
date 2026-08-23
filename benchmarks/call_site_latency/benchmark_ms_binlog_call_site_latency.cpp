@@ -30,7 +30,7 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
       }
 
       consume_result = binlog::consume(logfile);
-    } while (!done.load(std::memory_order_relaxed) || consume_result.bytesConsumed != 0);
+    } while (!done.load(std::memory_order_acquire) || consume_result.bytesConsumed != 0);
   });
 
   // wait for the backend thread to start
@@ -62,11 +62,11 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   for (auto thread_count : thread_count_array)
   {
     run_benchmark("Logger: Ms binLog - Benchmark: Caller Thread Latency", thread_count,
-                  num_iterations_per_thread, on_start, log_func, on_exit);
+                  num_iterations_per_thread, MESSAGES_PER_ITERATION, on_start, log_func, on_exit);
   }
 
   // stop the backend thread
-  done.store(true, std::memory_order_relaxed);
+  done.store(true, std::memory_order_release);
   backend.join();
 }
 

@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 //
 //  common_vars.h
 //  Created by Yu Cao on 2025/4/11.
@@ -181,6 +180,12 @@ namespace bq {
         bool napi_is_initialized_ = false;
         bq::array<bq::platform::napi_callback_dispatcher*> napi_dispatchers_;
 #endif
+#endif
+#if defined(BQ_PYTHON)
+        // Each entry is a pointer to a null-terminated PyMethodDef array
+        // (stored as void* to avoid pulling in Python.h).
+        // Registered via bq::platform::python_method_register before module init.
+        bq::array<void*> python_registered_method_arrays_;
 #endif
 #if defined(BQ_ANDROID)
         jobject android_asset_manager_java_instance_ = nullptr;

@@ -20,12 +20,14 @@ static constexpr size_t total_iterations = 4'000'000;
  */
 int main()
 {
-  set_thread_affinity(1);
+  // setLogFile restarts NanoLog's worker, which inherits this affinity.
+  set_thread_affinity(5);
 
   std::filesystem::path log_file{"benchmark_nanolog_backend_total_time.blog"};
   std::remove(log_file.c_str());
 
   NanoLog::setLogFile(log_file.c_str());
+  set_thread_affinity(1);
   NanoLog::preallocate();
 
   NANO_LOG(NOTICE, "Warm up");

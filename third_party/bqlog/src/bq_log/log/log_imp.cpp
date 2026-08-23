@@ -1,5 +1,4 @@
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -116,6 +115,7 @@ namespace bq {
         , last_log_entry_epoch_ms_(0)
         , last_flush_io_epoch_ms_(0)
         , recover_status_(recover_status_enum::not_started)
+        , recovery_appenders_need_begin_(false)
     {
     }
 
@@ -171,11 +171,11 @@ namespace bq {
                     buffer_config.need_recovery = (bool)log_config["recovery"] && bq::memory_map::is_platform_support();
                 }
                 if (log_config["buffer_policy_when_full"].is_string()) {
-                    if (((bq::string)log_config["buffer_policy"]).equals_ignore_case("discard")) {
+                    if (((bq::string)log_config["buffer_policy_when_full"]).equals_ignore_case("discard")) {
                         buffer_config.policy = log_memory_policy::discard_when_full;
-                    } else if (((bq::string)log_config["buffer_policy"]).equals_ignore_case("block")) {
+                    } else if (((bq::string)log_config["buffer_policy_when_full"]).equals_ignore_case("block")) {
                         buffer_config.policy = log_memory_policy::block_when_full;
-                    } else if (((bq::string)log_config["buffer_policy"]).equals_ignore_case("expand")) {
+                    } else if (((bq::string)log_config["buffer_policy_when_full"]).equals_ignore_case("expand")) {
                         buffer_config.policy = log_memory_policy::auto_expand_when_full;
                     }
                 }
@@ -232,6 +232,10 @@ namespace bq {
                 util::log_device_console(bq::log_level::error, "create_log parse property failed, invalid appenders_config");
                 return false;
             }
+            decltype(recovery_appenders_) previous_recovery_appenders;
+            if (recover_status_ == recover_status_enum::in_recovering) {
+                previous_recovery_appenders = bq::move(recovery_appenders_);
+            }
             flush_appenders_cache();
             flush_appenders_io();
             auto appender_names = all_apenders_config.get_object_key_set();
@@ -251,9 +255,22 @@ namespace bq {
                 }
                 new_create_appender_names.push_back(name_key);
             }
+            if (recover_status_ == recover_status_enum::in_recovering) {
+                for (decltype(appenders_list_)::size_type i = 0; i < appenders_list_.size(); ++i) {
+                    for (decltype(previous_recovery_appenders)::size_type j = 0; j < previous_recovery_appenders.size(); ++j) {
+                        if (appenders_list_[i].operator->() == previous_recovery_appenders[j]) {
+                            recovery_appenders_.push_back(previous_recovery_appenders[j]);
+                            break;
+                        }
+                    }
+                }
+            }
             tmp_list.clear();
             for (const auto& name : new_create_appender_names) {
                 add_appender(name, all_apenders_config[name]);
+            }
+            if (recover_status_ == recover_status_enum::in_recovering) {
+                recovery_appenders_need_begin_ = recovery_appenders_.size() != appenders_list_.size();
             }
             refresh_merged_log_level_bitmap();
         }
@@ -317,6 +334,8 @@ namespace bq {
     void log_imp::clear()
     {
         appenders_list_.clear();
+        recovery_appenders_.clear();
+        recovery_appenders_need_begin_ = false;
         categories_name_array_.clear();
         categories_name_array_.clear();
         name_.clear();
@@ -331,6 +350,18 @@ namespace bq {
 
     void log_imp::process_log_chunk(bq::log_entry_handle& read_handle)
     {
+        bool is_recovered_entry = false;
+        BQ_UNLIKELY_IF(buffer_->is_current_reading_recovered())
+        {
+            if (!read_handle.validate()) {
+                bq::util::log_device_console(bq::log_level::warning,
+                    "bqlog: corrupted recovered log entry detected and dropped. "
+                    "data_size=%" PRIu32 ", log=%s",
+                    read_handle.data_size(), name_.c_str());
+                return;
+            }
+        }
+
         if (recover_status_ == recover_status_enum::not_started) {
             auto current_version = buffer_->get_current_reading_version();
             auto version = buffer_->get_version();
@@ -341,19 +372,45 @@ namespace bq {
                 }
             } else {
                 recover_status_ = recover_status_enum::in_recovering;
-                for (decltype(appenders_list_)::size_type i = 0; i < appenders_list_.size(); i++) {
-                    appenders_list_[i]->on_log_item_recovery_begin(read_handle);
+                recovery_appenders_.clear();
+                for (decltype(appenders_list_)::size_type i = 0; i < appenders_list_.size(); ++i) {
+                    if (appenders_list_[i]->on_log_item_recovery_begin(read_handle)) {
+                        recovery_appenders_.push_back(appenders_list_[i].operator->());
+                    }
                 }
+                recovery_appenders_need_begin_ = false;
+                is_recovered_entry = true;
             }
         } else if (recover_status_ == recover_status_enum::in_recovering) {
             auto current_version = buffer_->get_current_reading_version();
             auto version = buffer_->get_version();
             if (current_version == version) {
                 recover_status_ = recover_status_enum::recovered;
+                for (decltype(recovery_appenders_)::size_type i = 0; i < recovery_appenders_.size(); ++i) {
+                    recovery_appenders_[i]->on_log_item_recovery_end();
+                }
+                recovery_appenders_.clear();
+                recovery_appenders_need_begin_ = false;
                 for (decltype(appenders_list_)::size_type i = 0; i < appenders_list_.size(); i++) {
-                    appenders_list_[i]->on_log_item_recovery_end();
                     appenders_list_[i]->on_log_item_new_begin(read_handle);
                 }
+            } else {
+                if (recovery_appenders_need_begin_) {
+                    for (decltype(appenders_list_)::size_type i = 0; i < appenders_list_.size(); ++i) {
+                        bool is_recovery_appender = false;
+                        for (decltype(recovery_appenders_)::size_type j = 0; j < recovery_appenders_.size(); ++j) {
+                            if (appenders_list_[i].operator->() == recovery_appenders_[j]) {
+                                is_recovery_appender = true;
+                                break;
+                            }
+                        }
+                        if (!is_recovery_appender && appenders_list_[i]->on_log_item_recovery_begin(read_handle)) {
+                            recovery_appenders_.push_back(appenders_list_[i].operator->());
+                        }
+                    }
+                    recovery_appenders_need_begin_ = false;
+                }
+                is_recovered_entry = true;
             }
         }
 
@@ -367,7 +424,12 @@ namespace bq {
         } else {
             head.timestamp_epoch = last_log_entry_epoch_ms_;
         }
-        log(read_handle);
+        BQ_LIKELY_IF(!is_recovered_entry)
+        {
+            log(read_handle);
+        } else {
+            log_recovered(read_handle);
+        }
     }
 
     void log_imp::log(const log_entry_handle& handle)
@@ -378,6 +440,20 @@ namespace bq {
         }
         for (decltype(appenders_list_)::size_type i = 0; i < appenders_list_.size(); i++) {
             appenders_list_[i]->log(handle);
+        }
+        if (snapshot_->is_enable()) {
+            snapshot_->write_data(handle);
+        }
+    }
+
+    void log_imp::log_recovered(const log_entry_handle& handle)
+    {
+        auto category_idx = handle.get_log_head().category_idx;
+        if (categories_mask_array_.size() <= category_idx || categories_mask_array_[category_idx] == 0) {
+            return;
+        }
+        for (decltype(recovery_appenders_)::size_type i = 0; i < recovery_appenders_.size(); ++i) {
+            recovery_appenders_[i]->log(handle);
         }
         if (snapshot_->is_enable()) {
             snapshot_->write_data(handle);

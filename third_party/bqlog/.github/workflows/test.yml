@@ -26,19 +26,21 @@ jobs:
             runs_on: windows-11-arm
         exclude:
           - cc: mingw_gcc
-            runner: 11-arm
+            runner:
+              label: "arm64"
+              runs_on: windows-11-arm
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -63,8 +65,9 @@ jobs:
         run: |
           choco install -y llvm
 
-      - name: Install MSYS2
+      - name: Install MSYS2 (Attempt 1)
         if: ${{ matrix.cc == 'mingw_gcc' }}
+        continue-on-error: true
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -72,15 +75,6 @@ jobs:
           path-type: inherit
           update: true
 
-      - name: Ensure MSYS2 packages (Attempt 1)
-        if: ${{ matrix.cc == 'mingw_gcc' }}
-        continue-on-error: true
-        shell: msys2 {0}
-        run: |
-          pacman -S --noconfirm --needed --overwrite '*' mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils mingw-w64-x86_64-make
-          echo "MSYS2 Root: $MSYSTEM_CARCH"
-          which gcc
-          which mingw32-make
       - name: Ensure MSYS2 packages (Attempt 2)
         if: ${{ matrix.cc == 'mingw_gcc' }}
         continue-on-error: true
@@ -91,6 +85,15 @@ jobs:
           which gcc
           which mingw32-make
       - name: Ensure MSYS2 packages (Attempt 3)
+        if: ${{ matrix.cc == 'mingw_gcc' }}
+        continue-on-error: true
+        shell: msys2 {0}
+        run: |
+          pacman -S --noconfirm --needed --overwrite '*' mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils mingw-w64-x86_64-make
+          echo "MSYS2 Root: $MSYSTEM_CARCH"
+          which gcc
+          which mingw32-make
+      - name: Ensure MSYS2 packages (Attempt 4)
         if: ${{ matrix.cc == 'mingw_gcc' }}
         continue-on-error: true
         shell: msys2 {0}
@@ -197,7 +200,7 @@ jobs:
 
       - name: Upload Windows crash dumps (if any)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: win_dumps_${{ matrix.runner.label }}_${{ matrix.cc }}_cpp${{ matrix.cpp_ver }}
           path: win_dumps/**
@@ -230,13 +233,13 @@ jobs:
         cpp_ver: [ 11, 14, 17, 20, 23 ]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '11'
-          distribution: 'adopt'
+          distribution: 'temurin'
 
       - name: Install GDB(Attempt 1)
         continue-on-error: true
@@ -276,7 +279,7 @@ jobs:
       image: ghcr.io/pippocao/bqlog/${{ matrix.arch.runs_on }}debian:latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install necessary tools (Attempt 1)
         continue-on-error: true
@@ -336,13 +339,13 @@ jobs:
           xcode-version: latest-stable
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '11'
-          distribution: 'adopt'
+          distribution: 'temurin'
 
       - name: Build for macOS
         env:
@@ -362,7 +365,7 @@ jobs:
         cpp_ver: [ 11, 14, 17, 20, 23 ]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -464,7 +467,7 @@ jobs:
         cc: [ gcc, clang ]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -477,7 +480,7 @@ jobs:
           docker-images: true
           swap-storage: true
 
-      - name: Run in FreeBSD(Attempt 1)
+      - name: Run in FreeBSD
         continue-on-error: true
         uses: vmactions/freebsd-vm@v1
         with:
@@ -492,7 +495,6 @@ jobs:
             done
             exit 1
           run: |
-            touch UNIT_TEST_STARTED
             set -e -x
             cd build/test/unix_like  
             chmod +x *.sh
@@ -531,97 +533,6 @@ jobs:
               fi
               exit $EXIT_CODE
             fi
-            touch ../../../UNIT_TEST_SUCCESS
-
-      - name: Check Retry
-        id: CheckRetry
-        run: |
-          if [ ! -f "UNIT_TEST_STARTED" ]; then
-            echo "retry=true" >> $GITHUB_OUTPUT
-          elif [ ! -f "UNIT_TEST_SUCCESS" ]; then
-            echo "::error::Test script execution failed! (Not retrying)"
-            exit 1
-          fi
-      - name: Cleanup Before Retry
-        if: steps.CheckRetry.outputs.retry == 'true'
-        run: |
-          set +e 
-          DOMAINS="$(sudo virsh list --all --name 2>/dev/null | grep -v "^$" || true)"
-          if [ -z "$DOMAINS" ]; then
-            echo "No lingering domains found (virsh may be unavailable or no domains exist)."
-          else
-            echo "Found domains: $DOMAINS"
-            for DOMAIN in $DOMAINS; do
-              echo "Processing domain: $DOMAIN"
-              sudo virsh destroy "$DOMAIN" 2>/dev/null || echo "virsh destroy failed for $DOMAIN (ignored)"
-              sudo virsh undefine "$DOMAIN" --nvram 2>/dev/null \
-                || sudo virsh undefine "$DOMAIN" 2>/dev/null \
-                || echo "virsh undefine failed for $DOMAIN (ignored)"
-            done
-          fi
-
-          echo "--- Removing potentially corrupted VM images ---"
-          find . -name "*.qcow2" -delete 2>/dev/null || echo "local qcow2 cleanup failed (ignored)"
-          sudo find /home/runner/work/_actions/vmactions -name "*.qcow2" -delete 2>/dev/null || echo "vmactions qcow2 cleanup failed (ignored)"
-          sudo rm -f /var/lib/libvirt/dnsmasq/*.leases 2>/dev/null || echo "dnsmasq leases cleanup failed (ignored)"
-          sleep 5
-          echo "Cleanup complete."
-
-      - name: Run in FreeBSD(Attempt 2)
-        if: steps.CheckRetry.outputs.retry == 'true'
-        uses: vmactions/freebsd-vm@v1
-        with:
-          arch: aarch64
-          usesh: true
-          mem: 8192
-          prepare: |
-            for i in 1 2 3 4 5; do
-                pkg install -y llvm cmake bash gdb gcc13 && exit 0
-                echo "Install failed, retrying in 60s... ($i/5)"
-                sleep 60
-            done
-            exit 1
-          run: |
-            touch UNIT_TEST_STARTED
-            set -e -x
-            cd build/test/unix_like  
-            chmod +x *.sh
-            ls -l
-            set +e
-            ln -sf /usr/local/bin/gcc13 /usr/local/bin/gcc
-            ln -sf /usr/local/bin/g++13 /usr/local/bin/g++
-            ln -sf /usr/local/bin/gcov13 /usr/local/bin/gcov 2>/dev/null || true
-            ln -sf /usr/local/bin/gcc-ar13 /usr/local/bin/gcc-ar 2>/dev/null || true
-            ln -sf /usr/local/bin/gcc-ranlib13 /usr/local/bin/gcc-ranlib 2>/dev/null || true
-            export LD_LIBRARY_PATH=/usr/local/lib/gcc13  #Adjust according to installed GCC version
-            export BQ_LOW_PERFORMANCE_TESTS=true
-            ./run_test_${{ matrix.cc }}.sh 17
-            EXIT_CODE=$?
-            set -e
-            if [ $EXIT_CODE -ne 0 ]; then
-              echo "Test failed with exit code $EXIT_CODE"
-              CORE_FILE="$(find . -maxdepth 5 -type f \( -name 'core' -o -name 'core.*' -o -name '*.core' \) 2>/dev/null | head -n1)"
-              EXE=""
-              for cand in ./BqLogUnitTest ./BqLogUnitTest.exe $(find . -maxdepth 5 -type f -name 'BqLogUnitTest' 2>/dev/null | head -n1); do
-                if [ -n "$cand" ] && [ -x "$cand" ]; then EXE="$cand"; break; fi
-              done
-              echo "exe: ${EXE:-<not found>}"
-              echo "core: ${CORE_FILE:-<not found>}"
-              if [ -n "$CORE_FILE" ] && [ -n "$EXE" ]; then
-                echo "=== GDB core backtrace (FreeBSD aarch64) ==="
-                gdb --batch -q \
-                  -ex "set pagination off" \
-                  -ex "info threads" \
-                  -ex "thread apply all bt full" \
-                  -ex "quit" \
-                  "$EXE" "$CORE_FILE" || echo "gdb analysis failed"
-              else
-                echo "Core file or executable not found, listing candidates:"
-                find . -maxdepth 5 -type f \( -name 'core' -o -name 'core.*' -o -name '*.core' -o -name 'BqLogUnitTest' \) 2>/dev/null || true
-              fi
-              exit $EXIT_CODE
-            fi
-            touch ../../../UNIT_TEST_SUCCESS          
 
   #Unix-Solaris
   solaris_x86_64_GCC:
@@ -632,7 +543,7 @@ jobs:
         cpp_ver: [ 11, 14, 17, 20, 23 ]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -814,7 +725,7 @@ jobs:
         cpp_ver: [ 11, 14, 17, 20, 23 ]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -961,7 +872,7 @@ jobs:
             cpp_ver: 23
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -1131,7 +1042,7 @@ jobs:
         cpp_ver: [ 11, 14, 17, 20, 23 ]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -1375,7 +1286,7 @@ jobs:
         cpp_ver: [ 11, 14, 17, 20, 23 ]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -1489,7 +1400,7 @@ jobs:
             cpp_ver: 23
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -1511,24 +1422,39 @@ jobs:
           release: "10.1"
           prepare: |
             export PATH="/usr/sbin:/usr/bin:/usr/pkg/sbin:/usr/pkg/bin:$PATH"
+            ARCH=$(uname -m)
+            case "$ARCH" in
+              evbarm|aarch64|arm64) PKG_ARCH="aarch64" ;;
+              *) PKG_ARCH="$ARCH" ;;
+            esac
+            MIRRORS="
+              https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/${PKG_ARCH}/10.1/All
+              https://ftp.jaist.ac.jp/pub/pkgsrc/packages/NetBSD/${PKG_ARCH}/10.1/All
+              https://mirrors.nju.edu.cn/pkgsrc/packages/NetBSD/${PKG_ARCH}/10.1/All
+            "
             for i in 1 2 3 4 5; do
-              (
-                set -e
-                /usr/sbin/pkg_add -v pkgin || true
-                pkgin -y update
-                pkgin -y install cmake gmake bash gdb
-                pkgin -y install clang
-                pkgin -y install gcc12 || pkgin -y install gcc13 || pkgin -y install gcc10
-              ) && exit 0
-            
-              echo "Install failed, retrying in 60s... ($i/5)"
+              for mirror in $MIRRORS; do
+                echo "=== Attempt $i, trying mirror: $mirror ==="
+                (
+                  set -e
+                  export PKG_PATH="$mirror"
+                  /usr/sbin/pkg_add -v pkgin || true
+                  echo "$mirror" | sed 's|/All$|/All|' > /usr/pkg/etc/pkgin/repositories.conf || true
+                  pkgin -y update
+                  pkgin -y install cmake gmake bash gdb
+                  pkgin -y install clang
+                  pkgin -y install gcc12 || pkgin -y install gcc13 || pkgin -y install gcc10
+                ) && exit 0
+                echo "Mirror $mirror failed, trying next..."
+              done
+              echo "All mirrors failed, retrying in 60s... ($i/5)"
               sleep 60
             done
             exit 1
           run: |
             touch UNIT_TEST_STARTED
             set -e -x
-            cd build/test/unix_like  
+            cd build/test/unix_like
             chmod +x *.sh
             ls -l
             ulimit -n
@@ -1549,7 +1475,7 @@ jobs:
       - name: Cleanup Before Retry
         if: steps.CheckRetry.outputs.retry == 'true'
         run: |
-          set +e 
+          set +e
           DOMAINS="$(sudo virsh list --all --name 2>/dev/null | grep -v "^$" || true)"
           if [ -z "$DOMAINS" ]; then
             echo "No lingering domains found (virsh may be unavailable or no domains exist)."
@@ -1580,17 +1506,32 @@ jobs:
           release: "10.1"
           prepare: |
             export PATH="/usr/sbin:/usr/bin:/usr/pkg/sbin:/usr/pkg/bin:$PATH"
+            ARCH=$(uname -m)
+            case "$ARCH" in
+              evbarm|aarch64|arm64) PKG_ARCH="aarch64" ;;
+              *) PKG_ARCH="$ARCH" ;;
+            esac
+            MIRRORS="
+              https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/${PKG_ARCH}/10.1/All
+              https://ftp.jaist.ac.jp/pub/pkgsrc/packages/NetBSD/${PKG_ARCH}/10.1/All
+              https://mirrors.nju.edu.cn/pkgsrc/packages/NetBSD/${PKG_ARCH}/10.1/All
+            "
             for i in 1 2 3 4 5; do
-              (
-                set -e
-                /usr/sbin/pkg_add -v pkgin || true
-                pkgin -y update
-                pkgin -y install cmake gmake bash gdb
-                pkgin -y install clang
-                pkgin -y install gcc12 || pkgin -y install gcc13 || pkgin -y install gcc10
-              ) && exit 0
-            
-              echo "Install failed, retrying in 60s... ($i/5)"
+              for mirror in $MIRRORS; do
+                echo "=== Attempt $i, trying mirror: $mirror ==="
+                (
+                  set -e
+                  export PKG_PATH="$mirror"
+                  /usr/sbin/pkg_add -v pkgin || true
+                  echo "$mirror" | sed 's|/All$|/All|' > /usr/pkg/etc/pkgin/repositories.conf || true
+                  pkgin -y update
+                  pkgin -y install cmake gmake bash gdb
+                  pkgin -y install clang
+                  pkgin -y install gcc12 || pkgin -y install gcc13 || pkgin -y install gcc10
+                ) && exit 0
+                echo "Mirror $mirror failed, trying next..."
+              done
+              echo "All mirrors failed, retrying in 60s... ($i/5)"
               sleep 60
             done
             exit 1
@@ -1615,7 +1556,7 @@ jobs:
         cc: [ clang, gcc ]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -1638,24 +1579,39 @@ jobs:
           release: "10.1"
           prepare: |
             export PATH="/usr/sbin:/usr/bin:/usr/pkg/sbin:/usr/pkg/bin:$PATH"
+            ARCH=$(uname -m)
+            case "$ARCH" in
+              evbarm|aarch64|arm64) PKG_ARCH="aarch64" ;;
+              *) PKG_ARCH="$ARCH" ;;
+            esac
+            MIRRORS="
+              https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/${PKG_ARCH}/10.1/All
+              https://ftp.jaist.ac.jp/pub/pkgsrc/packages/NetBSD/${PKG_ARCH}/10.1/All
+              https://mirrors.nju.edu.cn/pkgsrc/packages/NetBSD/${PKG_ARCH}/10.1/All
+            "
             for i in 1 2 3 4 5; do
-              (
-                set -e
-                /usr/sbin/pkg_add -v pkgin || true
-                pkgin -y update
-                pkgin -y install cmake gmake bash gdb
-                pkgin -y install clang
-                pkgin -y install gcc12 || pkgin -y install gcc13 || pkgin -y install gcc10
-              ) && exit 0
-
-              echo "Install failed, retrying in 60s... ($i/5)"
+              for mirror in $MIRRORS; do
+                echo "=== Attempt $i, trying mirror: $mirror ==="
+                (
+                  set -e
+                  export PKG_PATH="$mirror"
+                  /usr/sbin/pkg_add -v pkgin || true
+                  echo "$mirror" | sed 's|/All$|/All|' > /usr/pkg/etc/pkgin/repositories.conf || true
+                  pkgin -y update
+                  pkgin -y install cmake gmake bash gdb
+                  pkgin -y install clang
+                  pkgin -y install gcc12 || pkgin -y install gcc13 || pkgin -y install gcc10
+                ) && exit 0
+                echo "Mirror $mirror failed, trying next..."
+              done
+              echo "All mirrors failed, retrying in 60s... ($i/5)"
               sleep 60
             done
             exit 1
           run: |
             touch UNIT_TEST_STARTED
             set -e -x
-            cd build/test/unix_like  
+            cd build/test/unix_like
             chmod +x *.sh
             ls -l
             ulimit -n
@@ -1677,7 +1633,7 @@ jobs:
       - name: Cleanup Before Retry
         if: steps.CheckRetry.outputs.retry == 'true'
         run: |
-          set +e 
+          set +e
           DOMAINS="$(sudo virsh list --all --name 2>/dev/null | grep -v "^$" || true)"
           if [ -z "$DOMAINS" ]; then
             echo "No lingering domains found (virsh may be unavailable or no domains exist)."
@@ -1709,17 +1665,32 @@ jobs:
           release: "10.1"
           prepare: |
             export PATH="/usr/sbin:/usr/bin:/usr/pkg/sbin:/usr/pkg/bin:$PATH"
+            ARCH=$(uname -m)
+            case "$ARCH" in
+              evbarm|aarch64|arm64) PKG_ARCH="aarch64" ;;
+              *) PKG_ARCH="$ARCH" ;;
+            esac
+            MIRRORS="
+              https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/${PKG_ARCH}/10.1/All
+              https://ftp.jaist.ac.jp/pub/pkgsrc/packages/NetBSD/${PKG_ARCH}/10.1/All
+              https://mirrors.nju.edu.cn/pkgsrc/packages/NetBSD/${PKG_ARCH}/10.1/All
+            "
             for i in 1 2 3 4 5; do
-              (
-                set -e
-                /usr/sbin/pkg_add -v pkgin || true
-                pkgin -y update
-                pkgin -y install cmake gmake bash gdb
-                pkgin -y install clang
-                pkgin -y install gcc12 || pkgin -y install gcc13 || pkgin -y install gcc10
-              ) && exit 0
-
-              echo "Install failed, retrying in 60s... ($i/5)"
+              for mirror in $MIRRORS; do
+                echo "=== Attempt $i, trying mirror: $mirror ==="
+                (
+                  set -e
+                  export PKG_PATH="$mirror"
+                  /usr/sbin/pkg_add -v pkgin || true
+                  echo "$mirror" | sed 's|/All$|/All|' > /usr/pkg/etc/pkgin/repositories.conf || true
+                  pkgin -y update
+                  pkgin -y install cmake gmake bash gdb
+                  pkgin -y install clang
+                  pkgin -y install gcc12 || pkgin -y install gcc13 || pkgin -y install gcc10
+                ) && exit 0
+                echo "Mirror $mirror failed, trying next..."
+              done
+              echo "All mirrors failed, retrying in 60s... ($i/5)"
               sleep 60
             done
             exit 1
@@ -1750,7 +1721,7 @@ jobs:
             api-level: 33
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -1764,13 +1735,13 @@ jobs:
           swap-storage: true
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
-          distribution: 'adopt'
+          distribution: 'temurin'
 
       - id: setup-android
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Enable KVM
         run: |
@@ -1906,10 +1877,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -1968,7 +1939,7 @@ jobs:
 
       - name: Upload JVM crash logs
         if: steps.win_run_tests.outputs.exitcode != '0'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: jvm_crash_logs_win_${{ matrix.runner.label }}_${{ matrix.cc }}
           path: "**/hs_err_pid*.log"
@@ -1996,13 +1967,13 @@ jobs:
           xcode-version: latest-stable
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '11'
-          distribution: 'adopt'
+          distribution: 'temurin'
 
       - name: Test for macOS
         id: mac_run_tests
@@ -2036,7 +2007,7 @@ jobs:
 
       - name: Upload JVM crash logs
         if: steps.mac_run_tests.outputs.exitcode != '0'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: jvm_crash_logs_mac_${{ matrix.asan.label }}
           path: "**/hs_err_pid*.log"
@@ -2064,13 +2035,13 @@ jobs:
             assan_switch: FALSE
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '11'
-          distribution: 'adopt'
+          distribution: 'temurin'
 
       - name: Build for Linux
         id: linux_run_tests
@@ -2104,7 +2075,7 @@ jobs:
 
       - name: Upload JVM crash logs
         if: steps.linux_run_tests.outputs.exitcode != '0'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: jvm_crash_logs_ubuntu_${{ matrix.runner.label }}_${{ matrix.asan.label }}
           path: "**/hs_err_pid*.log"
@@ -2119,7 +2090,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Run in FreeBSD
         id: RunInFreeBSD
@@ -2216,10 +2187,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Dotnet
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x' # Keep 8.0 installed to run tools, even if targeting 3.1
 
@@ -2232,6 +2203,7 @@ jobs:
       - name: Install Mono (macOS)
         if: runner.os == 'macOS'
         run: |
+          brew untap aws/tap || true
           brew install mono
 
       - name: Install CMake
@@ -2293,10 +2265,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
 
@@ -2358,4 +2330,86 @@ jobs:
         run: |
           ${{ matrix.script_path }}
 
+
+  # Python Tests
+  python_test:
+    name: python_wrapper (${{ matrix.os }} ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.11', '3.12', '3.13']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run Python Tests (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          chmod +x build/test/python/run_linux.sh
+          bash build/test/python/run_linux.sh
+
+      - name: Run Python Tests (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          chmod +x build/test/python/run_mac.sh
+          bash build/test/python/run_mac.sh
+
+      - name: Run Python Tests (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        env:
+          PY_PYTHON: ${{ matrix.python-version }}
+        run: |
+          build\test\python\run_win.bat
+
+  # Python Tests (FreeBSD - requires VM)
+  python_test_freebsd_x86_64:
+    name: python_wrapper (freebsd_x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Run in FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          mem: 8192
+          prepare: |
+            for i in 1 2 3 4 5; do
+              if pkg install -y llvm cmake bash python3; then
+                PYVER=$(python3 -c 'import sys; print(f"{sys.version_info[0]}{sys.version_info[1]}")')
+                if pkg install -y "py${PYVER}-pip" "py${PYVER}-setuptools" "py${PYVER}-wheel"; then
+                  exit 0
+                fi
+                echo "py${PYVER}-pip package unavailable, bootstrapping with ensurepip..."
+                if python3 -m ensurepip --upgrade && python3 -m pip install --upgrade pip setuptools wheel; then
+                  exit 0
+                fi
+              fi
+              echo "Install failed, retrying in 60s... ($i/5)"
+              sleep 60
+            done
+            exit 1
+          run: |
+            set +e
+            cd build/test/python
+            chmod +x run_unix.sh
+            bash run_unix.sh clang
+            EXIT_CODE=$?
+            set -e
+            if [ $EXIT_CODE -ne 0 ]; then
+              echo "Test failed with exit code $EXIT_CODE"
+              exit $EXIT_CODE
+            fi
 

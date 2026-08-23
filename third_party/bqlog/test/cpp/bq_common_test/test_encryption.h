@@ -30,7 +30,8 @@ namespace bq {
                 for (size_t i = 0; i < loop_count; ++i) {
                     size_t offset = i % vernam::DEFAULT_BUFFER_ALIGNMENT;
                     bq::util::srand(static_cast<uint32_t>(bq::platform::high_performance_epoch_ms()));
-                    size_t buff_size = bq::util::rand() % (static_cast<size_t>(1024 * 1024 * 16)) + static_cast<size_t>(offset);
+                    // +1 to make sure the encrypted length (buff_size - offset) is never 0
+                    size_t buff_size = bq::util::rand() % (static_cast<size_t>(1024 * 1024 * 16)) + static_cast<size_t>(offset) + static_cast<size_t>(1);
                     size_t key_size = static_cast<size_t>(1) << (bq::util::rand() % static_cast<size_t>(12) + 6);
                     uint8_t* key = static_cast<uint8_t*>(bq::platform::aligned_alloc(vernam::DEFAULT_BUFFER_ALIGNMENT, key_size));
                     uint8_t* src = static_cast<uint8_t*>(bq::platform::aligned_alloc(vernam::DEFAULT_BUFFER_ALIGNMENT, buff_size));
@@ -334,9 +335,9 @@ rJjndnUwweqNEHGPf1PuBCvmXa5GPzla03pN44/YhywCWtxsrAGF9ayamEOG
 
                 bq::string base_dir = bq::file_manager::get_base_dir(1);
                 char key_bits_str[32];
-                snprintf(key_bits_str, sizeof(key_bits_str), "%" PRId32 "", key_bits);
+                snprintf(key_bits_str, sizeof(key_bits_str), "%" PRId32, key_bits);
                 char thread_id_str[64];
-                snprintf(thread_id_str, sizeof(thread_id_str), "%" PRIu64 "", bq::platform::thread::get_current_thread_id());
+                snprintf(thread_id_str, sizeof(thread_id_str), "%" PRIu64, bq::platform::thread::get_current_thread_id());
                 bq::string parent_dir = bq::file_manager::combine_path(base_dir, bq::string("enc_output"));
                 bq::string output_dir = bq::file_manager::combine_path(parent_dir, bq::string("rsa_") + key_bits_str + "_tid_" + thread_id_str);
                 bq::file_manager::create_directory(output_dir);
@@ -362,9 +363,9 @@ rJjndnUwweqNEHGPf1PuBCvmXa5GPzla03pN44/YhywCWtxsrAGF9ayamEOG
                     bq::rsa::public_key pub;
                     bq::rsa::private_key pri;
                     bool parse_pub_result = bq::rsa::parse_public_key_ssh(pub_key_text, pub);
-                    result.add_result(parse_pub_result, "RSA_%" PRId32 " parse public key failed at iteration %" PRId32 "", key_bits, i);
+                    result.add_result(parse_pub_result, "RSA_%" PRId32 " parse public key failed at iteration %" PRId32, key_bits, i);
                     bool parse_pri_result = bq::rsa::parse_private_key_pem(pri_key_text, pri);
-                    result.add_result(parse_pri_result, "RSA_%" PRId32 " parse private key failed at iteration %" PRId32 "", key_bits, i);
+                    result.add_result(parse_pri_result, "RSA_%" PRId32 " parse private key failed at iteration %" PRId32, key_bits, i);
                     if (!parse_pub_result || !parse_pri_result) {
                         continue;
                     }
@@ -384,17 +385,17 @@ rJjndnUwweqNEHGPf1PuBCvmXa5GPzla03pN44/YhywCWtxsrAGF9ayamEOG
                     }
                     bq::array<uint8_t> ciphertext;
                     bool enc_result = bq::rsa::encrypt(pub, plaintext, ciphertext);
-                    result.add_result(enc_result, "RSA_%" PRId32 " encryption test failed at iteration %" PRId32 "", key_bits, i);
+                    result.add_result(enc_result, "RSA_%" PRId32 " encryption test failed at iteration %" PRId32, key_bits, i);
                     if (enc_result) {
                         bq::array<uint8_t> decrypted_text;
                         bool dec_result = bq::rsa::decrypt(pri, ciphertext, decrypted_text);
-                        result.add_result(dec_result, "RSA_%" PRId32 " decryption test failed at iteration %" PRId32 "", key_bits, i);
+                        result.add_result(dec_result, "RSA_%" PRId32 " decryption test failed at iteration %" PRId32, key_bits, i);
                         if (dec_result) {
                             if (decrypted_text.size() != plaintext.size()) {
-                                result.add_result(false, "RSA_%" PRId32 " decryption size mismatch at iteration %" PRId32 "", key_bits, i);
+                                result.add_result(false, "RSA_%" PRId32 " decryption size mismatch at iteration %" PRId32, key_bits, i);
                             } else {
                                 bool content_match = (memcmp((const uint8_t*)decrypted_text.begin(), (const uint8_t*)plaintext.begin(), plaintext.size()) == 0);
-                                result.add_result(content_match, "RSA_%" PRId32 " decryption content mismatch at iteration %" PRId32 "", key_bits, i);
+                                result.add_result(content_match, "RSA_%" PRId32 " decryption content mismatch at iteration %" PRId32, key_bits, i);
                             }
                         }
                     }
@@ -421,17 +422,17 @@ rJjndnUwweqNEHGPf1PuBCvmXa5GPzla03pN44/YhywCWtxsrAGF9ayamEOG
                     bool enc_result = aes.encrypt(key, iv, plaintext, ciphertext);
                     result.add_result(enc_result
                             && (memcmp((const uint8_t*)ciphertext.begin(), (const uint8_t*)plaintext.begin(), bq::min_value(plaintext.size(), ciphertext.size())) != 0),
-                        "AES_%" PRId32 " encryption test : %" PRId32 "", static_cast<int32_t>(key_bits), i);
+                        "AES_%" PRId32 " encryption test : %" PRId32, static_cast<int32_t>(key_bits), i);
 
                     if (enc_result) {
                         bool dec_result = aes.decrypt(key, iv, ciphertext, decrypted_text);
-                        result.add_result(dec_result, "AES_%" PRId32 " decryption test : %" PRId32 "", static_cast<int32_t>(key_bits), i);
+                        result.add_result(dec_result, "AES_%" PRId32 " decryption test : %" PRId32, static_cast<int32_t>(key_bits), i);
                         if (dec_result) {
                             if (decrypted_text.size() != plaintext.size()) {
-                                result.add_result(false, "AES_%" PRId32 " decryption size mismatch at iteration %" PRId32 "", static_cast<int32_t>(key_bits), i);
+                                result.add_result(false, "AES_%" PRId32 " decryption size mismatch at iteration %" PRId32, static_cast<int32_t>(key_bits), i);
                             } else {
                                 bool content_match = (memcmp((const uint8_t*)decrypted_text.begin(), (const uint8_t*)plaintext.begin(), plaintext.size()) == 0);
-                                result.add_result(content_match, "AES_%" PRId32 " decryption content mismatch at iteration %" PRId32 "", static_cast<int32_t>(key_bits), i);
+                                result.add_result(content_match, "AES_%" PRId32 " decryption content mismatch at iteration %" PRId32, static_cast<int32_t>(key_bits), i);
                             }
                         }
                     }
@@ -444,15 +445,23 @@ rJjndnUwweqNEHGPf1PuBCvmXa5GPzla03pN44/YhywCWtxsrAGF9ayamEOG
                 test_result result;
                 test_vernam(result);
 
+#if defined(BQ_UNITE_TEST_LOW_PERFORMANCE_MODE)
+                constexpr uint32_t thread_count = 1;
+#else
                 constexpr uint32_t thread_count = 2;
+#endif
                 test_output(bq::log_level::info, "RSA test begin...");
                 bq::array<std::thread*> rsa_threads;
                 for (uint32_t i = 0; i < thread_count; ++i) {
                     rsa_threads.push_back(new std::thread([&result, this]() {
+#if defined(BQ_UNITE_TEST_LOW_PERFORMANCE_MODE)
+                        test_rsa(result, 2048, 1);
+#else
                         test_rsa(result, 1024, 2);
                         test_rsa(result, 2048, 2);
                         test_rsa(result, 3072, 1);
                         // test_rsa(result, 7680, 1);
+#endif
                     }));
                 }
                 for (uint32_t i = 0; i < thread_count; ++i) {

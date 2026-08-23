@@ -47,7 +47,7 @@ export class category_log extends log {
      */
     protected static call_api_create_category_log(name: string, config: string, categories_count: number, categories: string[] | null): bigint {
         if (!config || config.length == 0) {
-            return 0n;
+            return BigInt(0);
         }
         let log_handle: bigint = log_invoker.__api_create_log(name, config, categories_count, categories);
         return log_handle;

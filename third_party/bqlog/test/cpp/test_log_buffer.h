@@ -364,7 +364,7 @@ namespace bq {
                         bq::util::aligned_delete(obj);
                     }
                     for (int32_t i = 0; i < OBJ_COUNT; ++i) {
-                        result.add_result(marks[i] == 2, "memory pool aligned test %d", i);
+                        result.add_result(marks[i] == 2, "memory pool aligned test %" PRId32, i);
                     }
 
                     // not aligned test
@@ -390,7 +390,7 @@ namespace bq {
                         delete obj;
                     }
                     for (int32_t i = 0; i < OBJ_COUNT; ++i) {
-                        result.add_result(marks[i] == 2, "memory pool not aligned test %d", i);
+                        result.add_result(marks[i] == 2, "memory pool not aligned test %" PRId32, i);
                     }
                 }
             }
@@ -441,7 +441,7 @@ namespace bq {
                 task2.start();
 
                 int32_t percent = 0;
-                test_output_dynamic_param(bq::log_level::info, "[block list] recovery:%s, test progress:%d%%, time cost:%dms\r", config.need_recovery ? "Y" : "-", percent, 0);
+                test_output_dynamic_param(bq::log_level::info, "[block list] recovery:%s, test progress:%" PRId32 "%%, time cost:%" PRId32 "ms\r", config.need_recovery ? "Y" : "-", percent, 0);
                 const auto start_time = bq::platform::high_performance_epoch_ms();
                 while (task1.get_left_count() + task2.get_left_count() > 0) {
                     const int32_t current_left_count = 2 * LOOP_COUNT - task1.get_left_count() - task2.get_left_count();
@@ -449,7 +449,7 @@ namespace bq {
                     if (new_percent != percent) {
                         percent = new_percent;
                         const auto current_time = bq::platform::high_performance_epoch_ms();
-                        test_output_dynamic_param(bq::log_level::info, "[block list] recovery:%s, test progress:%d%%, time cost:%dms              \r", config.need_recovery ? "Y" : "-", percent, (int32_t)(current_time - start_time));
+                        test_output_dynamic_param(bq::log_level::info, "[block list] recovery:%s, test progress:%" PRId32 "%%, time cost:%" PRId32 "ms              \r", config.need_recovery ? "Y" : "-", percent, (int32_t)(current_time - start_time));
                     }
                     bq::platform::thread::yield();
                 }
@@ -457,8 +457,8 @@ namespace bq {
                 task2.join();
                 percent = 100;
                 const auto current_time = bq::platform::high_performance_epoch_ms();
-                test_output_dynamic_param(bq::log_level::info, "[block list] recovery:%s, test progress:%d%%, time cost:%dms              \r", config.need_recovery ? "Y" : "-", percent, (int32_t)(current_time - start_time));
-                test_output_dynamic_param(bq::log_level::info, "\n[block list] recovery:%s, test finished, time cost:%dms\n", config.need_recovery ? "Y" : "-", (int32_t)(current_time - start_time));
+                test_output_dynamic_param(bq::log_level::info, "[block list] recovery:%s, test progress:%" PRId32 "%%, time cost:%" PRId32 "ms              \r", config.need_recovery ? "Y" : "-", percent, (int32_t)(current_time - start_time));
+                test_output_dynamic_param(bq::log_level::info, "\n[block list] recovery:%s, test finished, time cost:%" PRId32 "ms\n", config.need_recovery ? "Y" : "-", (int32_t)(current_time - start_time));
                 result.add_result(list_to.pop() == nullptr, "block list test 1");
                 size_t num_from = 0;
                 auto from_node = list_from.first();
@@ -519,7 +519,7 @@ namespace bq {
                 auto start_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
                 test_output_dynamic_param(bq::log_level::info, "================\n[log buffer] recovery:%s, auto expand:%s, high performance mode:%s\n", config.need_recovery ? "Y" : "-", config.policy == log_memory_policy::auto_expand_when_full ? "Y" : "-", config.high_frequency_threshold_per_second < UINT64_MAX ? "Y" : "-");
-                test_output_dynamic_param(bq::log_level::info, "[log buffer] test progress:%d%%, time cost:%dms\r", percent, 0);
+                test_output_dynamic_param(bq::log_level::info, "[log buffer] test progress:%" PRId32 "%%, time cost:%" PRId32 "ms\r", percent, 0);
 
                 while (true) {
                     bool write_finished = (counter.load(bq::platform::memory_order::acquire) <= 0);
@@ -551,7 +551,7 @@ namespace bq {
                     if (new_percent != percent) {
                         percent = new_percent;
                         auto current_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-                        test_output_dynamic_param(bq::log_level::info, "[log buffer] test progress:%d%%, time cost:%dms              \r", percent, (int32_t)(current_time - start_time));
+                        test_output_dynamic_param(bq::log_level::info, "[log buffer] test progress:%" PRId32 "%%, time cost:%" PRId32 "ms              \r", percent, (int32_t)(current_time - start_time));
                     }
 
                     int32_t id = *(int32_t*)handle.data_addr;
@@ -564,7 +564,7 @@ namespace bq {
                     }
 
                     task_check_vector[id]++;
-                    result.add_result(task_check_vector[id] + left_count == chunk_count_per_task, "[log buffer]chunk left task check error, real: %d, expected:%d", left_count, chunk_count_per_task - task_check_vector[id]);
+                    result.add_result(task_check_vector[id] + left_count == chunk_count_per_task, "[log buffer]chunk left task check error, real: %" PRId32 ", expected:%" PRId32, left_count, chunk_count_per_task - task_check_vector[id]);
                     task_check_vector[id] = chunk_count_per_task - left_count; // error adjust
                     bool content_check = true;
                     for (size_t i = 2; i < static_cast<size_t>(size) / sizeof(int32_t); ++i) {
@@ -575,15 +575,15 @@ namespace bq {
                     }
                     result.add_result(content_check, "[log buffer]content check error");
                 }
-                test_output_dynamic_param(bq::log_level::info, "[log buffer] test progress:%d%%, time cost:%dms              \r", 100, (int32_t)(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - start_time));
+                test_output_dynamic_param(bq::log_level::info, "[log buffer] test progress:%" PRId32 "%%, time cost:%" PRId32 "ms              \r", 100, (int32_t)(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - start_time));
                 for (size_t i = 0; i < task_check_vector.size(); ++i) {
                     bool count_result = (task_check_vector[i] == chunk_count_per_task);
-                    result.add_result(count_result, "[log buffer]chunk count check error, real:%d , expected:%d, debu_str:%s", task_check_vector[i], chunk_count_per_task, config_debug_str.c_str());
+                    result.add_result(count_result, "[log buffer]chunk count check error, real:%" PRId32 " , expected:%" PRId32 ", debu_str:%s", task_check_vector[i], chunk_count_per_task, config_debug_str.c_str());
                 }
-                test_output_dynamic_param(bq::log_level::info, "\n[log buffer] test finished, time cost:%dms\n", (int32_t)(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - start_time));
+                test_output_dynamic_param(bq::log_level::info, "\n[log buffer] test finished, time cost:%" PRId32 "ms\n", (int32_t)(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - start_time));
                 test_output_dynamic(bq::log_level::info, "[log buffer] checking results...\n");
-                result.add_result(total_chunk == log_buffer_test_total_write_count_.load(), "total write count error, real:%d , expected:%d", log_buffer_test_total_write_count_.load(), total_chunk);
-                result.add_result(total_chunk == readed_chunk, "[log buffer] total chunk count check error, read:%d , expected:%d", readed_chunk, total_chunk);
+                result.add_result(total_chunk == log_buffer_test_total_write_count_.load(), "total write count error, real:%" PRId32 " , expected:%" PRId32, log_buffer_test_total_write_count_.load(), total_chunk);
+                result.add_result(total_chunk == readed_chunk, "[log buffer] total chunk count check error, read:%" PRId32 " , expected:%" PRId32, readed_chunk, total_chunk);
 
                 test_output_dynamic(bq::log_level::info, "[log buffer] joining threads...\n");
                 for (auto& task : task_thread_vector) {
@@ -608,7 +608,7 @@ namespace bq {
                     result.add_result(final_handle.result == bq::enum_buffer_result_code::err_empty_log_buffer, "final read test");
                 }
 #if !defined(BQ_WIN) || !defined(BQ_GCC) // MinGW with GCC has bug on thread_local, so the log buffer recycle may not work properly.
-                result.add_result(test_buffer.get_groups_count() == 0, "group recycle test, expected left group:0, but: %" PRIu32 "", test_buffer.get_groups_count());
+                result.add_result(test_buffer.get_groups_count() == 0, "group recycle test, expected left group:0, but: %" PRIu32, test_buffer.get_groups_count());
 #endif
                 test_output_dynamic(bq::log_level::info, "[log buffer] GC...\n");
                 bq::platform::thread::sleep(group_list::GROUP_NODE_GC_LIFE_TIME_MS * 2);
@@ -669,7 +669,7 @@ namespace bq {
                             alloc_size = rand_seq(linear_ran);
                             handle = test_recovery_buffer.alloc_write_chunk(alloc_size, bq::platform::high_performance_epoch_ms());
                         }
-                        result.add_result(handle.result == enum_buffer_result_code::success, "recovery test write alloc, size:%" PRIu32 "", alloc_size);
+                        result.add_result(handle.result == enum_buffer_result_code::success, "recovery test write alloc, size:%" PRIu32, alloc_size);
                         if (handle.result == enum_buffer_result_code::success) {
                             bq::scoped_log_buffer_handle<log_buffer> scoped_handle(test_recovery_buffer, handle);
                             for (size_t pos = 0; pos + sizeof(uint64_t) <= alloc_size; pos += sizeof(uint64_t)) {
@@ -692,7 +692,7 @@ namespace bq {
                     for (uint32_t version = 0; version < WRITE_VERSION_COUNT; ++version) {
                         for (uint32_t i = 0; i < MESSAGE_PER_VERSION; ++i) {
                             auto handle = test_recovery_buffer.read_chunk();
-                            result.add_result(handle.result == enum_buffer_result_code::success, "recovery test read chunk, version:%" PRIu32 "index:%" PRIu32 "", version, i);
+                            result.add_result(handle.result == enum_buffer_result_code::success, "recovery test read chunk, version:%" PRIu32 "index:%" PRIu32, version, i);
                             bq::scoped_log_buffer_handle<log_buffer> scoped_handle(test_recovery_buffer, handle);
                             bool valid = true;
                             if (handle.result == enum_buffer_result_code::success) {
@@ -704,7 +704,7 @@ namespace bq {
                                     }
                                 }
                             }
-                            result.add_result(valid, "recovery test read content, version:%" PRIu32 "index:%" PRIu32 "", version, i);
+                            result.add_result(valid, "recovery test read content, version:%" PRIu32 "index:%" PRIu32, version, i);
                         }
                     }
                     auto handle = test_recovery_buffer.read_chunk();
@@ -747,7 +747,7 @@ namespace bq {
                                     break;
                                 }
                             }
-                            result.add_result(valid, "recovery multi thread test read content check, phase:%s, version:%" PRIu32 ", thread idx:%" PRIu32 ", index:%" PRIu32 "", must_success ? "1" : "2", read_version, read_thread_idx, read_message_idx);
+                            result.add_result(valid, "recovery multi thread test read content check, phase:%s, version:%" PRIu32 ", thread idx:%" PRIu32 ", index:%" PRIu32, must_success ? "1" : "2", read_version, read_thread_idx, read_message_idx);
                             if (valid) {
                                 result.add_result(message_verify_group[read_version][read_thread_idx] == read_message_idx, "recovery multi thread test read content seq check, version:%" PRIu32 "thread idx:%" PRIu32 "index:%" PRIu32 ", expected index:%" PRIu32, read_version, read_thread_idx, read_message_idx, message_verify_group[read_version][read_thread_idx]);
                                 if (message_verify_group[read_version][read_thread_idx] != read_message_idx) {
@@ -758,7 +758,7 @@ namespace bq {
                             }
                             if (read_seq != seq_records[read_version][read_thread_idx]
                                 && read_seq != seq_records[read_version][read_thread_idx] + 1) {
-                                bq::util::log_device_console(bq::log_level::info, "recovery multi thread test read seq order check miss match(don't worry, it's possible), version:%" PRIu32 ", thread idx:%" PRIu32 ", expected seq:%" PRIu32 ", but read seq:%" PRIu32 "", read_version, read_thread_idx, seq_records[read_version][read_thread_idx], read_seq);
+                                bq::util::log_device_console(bq::log_level::info, "recovery multi thread test read seq order check miss match(don't worry, it's possible), version:%" PRIu32 ", thread idx:%" PRIu32 ", expected seq:%" PRIu32 ", but read seq:%" PRIu32, read_version, read_thread_idx, seq_records[read_version][read_thread_idx], read_seq);
                             }
                             seq_records[read_version][read_thread_idx] = read_seq;
                         }
@@ -800,7 +800,7 @@ namespace bq {
                                     alloc_size = rand_seq(linear_ran);
                                     handle = test_recovery_buffer.alloc_write_chunk(alloc_size, bq::platform::high_performance_epoch_ms());
                                 }
-                                result.add_result(handle.result == enum_buffer_result_code::success, "recovery test write alloc, size:%" PRIu32 "", alloc_size);
+                                result.add_result(handle.result == enum_buffer_result_code::success, "recovery test write alloc, size:%" PRIu32, alloc_size);
                                 if (handle.result == enum_buffer_result_code::success) {
                                     const auto& tls_info = test_recovery_buffer.get_buffer_info_for_this_thread();
                                     uint32_t current_seq = tls_info.wt_data_.current_write_seq_;

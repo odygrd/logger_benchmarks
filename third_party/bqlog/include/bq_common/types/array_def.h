@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+﻿/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -24,6 +23,9 @@
 #include "bq_common/types/allocator.h"
 
 namespace bq {
+    template <typename T, typename ARRAY> class BQ_ARRAY_ITER_CLS_NAME;
+    template <typename T, typename Allocator, size_t TAIL_BUFFER_SIZE> class BQ_ARRAY_CLS_NAME;
+
     template <typename T, typename ARRAY>
     class BQ_ARRAY_ITER_CLS_NAME {
     public:
@@ -153,8 +155,8 @@ namespace bq {
         template <typename... V>
         size_type emplace_back(V&&... args);
 
-        template <typename U = T>
-        typename bq::enable_if<bq::is_pod<U>::value>::type fill_uninitialized(size_type count);
+        template <typename U = T, bq::enable_if_t<bq::is_pod<U>::value, bool> = true>
+        void fill_uninitialized(size_type count);
 
         void pop_back();
 
@@ -177,11 +179,11 @@ namespace bq {
 
         void clear();
 
-        template <typename U = T>
-        typename bq::enable_if<bq::is_pod<U>::value>::type reset();
+        template <typename U = T, bq::enable_if_t<bq::is_pod<U>::value, bool> = true>
+        void reset();
 
-        template <typename U = T>
-        typename bq::enable_if<!bq::is_pod<U>::value>::type reset();
+        template <typename U = T, bq::enable_if_t<!bq::is_pod<U>::value, bool> = true>
+        void reset();
 
         bool set_capacity(size_type new_capacity, bool force_reset = false);
 

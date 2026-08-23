@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -101,7 +100,7 @@ namespace bq {
             }
             int32_t index = bq::util::rand() % 1000000;
             char name[128] = { 0 };
-            sprintf(name, "/test_%d.txt", index);
+            sprintf(name, "/test_%" PRId32 ".txt", index);
             bq::string test_file_name = test_path + name;
             FILE* test_f = fopen(test_file_name.c_str(), "a");
             if (!test_f)
@@ -270,8 +269,8 @@ namespace bq {
             bq::string base_dir1_candidate = bq::string("/storage/emulated/0/Android/data/") + package_name + "/files";
             bool can_write_1 = can_write_to_dir(base_dir1_candidate);
 
-            bq::util::log_device_console(bq::log_level::info, "Android internal dir detected by native:%s, can write:%d", base_dir0_candidate.c_str(), can_write_0);
-            bq::util::log_device_console(bq::log_level::info, "Android external dir detected by native:%s, can write:%d", base_dir1_candidate.c_str(), can_write_1);
+            bq::util::log_device_console(bq::log_level::info, "Android internal dir detected by native:%s, can write:%" PRId32, base_dir0_candidate.c_str(), can_write_0);
+            bq::util::log_device_console(bq::log_level::info, "Android external dir detected by native:%s, can write:%" PRId32, base_dir1_candidate.c_str(), can_write_1);
 
             if (can_write_0) {
                 set_base_dir_0(base_dir0_candidate);
@@ -535,14 +534,15 @@ namespace bq {
         {
             out_real_read_size = 0;
             size_t max_size_pertime = static_cast<size_t>(INT32_MAX);
-            size_t max_read_size_current = 0;
+            uint8_t* current_target = target_addr;
             while (out_real_read_size < read_size) {
-                size_t need_read_size_this_time = bq::min_value(max_size_pertime, read_size - max_read_size_current);
-                int32_t out_size = AAsset_read((AAsset*)handle.asset, target_addr, need_read_size_this_time);
+                size_t need_read_size_this_time = bq::min_value(max_size_pertime, read_size - out_real_read_size);
+                int32_t out_size = AAsset_read((AAsset*)handle.asset, current_target, need_read_size_this_time);
                 if (out_size < 0) {
                     return out_size;
                 }
                 out_real_read_size += static_cast<size_t>(out_size);
+                current_target += out_size;
                 if (out_size < static_cast<int32_t>(need_read_size_this_time)) {
                     return 0;
                 }
@@ -670,9 +670,9 @@ namespace bq {
                 bool can_internal_dir_write = can_write_to_dir(internal_dir);
                 bool can_external_dir_write = can_write_to_dir(external_dir);
                 bool can_cache_dir_write = can_write_to_dir(cache_dir);
-                bq::util::log_device_console(log_level::info, "internal storage path detected by android java:%s, can write:%d", internal_dir.c_str(), can_internal_dir_write);
-                bq::util::log_device_console(log_level::info, "external storage path detected by android java:%s, can write:%d", external_dir.c_str(), can_external_dir_write);
-                bq::util::log_device_console(log_level::info, "cache storage path detected by android java:%s, can write:%d", cache_dir.c_str(), can_cache_dir_write);
+                bq::util::log_device_console(log_level::info, "internal storage path detected by android java:%s, can write:%" PRId32, internal_dir.c_str(), can_internal_dir_write);
+                bq::util::log_device_console(log_level::info, "external storage path detected by android java:%s, can write:%" PRId32, external_dir.c_str(), can_external_dir_write);
+                bq::util::log_device_console(log_level::info, "cache storage path detected by android java:%s, can write:%" PRId32, cache_dir.c_str(), can_cache_dir_write);
 
                 if (can_internal_dir_write) {
                     common_global_vars::get().base_dir_init_inst_.set_base_dir_0(internal_dir);
@@ -744,7 +744,7 @@ namespace bq {
                     continue;
                 }
                 char tmp[64];
-                snprintf(tmp, sizeof(tmp), "\n#%d %p ", idx, addr);
+                snprintf(tmp, sizeof(tmp), "\n#%" PRId32 " %p ", idx, addr);
                 stack_trace_str_ref += tmp;
                 stack_trace_str_ref += symbol;
             }

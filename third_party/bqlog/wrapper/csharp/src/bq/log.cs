@@ -322,7 +322,9 @@ namespace bq
         public static unsafe bool fetch_and_remove_console_buffer(type_console_callback on_console_callback)
         {
             IntPtr delegate_ptr = Marshal.GetFunctionPointerForDelegate(on_console_callback);
-            return log_invoker.__api_fetch_and_remove_console_buffer(new type_func_ptr_console_buffer_fetch_callback(_native_console_buffer_fetch_callback_wrapper), delegate_ptr);
+            bool result = log_invoker.__api_fetch_and_remove_console_buffer(new type_func_ptr_console_buffer_fetch_callback(_native_console_buffer_fetch_callback_wrapper), delegate_ptr);
+            GC.KeepAlive(on_console_callback);
+            return result;
         }
 #if ENABLE_IL2CPP
         [AOT.MonoPInvokeCallback(typeof(type_console_callback))]

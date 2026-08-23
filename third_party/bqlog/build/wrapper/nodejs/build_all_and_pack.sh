@@ -1,3 +1,12 @@
+#!/usr/bin/env bash
+# =============================================================================
+# CI-ONLY SCRIPT
+# This script is designed to run in the GitHub Actions CI pipeline.
+# It assumes all native prebuilt binaries (.node files) have already been
+# built and staged by earlier CI jobs (nodejs_build_* and
+# nodejs_collect_and_stage_prebuilds). It only packages them into the
+# npm tarball — it does NOT compile any native code itself.
+# =============================================================================
 set -euo pipefail
 
 rm -rf "../../../artifacts"

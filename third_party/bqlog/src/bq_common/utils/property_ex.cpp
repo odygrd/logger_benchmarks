@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -97,7 +96,9 @@ namespace bq {
     {
         if (str.size() < 2)
             return false;
+        BQ_SUPPRESS_NULL_DEREF_BEGIN();
         return str[0] == '[' && str[str.size() - 1] == ']';
+        BQ_SUPPRESS_NULL_DEREF_END();
     }
 
     static property_value parse_to_property_value(property_value& root, string key, const string& value)

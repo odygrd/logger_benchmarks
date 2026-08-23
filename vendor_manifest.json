@@ -3,7 +3,7 @@
     {
       "name": "quill",
       "repo_url": "https://github.com/odygrd/quill.git",
-      "ref": "6737745d424aa0e02bbc7f0bdac944596b0d53ad",
+      "ref": "4ffbeba3c92b58ec24ce95aca526684dcd79f805",
       "target_dir": "quill",
       "skip_update": true
     },
@@ -22,7 +22,7 @@
     {
       "name": "bqlog",
       "repo_url": "https://github.com/Tencent/BqLog.git",
-      "ref": "4d0b9a97dc374f5ddfa077efca0c1539517866ea",
+      "ref": "60ef4d3ea52635dc54e87e79dfb3a71fb5b1ecc9",
       "target_dir": "third_party/bqlog"
     },
     {
@@ -41,7 +41,7 @@
     {
       "name": "g3log",
       "repo_url": "https://github.com/KjellKod/g3log.git",
-      "ref": "d1cf820443d857d7488fae6d3ef0d7de2af55fb8",
+      "ref": "8217b08dcc7515809f59f7b53915269b47453b0f",
       "target_dir": "third_party/g3log"
     },
     {
@@ -59,14 +59,14 @@
     {
       "name": "spdlog",
       "repo_url": "https://github.com/gabime/spdlog.git",
-      "ref": "45b67eee668507813743f84f1b1b9ab674ea221e",
+      "ref": "f5f173a1a57d0e2e0115f2ed71ee7ea316516853",
       "target_dir": "third_party/spdlog",
       "update_branch": "v1.x"
     },
     {
       "name": "xtr",
       "repo_url": "https://github.com/choll/xtr.git",
-      "ref": "71913d9a0d61c0d6c8d858ae3b1e4636a076a05e",
+      "ref": "6bb69e9ae1d8d6a906aa7b1e6b27a3b354dbae2c",
       "target_dir": "third_party/xtr"
     }
   ]

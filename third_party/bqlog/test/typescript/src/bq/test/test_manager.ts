@@ -9,7 +9,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
-import { bq } from "./bq_lib.ts";
+import { bq } from "@pippocao/bqlog";
 import { test_base } from "./test_base.ts";
 import { test_result } from "./test_result.ts";
 

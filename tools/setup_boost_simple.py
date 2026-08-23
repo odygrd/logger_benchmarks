@@ -18,16 +18,16 @@ def repo_root() -> Path:
 
 
 # Configuration
-BOOST_VERSION = "1.89.0"
-BOOST_VERSION_UNDERSCORE = BOOST_VERSION.replace(".", "_")
-BOOST_URL = f"https://github.com/boostorg/boost/releases/download/boost-{BOOST_VERSION}/boost-{BOOST_VERSION}-b2-nodocs.tar.gz"
+BOOST_VERSION = "1.91.0"
+BOOST_RELEASE = f"{BOOST_VERSION}-1"
+BOOST_URL = f"https://github.com/boostorg/boost/releases/download/boost-{BOOST_RELEASE}/boost-{BOOST_RELEASE}-b2-nodocs.tar.gz"
 TARGET_DIR = repo_root() / "third_party" / "boost"
 
 
 def download_and_extract_boost(temp_dir):
     """Download and extract Boost."""
     print(f"Downloading Boost {BOOST_VERSION}...")
-    boost_archive = temp_dir / f"boost-{BOOST_VERSION}-b2-nodocs.tar.gz"
+    boost_archive = temp_dir / f"boost-{BOOST_RELEASE}-b2-nodocs.tar.gz"
 
     urlretrieve(BOOST_URL, boost_archive)
     print(f"Downloaded to {boost_archive}")
@@ -36,7 +36,7 @@ def download_and_extract_boost(temp_dir):
     with tarfile.open(boost_archive, "r:gz") as tar:
         tar.extractall(temp_dir)
 
-    boost_root = temp_dir / f"boost-{BOOST_VERSION}"
+    boost_root = temp_dir / f"boost-{BOOST_RELEASE}"
     return boost_root
 
 
@@ -47,7 +47,7 @@ def build_boost_log(boost_root, install_dir):
 
     print(f"Building Boost.Log to {install_dir}...")
     # Build only log library and its dependencies
-    subprocess.run([
+    b2_command = [
         str(boost_root / "b2"),
         "--with-log",  # Only build log
         f"--prefix={install_dir}",
@@ -57,7 +57,14 @@ def build_boost_log(boost_root, install_dir):
         "runtime-link=shared",
         "-j4",
         "install"
-    ], cwd=boost_root, check=True)
+    ]
+
+    cxxflags = os.environ.get("CXXFLAGS", "").strip()
+    if cxxflags:
+        print(f"Using CXXFLAGS: {cxxflags}")
+        b2_command.append(f"cxxflags={cxxflags}")
+
+    subprocess.run(b2_command, cwd=boost_root, check=True)
 
     print("Boost.Log built successfully!")
 

@@ -1,5 +1,6 @@
 #pragma once
 #include <chrono>
+#include <cstdint>
 #include <pthread.h>
 
 #if defined(_WIN32)
@@ -17,8 +18,14 @@
 #define THREAD_LIST_COUNT std::vector<int32_t>{1, 4}
 
 #define ITERATIONS std::size_t{10'000}
-// Total messages emitted per iteration across all logging threads.
-#define MESSAGES std::size_t{20}
+
+// Total messages emitted per iteration across all logging threads. Keeping this
+// aggregate fixed makes the 1-thread and 4-thread latency results comparable.
+#define MESSAGES_PER_ITERATION std::size_t{20}
+
+// Give the backend time to catch up between batches. This benchmark measures
+// call-site latency under controlled load; sustained throughput is measured by
+// the backend_total_time benchmarks.
 #define MIN_WAIT_DURATION std::chrono::microseconds{2000}
 #define MAX_WAIT_DURATION std::chrono::microseconds{2200}
 
@@ -32,6 +39,16 @@ inline void set_pthread_affinity(pthread_t thread, int cpu)
   CPU_SET(cpu, &cpus);
   if (::pthread_setaffinity_np(thread, sizeof(cpus), &cpus) != 0)
     abort();
+}
+
+// RDTSC is not a serializing instruction. Fence both sides so the measured
+// logging calls cannot move into or out of the timed region.
+inline uint64_t serialized_rdtsc() noexcept
+{
+  _mm_lfence();
+  uint64_t const timestamp = __rdtsc();
+  _mm_lfence();
+  return timestamp;
 }
 
 /** -------- **/
@@ -50,7 +67,7 @@ inline double ns_per_rdtsc_tick()
   {
     auto const beg_ts =
       std::chrono::nanoseconds{std::chrono::steady_clock::now().time_since_epoch().count()};
-    uint64_t const beg_tsc = __rdtsc();
+    uint64_t const beg_tsc = serialized_rdtsc();
 
     std::chrono::nanoseconds elapsed_ns;
     uint64_t end_tsc;
@@ -58,7 +75,7 @@ inline double ns_per_rdtsc_tick()
     {
       auto const end_ts =
         std::chrono::nanoseconds{std::chrono::steady_clock::now().time_since_epoch().count()};
-      end_tsc = __rdtsc();
+      end_tsc = serialized_rdtsc();
 
       elapsed_ns = end_ts - beg_ts; // calculates ns between two timespecs
     } while (elapsed_ns < spin_duration); // busy spin for 10ms

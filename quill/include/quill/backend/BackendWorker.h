@@ -148,6 +148,14 @@ public:
         QuillError{"BackendOptions::log_timestamp_ordering_grace_period must not be negative"});
     }
 
+    constexpr int64_t max_microseconds_as_nanoseconds = (std::numeric_limits<int64_t>::max)() / 1'000ll;
+    if (options.log_timestamp_ordering_grace_period.count() > max_microseconds_as_nanoseconds)
+    {
+      QUILL_THROW(
+        QuillError{"BackendOptions::log_timestamp_ordering_grace_period is too large to represent "
+                   "in nanoseconds"});
+    }
+
     if (options.rdtsc_resync_interval.count() < 0)
     {
       QUILL_THROW(QuillError{"BackendOptions::rdtsc_resync_interval must not be negative"});
@@ -156,6 +164,19 @@ public:
     if (options.sink_min_flush_interval.count() < 0)
     {
       QUILL_THROW(QuillError{"BackendOptions::sink_min_flush_interval must not be negative"});
+    }
+
+    constexpr int64_t max_milliseconds_as_nanoseconds = (std::numeric_limits<int64_t>::max)() / 1'000'000ll;
+    if (options.rdtsc_resync_interval.count() > max_milliseconds_as_nanoseconds)
+    {
+      QUILL_THROW(QuillError{
+        "BackendOptions::rdtsc_resync_interval is too large to represent in nanoseconds"});
+    }
+
+    if (options.sink_min_flush_interval.count() > max_milliseconds_as_nanoseconds)
+    {
+      QUILL_THROW(QuillError{
+        "BackendOptions::sink_min_flush_interval is too large to represent in nanoseconds"});
     }
 
     (void)BackendMdcState{options.mdc_format_pattern};
@@ -202,9 +223,10 @@ public:
 
     validate_options(options);
 
+    std::unique_ptr<BackendWorkerLock> backend_worker_lock;
     if (options.check_backend_singleton_instance)
     {
-      _backend_worker_lock = std::make_unique<BackendWorkerLock>(_process_id);
+      backend_worker_lock = std::make_unique<BackendWorkerLock>(_process_id);
     }
 
     std::thread worker(
@@ -302,6 +324,10 @@ public:
         _has_worker_thread_exited.store(true);
       });
 
+    // Publish ownership only after thread creation succeeds. If std::thread construction throws,
+    // the local singleton lock is released so a later start attempt can proceed.
+    _backend_worker_lock = std::move(backend_worker_lock);
+
     // Move the worker ownership to our class
     _worker_thread.swap(worker);
 
@@ -392,7 +418,7 @@ public:
 
 private:
   /***/
-  QUILL_ATTRIBUTE_HOT void _invoke_poll_hook(std::function<void()> const& hook) const
+  QUILL_ATTRIBUTE_HOT void _invoke_poll_hook(std::function<void()> const& hook)
   {
     QUILL_TRY { hook(); }
 #if !defined(QUILL_NO_EXCEPTIONS)
@@ -405,7 +431,7 @@ private:
   }
 
   /***/
-  QUILL_ATTRIBUTE_HOT void _invoke_poll_end_once(bool& poll_end_called) const
+  QUILL_ATTRIBUTE_HOT void _invoke_poll_end_once(bool& poll_end_called)
   {
     if (poll_end_called)
     {
@@ -430,20 +456,31 @@ private:
     return std::string{ts};
   }
 
-  template <typename TMessage>
-  static void _notify_error(std::function<void(std::string const&)> const& error_notifier, TMessage&& message)
+  void _notify_error(std::function<void(std::string const&)> const& error_notifier,
+                     std::string const& error_message)
   {
-    if (static_cast<bool>(error_notifier))
+    if (!static_cast<bool>(error_notifier))
     {
-      QUILL_TRY { error_notifier(static_cast<TMessage&&>(message)); }
-#if !defined(QUILL_NO_EXCEPTIONS)
-      QUILL_CATCH_ALL()
-      {
-        // Swallow exceptions from the user-provided error_notifier to prevent
-        // infinite loops when both formatting and the notifier throw.
-      }
-#endif
+      return;
     }
+
+    auto const now = std::chrono::steady_clock::now();
+    if ((error_message == _last_error_notification) && (now < _next_error_notification_time))
+    {
+      return;
+    }
+
+    _last_error_notification = error_message;
+    _next_error_notification_time = now + std::chrono::seconds{5};
+
+    QUILL_TRY { error_notifier(error_message); }
+#if !defined(QUILL_NO_EXCEPTIONS)
+    QUILL_CATCH_ALL()
+    {
+      // Swallow exceptions from the user-provided error_notifier to prevent
+      // infinite loops when both formatting and the notifier throw.
+    }
+#endif
   }
 
   /**
@@ -511,7 +548,7 @@ private:
       // No cached transit events to process, minimal thread workload.
 
       // force flush all remaining messages
-      _flush_and_run_active_sinks(true, _options.sink_min_flush_interval);
+      _flush_and_run_active_sinks(true, _options.sink_min_flush_interval, SinkFlushReason::Periodic);
 
       // check for any dropped events / blocked threads
       _check_failure_counter(_options.error_notifier);
@@ -568,6 +605,8 @@ private:
   QUILL_ATTRIBUTE_COLD void _init(BackendOptions const& options)
   {
     _options = options;
+    _last_error_notification.clear();
+    _next_error_notification_time = std::chrono::steady_clock::now();
     _is_rdtsc_clock_config_valid.store(_options.sleep_duration <= _options.rdtsc_resync_interval,
                                        std::memory_order_relaxed);
 
@@ -621,7 +660,7 @@ private:
       {
         // we are done, all queues are now empty
         _check_failure_counter(_options.error_notifier);
-        _flush_and_run_active_sinks(false, std::chrono::milliseconds{0});
+        _flush_and_run_active_sinks(false, std::chrono::milliseconds{0}, SinkFlushReason::Final);
         break;
       }
 
@@ -656,11 +695,15 @@ private:
    */
   QUILL_ATTRIBUTE_HOT size_t _populate_transit_events_from_frontend_queues()
   {
-    uint64_t const ts_now = _options.log_timestamp_ordering_grace_period.count()
-      ? (detail::get_system_time_ns() -
-         static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(_options.log_timestamp_ordering_grace_period)
-                                 .count()))
-      : (std::numeric_limits<uint64_t>::max)();
+    uint64_t ts_now = (std::numeric_limits<uint64_t>::max)();
+    if (_options.log_timestamp_ordering_grace_period.count())
+    {
+      uint64_t const system_time_ns = detail::get_system_time_ns();
+      uint64_t const grace_period_ns = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(_options.log_timestamp_ordering_grace_period)
+          .count());
+      ts_now = (system_time_ns > grace_period_ns) ? (system_time_ns - grace_period_ns) : 0u;
+    }
 
     size_t total_cached_transit_events_count{0};
 
@@ -1200,13 +1243,15 @@ private:
     }
     else if (transit_event.macro_metadata->event() == MacroMetadata::Event::Flush)
     {
-      _flush_and_run_active_sinks(false, std::chrono::milliseconds{0});
-
       // This is a flush event, so we capture the flush flag to notify the caller after processing.
+      // Capture it before flushing because growing _active_sinks_cache can throw. The parent
+      // catches that error and removes this event, so it must still be able to release the caller.
       flush_flag = transit_event.flush_flag();
 
       // Reset the flush flag as TransitEvents are re-used, preventing incorrect flag reuse.
       transit_event.reset_payload();
+
+      _flush_and_run_active_sinks(false, std::chrono::milliseconds{0}, SinkFlushReason::Explicit);
 
       // We defer notifying the caller until after this function completes.
     }
@@ -1305,7 +1350,7 @@ private:
    * Forwards a decoded metric sample to each sink associated with the logger.
    */
   QUILL_ATTRIBUTE_HOT void _write_metric_sample(TransitEvent const& transit_event, std::string_view thread_id,
-                                                std::string_view thread_name) const
+                                                 std::string_view thread_name)
   {
     QUILL_ASSERT(
       transit_event.macro_metadata,
@@ -1339,11 +1384,11 @@ private:
    * Formats and writes the log statement to each sink
    */
   QUILL_ATTRIBUTE_HOT void _write_log_statement(TransitEvent const& transit_event,
-                                                std::string_view const& thread_id,
-                                                std::string_view const& thread_name,
-                                                std::string_view const& log_level_description,
-                                                std::string_view const& log_level_short_code,
-                                                std::string_view const& log_message) const
+                                                 std::string_view const& thread_id,
+                                                 std::string_view const& thread_name,
+                                                 std::string_view const& log_level_description,
+                                                 std::string_view const& log_level_short_code,
+                                                 std::string_view const& log_message)
   {
     std::string_view default_log_statement;
 
@@ -1645,7 +1690,7 @@ private:
    * @return start position of read
    */
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::byte* _read_unbounded_frontend_queue(UnboundedSPSCQueue& frontend_queue,
-                                                                                ThreadContext* thread_context) const
+                                                                                 ThreadContext* thread_context)
   {
     auto const read_result = frontend_queue.prepare_read();
 
@@ -1727,7 +1772,9 @@ private:
   }
 
   /***/
-  QUILL_ATTRIBUTE_HOT void _flush_and_run_active_sinks(bool run_periodic_tasks, std::chrono::milliseconds sink_min_flush_interval)
+  QUILL_ATTRIBUTE_HOT void _flush_and_run_active_sinks(bool run_periodic_tasks,
+                                                       std::chrono::milliseconds sink_min_flush_interval,
+                                                       SinkFlushReason flush_reason)
   {
     // Populate the active sinks cache with unique sinks, consider only the valid loggers
     _logger_manager.for_each_logger(
@@ -1784,7 +1831,7 @@ private:
           // If an exception is thrown, catch it here to prevent it from propagating
           // to the outer function. This prevents potential infinite loops caused by failing
           // flush operations.
-          sink->flush_sink();
+          sink->flush_sink(flush_reason);
         }
       }
 #if !defined(QUILL_NO_EXCEPTIONS)
@@ -2154,10 +2201,22 @@ private:
       (*named_args)[i].first = arg_names[i].first;
     }
 
-    for (size_t i = arg_names.size(); i < static_cast<size_t>(_format_args_store.size()); ++i)
+    bool const is_rate_limited = transit_event->macro_metadata->is_rate_limited();
+    QUILL_ASSERT(!is_rate_limited || (_format_args_store.size() > 0),
+                 "A rate-limited log event must contain its occurrence count");
+    size_t const user_arg_count =
+      static_cast<size_t>(_format_args_store.size()) - static_cast<size_t>(is_rate_limited);
+
+    for (size_t i = arg_names.size(); i < user_arg_count; ++i)
     {
       // we do not have a named_arg for the argument value here so we just append its index as a placeholder
       named_args->push_back(std::pair<std::string, std::string>(fmtquill::format("_{}", i), std::string{}));
+    }
+
+    if (is_rate_limited)
+    {
+      named_args->push_back(
+        std::pair<std::string, std::string>{_make_unique_named_arg_key(arg_names, "occurred"), {}});
     }
 
     // Then populate all the values of each arg
@@ -2180,15 +2239,27 @@ private:
   {
     transit_event->formatted_msg->clear();
 
+    bool const is_rate_limited = transit_event->macro_metadata->is_rate_limited();
+    QUILL_ASSERT(!is_rate_limited || (_format_args_store.size() > 0),
+                 "A rate-limited log event must contain its occurrence count");
+    int const user_arg_count = _format_args_store.size() - static_cast<int>(is_rate_limited);
+
     QUILL_TRY
     {
-      fmtquill::vformat_to(std::back_inserter(*transit_event->formatted_msg), message_format,
-                           fmtquill::basic_format_args<fmtquill::format_context>{
-                             _format_args_store.data(), _format_args_store.size()});
+      fmtquill::vformat_to(
+        std::back_inserter(*transit_event->formatted_msg), message_format,
+        fmtquill::basic_format_args<fmtquill::format_context>{_format_args_store.data(), user_arg_count});
 
       if (_options.check_printable_char && _format_args_store.has_string_related_type())
       {
         sanitize_non_printable_chars(*transit_event->formatted_msg, _options);
+      }
+
+      if (is_rate_limited)
+      {
+        fmtquill::vformat_to(std::back_inserter(*transit_event->formatted_msg), " ({}x)",
+                             fmtquill::basic_format_args<fmtquill::format_context>{
+                               _format_args_store.data() + user_arg_count, 1});
       }
     }
 #if !defined(QUILL_NO_EXCEPTIONS)
@@ -2326,8 +2397,11 @@ private:
   std::unordered_map<std::string, std::atomic<bool>*> _logger_removal_flags; /** Maps logger names to atomic flags used for synchronizing remove_logger_blocking(). */
   std::string _named_args_format_template; /** to avoid allocation each time **/
   std::string _process_id;                 /** Id of the current running process **/
+  std::string _last_error_notification;
   std::chrono::steady_clock::time_point _last_rdtsc_resync_time;
   std::chrono::steady_clock::time_point _last_sink_flush_time;
+  std::chrono::steady_clock::time_point _next_error_notification_time{
+    std::chrono::steady_clock::now()};
   std::atomic<uint32_t> _worker_thread_id{0};  /** cached backend worker thread id */
   std::atomic<bool> _is_worker_running{false}; /** The spawned backend thread status */
   std::atomic<bool> _has_worker_thread_exited{true}; /** Set to true when the backend thread completes its exit sequence */

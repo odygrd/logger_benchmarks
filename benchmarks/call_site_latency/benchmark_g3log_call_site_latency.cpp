@@ -10,6 +10,9 @@ void g3log_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
 {
   std::remove("g3log_call_site_latency_percentile_linux_benchmark.log");
 
+  // g3log does not expose its worker thread handle. Pin this thread before
+  // creating the worker so the worker inherits the backend CPU.
+  set_thread_affinity(5);
   auto worker = g3::LogWorker::createLogWorker();
   auto handle = worker->addDefaultLogger("g2log_logger", "./");
   g3::initializeLogging(worker.get());
@@ -40,7 +43,7 @@ void g3log_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   for (auto thread_count : thread_count_array)
   {
     run_benchmark("Logger: G3Log - Benchmark: Caller Thread Latency", thread_count,
-                  num_iterations_per_thread, on_start, log_func, on_exit);
+                  num_iterations_per_thread, MESSAGES_PER_ITERATION, on_start, log_func, on_exit);
   }
 }
 

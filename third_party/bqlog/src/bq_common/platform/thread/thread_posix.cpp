@@ -1,5 +1,4 @@
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -149,8 +148,8 @@ namespace bq {
 #endif
 
 #if defined(BQ_HAVE_PTHREAD_NP)
-        template <typename U>
-        bq::enable_if_t<get_thread_name_func_sfinae1<U>::value, bq::string> get_thread_name_impl(U thread_handle)
+        template <typename U, bq::enable_if_t<get_thread_name_func_sfinae1<U>::value, bool> = true>
+        bq::string get_thread_name_impl(U thread_handle)
         {
             char thread_name_buf[thread_name_max_len()];
             int32_t get_name_result = pthread_getname_np(thread_handle, thread_name_buf, sizeof(thread_name_buf));
@@ -161,11 +160,9 @@ namespace bq {
         }
 #endif
 #if defined(BQ_HAVE_PTHREAD_NP_UNIX)
-        template <typename U>
-        bq::enable_if_t<!get_thread_name_func_sfinae1<U>::value
-                && get_thread_name_func_sfinae2<U>::value,
-            bq::string>
-        get_thread_name_impl(U thread_handle)
+        template <typename U, bq::enable_if_t<!get_thread_name_func_sfinae1<U>::value
+                && get_thread_name_func_sfinae2<U>::value, bool> = true>
+        bq::string get_thread_name_impl(U thread_handle)
         {
             char thread_name_buf[thread_name_max_len()] = { 0 };
             pthread_get_name_np(thread_handle, thread_name_buf, sizeof(thread_name_buf));
@@ -173,12 +170,10 @@ namespace bq {
         }
 #endif
 #if defined(BQ_HAVE_DLFCN)
-        template <typename U>
-        bq::enable_if_t<!get_thread_name_func_sfinae1<U>::value
+        template <typename U, bq::enable_if_t<!get_thread_name_func_sfinae1<U>::value
                 && !get_thread_name_func_sfinae2<U>::value
-                && get_thread_name_func_sfinae3<U>::value,
-            bq::string>
-        get_thread_name_impl(U thread_handle)
+                && get_thread_name_func_sfinae3<U>::value, bool> = true>
+        bq::string get_thread_name_impl(U thread_handle)
         {
             (void)thread_handle;
             assert(thread_handle == pthread_self() && "prctl(PR_GET_NAME) can only get current thread name!");
@@ -190,12 +185,10 @@ namespace bq {
             return bq::string(thread_name_buf);
         }
 #endif
-        template <typename U>
-        bq::enable_if_t<!get_thread_name_func_sfinae1<U>::value
+        template <typename U, bq::enable_if_t<!get_thread_name_func_sfinae1<U>::value
                 && !get_thread_name_func_sfinae2<U>::value
-                && !get_thread_name_func_sfinae3<U>::value,
-            bq::string>
-        get_thread_name_impl(U thread_handle)
+                && !get_thread_name_func_sfinae3<U>::value, bool> = true>
+        bq::string get_thread_name_impl(U thread_handle)
         {
             char thread_name_buf[64] = { 0 };
             uint64_t tid = static_cast<uint64_t>(thread_handle);
@@ -204,8 +197,8 @@ namespace bq {
         }
 
 #if defined(BQ_HAVE_PTHREAD_NP)
-        template <typename U>
-        bq::enable_if_t<set_thread_name_func_sfinae1<U>::value, bool> set_thread_name_impl(U thread_handle, const bq::string& thread_name)
+        template <typename U, bq::enable_if_t<set_thread_name_func_sfinae1<U>::value, bool> = true>
+        bool set_thread_name_impl(U thread_handle, const bq::string& thread_name)
         {
             using func_type = int32_t (*)(pthread_t, const char*, void*);
             auto func_ptr = reinterpret_cast<func_type>(reinterpret_cast<void*>(&::pthread_setname_np));
@@ -214,11 +207,9 @@ namespace bq {
         }
 #endif
 #if defined(BQ_HAVE_PTHREAD_NP)
-        template <typename U>
-        bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
-                && set_thread_name_func_sfinae2<U>::value,
-            bool>
-        set_thread_name_impl(U thread_handle, const bq::string& thread_name)
+        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
+                && set_thread_name_func_sfinae2<U>::value, bool> = true>
+        bool set_thread_name_impl(U thread_handle, const bq::string& thread_name)
         {
             using func_type = int32_t (*)(pthread_t, const char*);
             auto func_ptr = reinterpret_cast<func_type>(reinterpret_cast<void*>(&::pthread_setname_np));
@@ -227,25 +218,21 @@ namespace bq {
         }
 #endif
 #if defined(BQ_HAVE_PTHREAD_NP_UNIX)
-        template <typename U>
-        bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
+        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
                 && !set_thread_name_func_sfinae2<U>::value
-                && set_thread_name_func_sfinae3<U>::value,
-            bool>
-        set_thread_name_impl(U thread_handle, const bq::string& thread_name)
+                && set_thread_name_func_sfinae3<U>::value, bool> = true>
+        bool set_thread_name_impl(U thread_handle, const bq::string& thread_name)
         {
             pthread_set_name_np(thread_handle, thread_name.c_str());
             return true;
         }
 #endif
 #if defined(BQ_HAVE_PTHREAD_NP)
-        template <typename U>
-        bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
+        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
                 && !set_thread_name_func_sfinae2<U>::value
                 && !set_thread_name_func_sfinae3<U>::value
-                && set_thread_name_func_sfinae4<U>::value,
-            bool>
-        set_thread_name_impl(U thread_handle, const bq::string& thread_name)
+                && set_thread_name_func_sfinae4<U>::value, bool> = true>
+        bool set_thread_name_impl(U thread_handle, const bq::string& thread_name)
         {
             (void)thread_handle;
             assert(thread_handle == pthread_self() && "pthread_setname_np can only set current thread name!");
@@ -256,14 +243,12 @@ namespace bq {
         }
 #endif
 #if defined(BQ_HAVE_DLFCN)
-        template <typename U>
-        bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
+        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
                 && !set_thread_name_func_sfinae2<U>::value
                 && !set_thread_name_func_sfinae3<U>::value
                 && !set_thread_name_func_sfinae4<U>::value
-                && set_thread_name_func_sfinae5<U>::value,
-            bool>
-        set_thread_name_impl(U thread_handle, const bq::string& thread_name)
+                && set_thread_name_func_sfinae5<U>::value, bool> = true>
+        bool set_thread_name_impl(U thread_handle, const bq::string& thread_name)
         {
             (void)thread_handle;
             assert(thread_handle == pthread_self() && "prctl(PR_SET_NAME) can only set current thread name!");
@@ -271,17 +256,16 @@ namespace bq {
             return set_name_result >= 0;
         }
 #endif
-        template <typename U>
-        bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
+        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
                 && !set_thread_name_func_sfinae2<U>::value
                 && !set_thread_name_func_sfinae3<U>::value
                 && !set_thread_name_func_sfinae4<U>::value
-                && !set_thread_name_func_sfinae5<U>::value,
-            bool>
-        set_thread_name_impl(U thread_handle, const bq::string& thread_name)
+                && !set_thread_name_func_sfinae5<U>::value, bool> = true>
+        bool set_thread_name_impl(U thread_handle, const bq::string& thread_name)
         {
             (void)thread_handle;
             (void)thread_name;
+            return false;
         }
 
         struct thread_platform_def {
@@ -312,12 +296,13 @@ namespace bq {
         {
             thread_name_ = thread_name;
             if (thread_name_.size() >= 15) {
-                bq::util::log_device_console(bq::log_level::warning, "thread name \"%s\" excceed max length limit of android, the length of thread name can not be larger than 15. so it will be truncated to \"%s\"", thread_name_.c_str(), thread_name_.substr(0, 15).c_str());
-                thread_name_ = thread_name_.substr(0, 15);
+                bq::string truncated_name = thread_name_.substr(0, 15);
+                bq::util::log_device_console(bq::log_level::warning, "thread name \"%s\" exceed max length limit of android, the length of thread name can not be larger than 15. so it will be truncated to \"%s\"", thread_name_.c_str(), truncated_name.c_str());
+                thread_name_ = truncated_name;
             }
             auto current_status = status_.load();
             if (current_status == enum_thread_status::running) {
-                bq::util::log_device_console(log_level::warning, "trying to set thread name \"%s\" when thread have already been running, thread id :%" PRIu64 ", thread status:%d", thread_name.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
+                bq::util::log_device_console(log_level::warning, "trying to set thread name \"%s\" when thread have already been running, thread id :%" PRIu64 ", thread status:%" PRId32, thread_name.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
             }
         }
 
@@ -325,11 +310,11 @@ namespace bq {
         {
             auto current_status = status_.load();
             if (current_status == enum_thread_status::running) {
-                bq::util::log_device_console(log_level::warning, "trying to start a thread \"%s\" which is still running, thread id :%" PRIu64 ", thread status:%d", thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
+                bq::util::log_device_console(log_level::warning, "trying to start a thread \"%s\" which is still running, thread id :%" PRIu64 ", thread status:%" PRId32, thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
                 return;
             }
             if (current_status == enum_thread_status::detached) {
-                bq::util::log_device_console(log_level::fatal, "trying to start a thread \"%s\" which is detached, thread id :%" PRIu64 ", thread status:%d", thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
+                bq::util::log_device_console(log_level::fatal, "trying to start a thread \"%s\" which is detached, thread id :%" PRIu64 ", thread status:%" PRId32, thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
                 assert(false && "trying to start a detached thread");
                 return;
             }
@@ -346,7 +331,7 @@ namespace bq {
             } else if (create_result == EPERM) {
                 bq::util::log_device_console(log_level::fatal, "create thread \"%s\" failed, error code:EPERM", thread_name_.c_str());
             } else if (create_result != 0) {
-                bq::util::log_device_console(log_level::fatal, "create thread \"%s\" failed, error code:%d", thread_name_.c_str(), create_result);
+                bq::util::log_device_console(log_level::fatal, "create thread \"%s\" failed, error code:%" PRId32, thread_name_.c_str(), create_result);
             }
             if (create_result != 0) {
                 return;
@@ -372,7 +357,7 @@ namespace bq {
                 // maybe thread is detached or already joined.
                 return;
             } else if (0 != join_result) {
-                bq::util::log_device_console(log_level::error, "join thread \"%s\" failed, thread_id:%" PRIu64 ", error code:%d", thread_name_.c_str(), static_cast<uint64_t>(thread_id_), join_result);
+                bq::util::log_device_console(log_level::error, "join thread \"%s\" failed, thread_id:%" PRIu64 ", error code:%" PRId32, thread_name_.c_str(), static_cast<uint64_t>(thread_id_), join_result);
             }
         }
 
@@ -380,12 +365,12 @@ namespace bq {
         {
             auto current_status = status_.load();
             if (current_status != enum_thread_status::running) {
-                bq::util::log_device_console(log_level::warning, "trying to detach a thread \"%s\" which is not running, thread id :%" PRIu64 ", thread status:%d", thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
+                bq::util::log_device_console(log_level::warning, "trying to detach a thread \"%s\" which is not running, thread id :%" PRIu64 ", thread status:%" PRId32, thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
                 return;
             }
             auto detach_result = pthread_detach(platform_data_->thread_handle);
             if (detach_result != 0) {
-                bq::util::log_device_console(log_level::error, "detach thread \"%s\" failed, thread_id:%" PRIu64 ", error code:%d", thread_name_.c_str(), static_cast<uint64_t>(thread_id_), detach_result);
+                bq::util::log_device_console(log_level::error, "detach thread \"%s\" failed, thread_id:%" PRIu64 ", error code:%" PRId32, thread_name_.c_str(), static_cast<uint64_t>(thread_id_), detach_result);
             }
             status_.store_seq_cst(enum_thread_status::detached);
         }

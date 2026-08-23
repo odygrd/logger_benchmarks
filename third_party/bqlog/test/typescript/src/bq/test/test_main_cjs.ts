@@ -2,9 +2,9 @@
  * Copyright (C) 2026 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -12,7 +12,8 @@
 import { test_manager } from "./test_manager.ts";
 import { test_log_1 } from "./test_log_1.ts";
 import { test_log_2 } from "./test_log_2.ts";
-import { set_bq_lib, bq } from "./bq_lib.ts";
+import { test_log_category } from "./test_log_category.ts";
+import { bq } from "@pippocao/bqlog";
 
 async function run_tests() {
     try {
@@ -25,7 +26,8 @@ async function run_tests() {
 
         test_manager.add_test(new test_log_1("Test Log Basic"));
         test_manager.add_test(new test_log_2("Test Log MultiThread"));
-        
+        test_manager.add_test(new test_log_category("Test Log Category"));
+
         const result = await test_manager.test();
         if (result) {
             bq.log.console(bq.log_level.info, "--------------------------------");
@@ -47,15 +49,9 @@ async function run_tests() {
 async function main() {
     console.log("Running TypeScript Wrapper Tests (CJS Mode)...");
     try {
-        // Path to CJS build
-        const libPath = "../../../../../wrapper/typescript/dist/cjs/index.js";
-        
-        // Use standard require
-        const mod = require(libPath);
-        set_bq_lib(mod.bq);
-        
+        // @pippocao/bqlog is installed via npm (from tgz), loaded directly above
         process.env.BQLOG_TEST_MODE = "CJS";
-        process.env.BQLOG_LIB_PATH = require.resolve(libPath);
+        process.env.BQLOG_LIB_PATH = require.resolve("@pippocao/bqlog");
 
         await run_tests();
 

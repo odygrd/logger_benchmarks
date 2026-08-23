@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+﻿/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 /*!
  *
  * \tools
@@ -131,15 +130,15 @@ namespace bq {
         }
     };
 
-    template <typename T, typename hash_value_type>
-    inline typename bq::enable_if<(bq::is_same<T, float>::value || bq::is_same<T, double>::value), hash_value_type>::type
+    template <typename T, typename hash_value_type, bq::enable_if_t<(bq::is_same<T, float>::value || bq::is_same<T, double>::value), bool> = true>
+    inline hash_value_type
     __inner_hash_calculate(const T& value)
     {
         return decimal_type_hash_calculator<T>::hash_code(value);
     }
 
-    template <typename T, typename hash_value_type>
-    inline typename bq::enable_if<!(bq::is_same<T, float>::value || bq::is_same<T, double>::value), hash_value_type>::type
+    template <typename T, typename hash_value_type, bq::enable_if_t<!(bq::is_same<T, float>::value || bq::is_same<T, double>::value), bool> = true>
+    inline hash_value_type
     __inner_hash_calculate(const T& value)
     {
         return integer_type_hash_calculator<T>::hash_code(value);
@@ -354,29 +353,29 @@ namespace bq {
         {
         }
 
-        template <size_t _Index, class... _Types>
-        friend constexpr tuple_element_t<_Index, tuple<_Types...>>& get(tuple<_Types...>& _Tuple) noexcept;
+        template <size_t Index, class... Types>
+        friend constexpr tuple_element_t<Index, tuple<Types...>>& get(tuple<Types...>& _Tuple) noexcept;
 
-        template <size_t _Index, class... _Types>
-        friend constexpr const tuple_element_t<_Index, tuple<_Types...>>& get(const tuple<_Types...>& _Tuple) noexcept;
+        template <size_t Index, class... Types>
+        friend constexpr const tuple_element_t<Index, tuple<Types...>>& get(const tuple<Types...>& _Tuple) noexcept;
 
-        template <size_t _Index, class... _Types>
-        friend constexpr tuple_element_t<_Index, tuple<_Types...>>&& get(tuple<_Types...>&& _Tuple) noexcept;
+        template <size_t Index, class... Types>
+        friend constexpr tuple_element_t<Index, tuple<Types...>>&& get(tuple<Types...>&& _Tuple) noexcept;
 
-        template <size_t _Index, class... _Types>
-        friend constexpr const tuple_element_t<_Index, tuple<_Types...>>&& get(const tuple<_Types...>&& _Tuple) noexcept;
+        template <size_t Index, class... Types>
+        friend constexpr const tuple_element_t<Index, tuple<Types...>>&& get(const tuple<Types...>&& _Tuple) noexcept;
 
-        template <class _Ty, class... _Types>
-        friend constexpr _Ty& get(tuple<_Types...>& _Tuple) noexcept;
+        template <class _Ty, class... Types>
+        friend constexpr _Ty& get(tuple<Types...>& _Tuple) noexcept;
 
-        template <class _Ty, class... _Types>
-        friend constexpr const _Ty& get(const tuple<_Types...>& _Tuple) noexcept;
+        template <class _Ty, class... Types>
+        friend constexpr const _Ty& get(const tuple<Types...>& _Tuple) noexcept;
 
-        template <class _Ty, class... _Types>
-        friend constexpr _Ty&& get(tuple<_Types...>&& _Tuple) noexcept;
+        template <class _Ty, class... Types>
+        friend constexpr _Ty&& get(tuple<Types...>&& _Tuple) noexcept;
 
-        template <class _Ty, class... _Types>
-        friend constexpr const _Ty&& get(const tuple<_Types...>&& _Tuple) noexcept;
+        template <class _Ty, class... Types>
+        friend constexpr const _Ty&& get(const tuple<Types...>&& _Tuple) noexcept;
     };
 
     template <size_t Index, typename... Types>

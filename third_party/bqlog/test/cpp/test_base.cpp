@@ -63,7 +63,7 @@ namespace bq {
         void test_result::output(const std::string& type_name)
         {
             auto level = (is_all_pass()) ? bq::log_level::info : bq::log_level::error;
-            test_output_param(level, "test case %s result: %u/%u", type_name.c_str(), success_count.load(), total_count.load());
+            test_output_param(level, "test case %s result: %" PRIu32 "/%" PRIu32, type_name.c_str(), success_count.load(), total_count.load());
             for (std::vector<std::string>::size_type i = 0; i < failed_infos.size(); ++i) {
                 test_output_param(level, "\t%s", failed_infos[i].c_str());
             }

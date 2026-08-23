@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -46,12 +45,13 @@ namespace bq {
         {
             thread_name_ = thread_name;
             if (thread_name_.size() >= 15) {
-                bq::util::log_device_console(bq::log_level::warning, "thread name \"%s\" excceed max length limit of android, the length of thread name can not be larger than 15. so it will be truncated to \"%s\"", thread_name_.c_str(), thread_name_.substr(0, 15).c_str());
-                thread_name_ = thread_name_.substr(0, 15);
+                bq::string truncated_thread_name = thread_name_.substr(0, 15);
+                bq::util::log_device_console(bq::log_level::warning, "thread name \"%s\" excceed max length limit of android, the length of thread name can not be larger than 15. so it will be truncated to \"%s\"", thread_name_.c_str(), truncated_thread_name.c_str());
+                thread_name_ = truncated_thread_name;
             }
             auto current_status = status_.load();
             if (current_status == enum_thread_status::running) {
-                bq::util::log_device_console(log_level::warning, "trying to set thread name \"%s\" when thread have already been running, thread id :%" PRIu64 ", thread status:%d", thread_name.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
+                bq::util::log_device_console(log_level::warning, "trying to set thread name \"%s\" when thread have already been running, thread id :%" PRIu64 ", thread status:%" PRId32, thread_name.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
             }
         }
 
@@ -59,11 +59,11 @@ namespace bq {
         {
             auto current_status = status_.load();
             if (current_status == enum_thread_status::running) {
-                bq::util::log_device_console(log_level::warning, "trying to start a thread \"%s\" which is still running, thread id :%" PRIu64 ", thread status : %d", thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
+                bq::util::log_device_console(log_level::warning, "trying to start a thread \"%s\" which is still running, thread id :%" PRIu64 ", thread status : %" PRId32, thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
                 return;
             }
             if (current_status == enum_thread_status::detached) {
-                bq::util::log_device_console(log_level::fatal, "trying to start a thread \"%s\" which is detached, thread id :%" PRIu64 ", thread status:%d", thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
+                bq::util::log_device_console(log_level::fatal, "trying to start a thread \"%s\" which is detached, thread id :%" PRIu64 ", thread status:%" PRId32, thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
                 assert(false && "trying to start a detached thread");
                 return;
             }
@@ -92,7 +92,7 @@ namespace bq {
         {
             auto current_status = status_.load();
             if (!platform_data_->thread_handle.load() || platform_data_->thread_handle.load() == INVALID_HANDLE_VALUE) {
-                bq::util::log_device_console(log_level::warning, "trying to join a thread \"%s\" which is not started or is ended, thread id :%" PRIu64 ", thread status : %d", thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
+                bq::util::log_device_console(log_level::warning, "trying to join a thread \"%s\" which is not started or is ended, thread id :%" PRIu64 ", thread status : %" PRId32, thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
                 return;
             }
             DWORD wait_result = WaitForSingleObjectEx(platform_data_->thread_handle.load(), INFINITE, true);
@@ -105,7 +105,7 @@ namespace bq {
         {
             auto current_status = status_.load();
             if (current_status != enum_thread_status::running) {
-                bq::util::log_device_console(log_level::warning, "trying to detach a thread \"%s\" which is not running, thread id :%" PRIu64 ", thread status:%d", thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
+                bq::util::log_device_console(log_level::warning, "trying to detach a thread \"%s\" which is not running, thread id :%" PRIu64 ", thread status:%" PRId32, thread_name_.c_str(), static_cast<uint64_t>(thread_id_), (int32_t)current_status);
                 return;
             }
             if (platform_data_->thread_handle.load() != INVALID_HANDLE_VALUE) {

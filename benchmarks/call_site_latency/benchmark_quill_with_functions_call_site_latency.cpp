@@ -61,13 +61,8 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   auto log_func = [logger](uint64_t i, uint64_t j, std::vector<std::string> const& s)
   { quill::info(logger, "Logging int: {}, int: {}, vector: {}", i, j, s); };
 #else
-  static_assert(false, "define BENCH_INT_INT_DOUBLE or BENCH_INT_INT_LARGESTR");
-#endif
-
-#ifdef QUILL_X86ARCH
-  char const* quill_x86_arch = "[quill_x86_arch: on]";
-#else
-  char const* quill_x86_arch = "[quill_x86_arch: off]";
+  static_assert(false,
+                "define BENCH_INT_INT_DOUBLE, BENCH_INT_INT_LARGESTR, or BENCH_VECTOR_LARGESTR");
 #endif
 
   auto on_start = [logger]()
@@ -81,13 +76,12 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   // Run the benchmark for n threads
   std::string benchmark_name = "Logger: Quill - Benchmark: Caller Thread Latency, Unbounded With Functions";
   benchmark_name += " - ";
-  benchmark_name += quill_x86_arch;
-  benchmark_name += " - ";
   benchmark_name += benchmark_type;
 
   for (auto thread_count : thread_count_array)
   {
-    run_benchmark(benchmark_name.c_str(), thread_count, num_iterations_per_thread, on_start, log_func, on_exit);
+    run_benchmark(benchmark_name.c_str(), thread_count, num_iterations_per_thread,
+                  MESSAGES_PER_ITERATION, on_start, log_func, on_exit);
   }
 }
 

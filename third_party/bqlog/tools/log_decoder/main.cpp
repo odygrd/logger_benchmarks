@@ -227,17 +227,21 @@ int32_t main(int32_t argc, char* argv[])
     while (true) {
         auto decode_result = decoder.decode();
         if (decode_result == bq::appender_decode_result::eof) {
-            printf("%s\n", output_cache.c_str());
+            fwrite(output_cache.c_str(), 1, output_cache.size(), stdout);
             output_cache.clear();
             break;
         } else if (decode_result != bq::appender_decode_result::success) {
+            output_cache += decoder.get_last_decoded_log_entry();
+            output_cache.push_back('\n');
+            fwrite(output_cache.c_str(), 1, output_cache.size(), stdout);
+            output_cache.clear();
             CONSOLE_OUTPUT(bq::log_level::error, "error: decode failed, reason:%" PRId32 "", static_cast<int32_t>(decoder.get_last_decode_result()));
             return -1 * static_cast<int32_t>(decode_result);
         }
         output_cache += decoder.get_last_decoded_log_entry();
         output_cache.push_back('\n');
         if (output_cache.size() > 4 * 1024) { // Flush every 4K
-            printf("%s", output_cache.c_str());
+            fwrite(output_cache.c_str(), 1, output_cache.size(), stdout);
             output_cache.clear();
         }
     }

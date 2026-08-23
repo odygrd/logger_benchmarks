@@ -14,6 +14,8 @@
 #include "bq_common_test/test_utils.h"
 #include "bq_common_test/test_array.h"
 #include "bq_common_test/test_hash_map.h"
+#include "test_bounded_hash_cache.h"
+#include "test_compressed_cache.h"
 #include "bq_common_test/test_string.h"
 #include "bq_common_test/test_file_manager.h"
 #include "bq_common_test/test_property.h"
@@ -25,6 +27,7 @@
 #include "test_log_appender.h"
 #include "test_log.h"
 #include "test_layout.h"
+#include "test_disk_full.h"
 #include <locale.h>
 #if defined(BQ_WIN)
 #include <windows.h>
@@ -104,6 +107,8 @@ int32_t main_logic()
     TEST_GROUP_END(Bq_Common_Test);
 
     TEST_GROUP_BEGIN(Bq_Log_Test);
+    TEST_GROUP(Bq_Log_Test, bq::test, test_bounded_hash_cache);
+    TEST_GROUP(Bq_Log_Test, bq::test, test_compressed_cache);
     bq::file_manager::remove_file_or_dir(TO_ABSOLUTE_PATH("bqlog_mmap", 0));
     TEST_GROUP(Bq_Log_Test, bq::test, test_log_buffer);
     TEST_GROUP(Bq_Log_Test, bq::test, test_log_appender);
@@ -111,6 +116,7 @@ int32_t main_logic()
     TEST_GROUP(Bq_Log_Test, bq::test, test_miso_ring_buffer);
     TEST_GROUP(Bq_Log_Test, bq::test, test_log);
     TEST_GROUP(Bq_Log_Test, bq::test, test_layout);
+    TEST_GROUP(Bq_Log_Test, bq::test, test_disk_full);
     TEST_GROUP_END(Bq_Log_Test);
 
     bool test_result = TEST_GROUP_RESULT(Bq_Common_Test) && TEST_GROUP_RESULT(Bq_Log_Test);

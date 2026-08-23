@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -77,17 +76,19 @@ namespace bq {
         return reset_impl(config_obj);
     }
 
-    void appender_base::log(const log_entry_handle& handle)
+    bool appender_base::log(const log_entry_handle& handle)
     {
         auto category_idx = handle.get_log_head().category_idx;
         if (categories_mask_array_.size() <= category_idx || categories_mask_array_[category_idx] == 0) {
-            return;
+            return false;
         }
 
         if (log_level_bitmap_.have_level(handle.get_level())) {
-            if (appenders_enable)
-                log_impl(handle);
+            if (appenders_enable) {
+                return log_impl(handle);
+            }
         }
+        return false;
     }
 
     void appender_base::set_basic_configs(const bq::property_value& config_obj)

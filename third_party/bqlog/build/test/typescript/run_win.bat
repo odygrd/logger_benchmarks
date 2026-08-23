@@ -19,7 +19,7 @@ popd
 
 echo ===== Building BqLog Dynamic Library (Windows) =====
 pushd "%BUILD_LIB_DIR%"
-call dont_execute_this.bat build native msvc OFF ON dynamic_lib
+call dont_execute_this.bat build native msvc OFF ON OFF dynamic_lib
 popd
 
 echo ===== Installing TypeScript Test Dependencies =====
@@ -33,11 +33,8 @@ call npm install
 call npm run build
 popd
 
-echo ===== Running TypeScript Tests =====
-pushd "%TEST_SRC_DIR%"
-
+echo ===== Finding and Staging .node Binary =====
 REM Find .node file
-REM In batch, finding file is a bit tricky, assume it is in the standard location
 set "NODE_LIB_DIR=%ARTIFACTS_DIR%\dynamic_lib\lib\%CONFIG%"
 if not exist "%NODE_LIB_DIR%" (
      if exist "%ARTIFACTS_DIR%\dynamic_lib\lib\Release" (
@@ -47,6 +44,7 @@ if not exist "%NODE_LIB_DIR%" (
     )
 )
 
+set "NODE_LIB_PATH="
 for /r "%NODE_LIB_DIR%" %%f in (*.node) do (
     set "NODE_LIB_PATH=%%f"
     goto :found_node
@@ -63,5 +61,29 @@ if "%NODE_LIB_PATH%"=="" (
     copy /Y "%NODE_LIB_PATH%" "!DEST_DIR!\BqLog.node" >nul
 )
 
+echo ===== Packing @pippocao/bqlog into tgz =====
+pushd "%PROJECT_ROOT%\wrapper\typescript"
+call npm pack --pack-destination "%TEST_SRC_DIR%"
+popd
+
+echo ===== Installing @pippocao/bqlog tgz into test project =====
+pushd "%TEST_SRC_DIR%"
+set "BQLOG_TGZ="
+for %%f in (pippocao-bqlog-*.tgz) do (
+    set "BQLOG_TGZ=%%f"
+    goto :found_tgz
+)
+:found_tgz
+if "%BQLOG_TGZ%"=="" (
+    echo Error: tgz file not found!
+    exit /b 1
+)
+echo Installing %BQLOG_TGZ%...
+call npm install ".\%BQLOG_TGZ%" --no-save
+del /q "%BQLOG_TGZ%"
+popd
+
+echo ===== Running TypeScript Tests =====
+pushd "%TEST_SRC_DIR%"
 call npm test
 popd

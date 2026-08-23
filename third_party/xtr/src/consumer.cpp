@@ -132,8 +132,7 @@ bool xtr::detail::consumer::run_once(pump_io_stats* stats) noexcept
             sink::ring_buffer::size_type(pos - span.begin()));
 
         std::size_t n_dropped;
-        if (sinks_[i]->buf_.read_span().empty() &&
-            (n_dropped = sinks_[i]->buf_.dropped_count()) > 0)
+        if (pos == span.end() && (n_dropped = sinks_[i]->dropped_count()) > 0)
         {
             detail::print(
                 buf,
@@ -149,10 +148,17 @@ bool xtr::detail::consumer::run_once(pump_io_stats* stats) noexcept
         flush_count_ = sinks_.size();
     }
 
-    // Signal to ~consumer that it can safely destruct (run_once will not be
-    // called again after it returns false).
     if (sinks_.empty())
+    {
+        // Sync the storage so that no io_uring submissions are pending when
+        // this thread exits---the kernel may cancel requests owned by exiting
+        // threads.
+        buf.flush();
+        buf.storage().sync();
+        // Signal to ~consumer that it can safely destruct (run_once will not
+        // be called again after it returns false).
         destruct_latch_.count_down();
+    }
 
     if (stats != nullptr)
         stats->n_events = n_events;

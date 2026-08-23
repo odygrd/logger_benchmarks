@@ -24,7 +24,7 @@ import { string_holder } from "../def/string_holder"
 // for CJS and OHOS build it is lib_loader.ts.
 import { native_export } from "../utils/lib_loader";
 
-function as_bigint(v: unknown, def: bigint = 0n): bigint {
+function as_bigint(v: unknown, def: bigint = BigInt(0)): bigint {
     return typeof v === "bigint" ? v : def;
 }
 export class log_invoker {

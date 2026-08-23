@@ -7,6 +7,29 @@ namespace bq {
     namespace test {
         const int32_t base_dir_type = 1;
 
+        template <bool>
+        struct test_file_manager_large_file_truncate {
+            static void test(test_result&, bq::file_manager&) {}
+        };
+
+        template <>
+        struct test_file_manager_large_file_truncate<true> {
+            static void test(test_result& result, bq::file_manager& file_manager)
+            {
+                file_manager.remove_file_or_dir(TO_ABSOLUTE_PATH("cc/bb/ff/truncate/large.bin", base_dir_type));
+                auto handle = file_manager.open_file(TO_ABSOLUTE_PATH("cc/bb/ff/truncate/large.bin", base_dir_type), file_open_mode_enum::auto_create | file_open_mode_enum::read_write);
+                result.add_result(handle.is_valid(), "truncate large open");
+                const uint64_t large_file_size_u64 = (static_cast<uint64_t>(4) * 1024 * 1024 * 1024) + 4096;
+                const size_t large_file_size = static_cast<size_t>(large_file_size_u64);
+                result.add_result(file_manager.truncate_file(handle, large_file_size), "truncate large over 4GB");
+                result.add_result(file_manager.get_file_size(handle) == large_file_size, "truncate large over 4GB size");
+                result.add_result(file_manager.truncate_file(handle, 128), "truncate large shrink back");
+                result.add_result(file_manager.get_file_size(handle) == 128, "truncate large shrink back size");
+                file_manager.close_file(handle);
+                file_manager.remove_file_or_dir(TO_ABSOLUTE_PATH("cc/bb/ff/truncate/large.bin", base_dir_type));
+            }
+        };
+
         class test_file_manager : public test_base {
         public:
             virtual test_result test() override
@@ -118,12 +141,42 @@ namespace bq {
                 }
 
                 {
+                    file_manager.remove_file_or_dir(TO_ABSOLUTE_PATH("cc/bb/ff/truncate/resize.bin", base_dir_type));
+                    auto handle = file_manager.open_file(TO_ABSOLUTE_PATH("cc/bb/ff/truncate/resize.bin", base_dir_type), file_open_mode_enum::auto_create | file_open_mode_enum::read_write);
+                    result.add_result(handle.is_valid(), "truncate resize open");
+                    const char seed_data[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+                    result.add_result(sizeof(seed_data) == file_manager.write_file(handle, seed_data, sizeof(seed_data)), "truncate resize initial write");
+
+                    constexpr size_t grow_size = 1024 * 1024;
+                    result.add_result(file_manager.truncate_file(handle, grow_size), "truncate grow file");
+                    result.add_result(file_manager.get_file_size(handle) == grow_size, "truncate grow file size");
+                    const uint8_t grow_marker = 0x5A;
+                    result.add_result(file_manager.write_file(handle, &grow_marker, sizeof(grow_marker)) == sizeof(grow_marker), "truncate grow cursor at end");
+                    result.add_result(file_manager.get_file_size(handle) == grow_size + sizeof(grow_marker), "truncate grow write at end size");
+
+                    constexpr size_t shrink_size = 4;
+                    result.add_result(file_manager.truncate_file(handle, shrink_size), "truncate shrink file");
+                    result.add_result(file_manager.get_file_size(handle) == shrink_size, "truncate shrink file size");
+                    const uint8_t shrink_marker = 0xA5;
+                    result.add_result(file_manager.write_file(handle, &shrink_marker, sizeof(shrink_marker)) == sizeof(shrink_marker), "truncate shrink cursor at end");
+                    result.add_result(file_manager.get_file_size(handle) == shrink_size + sizeof(shrink_marker), "truncate shrink write at end size");
+
+                    char read_buffer[sizeof(seed_data)] = {};
+                    size_t read_len = file_manager.read_file(handle, read_buffer, sizeof(read_buffer), file_manager::seek_option::begin, 0);
+                    result.add_result(read_len == shrink_size + sizeof(shrink_marker), "truncate shrink read size");
+                    result.add_result(memcmp(read_buffer, seed_data, shrink_size) == 0 && ((uint8_t*)read_buffer)[shrink_size] == shrink_marker, "truncate shrink content");
+                    file_manager.close_file(handle);
+                }
+
+                test_file_manager_large_file_truncate<(sizeof(size_t) > 4)>::test(result, file_manager);
+
+                {
                     // last modified time
                     auto last_modified_time0 = bq::file_manager::get_file_last_modified_epoch_ms(TO_ABSOLUTE_PATH("cc/bb/32323/not_exist.32", base_dir_type));
                     result.add_result(last_modified_time0 == 0, "last_modified_time test 0");
                     auto current_epoch = bq::platform::high_performance_epoch_ms();
                     auto last_modified_time1 = bq::file_manager::get_file_last_modified_epoch_ms(TO_ABSOLUTE_PATH("cc/bb/ff/real/v.txt", base_dir_type));
-                    result.add_result(last_modified_time1 <= current_epoch && (current_epoch - last_modified_time1) < 60000, "last_modified_time test 1， last_modified_time1：%" PRIu64 ", current_epoch:%" PRIu64 "", last_modified_time1, current_epoch);
+                    result.add_result(last_modified_time1 <= current_epoch && (current_epoch - last_modified_time1) < 60000, "last_modified_time test 1， last_modified_time1：%" PRIu64 ", current_epoch:%" PRIu64, last_modified_time1, current_epoch);
                 }
 
                 {
@@ -163,16 +216,73 @@ namespace bq {
                     result.add_result(mmp_handle_tar.has_been_mapped(), "open memory map file");
                     result.add_result(mmp_handle_tar.get_error_code() == 0, "open memory map file error code");
 
-                    bool check_result = true;
-                    for (size_t i = 0; i < memory_map_file_size; ++i) {
-                        if (((uint8_t*)mmp_handle_tar.get_mapped_data())[i] != (uint8_t)(i % 255)) {
-                            check_result = false;
+                    if (mmp_handle_tar.has_been_mapped()) {
+                        bool check_result = true;
+                        for (size_t i = 0; i < memory_map_file_size; ++i) {
+                            if (((uint8_t*)mmp_handle_tar.get_mapped_data())[i] != (uint8_t)(i % 255)) {
+                                check_result = false;
+                            }
                         }
+                        result.add_result(check_result, "memory map check result");
+                        memory_map::flush_memory_map(mmp_handle_tar);
+                        memory_map::release_memory_map(mmp_handle_tar);
                     }
-                    result.add_result(check_result, "memory map check result");
-                    memory_map::flush_memory_map(mmp_handle_tar);
-                    memory_map::release_memory_map(mmp_handle_tar);
                     file_manager.close_file(mmf_handle_tar);
+
+                    constexpr size_t memory_map_auto_size = 7777;
+                    const size_t memory_map_auto_file_size = memory_map::get_min_size_of_memory_map_file(0, memory_map_auto_size);
+                    file_manager.remove_file_or_dir(TO_ABSOLUTE_PATH("cc/mm_map_auto_resize.mmp", true));
+                    auto mmf_handle_auto = file_manager.open_file(TO_ABSOLUTE_PATH("cc/mm_map_auto_resize.mmp", true), file_open_mode_enum::auto_create | file_open_mode_enum::read_write | file_open_mode_enum::exclusive);
+                    result.add_result(mmf_handle_auto.is_valid(), "memory map auto resize open");
+                    auto mmp_handle_auto = memory_map::create_memory_map(mmf_handle_auto, 0, memory_map_auto_size);
+                    result.add_result(mmp_handle_auto.has_been_mapped(), "memory map auto resize create");
+                    result.add_result(mmp_handle_auto.get_error_code() == 0, "memory map auto resize error code");
+                    result.add_result(file_manager.get_file_size(mmf_handle_auto) == memory_map_auto_file_size, "memory map auto resize file size");
+                    if (mmp_handle_auto.has_been_mapped()) {
+                        ((uint8_t*)mmp_handle_auto.get_mapped_data())[0] = 0x11;
+                        ((uint8_t*)mmp_handle_auto.get_mapped_data())[memory_map_auto_size - 1] = 0x22;
+                        memory_map::flush_memory_map(mmp_handle_auto);
+                        memory_map::release_memory_map(mmp_handle_auto);
+                    }
+                    file_manager.close_file(mmf_handle_auto);
+
+                    constexpr size_t memory_map_resize_small_size = 16 * 1024;
+                    constexpr size_t memory_map_resize_large_size = 128 * 1024;
+                    file_manager.remove_file_or_dir(TO_ABSOLUTE_PATH("cc/mm_map_grow_shrink.mmp", true));
+                    auto mmf_handle_resize = file_manager.open_file(TO_ABSOLUTE_PATH("cc/mm_map_grow_shrink.mmp", true), file_open_mode_enum::auto_create | file_open_mode_enum::read_write | file_open_mode_enum::exclusive);
+                    result.add_result(mmf_handle_resize.is_valid(), "memory map grow shrink open");
+                    result.add_result(file_manager.truncate_file(mmf_handle_resize, memory_map_resize_small_size), "memory map grow shrink truncate small");
+                    auto mmp_handle_resize = memory_map::create_memory_map(mmf_handle_resize, 0, memory_map_resize_small_size);
+                    result.add_result(mmp_handle_resize.has_been_mapped(), "memory map grow shrink map small");
+                    if (mmp_handle_resize.has_been_mapped()) {
+                        ((uint8_t*)mmp_handle_resize.get_mapped_data())[0] = 0x33;
+                        ((uint8_t*)mmp_handle_resize.get_mapped_data())[memory_map_resize_small_size - 1] = 0x44;
+                        memory_map::flush_memory_map(mmp_handle_resize);
+                        memory_map::release_memory_map(mmp_handle_resize);
+                    }
+
+                    result.add_result(file_manager.truncate_file(mmf_handle_resize, memory_map_resize_large_size), "memory map grow shrink truncate large");
+                    mmp_handle_resize = memory_map::create_memory_map(mmf_handle_resize, 0, memory_map_resize_large_size);
+                    result.add_result(mmp_handle_resize.has_been_mapped(), "memory map grow shrink map large");
+                    result.add_result(mmp_handle_resize.get_error_code() == 0, "memory map grow shrink map large error code");
+                    if (mmp_handle_resize.has_been_mapped()) {
+                        bool check_result = ((uint8_t*)mmp_handle_resize.get_mapped_data())[0] == 0x33
+                            && ((uint8_t*)mmp_handle_resize.get_mapped_data())[memory_map_resize_small_size - 1] == 0x44;
+                        ((uint8_t*)mmp_handle_resize.get_mapped_data())[memory_map_resize_large_size - 1] = 0x55;
+                        result.add_result(check_result, "memory map grow shrink preserved content");
+                        memory_map::flush_memory_map(mmp_handle_resize);
+                        memory_map::release_memory_map(mmp_handle_resize);
+                    }
+
+                    result.add_result(file_manager.truncate_file(mmf_handle_resize, memory_map_resize_small_size), "memory map grow shrink truncate back small");
+                    result.add_result(file_manager.get_file_size(mmf_handle_resize) == memory_map_resize_small_size, "memory map grow shrink file size small");
+                    mmp_handle_resize = memory_map::create_memory_map(mmf_handle_resize, 0, memory_map_resize_small_size);
+                    result.add_result(mmp_handle_resize.has_been_mapped(), "memory map grow shrink remap small");
+                    result.add_result(mmp_handle_resize.get_mapped_size() == memory_map_resize_small_size, "memory map grow shrink remap small size");
+                    if (mmp_handle_resize.has_been_mapped()) {
+                        memory_map::release_memory_map(mmp_handle_resize);
+                    }
+                    file_manager.close_file(mmf_handle_resize);
                 }
 
                 result.add_result(file_manager.remove_file_or_dir(TO_ABSOLUTE_PATH("cc/../cc/bb/aa/dd/", base_dir_type)), "check remove directory 0");

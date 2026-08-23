@@ -1,0 +1,5 @@
+conan>=2.0,<3
+sphinx
+breathe
+sphinx-rtd-theme
+pip-tools

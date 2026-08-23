@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 /*!
  * Don't call functions defined in this file!!
  *
@@ -29,7 +28,7 @@ namespace bq {
         /// get Version
         /// </summary>
         /// <returns></returns>
-        BQ_API const char* __api_get_log_version();
+        BQ_API_DEF(const char*, __api_get_log_version, (), ());
 
         /// <summary>
         /// BqLog is asynchronous by default, logs may not be flushed when crash is occurred.
@@ -37,7 +36,7 @@ namespace bq {
         /// Or just call __api_enable_auto_crash_handler
         /// </summary>
         /// <returns></returns>
-        BQ_API void __api_enable_auto_crash_handler();
+        BQ_API_DEF(void, __api_enable_auto_crash_handler, (), ());
 
         /// <summary>
         /// 0 means create failed
@@ -47,14 +46,14 @@ namespace bq {
         /// <param name="category_count">categories count</param>
         /// <param name="category_names_array_utf8">category names in utf8 encoding, it's char* array</param>
         /// <returns>log id, 0 means create failed</returns>
-        BQ_API uint64_t __api_create_log(const char* log_name_utf8, const char* config_content_utf8, uint32_t category_count, const char* const* category_names_array_utf8);
+        BQ_API_DEF(uint64_t, __api_create_log, (const char* log_name_utf8, const char* config_content_utf8, uint32_t category_count, const char* const* category_names_array_utf8), (log_name_utf8, config_content_utf8, category_count, category_names_array_utf8));
 
         /// <summary>
         /// 0 means reset failed
         /// </summary>
         /// <param name="log_name_utf8">log name</param>
         /// <param name="config_content_utf8">json config content</param>
-        BQ_API bool __api_log_reset_config(const char* log_name_utf8, const char* config_content_utf8);
+        BQ_API_DEF(bool, __api_log_reset_config, (const char* log_name_utf8, const char* config_content_utf8), (log_name_utf8, config_content_utf8));
 
         /// <summary>
         /// Initiates a log write operation and allocates the necessary buffer space.
@@ -74,14 +73,14 @@ namespace bq {
         /// </param>
         /// <param name="args_data_bytes_len">The length of the variable arguments data in bytes.</param>
         /// <returns>A handle to the allocated log buffer chunk.</returns>
-        BQ_API _api_log_write_handle __api_log_write_begin(uint64_t log_id, uint8_t log_level, uint32_t category_index, uint8_t format_string_type, uint32_t format_str_bytes_len, const void* format_str_data, uint32_t args_data_bytes_len);
+        BQ_API_DEF(_api_log_write_handle, __api_log_write_begin, (uint64_t log_id, uint8_t log_level, uint32_t category_index, uint8_t format_string_type, uint32_t format_str_bytes_len, const void* format_str_data, uint32_t args_data_bytes_len), (log_id, log_level, category_index, format_string_type, format_str_bytes_len, format_str_data, args_data_bytes_len));
 
         /// <summary>
         /// Finalizes the log write operation and commits the data to the ring buffer.
         /// </summary>
         /// <param name="log_id">The unique identifier for the log entry.</param>
         /// <param name="write_handle">The handle returned by <see cref="__api_log_write_begin"/>.</param>
-        BQ_API void __api_log_write_finish(uint64_t log_id, bq::_api_log_write_handle write_handle);
+        BQ_API_DEF(void, __api_log_write_finish, (uint64_t log_id, bq::_api_log_write_handle write_handle), (log_id, write_handle));
 
         /// <summary>
         /// toggle of all console appenders,
@@ -89,20 +88,20 @@ namespace bq {
         /// </summary>
         /// <param name="enable"></param>
         /// <returns></returns>
-        BQ_API void __api_set_appender_enable(uint64_t log_id, const char* appender_name, bool enable);
+        BQ_API_DEF(void, __api_set_appender_enable, (uint64_t log_id, const char* appender_name, bool enable), (log_id, appender_name, enable));
 
         /// <summary>
         /// get the current logs count
         /// </summary>
         /// <returns></returns>
-        BQ_API uint32_t __api_get_logs_count();
+        BQ_API_DEF(uint32_t, __api_get_logs_count, (), ());
 
         /// <summary>
         /// get log id by index
         /// </summary>
         /// <param name="index"></param>
         /// <returns>id of log at index, 0 if index exceed valid range</returns>
-        BQ_API uint64_t __api_get_log_id_by_index(uint32_t index);
+        BQ_API_DEF(uint64_t, __api_get_log_id_by_index, (uint32_t index), (index));
 
         /// <summary>
         /// get log name by id
@@ -110,14 +109,14 @@ namespace bq {
         /// <param name="log_id"></param>
         /// <param name="name_ptr"></param>
         /// <returns>false if log is not found</returns>
-        BQ_API bool __api_get_log_name_by_id(uint64_t log_id, bq::_api_string_def* name_ptr);
+        BQ_API_DEF(bool, __api_get_log_name_by_id, (uint64_t log_id, bq::_api_string_def* name_ptr), (log_id, name_ptr));
 
         /// <summary>
         /// get the count of category items in log
         /// </summary>
         /// <param name="log_id"></param>
         /// <returns></returns>
-        BQ_API uint32_t __api_get_log_categories_count(uint64_t log_id);
+        BQ_API_DEF(uint32_t, __api_get_log_categories_count, (uint64_t log_id), (log_id));
 
         /// <summary>
         /// get name of a category by index
@@ -126,28 +125,28 @@ namespace bq {
         /// <param name="category_index"></param>
         /// <param name="category_name_ptr">the pointer of category item name</param>
         /// <returns>false if index exceed valid range or log is not found</returns>
-        BQ_API bool __api_get_log_category_name_by_index(uint64_t log_id, uint32_t category_index, bq::_api_string_def* category_name_ptr);
+        BQ_API_DEF(bool, __api_get_log_category_name_by_index, (uint64_t log_id, uint32_t category_index, bq::_api_string_def* category_name_ptr), (log_id, category_index, category_name_ptr));
 
         /// <summary>
         /// get the address of log level bitmap of log, this address is always valid.
         /// </summary>
         /// <param name="log_id"></param>
         /// <returns>nullptr if log is not found</returns>
-        BQ_API const uint32_t* __api_get_log_merged_log_level_bitmap_by_log_id(uint64_t log_id);
+        BQ_API_DEF(const uint32_t*, __api_get_log_merged_log_level_bitmap_by_log_id, (uint64_t log_id), (log_id));
 
         /// <summary>
         /// get the address of log print stack trace level bitmap of log, this address is always valid.
         /// </summary>
         /// <param name="log_id"></param>
         /// <returns>nullptr if log is not found</returns>
-        BQ_API const uint32_t* __api_get_log_print_stack_level_bitmap_by_log_id(uint64_t log_id);
+        BQ_API_DEF(const uint32_t*, __api_get_log_print_stack_level_bitmap_by_log_id, (uint64_t log_id), (log_id));
 
         /// <summary>
         /// get the address of category masks array, this array address is always valid.
         /// </summary>
         /// <param name="log_id"></param>
         /// <returns>nullptr if log is not found or the categories list is empty</returns>
-        BQ_API const uint8_t* __api_get_log_category_masks_array_by_log_id(uint64_t log_id);
+        BQ_API_DEF(const uint8_t*, __api_get_log_category_masks_array_by_log_id, (uint64_t log_id), (log_id));
 
         /// <summary>
         /// output log to device console synchronously.
@@ -156,7 +155,7 @@ namespace bq {
         /// <param name="level"></param>
         /// <param name="content"></param>
         /// <returns></returns>
-        BQ_API void __api_log_device_console(bq::log_level level, const char* content);
+        BQ_API_DEF(void, __api_log_device_console, (bq::log_level level, const char* content), (level, content));
 
         /// <summary>
         /// Bq Log is a asynchronous system.
@@ -166,7 +165,7 @@ namespace bq {
         /// </summary>
         /// <param name="log_id">the id of log object you want to flush, or pass 0 to flush all the log objects</param>
         /// <returns></returns>
-        BQ_API void __api_force_flush(uint64_t log_id);
+        BQ_API_DEF(void, __api_force_flush, (uint64_t log_id), (log_id));
 
         /// <summary>
         /// get file base dir
@@ -174,7 +173,7 @@ namespace bq {
         /// </summary>
         /// <param name="base_dir_type"></param>
         /// <returns></returns>
-        BQ_API const char* __api_get_file_base_dir(int32_t base_dir_type);
+        BQ_API_DEF(const char*, __api_get_file_base_dir, (int32_t base_dir_type), (base_dir_type));
 
         /// <summary>
         /// create a decoder to decode binary log file
@@ -183,7 +182,7 @@ namespace bq {
         /// <param name="priv_key"></param>
         /// <param name="out_handle">will be used in __api_log_decoder_decode and __api_log_decoder_destroy</param>
         /// <returns></returns>
-        BQ_API bq::appender_decode_result __api_log_decoder_create(const char* log_file_path, const char* priv_key, uint32_t* out_handle);
+        BQ_API_DEF(bq::appender_decode_result, __api_log_decoder_create, (const char* log_file_path, const char* priv_key, uint32_t* out_handle), (log_file_path, priv_key, out_handle));
 
         /// <summary>
         /// decode binary log file
@@ -191,14 +190,14 @@ namespace bq {
         /// <param name="handle"></param>
         /// <param name="out_decoded_log_text">if result is success, this is the decoded log text, and it's always valid before next time you call decode_single_item or destroy_decoder</param>
         /// <returns>if result is not success, you should stop invoke this function, and call __api_log_decoder_destroy to release memory</returns>
-        BQ_API bq::appender_decode_result __api_log_decoder_decode(uint32_t handle, bq::_api_string_def* out_decoded_log_text);
+        BQ_API_DEF(bq::appender_decode_result, __api_log_decoder_decode, (uint32_t handle, bq::_api_string_def* out_decoded_log_text), (handle, out_decoded_log_text));
 
         /// <summary>
         /// destroy decoder to release memory
         /// </summary>
         /// <param name="handle"></param>
         /// <returns></returns>
-        BQ_API void __api_log_decoder_destroy(uint32_t handle);
+        BQ_API_DEF(void, __api_log_decoder_destroy, (uint32_t handle), (handle));
 
         /// <summary>
         /// Directly decode a log file to a text file.
@@ -207,28 +206,28 @@ namespace bq {
         /// <param name="out_file_path"></param>
         /// <param name="priv_key"></param>
         /// <returns></returns>
-        BQ_API bool __api_log_decode(const char* in_file_path, const char* out_file_path, const char* priv_key);
+        BQ_API_DEF(bool, __api_log_decode, (const char* in_file_path, const char* out_file_path, const char* priv_key), (in_file_path, out_file_path, priv_key));
 
         /// <summary>
         /// Register a callback which will be invoked when each log entry was written to Console
         /// </summary>
         /// <param name="on_console_callback"></param>
         /// <returns></returns>
-        BQ_API void __api_register_console_callbacks(bq::type_func_ptr_console_callback on_console_callback);
+        BQ_API_DEF(void, __api_register_console_callbacks, (bq::type_func_ptr_console_callback on_console_callback), (on_console_callback));
 
         /// <summary>
         /// Unregister a console callback
         /// </summary>
         /// <param name="on_console_callback"></param>
         /// <returns></returns>
-        BQ_API void __api_unregister_console_callbacks(bq::type_func_ptr_console_callback on_console_callback);
+        BQ_API_DEF(void, __api_unregister_console_callbacks, (bq::type_func_ptr_console_callback on_console_callback), (on_console_callback));
 
         /// <summary>
         /// set console appender buffer enable or not
         /// </summary>
         /// <param name="enable"></param>
         /// <returns></returns>
-        BQ_API void __api_set_console_buffer_enable(bool enable);
+        BQ_API_DEF(void, __api_set_console_buffer_enable, (bool enable), (enable));
 
         /// <summary>
         /// reset the base dir in runtime
@@ -236,7 +235,7 @@ namespace bq {
         /// <param name="base_dir_type"></param>
         /// <param name="dir"></param>
         /// <returns></returns>
-        BQ_API void __api_reset_base_dir(int32_t base_dir_type, const char* dir);
+        BQ_API_DEF(void, __api_reset_base_dir, (int32_t base_dir_type, const char* dir), (base_dir_type, dir));
 
         /// <summary>
         /// Fetch and remove a log entry from the console appender buffer in a thread-safe manner.
@@ -246,7 +245,7 @@ namespace bq {
         /// <param name="on_console_callback"></param>
         /// <param name="pass_through_param">path through parameter that will pass to on_console_callback</param>
         /// <returns>True if the console appender buffer is not empty, otherwise False is returned.</returns>
-        BQ_API bool __api_fetch_and_remove_console_buffer(bq::type_func_ptr_console_buffer_fetch_callback on_console_callback, const void* pass_through_param);
+        BQ_API_DEF(bool, __api_fetch_and_remove_console_buffer, (bq::type_func_ptr_console_buffer_fetch_callback on_console_callback, const void* pass_through_param), (on_console_callback, pass_through_param));
 
         /// <summary>
         /// Note: if snapshot is not enabled, this API will return empty snapshot string.
@@ -255,7 +254,7 @@ namespace bq {
         /// <param name="time_zone_config_utf8"></param>
         /// <param name="out_snapshot_string"></param>
         /// <returns></returns>
-        BQ_API void __api_take_snapshot_string(uint64_t log_id, const char* time_zone_config_utf8, bq::_api_string_def* out_snapshot_string);
+        BQ_API_DEF(void, __api_take_snapshot_string, (uint64_t log_id, const char* time_zone_config_utf8, bq::_api_string_def* out_snapshot_string), (log_id, time_zone_config_utf8, out_snapshot_string));
 
         /// <summary>
         /// The functions __api_take_snapshot_string and __api_release_snapshot_string must be called in pairs.
@@ -266,7 +265,7 @@ namespace bq {
         /// <param name="log_id"></param>
         /// <param name="snapshot_string"></param>
         /// <returns></returns>
-        BQ_API void __api_release_snapshot_string(uint64_t log_id, bq::_api_string_def* snapshot_string);
+        BQ_API_DEF(void, __api_release_snapshot_string, (uint64_t log_id, bq::_api_string_def* snapshot_string), (log_id, snapshot_string));
 
         /// <summary>
         /// Get stack trace of current thread.
@@ -275,8 +274,8 @@ namespace bq {
         /// <param name="out_name_ptr"></param>
         /// <param name="skip_frame_count">the count of stack frames you want to skip</param>
         /// <returns></returns>
-        BQ_API void __api_get_stack_trace(bq::_api_string_def* out_name_ptr, uint32_t skip_frame_count);
-        BQ_API void __api_get_stack_trace_utf16(bq::_api_u16string_def* out_name_ptr, uint32_t skip_frame_count);
+        BQ_API_DEF(void, __api_get_stack_trace, (bq::_api_string_def* out_name_ptr, uint32_t skip_frame_count), (out_name_ptr, skip_frame_count));
+        BQ_API_DEF(void, __api_get_stack_trace_utf16, (bq::_api_u16string_def* out_name_ptr, uint32_t skip_frame_count), (out_name_ptr, skip_frame_count));
 
     }
 }

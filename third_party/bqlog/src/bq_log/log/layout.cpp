@@ -1,5 +1,4 @@
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -363,7 +362,7 @@ namespace bq {
         insert_char('\t');
 
         if (head.category_idx >= categories_name_array_ptr_->size()) {
-            bq::util::log_device_console(log_level::error, "layout_prefix error, category %d, maybe header file or struct mismatch in include", head.category_idx);
+            bq::util::log_device_console(log_level::error, "layout_prefix error, category %" PRIu32 ", maybe header file or struct mismatch in include", head.category_idx);
             return enum_layout_result::parse_error;
         }
         const bq::string* category_str_ptr = &(*categories_name_array_ptr_)[head.category_idx];
@@ -1228,6 +1227,26 @@ namespace bq {
 
         auto begin_cursor = format_content_cursor;
         uint32_t e_count = 0;
+        if (base == 10 && format_info_.type != 'e' && value >= 1000000000ULL) {
+            const char* const digit3 = log_global_vars::get().digit3_array;
+            char tmp[20]; // uint64_t max is 20 digits
+            char* p = tmp + sizeof(tmp);
+            while (value >= 1000) {
+                uint32_t r = static_cast<uint32_t>(value % 1000);
+                value /= 1000;
+                p -= 3;
+                memcpy(p, &digit3[r * 3], 3);
+            }
+            const char* d = &digit3[static_cast<uint32_t>(value) * 3];
+            int32_t start = (value >= 100) ? 0 : ((value >= 10) ? 1 : 2);
+            for (int32_t k = 2; k >= start; --k) {
+                *--p = d[k];
+            }
+            uint32_t digit_count = static_cast<uint32_t>(tmp + sizeof(tmp) - p);
+            memcpy(&format_content[format_content_cursor], p, digit_count);
+            format_content_cursor += digit_count;
+            return format_content_cursor - width;
+        }
         do {
             int32_t digit = static_cast<int32_t>(value % base);
             if (digit < 0xA) {
@@ -1310,6 +1329,29 @@ namespace bq {
         auto begin_cursor = format_content_cursor;
         // Scientific Counting Check
         uint32_t e_count = 0;
+        if (base == 10 && format_info_.type != 'e'
+            && (value >= 1000000000LL || value <= -1000000000LL)) {
+            // unsigned arithmetic handles INT64_MIN
+            uint64_t mag = (value < 0) ? (0ULL - static_cast<uint64_t>(value)) : static_cast<uint64_t>(value);
+            const char* const digit3 = log_global_vars::get().digit3_array;
+            char tmp[20]; // uint64_t max is 20 digits
+            char* p = tmp + sizeof(tmp);
+            while (mag >= 1000) {
+                uint32_t r = static_cast<uint32_t>(mag % 1000);
+                mag /= 1000;
+                p -= 3;
+                memcpy(p, &digit3[r * 3], 3);
+            }
+            const char* d = &digit3[static_cast<uint32_t>(mag) * 3];
+            int32_t start = (mag >= 100) ? 0 : ((mag >= 10) ? 1 : 2);
+            for (int32_t k = 2; k >= start; --k) {
+                *--p = d[k];
+            }
+            uint32_t digit_count = static_cast<uint32_t>(tmp + sizeof(tmp) - p);
+            memcpy(&format_content[format_content_cursor], p, digit_count);
+            format_content_cursor += digit_count;
+            return format_content_cursor - width;
+        }
         do {
             char digit = static_cast<char>(abs(static_cast<int32_t>(value % static_cast<int32_t>(base))));
             if (digit < 0xA) {

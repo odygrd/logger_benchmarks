@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+﻿/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 /*!
  * \file allocator.h
  * substitute of STL vector, we exclude STL and libc++ to reduce the final executable and library file size
@@ -28,11 +27,11 @@ namespace bq {
     template <typename Allocator>
     class allocator_traits {
     private:
-        template <typename A, typename = void>
+        template <typename A>
         struct extract_allocator_template;
 
         template <template <typename> class Wrapper, typename Inner>
-        struct extract_allocator_template<Wrapper<Inner>, void> {
+        struct extract_allocator_template<Wrapper<Inner>> {
             template <typename U>
             using rebind = Wrapper<U>;
         };

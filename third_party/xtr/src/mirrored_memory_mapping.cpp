@@ -34,9 +34,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#if !defined(__linux__)
 namespace xtr::detail
 {
+#if !defined(__linux__)
     XTR_FUNC
     file_descriptor shm_open_anon(int oflag, mode_t mode)
     {
@@ -73,12 +73,12 @@ namespace xtr::detail
 
         return file_descriptor(fd);
     }
-}
 #endif
+}
 
 XTR_FUNC
 xtr::detail::mirrored_memory_mapping::mirrored_memory_mapping(
-    std::size_t length, int fd, std::size_t offset, int flags)
+    std::size_t length, int fd, std::size_t offset, int flags, prefault_flags_t prefault_flags)
 {
     assert(!(flags & MAP_ANONYMOUS) || fd == -1);
     assert((flags & MAP_FIXED) == 0); // Not implemented (would be easy though)
@@ -148,7 +148,12 @@ xtr::detail::mirrored_memory_mapping::mirrored_memory_mapping(
         }
 
         reserve.release(); // mapping was destroyed by mremap
+
+        if (prefault_flags == prefault_flags_t::read_write)
+            prefault_rw(m_.get(), length * 2);
+
         mirror.release(); // mirror will be recreated in ~mirrored_memory_mapping
+
         return;
 #else
         if (!(temp_fd = shm_open_anon(O_RDWR, S_IRUSR | S_IWUSR)))
@@ -187,7 +192,11 @@ xtr::detail::mirrored_memory_mapping::mirrored_memory_mapping(
     m_ = memory_mapping(reserve.get(), length, prot, flags, fd, offset);
 
     reserve.release(); // mapping was destroyed when m_ was created
-    mirror.release();  // mirror will be recreated in ~mirrored_memory_mapping
+
+    if (prefault_flags == prefault_flags_t::read_write)
+        prefault_rw(m_.get(), length * 2);
+
+    mirror.release(); // mirror will be recreated in ~mirrored_memory_mapping
 }
 
 XTR_FUNC

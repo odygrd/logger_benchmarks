@@ -1,5 +1,4 @@
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -45,13 +44,129 @@ namespace bq {
         return ((size_t)data & mask_8_bytes_align) == 0;
     }
 
+    static bq_forceinline uint64_t mix_cache_key(uint64_t key)
+    {
+        key ^= key >> 33;
+        key *= UINT64_C(0xff51afd7ed558ccd);
+        key ^= key >> 33;
+        key *= UINT64_C(0xc4ceb9fe1a85ec53);
+        key ^= key >> 33;
+        return key;
+    }
+
+    static uint32_t get_cache_max_entries_config(
+        const bq::property_value& config_obj,
+        const bq::string& appender_name,
+        const char* config_name,
+        uint32_t default_value,
+        uint32_t min_value,
+        uint32_t max_value)
+    {
+        const auto& configured = config_obj[config_name];
+        if (configured.is_null()) {
+            return default_value;
+        }
+        if (!configured.is_integral()) {
+            bq::util::log_device_console(
+                bq::log_level::warning,
+                "compressed appender \"%s\": \"%s\" must be an integer, use default value %" PRIu32,
+                appender_name.c_str(),
+                config_name,
+                default_value);
+            return default_value;
+        }
+
+        const int64_t configured_value = static_cast<int64_t>(configured);
+        if (configured_value < static_cast<int64_t>(min_value)) {
+            bq::util::log_device_console(
+                bq::log_level::warning,
+                "compressed appender \"%s\": \"%s\" value %" PRId64 " is too small, clamp to %" PRIu32,
+                appender_name.c_str(),
+                config_name,
+                configured_value,
+                min_value);
+            return min_value;
+        }
+        if (static_cast<uint64_t>(configured_value) > static_cast<uint64_t>(max_value)) {
+            bq::util::log_device_console(
+                bq::log_level::warning,
+                "compressed appender \"%s\": \"%s\" value %" PRId64 " is too large, clamp to %" PRIu32,
+                appender_name.c_str(),
+                config_name,
+                configured_value,
+                max_value);
+            return max_value;
+        }
+        return static_cast<uint32_t>(configured_value);
+    }
+
     bool appender_file_compressed::init_impl(const bq::property_value& config_obj)
     {
-        if (!appender_file_binary::init_impl(config_obj)) {
+        format_template_cache_max_entries_ = get_cache_max_entries_config(
+            config_obj,
+            get_name(),
+            "format_template_cache_max_entries",
+            DEFAULT_FORMAT_TEMPLATE_CACHE_MAX_ENTRIES,
+            CACHE_MIN_ENTRIES,
+            FORMAT_L2_MAX_CONFIG_ENTRIES);
+        thread_info_cache_max_entries_ = get_cache_max_entries_config(
+            config_obj,
+            get_name(),
+            "thread_info_cache_max_entries",
+            DEFAULT_THREAD_INFO_CACHE_MAX_ENTRIES,
+            CACHE_MIN_ENTRIES,
+            THREAD_L2_MAX_CONFIG_ENTRIES);
+        format_l2_.clear();
+        thread_l2_.clear();
+        const bool format_cache_configured = format_l2_.set_max_size(format_template_cache_max_entries_);
+        const bool thread_cache_configured = thread_l2_.set_max_size(thread_info_cache_max_entries_);
+        assert(format_cache_configured && thread_cache_configured);
+        (void)format_cache_configured;
+        (void)thread_cache_configured;
+        return appender_file_binary::init_impl(config_obj);
+    }
+
+    bool appender_file_compressed::reset_impl(const bq::property_value& config_obj)
+    {
+        const uint32_t new_format_template_cache_max_entries = get_cache_max_entries_config(
+            config_obj,
+            get_name(),
+            "format_template_cache_max_entries",
+            DEFAULT_FORMAT_TEMPLATE_CACHE_MAX_ENTRIES,
+            CACHE_MIN_ENTRIES,
+            FORMAT_L2_MAX_CONFIG_ENTRIES);
+        const uint32_t new_thread_info_cache_max_entries = get_cache_max_entries_config(
+            config_obj,
+            get_name(),
+            "thread_info_cache_max_entries",
+            DEFAULT_THREAD_INFO_CACHE_MAX_ENTRIES,
+            CACHE_MIN_ENTRIES,
+            THREAD_L2_MAX_CONFIG_ENTRIES);
+        if (!appender_file_binary::reset_impl(config_obj)) {
             return false;
         }
-        thread_info_hash_cache_.set_expand_rate(4);
-        format_templates_hash_cache_.set_expand_rate(4);
+        if (new_format_template_cache_max_entries != format_template_cache_max_entries_) {
+            if (!format_l2_.set_max_size(new_format_template_cache_max_entries)) {
+                format_l2_.clear();
+                const bool configured =
+                    format_l2_.set_max_size(new_format_template_cache_max_entries);
+                assert(configured);
+                (void)configured;
+            }
+            format_template_cache_max_entries_ =
+                new_format_template_cache_max_entries;
+        }
+        if (new_thread_info_cache_max_entries != thread_info_cache_max_entries_) {
+            if (!thread_l2_.set_max_size(new_thread_info_cache_max_entries)) {
+                thread_l2_.clear();
+                const bool configured =
+                    thread_l2_.set_max_size(new_thread_info_cache_max_entries);
+                assert(configured);
+                (void)configured;
+            }
+            thread_info_cache_max_entries_ =
+                new_thread_info_cache_max_entries;
+        }
         return true;
     }
 
@@ -213,7 +328,7 @@ namespace bq {
         }
 
         uint64_t format_template_hash = get_format_template_hash((bq::log_level)level_byte, category_idx, fmt_str_hash);
-        format_templates_hash_cache_[format_template_hash] = current_format_template_max_index_;
+        format_l2_.insert(format_template_hash, current_format_template_max_index_);
         ++current_format_template_max_index_;
         return true;
     }
@@ -229,11 +344,19 @@ namespace bq {
 
     void appender_file_compressed::reset()
     {
-        format_templates_hash_cache_.clear();
-        thread_info_hash_cache_.clear();
+        format_l2_.clear();
+        thread_l2_.clear();
+        last_thread_id_ = UINT64_MAX;
+        last_thread_info_idx_ = CACHE_EMPTY;
         current_format_template_max_index_ = 0;
         current_thread_info_max_index_ = 0;
         last_log_entry_epoch_ = 0;
+        for (uint32_t i = 0; i < FORMAT_L1_SIZE; ++i) {
+            format_l1_[i].value = CACHE_EMPTY;
+        }
+        for (uint32_t i = 0; i < THREAD_L1_SIZE; ++i) {
+            thread_l1_[i].value = CACHE_EMPTY;
+        }
     }
 
     // Due to the use of VLQ and character encoding conversions,
@@ -245,15 +368,17 @@ namespace bq {
         return bytes_len > 1 ? (bytes_len - 1) : bytes_len;
     }
 
-    void appender_file_compressed::log_impl(const log_entry_handle& handle)
+    bool appender_file_compressed::log_impl(const log_entry_handle& handle)
     {
-        appender_file_binary::log_impl(handle);
+        if (!appender_file_base::log_impl(handle)) {
+            return false;
+        }
 
         uint32_t format_data_len = handle.get_log_head().log_format_data_len;
         const char* format_data_ptr = handle.get_format_string_data();
         if ((const uint8_t*)format_data_ptr + format_data_len > handle.get_log_args_data()) {
             bq::util::log_device_console(bq::log_level::error, "appender_file_compressed::log_impl invalid format data length:%" PRIu32, format_data_len);
-            return;
+            return false;
         }
         uint64_t fmt_hash = handle.get_log_head().format_hash;
         if (!fmt_hash) {
@@ -261,104 +386,125 @@ namespace bq {
         }
         uint64_t format_template_hash = get_format_template_hash(handle.get_level(), handle.get_log_head().category_idx, fmt_hash);
 
-        auto format_template_iter = format_templates_hash_cache_.find(format_template_hash);
         uint32_t format_template_idx = (uint32_t)-1;
-        // write format template
-        if (format_template_iter == format_templates_hash_cache_.end()) {
-            constexpr size_t VLQ_MAX_SIZE = bq::log_utils::vlq::vlq_max_bytes_count<uint32_t>();
-            uint32_t fmt_size_calculated = 0;
-            bool success = true;
-            do {
-                size_t fmt_max_size = (fmt_size_calculated) ? (size_t)fmt_size_calculated : ((handle.get_log_head().log_format_str_type == (uint16_t)log_arg_type_enum::string_utf8_type ? format_data_len : ((size_t)(format_data_len * 3) >> 1) + 1)); // 1 additional byte for utf-mixed mark;
-                auto max_format_template_data_size = (uint32_t)(sizeof(uint8_t) + sizeof(uint8_t) + VLQ_MAX_SIZE + fmt_max_size); // level(1 byte), category_idx(VLQ), fmt
-
-                auto data_len_min_size = get_vlq_min_bytes_length_of_item_header(max_format_template_data_size);
-                auto prealloc_head_size = 1 + data_len_min_size;
-                auto write_handle = alloc_write_cache(max_format_template_data_size + prealloc_head_size);
-
-                // write format template body first to get the real length, then write header back.
-                uint32_t format_template_data_cursor = prealloc_head_size;
-
-                if (handle.get_log_head().log_format_str_type == (uint16_t)log_arg_type_enum::string_utf8_type) {
-                    write_handle.data()[format_template_data_cursor++] = (uint8_t)template_sub_type::format_template_utf8;
-                } else {
-                    write_handle.data()[format_template_data_cursor++] = (uint8_t)template_sub_type::format_template_utf16;
-                }
-                write_handle.data()[format_template_data_cursor++] = (uint8_t)handle.get_level();
-                format_template_data_cursor += (uint32_t)bq::log_utils::vlq::vlq_encode(handle.get_log_head().category_idx, write_handle.data() + format_template_data_cursor, VLQ_MAX_SIZE);
-                if (handle.get_log_head().log_format_str_type == (uint16_t)log_arg_type_enum::string_utf8_type) {
-                    fmt_size_calculated = format_data_len;
-                    memcpy(write_handle.data() + format_template_data_cursor, format_data_ptr, (size_t)format_data_len);
-                    format_template_data_cursor += format_data_len;
-                } else {
-                    fmt_size_calculated = bq::util::utf16_to_utf_mixed((const char16_t*)format_data_ptr, format_data_len >> 1, (char*)(uint8_t*)(write_handle.data() + format_template_data_cursor), ((format_data_len * 3) >> 1) + 1);
-                    format_template_data_cursor += fmt_size_calculated;
-                }
-
-                uint32_t real_total_len = format_template_data_cursor;
-                write_handle.reset_used_len(real_total_len);
-
-                // write back head
-                uint32_t real_body_len = real_total_len - prealloc_head_size;
-                uint32_t data_len_real_size = bq::log_utils::vlq::get_vlq_encode_length((uint64_t)real_body_len);
-                if (data_len_real_size != data_len_min_size) {
-                    if (data_len_real_size != 1 + data_len_min_size) {
-                        assert(success == true && "utf16 compress error");
-                        success = false;
-                        write_handle.reset_used_len(0);
-                        return_write_cache(write_handle);
-                        continue;
-                    }
-                    bq::log_utils::vlq::vlq_encode(real_body_len, write_handle.data(), data_len_real_size);
-                    *write_handle.data() |= (uint8_t)item_type::log_template;
-                } else {
-                    bq::log_utils::vlq::vlq_encode(real_body_len, write_handle.data() + 1, data_len_real_size);
-                    *write_handle.data() = (uint8_t)item_type::log_template;
-                }
-                return_write_cache(write_handle);
-                success = true;
-            } while (!success);
-
-            format_templates_hash_cache_[format_template_hash] = current_format_template_max_index_;
-            format_template_idx = current_format_template_max_index_;
-            ++current_format_template_max_index_;
+        const uint32_t format_l1_index = static_cast<uint32_t>(mix_cache_key(format_template_hash) >> 32) & (FORMAT_L1_SIZE - 1);
+        if (format_l1_[format_l1_index].value != CACHE_EMPTY
+            && format_l1_[format_l1_index].key == format_template_hash) {
+            format_template_idx = format_l1_[format_l1_index].value;
         } else {
-            format_template_idx = format_template_iter->value();
+            decltype(format_l2_)::insert_token format_insert_token;
+            const bool format_template_found = format_l2_.find(format_template_hash, format_template_idx, format_insert_token);
+            // write format template
+            if (!format_template_found) {
+                constexpr size_t VLQ_MAX_SIZE = bq::log_utils::vlq::vlq_max_bytes_count<uint32_t>();
+                uint32_t fmt_size_calculated = 0;
+                bool success = true;
+                do {
+                    size_t fmt_max_size = (fmt_size_calculated) ? (size_t)fmt_size_calculated : ((handle.get_log_head().log_format_str_type == (uint16_t)log_arg_type_enum::string_utf8_type ? format_data_len : ((size_t)(format_data_len * 3) >> 1) + 1)); // 1 additional byte for utf-mixed mark;
+                    auto max_format_template_data_size = (uint32_t)(sizeof(uint8_t) + sizeof(uint8_t) + VLQ_MAX_SIZE + fmt_max_size); // level(1 byte), category_idx(VLQ), fmt
+
+                    auto data_len_min_size = get_vlq_min_bytes_length_of_item_header(max_format_template_data_size);
+                    auto prealloc_head_size = 1 + data_len_min_size;
+                    auto write_handle = alloc_write_cache(max_format_template_data_size + prealloc_head_size);
+
+                    // write format template body first to get the real length, then write header back.
+                    uint32_t format_template_data_cursor = prealloc_head_size;
+
+                    if (handle.get_log_head().log_format_str_type == (uint16_t)log_arg_type_enum::string_utf8_type) {
+                        write_handle.data()[format_template_data_cursor++] = (uint8_t)template_sub_type::format_template_utf8;
+                    } else {
+                        write_handle.data()[format_template_data_cursor++] = (uint8_t)template_sub_type::format_template_utf16;
+                    }
+                    write_handle.data()[format_template_data_cursor++] = (uint8_t)handle.get_level();
+                    format_template_data_cursor += (uint32_t)bq::log_utils::vlq::vlq_encode(handle.get_log_head().category_idx, write_handle.data() + format_template_data_cursor, VLQ_MAX_SIZE);
+                    if (handle.get_log_head().log_format_str_type == (uint16_t)log_arg_type_enum::string_utf8_type) {
+                        fmt_size_calculated = format_data_len;
+                        memcpy(write_handle.data() + format_template_data_cursor, format_data_ptr, (size_t)format_data_len);
+                        format_template_data_cursor += format_data_len;
+                    } else {
+                        fmt_size_calculated = bq::util::utf16_to_utf_mixed((const char16_t*)format_data_ptr, format_data_len >> 1, (char*)(uint8_t*)(write_handle.data() + format_template_data_cursor), ((format_data_len * 3) >> 1) + 1);
+                        format_template_data_cursor += fmt_size_calculated;
+                    }
+
+                    uint32_t real_total_len = format_template_data_cursor;
+                    write_handle.reset_used_len(real_total_len);
+
+                    // write back head
+                    uint32_t real_body_len = real_total_len - prealloc_head_size;
+                    uint32_t data_len_real_size = bq::log_utils::vlq::get_vlq_encode_length((uint64_t)real_body_len);
+                    if (data_len_real_size != data_len_min_size) {
+                        if (data_len_real_size != 1 + data_len_min_size) {
+                            assert(success == true && "utf16 compress error");
+                            success = false;
+                            write_handle.reset_used_len(0);
+                            return_write_cache(write_handle);
+                            continue;
+                        }
+                        bq::log_utils::vlq::vlq_encode(real_body_len, write_handle.data(), data_len_real_size);
+                        *write_handle.data() |= (uint8_t)item_type::log_template;
+                    } else {
+                        bq::log_utils::vlq::vlq_encode(real_body_len, write_handle.data() + 1, data_len_real_size);
+                        *write_handle.data() = (uint8_t)item_type::log_template;
+                    }
+                    return_write_cache(write_handle);
+                    success = true;
+                } while (!success);
+
+                format_template_idx = current_format_template_max_index_;
+                format_l2_.insert(format_template_hash, format_template_idx, format_insert_token);
+                ++current_format_template_max_index_;
+            }
+            format_l1_[format_l1_index].key = format_template_hash;
+            format_l1_[format_l1_index].value = format_template_idx;
         }
 
-        auto thread_info__iter = thread_info_hash_cache_.find(handle.get_log_head().log_thread_id);
         uint32_t thread_info_idx = (uint32_t)-1;
-        // write thread_info template
-        if (thread_info__iter == thread_info_hash_cache_.end()) {
-            const auto& ext_info = handle.get_ext_head();
-            constexpr size_t VLQ_MAX_SIZE = bq::log_utils::vlq::vlq_max_bytes_count<decltype(current_thread_info_max_index_)>();
-            constexpr size_t VLQ_MAX_SIZE_64 = bq::log_utils::vlq::vlq_max_bytes_count<decltype(handle.get_log_head().log_thread_id)>();
-            auto max_thread_info_data_size = sizeof(uint8_t) + VLQ_MAX_SIZE + VLQ_MAX_SIZE_64 + ext_info.thread_name_len_;
-#ifndef NDEBUG
-            assert(max_thread_info_data_size < 64);
-#endif // !NDEBUG
-            auto data_len_min_size = bq::log_utils::vlq::get_vlq_encode_length((uint64_t)max_thread_info_data_size);
-            auto prealloc_head_size = 1 + data_len_min_size;
-            auto write_handle = alloc_write_cache(max_thread_info_data_size + prealloc_head_size);
-            assert(data_len_min_size == 1 && "thread info template size error");
-
-            uint32_t thread_info_data_cursor = prealloc_head_size;
-            write_handle.data()[thread_info_data_cursor++] = (uint32_t)template_sub_type::thread_info_template;
-            thread_info_data_cursor += (uint32_t)bq::log_utils::vlq::vlq_encode(current_thread_info_max_index_, write_handle.data() + thread_info_data_cursor, VLQ_MAX_SIZE);
-            thread_info_data_cursor += (uint32_t)bq::log_utils::vlq::vlq_encode(handle.get_log_head().log_thread_id, write_handle.data() + thread_info_data_cursor, VLQ_MAX_SIZE_64);
-            memcpy(write_handle.data() + thread_info_data_cursor, (const uint8_t*)&ext_info + sizeof(_log_entry_ext_head_def), (size_t)ext_info.thread_name_len_);
-            thread_info_data_cursor += ext_info.thread_name_len_;
-            write_handle.reset_used_len(thread_info_data_cursor);
-            *(uint8_t*)write_handle.data() = (uint8_t)item_type::log_template;
-            uint32_t real_body_len = thread_info_data_cursor - prealloc_head_size;
-            auto real_body_len_size = bq::log_utils::vlq::vlq_encode(real_body_len, write_handle.data() + 1, 1);
-            assert(real_body_len_size == 1 && "thread info template size encoding error");
-            return_write_cache(write_handle);
-            thread_info_hash_cache_[handle.get_log_head().log_thread_id] = current_thread_info_max_index_;
-            thread_info_idx = current_thread_info_max_index_;
-            ++current_thread_info_max_index_;
+        const uint64_t current_thread_id = handle.get_log_head().log_thread_id;
+        if (current_thread_id == last_thread_id_) {
+            thread_info_idx = last_thread_info_idx_;
         } else {
-            thread_info_idx = thread_info__iter->value();
+            const uint32_t thread_l1_index = static_cast<uint32_t>(mix_cache_key(current_thread_id) >> 32) & (THREAD_L1_SIZE - 1);
+            if (thread_l1_[thread_l1_index].value != CACHE_EMPTY
+                && thread_l1_[thread_l1_index].key == current_thread_id) {
+                thread_info_idx = thread_l1_[thread_l1_index].value;
+            } else {
+                decltype(thread_l2_)::insert_token thread_insert_token;
+                const bool thread_info_found = thread_l2_.find(current_thread_id, thread_info_idx, thread_insert_token);
+                // write thread_info template
+                if (!thread_info_found) {
+                    const auto& ext_info = handle.get_ext_head();
+                    constexpr size_t VLQ_MAX_SIZE = bq::log_utils::vlq::vlq_max_bytes_count<decltype(current_thread_info_max_index_)>();
+                    constexpr size_t VLQ_MAX_SIZE_64 = bq::log_utils::vlq::vlq_max_bytes_count<decltype(handle.get_log_head().log_thread_id)>();
+                    auto max_thread_info_data_size = sizeof(uint8_t) + VLQ_MAX_SIZE + VLQ_MAX_SIZE_64 + ext_info.thread_name_len_;
+#ifndef NDEBUG
+                    assert(max_thread_info_data_size < 64);
+#endif // !NDEBUG
+                    auto data_len_min_size = bq::log_utils::vlq::get_vlq_encode_length((uint64_t)max_thread_info_data_size);
+                    auto prealloc_head_size = 1 + data_len_min_size;
+                    auto write_handle = alloc_write_cache(max_thread_info_data_size + prealloc_head_size);
+                    assert(data_len_min_size == 1 && "thread info template size error");
+
+                    uint32_t thread_info_data_cursor = prealloc_head_size;
+                    write_handle.data()[thread_info_data_cursor++] = (uint32_t)template_sub_type::thread_info_template;
+                    thread_info_data_cursor += (uint32_t)bq::log_utils::vlq::vlq_encode(current_thread_info_max_index_, write_handle.data() + thread_info_data_cursor, VLQ_MAX_SIZE);
+                    thread_info_data_cursor += (uint32_t)bq::log_utils::vlq::vlq_encode(current_thread_id, write_handle.data() + thread_info_data_cursor, VLQ_MAX_SIZE_64);
+                    memcpy(write_handle.data() + thread_info_data_cursor, (const uint8_t*)&ext_info + sizeof(_log_entry_ext_head_def), (size_t)ext_info.thread_name_len_);
+                    thread_info_data_cursor += ext_info.thread_name_len_;
+                    write_handle.reset_used_len(thread_info_data_cursor);
+                    *(uint8_t*)write_handle.data() = (uint8_t)item_type::log_template;
+                    uint32_t real_body_len = thread_info_data_cursor - prealloc_head_size;
+                    auto real_body_len_size = bq::log_utils::vlq::vlq_encode(real_body_len, write_handle.data() + 1, 1);
+                    assert(real_body_len_size == 1 && "thread info template size encoding error");
+                    return_write_cache(write_handle);
+                    thread_info_idx = current_thread_info_max_index_;
+                    thread_l2_.insert(current_thread_id, thread_info_idx, thread_insert_token);
+                    ++current_thread_info_max_index_;
+                }
+                thread_l1_[thread_l1_index].key = current_thread_id;
+                thread_l1_[thread_l1_index].value = thread_info_idx;
+            }
+            last_thread_id_ = current_thread_id;
+            last_thread_info_idx_ = thread_info_idx;
         }
 
         // write log entry
@@ -395,7 +541,7 @@ namespace bq {
                     write_handle.data()[log_data_cursor++] = type_info_i;
                     switch (type_info) {
                     case bq::log_arg_type_enum::unsupported_type:
-                        bq::util::log_device_console(bq::log_level::warning, "appender_file_compressed : non_primitivi_type is not supported yet, type:%d", (int32_t)type_info);
+                        bq::util::log_device_console(bq::log_level::warning, "appender_file_compressed : non_primitivi_type is not supported yet, type:%" PRId32, (int32_t)type_info);
                         args_data_cursor = raw_log_args_data_len;
                         break;
                     case bq::log_arg_type_enum::null_type:
@@ -503,5 +649,6 @@ namespace bq {
             return_write_cache(write_handle);
         }
         mark_write_finished();
+        return true;
     }
 }

@@ -340,6 +340,19 @@ private:
 };
 
 #include <cstddef>
+
+namespace xtr::detail
+{
+    enum class prefault_flags_t
+    {
+        none,
+        read_write
+    };
+
+    void prefault_rw(void* addr, std::size_t length);
+}
+
+#include <cstddef>
 #include <utility>
 
 #include <sys/mman.h>
@@ -429,7 +442,8 @@ public:
         std::size_t length, // must be multiple of page size
         int fd = -1,
         std::size_t offset = 0, // must be multiple of page size
-        int flags = 0);
+        int flags = 0,
+        prefault_flags_t prefault_flags = prefault_flags_t::none);
 
     ~mirrored_memory_mapping();
 
@@ -628,12 +642,6 @@ namespace xtr::detail
 {
     inline constexpr std::size_t dynamic_capacity = std::size_t(-1);
 
-#if defined(MAP_POPULATE)
-    inline constexpr int srb_flags = MAP_POPULATE;
-#else
-    inline constexpr int srb_flags = 0;
-#endif
-
     template<std::size_t Capacity>
     class synchronized_ring_buffer;
 
@@ -658,18 +666,17 @@ namespace xtr::detail
     inline constexpr std::size_t cacheline_size = 64;
 
 #if defined(XTR_ENABLE_TEST_STATIC_ASSERTIONS)
-    static_assert(std::is_same<std::uint8_t, least_uint_t<0UL>>::value);
-    static_assert(std::is_same<std::uint8_t, least_uint_t<255UL>>::value);
+    static_assert(std::is_same_v<std::uint8_t, least_uint_t<0UL>>);
+    static_assert(std::is_same_v<std::uint8_t, least_uint_t<255UL>>);
 
-    static_assert(std::is_same<std::uint16_t, least_uint_t<256UL>>::value);
-    static_assert(std::is_same<std::uint16_t, least_uint_t<65535UL>>::value);
+    static_assert(std::is_same_v<std::uint16_t, least_uint_t<256UL>>);
+    static_assert(std::is_same_v<std::uint16_t, least_uint_t<65535UL>>);
 
-    static_assert(std::is_same<std::uint32_t, least_uint_t<65536UL>>::value);
-    static_assert(std::is_same<std::uint32_t, least_uint_t<4294967295UL>>::value);
+    static_assert(std::is_same_v<std::uint32_t, least_uint_t<65536UL>>);
+    static_assert(std::is_same_v<std::uint32_t, least_uint_t<4294967295UL>>);
 
-    static_assert(std::is_same<std::uint64_t, least_uint_t<4294967296UL>>::value);
-    static_assert(
-        std::is_same<std::uint64_t, least_uint_t<18446744073709551615UL>>::value);
+    static_assert(std::is_same_v<std::uint64_t, least_uint_t<4294967296UL>>);
+    static_assert(std::is_same_v<std::uint64_t, least_uint_t<18446744073709551615UL>>);
 #endif
 
     template<typename T, typename SizeType>
@@ -742,16 +749,24 @@ public:
     static constexpr bool is_dynamic = Capacity == dynamic_capacity;
 
 public:
-    synchronized_ring_buffer(int fd = -1, std::size_t offset = 0, int flags = srb_flags)
+    synchronized_ring_buffer(
+        int fd = -1,
+        std::size_t offset = 0,
+        int flags = 0,
+        prefault_flags_t prefault_flags = prefault_flags_t::read_write)
         requires(!is_dynamic)
     {
-        m_ = mirrored_memory_mapping{capacity(), fd, offset, flags};
+        m_ = mirrored_memory_mapping{capacity(), fd, offset, flags, prefault_flags};
         nread_plus_capacity_ = wrnread_plus_capacity_ = capacity();
         wrbase_ = begin();
     }
 
     explicit synchronized_ring_buffer(
-        size_type min_capacity, int fd = -1, std::size_t offset = 0, int flags = srb_flags)
+        size_type min_capacity,
+        int fd = -1,
+        std::size_t offset = 0,
+        int flags = 0,
+        prefault_flags_t prefault_flags = prefault_flags_t::read_write)
         requires is_dynamic
         :
         m_(align_to_page_size(
@@ -762,7 +777,8 @@ public:
 #endif
            fd,
            offset,
-           flags)
+           flags,
+           prefault_flags)
     {
         assert(capacity() <= std::numeric_limits<size_type>::max());
         wrbase_ = begin();
@@ -776,7 +792,6 @@ public:
         wrnread_plus_capacity_ = capacity();
         wrnwritten_ = 0;
         nread_plus_capacity_ = capacity();
-        dropped_count_ = 0;
     }
 
     constexpr size_type capacity() const noexcept
@@ -815,10 +830,7 @@ public:
         }
 
         if (is_non_blocking_v<Tags> && sz < minsize) [[unlikely]]
-        {
-            dropped_count_.fetch_add(1, std::memory_order_relaxed);
             return span{};
-        }
 
         assert(b >= begin());
         assert(b < end());
@@ -856,7 +868,10 @@ public:
 
     void reduce_readable(size_type nbytes) noexcept
     {
-        nread_plus_capacity_.fetch_add(nbytes, std::memory_order_release);
+        nread_plus_capacity_.store(
+            nread_plus_capacity_.load(std::memory_order_relaxed) + nbytes,
+            std::memory_order_release);
+
 #if !defined(XTR_THREAD_SANITIZER_ENABLED)
         assert(nread_plus_capacity_.load() - nwritten_.load() <= capacity());
 #endif
@@ -880,11 +895,6 @@ public:
     const_iterator end() const noexcept
     {
         return begin() + capacity();
-    }
-
-    std::size_t dropped_count() noexcept
-    {
-        return dropped_count_.exchange(0, std::memory_order_relaxed);
     }
 
 private:
@@ -928,8 +938,6 @@ private:
 
     alignas(cacheline_size) std::atomic<size_type> nread_plus_capacity_{};
     mirrored_memory_mapping m_;
-
-    alignas(cacheline_size) std::atomic<size_type> dropped_count_{};
 };
 
 #include <cstdint>
@@ -1211,8 +1219,8 @@ private:
 #include <fmt/compile.h>
 #include <fmt/format.h>
 
+#include <exception>
 #include <iterator>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 
@@ -1351,6 +1359,76 @@ namespace xtr::detail
 #endif
 }
 
+#include <cstddef>
+#include <type_traits>
+
+namespace xtr::detail
+{
+    template<typename T>
+    struct vcopy_wrapper
+    {
+        const T& value;
+        std::size_t size;
+    };
+
+    template<typename T>
+    struct is_vcopy_wrapper : std::false_type
+    {
+    };
+
+    template<typename T>
+    struct is_vcopy_wrapper<vcopy_wrapper<T>> : std::true_type
+    {
+    };
+
+    static_assert(is_vcopy_wrapper<vcopy_wrapper<int>>::value);
+    static_assert(!is_vcopy_wrapper<int>::value);
+}
+
+#include <cstddef>
+#include <type_traits>
+
+namespace xtr
+{
+    /**
+     * vcopy copies a variable-length trivially-copyable object (e.g. a struct
+     * with a flexible array member) into the sink. `size` is the total number
+     * of bytes to copy starting at `arg`, which must be at least `sizeof(T)`
+     * and must include any trailing data beyond the fixed portion of `T`.
+     * Because the entire object is memcpy'd as-is, `T` must be trivially
+     * copyable. Unlike string arguments, vcopy cannot truncate: if the sink's
+     * ring buffer cannot hold the object, the entire log record is dropped
+     * and the dropped-message counter is incremented. Please see the
+     * <a href="guide.html#variable-length-arguments">variable-length
+     * arguments</a> section of the user guide for further details.
+     */
+    template<typename T>
+        requires std::is_trivially_copyable_v<T>
+    inline auto vcopy(const T& arg, std::size_t size)
+    {
+        return detail::vcopy_wrapper{arg, size};
+    }
+}
+
+namespace xtr
+{
+    /**
+     * nocopy is used to specify that a string argument should be passed by
+     * reference instead of by value, so that `arg` becomes `nocopy(arg)`. Note
+     * that by default, all strings including C strings and std::string_view are
+     * copied. In order to pass strings by reference they must be wrapped in a
+     * call to nocopy. Please see the <a
+     * href="guide.html#passing-arguments-by-value-or-reference"> passing
+     * arguments by value or reference</a> and <a href="guide.html#string-arguments">string
+     * arguments</a> sections of the user guide for further details.
+     */
+    template<typename T>
+    inline auto nocopy(const T& arg)
+    {
+        return detail::string_ref(arg);
+    }
+}
+
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -1377,13 +1455,32 @@ namespace xtr::detail
     };
 
     template<typename T>
-        requires(!std::same_as<std::remove_cvref_t<T>, string_table_entry>)
-    T&& transform_string_table_entry(const std::byte*, T&& value)
+    struct variable_length_entry
+    {
+        explicit variable_length_entry(std::size_t sz) :
+            size(std::uint32_t(sz))
+        {
+        }
+
+        std::uint32_t size;
+    };
+
+    template<typename T>
+    T&& reconstruct_args(const std::byte*, T&& value)
     {
         return std::forward<T>(value);
     }
 
-    inline string_ref<std::string_view> transform_string_table_entry(
+    template<typename T>
+    inline const T& reconstruct_args(std::byte*& pos, variable_length_entry<T> entry)
+    {
+        pos = align<alignof(T)>(pos);
+        const T& value = *reinterpret_cast<const T*>(pos);
+        pos += entry.size;
+        return value;
+    }
+
+    inline string_ref<std::string_view> reconstruct_args(
         std::byte*& pos, string_table_entry entry)
     {
         if (entry.size == string_table_entry::truncated) [[unlikely]]
@@ -1393,66 +1490,93 @@ namespace xtr::detail
         return string_ref<std::string_view>(str);
     }
 
+    template<typename Tags, typename Buffer>
+    __attribute__((always_inline)) inline bool wait_for_capacity(
+        std::byte*& end, std::byte* min_end, Buffer& buf)
+    {
+        while (end < min_end) [[unlikely]]
+        {
+            pause();
+            const auto s = buf.write_span();
+            if (s.end() < min_end) [[unlikely]]
+            {
+                if (s.size() == buf.capacity() || is_non_blocking_v<Tags>)
+                    return false;
+            }
+            end = s.end();
+        }
+        return true;
+    }
+
+    template<typename Tags, typename Buffer>
+    __attribute__((always_inline)) inline bool copy(
+        std::byte*& pos, std::byte*& end, Buffer& buf, const void* value, std::size_t length)
+    {
+        std::byte* value_end = pos + length;
+        if (!wait_for_capacity<Tags>(end, value_end, buf)) [[unlikely]]
+            return false;
+        std::memcpy(pos, value, length);
+        pos += length;
+        return true;
+    }
+
     template<typename Tags, typename T, typename Buffer>
-        requires(std::is_rvalue_reference_v<decltype(std::forward<T>(std::declval<T>()))> &&
-                 std::same_as<std::remove_cvref_t<T>, std::string>) ||
-                (!is_c_string<T>::value &&
-                 !std::same_as<std::remove_cvref_t<T>, std::string> &&
-                 !std::same_as<std::remove_cvref_t<T>, std::string_view>)
-    T&& build_string_table(std::byte*&, std::byte*&, Buffer&, T&& value)
+    __attribute__((always_inline)) inline bool copy(
+        std::byte*& pos, std::byte*& end, Buffer& buf, T&& value)
+    {
+        std::byte* value_end = pos + sizeof(T);
+        if (!wait_for_capacity<Tags>(end, value_end, buf)) [[unlikely]]
+            return false;
+        ::new (pos) std::remove_reference_t<T>(std::forward<T>(value));
+        pos += sizeof(T);
+        return true;
+    }
+
+    template<typename Tags, typename T, typename Buffer>
+        requires(
+            (std::is_rvalue_reference_v<decltype(std::forward<T>(std::declval<T>()))> &&
+             std::same_as<std::remove_cvref_t<T>, std::string>) ||
+            (!is_c_string<T>::value &&
+             !std::same_as<std::remove_cvref_t<T>, std::string> &&
+             !std::same_as<std::remove_cvref_t<T>, std::string_view>))
+    T&& transform_args(std::byte*&, std::byte*&, Buffer&, bool&, T&& value)
     {
         return std::forward<T>(value);
+    }
+
+    template<typename Tags, typename T, typename Buffer>
+    variable_length_entry<T> transform_args(
+        std::byte*& pos,
+        std::byte*& end,
+        Buffer& buf,
+        bool& overflow,
+        detail::vcopy_wrapper<T> vc)
+    {
+        pos = align<alignof(T)>(pos);
+        if (!copy<Tags>(pos, end, buf, &vc.value, vc.size)) [[unlikely]]
+            overflow = true;
+        return variable_length_entry<T>(vc.size);
     }
 
     template<typename Tags, typename Buffer, typename String>
         requires std::same_as<String, std::string> ||
                  std::same_as<String, std::string_view>
-    string_table_entry build_string_table(
-        std::byte*& pos, std::byte*& end, Buffer& buf, const String& sv)
+    string_table_entry transform_args(
+        std::byte*& pos, std::byte*& end, Buffer& buf, bool&, const String& str)
     {
-        std::byte* str_end = pos + sv.length();
-        while (end < str_end) [[unlikely]]
-        {
-            pause();
-            const auto s = buf.write_span();
-            if (s.end() < str_end) [[unlikely]]
-            {
-                if (s.size() == buf.capacity() || is_non_blocking_v<Tags>)
-                    return string_table_entry{string_table_entry::truncated};
-            }
-            end = s.end();
-        }
-
-        std::memcpy(pos, sv.data(), sv.length());
-        pos += sv.length();
-
-        return string_table_entry(sv.length());
+        if (!copy<Tags>(pos, end, buf, str.data(), str.length())) [[unlikely]]
+            return string_table_entry{string_table_entry::truncated};
+        return string_table_entry(str.length());
     }
 
     template<typename Tags, typename Buffer>
-    string_table_entry build_string_table(
-        std::byte*& pos, std::byte*& end, Buffer& buf, const char* str)
+    string_table_entry transform_args(
+        std::byte*& pos, std::byte*& end, Buffer& buf, bool&, const char* str)
     {
-        std::byte* begin = pos;
-        while (*str != '\0')
-        {
-            while (pos == end) [[unlikely]]
-            {
-                pause();
-                const auto s = buf.write_span();
-                if (s.end() == end) [[unlikely]]
-                {
-                    if (s.size() == buf.capacity() || is_non_blocking_v<Tags>)
-                    {
-                        pos = begin;
-                        return string_table_entry{string_table_entry::truncated};
-                    }
-                }
-                end = s.end();
-            }
-            ::new (pos++) char(*str++);
-        }
-        return string_table_entry(std::size_t(pos - begin));
+        const std::size_t length = std::strlen(str);
+        if (!copy<Tags>(pos, end, buf, str, length)) [[unlikely]]
+            return string_table_entry{string_table_entry::truncated};
+        return string_table_entry(length);
     }
 }
 
@@ -1540,7 +1664,7 @@ namespace xtr::detail
     {
         const std::size_t n = std::min(DstSz - 1, std::size(src));
         if (std::size(src) > 0) [[likely]]
-            std::memcpy(dst, &src[0], n);
+            std::memcpy(dst, std::data(src), n);
         dst[n] = '\0';
     }
 }
@@ -1707,6 +1831,13 @@ private:
     auto make_lambda(Args&&... args) noexcept(
         (XTR_NOTHROW_INGESTIBLE(Args, args) && ...));
 
+    std::size_t dropped_count() noexcept
+    {
+        if (dropped_count_.load(std::memory_order_relaxed) == 0)
+            return 0;
+        return dropped_count_.exchange(0, std::memory_order_relaxed);
+    }
+
     using ring_buffer = detail::synchronized_ring_buffer<XTR_SINK_CAPACITY>;
 
     static_assert(
@@ -1715,6 +1846,7 @@ private:
         "XTR_SINK_CAPACITY is too large");
 
     ring_buffer buf_;
+    std::atomic<std::size_t> dropped_count_{};
     std::atomic<log_level_t> level_;
     bool open_ = false;
 
@@ -1733,7 +1865,10 @@ void xtr::sink::log_impl() noexcept
 {
     const ring_buffer::span s = buf_.write_span_spec<Tags>(sizeof(fptr_t));
     if (detail::is_non_blocking_v<Tags> && s.empty()) [[unlikely]]
+    {
+        dropped_count_.fetch_add(1, std::memory_order_relaxed);
         return;
+    }
     copy(s.begin(), &detail::trampoline0<Format, Level, detail::consumer>);
     buf_.reduce_writable(sizeof(fptr_t));
 }
@@ -1747,7 +1882,9 @@ void xtr::sink::log_impl(Args&&... args) noexcept(
         detail::is_c_string<decltype(std::forward<Args>(args))>...,
         std::is_same<std::remove_cvref_t<Args>, std::string_view>...,
         std::is_same<std::remove_cvref_t<Args>, std::string>...>;
-    if constexpr (is_str)
+    constexpr bool is_vcopy =
+        std::disjunction_v<detail::is_vcopy_wrapper<Args>...>;
+    if constexpr (is_str || is_vcopy)
         post_variable_len<Format, Level, Tags>(std::forward<Args>(args)...);
     else
         post<Format, Level, Tags>(make_lambda<Tags>(std::forward<Args>(args)...));
@@ -1757,10 +1894,11 @@ template<auto Format, auto Level, typename Tags, typename... Args>
 void xtr::sink::post_variable_len(Args&&... args) noexcept(
     (XTR_NOTHROW_INGESTIBLE(Args, args) && ...))
 {
-    using lambda_t = decltype(make_lambda<Tags>(detail::build_string_table<Tags>(
+    using lambda_t = decltype(make_lambda<Tags>(detail::transform_args<Tags>(
         std::declval<std::byte*&>(),
         std::declval<std::byte*&>(),
         buf_,
+        std::declval<bool&>(),
         std::forward<Args>(args))...));
 
     ring_buffer::span s = buf_.write_span_spec();
@@ -1770,28 +1908,40 @@ void xtr::sink::post_variable_len(Args&&... args) noexcept(
         func_pos = align<alignof(lambda_t)>(func_pos);
 
     static_assert(alignof(char) == 1);
-    const auto str_pos = func_pos + sizeof(lambda_t);
-    const auto size = ring_buffer::size_type(str_pos - s.begin());
+    const auto vlen_pos = func_pos + sizeof(lambda_t);
+    const auto size = ring_buffer::size_type(vlen_pos - s.begin());
 
     if (s.size() < size) [[unlikely]]
         s = buf_.write_span<Tags>(size);
 
     if (detail::is_non_blocking_v<Tags> && s.empty()) [[unlikely]]
+    {
+        dropped_count_.fetch_add(1, std::memory_order_relaxed);
         return;
+    }
 
-    auto str_cur = str_pos;
-    auto str_end = s.end();
+    auto vlen_cur = vlen_pos;
+    auto vlen_end = s.end();
+    bool overflow = false;
 
     copy(s.begin(), &detail::trampolineV<Format, Level, detail::consumer, lambda_t>);
     copy(
         func_pos,
-        make_lambda<Tags>(detail::build_string_table<Tags>(
-            str_cur,
-            str_end,
+        make_lambda<Tags>(detail::transform_args<Tags>(
+            vlen_cur,
+            vlen_end,
             buf_,
+            overflow,
             std::forward<Args>(args))...));
 
-    const auto next = detail::align<alignof(fptr_t)>(str_cur);
+    if (overflow) [[unlikely]]
+    {
+        std::destroy_at(reinterpret_cast<lambda_t*>(func_pos));
+        dropped_count_.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+
+    const auto next = detail::align<alignof(fptr_t)>(vlen_cur);
     const auto total_size = ring_buffer::size_type(next - s.begin());
 
     buf_.reduce_writable(total_size);
@@ -1801,11 +1951,7 @@ template<typename T>
 void xtr::sink::copy(std::byte* pos, T&& value) noexcept(XTR_NOTHROW_INGESTIBLE(T, value))
 {
     assert(std::uintptr_t(pos) % alignof(T) == 0);
-#if defined(__cpp_lib_assume_aligned)
     pos = static_cast<std::byte*>(std::assume_aligned<alignof(T)>(pos));
-#else
-    pos = static_cast<std::byte*>(__builtin_assume_aligned(pos, alignof(T)));
-#endif
     ::new (pos) std::remove_reference_t<T>(std::forward<T>(value));
 }
 
@@ -1825,7 +1971,10 @@ void xtr::sink::post(Func&& func) noexcept(XTR_NOTHROW_INGESTIBLE(Func, func))
         s = buf_.write_span<Tags>(size);
 
     if (detail::is_non_blocking_v<Tags> && s.empty()) [[unlikely]]
+    {
+        dropped_count_.fetch_add(1, std::memory_order_relaxed);
         return;
+    }
 
     copy(s.begin(), &detail::trampolineN<Format, Level, detail::consumer, Func>);
     copy(func_pos, std::forward<Func>(func));
@@ -1852,7 +2001,7 @@ auto xtr::sink::make_lambda(Args&&... args) noexcept(
                 fmt,
                 level,
                 name,
-                detail::transform_string_table_entry(record, args)...);
+                detail::reconstruct_args(record, args)...);
         }
         else
         {
@@ -1862,7 +2011,7 @@ auto xtr::sink::make_lambda(Args&&... args) noexcept(
                 level,
                 ts,
                 name,
-                detail::transform_string_table_entry(record, args)...);
+                detail::reconstruct_args(record, args)...);
         }
     };
 }
@@ -2058,7 +2207,7 @@ inline ::ssize_t xtr::detail::command_send(int fd, const void* buf, std::size_t 
     iov.iov_base = const_cast<void*>(buf);
     iov.iov_len = nbytes;
 
-    return XTR_TEMP_FAILURE_RETRY(::sendmsg(fd, &hdr, MSG_NOSIGNAL));
+    return XTR_TEMP_FAILURE_RETRY(::sendmsg(fd, &hdr, MSG_NOSIGNAL | MSG_EOR));
 }
 
 #include <sys/socket.h>
@@ -2649,6 +2798,9 @@ namespace xtr
             xtr::detail::string{":"} +                                                      \
             xtr::detail::string{XTR_XSTR(__LINE__) ": " FORMAT "\n"};                       \
         using xtr::nocopy;                                                                  \
+        using xtr::streamed_copy;                                                           \
+        using xtr::streamed_ref;                                                            \
+        using xtr::vcopy;                                                                   \
         (SINK).template log<FMT_COMPILE(xtr_fmt.str), xtr::log_level_t::LEVEL, void(TAGS)>( \
             __VA_ARGS__);                                                                   \
     }))
@@ -2670,7 +2822,7 @@ public:
     int reopen() noexcept override;
 
 protected:
-    virtual void replace_fd(int newfd) noexcept;
+    virtual void replace_fd(file_descriptor fd) noexcept;
 
     std::string reopen_path_;
     detail::file_descriptor fd_;
@@ -2726,6 +2878,9 @@ public:
     {
     }
 
+protected:
+    void replace_fd(detail::file_descriptor fd) noexcept final;
+
 private:
     std::unique_ptr<char[]> buf_;
     std::size_t buffer_capacity_;
@@ -2743,6 +2898,25 @@ private:
 namespace xtr
 {
     class io_uring_fd_storage;
+
+    namespace detail
+    {
+        class unique_io_uring
+        {
+        public:
+            explicit unique_io_uring(std::size_t queue_size);
+
+            unique_io_uring(const unique_io_uring&) = delete;
+            unique_io_uring& operator=(const unique_io_uring&) = delete;
+
+            ~unique_io_uring();
+
+            io_uring* get() noexcept;
+
+        private:
+            io_uring ring_;
+        };
+    }
 }
 
 /**
@@ -2772,7 +2946,7 @@ private:
     struct buffer
     {
         int index_;     // io_uring_prep_write_fixed accepts indexes as int
-        unsigned size_; // io_uring_cqe::res is an unsigned int
+        unsigned size_; // io_uring_cqe::res is an int
         std::size_t offset_;
         std::size_t file_offset_;
         buffer* next_;
@@ -2815,7 +2989,8 @@ public:
      * @param fd: File descriptor to write to. This will be duplicated via a
      * call to <a href="https://www.man7.org/linux/man-pages/man2/dup.2.html">dup(2)</a>,
      * so callers may close the file descriptor immediately after this
-     * constructor returns if desired.
+     * constructor returns if desired. The file descriptor must be seekable
+     * and must not have O_APPEND set.
      *
      * @param reopen_path: The path of the file associated with the fd argument.
      * This path will be used to reopen the file if requested via the xtrctl
@@ -2848,7 +3023,9 @@ public:
     void submit_buffer(char* data, std::size_t size) final;
 
 protected:
-    void replace_fd(int newfd) noexcept final;
+    void replace_fd(detail::file_descriptor fd) noexcept final;
+
+    void set_offset() noexcept;
 
 private:
     void allocate_buffers(std::size_t queue_size);
@@ -2861,7 +3038,7 @@ private:
 
     void free_buffer(buffer* buf);
 
-    io_uring ring_;
+    detail::unique_io_uring ring_;
     std::size_t buffer_capacity_;
     std::size_t batch_size_;
     std::size_t batch_index_ = 0;
@@ -2878,7 +3055,18 @@ private:
 
 #endif
 
-#include <cstddef>
+namespace xtr::detail
+{
+    file_descriptor open_at_end(const char* path) noexcept;
+
+    bool is_seekable(int fd) noexcept;
+
+    bool is_append(int fd) noexcept;
+
+    bool set_append(int fd) noexcept;
+}
+
+#include <cstdio>
 #include <string>
 
 namespace xtr
@@ -2970,22 +3158,6 @@ namespace xtr
          */
         disable_worker_thread
     };
-
-    /**
-     * nocopy is used to specify that a string argument should be passed by
-     * reference instead of by value, so that `arg` becomes `nocopy(arg)`. Note
-     * that by default, all strings including C strings and std::string_view are
-     * copied. In order to pass strings by reference they must be wrapped in a
-     * call to nocopy. Please see the <a
-     * href="guide.html#passing-arguments-by-value-or-reference"> passing
-     * arguments by value or reference</a> and <a href="guide.html#string-arguments">string
-     * arguments</a> sections of the user guide for further details.
-     */
-    template<typename T>
-    inline auto nocopy(const T& arg)
-    {
-        return detail::string_ref(arg);
-    }
 }
 
 /**
@@ -3253,7 +3425,8 @@ public:
      * to @ref logger::logger then this function must be called in order to
      * process messages written to the logger. Users may call this function from
      * a thread of their choosing and may interleave calls with other background
-     * tasks that their program needs to perform.
+     * tasks that their program needs to perform. Once it has been called from
+     * a given thread it must continue to be called from the same thread.
      *
      * For best results when interleaving with other tasks ensure that io_uring
      * mode is enabled (so that I/O will be performed asynchronously leaving
@@ -3934,8 +4107,7 @@ inline bool xtr::detail::consumer::run_once(pump_io_stats* stats) noexcept
             sink::ring_buffer::size_type(pos - span.begin()));
 
         std::size_t n_dropped;
-        if (sinks_[i]->buf_.read_span().empty() &&
-            (n_dropped = sinks_[i]->buf_.dropped_count()) > 0)
+        if (pos == span.end() && (n_dropped = sinks_[i]->dropped_count()) > 0)
         {
             detail::print(
                 buf,
@@ -3951,7 +4123,11 @@ inline bool xtr::detail::consumer::run_once(pump_io_stats* stats) noexcept
     }
 
     if (sinks_.empty())
+    {
+        buf.flush();
+        buf.storage().sync();
         destruct_latch_.count_down();
+    }
 
     if (stats != nullptr)
         stats->n_events = n_events;
@@ -4109,22 +4285,19 @@ inline int xtr::detail::fd_storage_base::reopen() noexcept
     if (reopen_path_ == null_reopen_path)
         return ENOENT;
 
-    const int newfd = XTR_TEMP_FAILURE_RETRY(::open(
-        reopen_path_.c_str(),
-        O_CREAT | O_APPEND | O_WRONLY,
-        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
+    auto fd = detail::open_at_end(reopen_path_.c_str());
 
-    if (newfd == -1)
+    if (!fd)
         return errno;
 
-    replace_fd(newfd);
+    replace_fd(std::move(fd));
 
     return 0;
 }
 
-inline void xtr::detail::fd_storage_base::replace_fd(int newfd) noexcept
+inline void xtr::detail::fd_storage_base::replace_fd(file_descriptor fd) noexcept
 {
-    fd_.reset(newfd);
+    fd_ = std::move(fd);
 }
 
 #include <fmt/compile.h>
@@ -4132,33 +4305,66 @@ inline void xtr::detail::fd_storage_base::replace_fd(int newfd) noexcept
 
 #include <cerrno>
 #include <memory>
+#include <string_view>
 #include <utility>
 
-#include <fcntl.h>
-#include <sys/stat.h>
+#include <sys/mman.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
 namespace xtr::detail
 {
-    inline bool is_seekable(int fd)
+#if XTR_USE_IO_URING
+    inline bool is_io_uring_working()
     {
-        struct ::stat st;
-        return ::fstat(fd, &st) == 0 && S_ISREG(st.st_mode);
+        constexpr std::string_view magic = "io_uring is working";
+        constexpr std::size_t buf_capacity = 32;
+
+        file_descriptor memfd(::memfd_create("xtr_health_check", MFD_CLOEXEC));
+
+        if (!memfd)
+            return false;
+
+#if __cpp_exceptions
+        try
+#endif
+        {
+            io_uring_fd_storage storage(
+                memfd.get(),
+                null_reopen_path,
+                buf_capacity,
+                /* queue_size= */ 2,
+                /* batch_size= */ 1);
+            const std::span<char> span = storage.allocate_buffer();
+            magic.copy(span.data(), magic.size());
+            storage.submit_buffer(span.data(), magic.size());
+            storage.sync();
+        }
+#if __cpp_exceptions
+        catch (const std::exception&)
+        {
+            return false;
+        }
+#endif
+
+        char buf[buf_capacity];
+        const ::ssize_t nread = ::pread(memfd.get(), buf, sizeof(buf), 0);
+        return nread >= 0 && std::string_view(buf, std::size_t(nread)) == magic;
     }
+#endif
+
+    storage_interface_ptr make_fd_storage(
+        int fd, std::string reopen_path, bool fd_created);
 }
 
 inline xtr::storage_interface_ptr xtr::make_fd_storage(const char* path)
 {
-    const int fd = XTR_TEMP_FAILURE_RETRY(::open(
-        path,
-        O_CREAT | O_APPEND | O_WRONLY,
-        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
+    const auto fd = detail::open_at_end(path);
 
-    if (fd == -1)
+    if (!fd)
         detail::throw_system_error_fmt(errno, "Failed to open `%s'", path);
 
-    return make_fd_storage(fd, path);
+    return detail::make_fd_storage(fd.get(), path, /* fd_created= */ true);
 }
 
 inline xtr::storage_interface_ptr xtr::make_fd_storage(FILE* fp, std::string reopen_path)
@@ -4168,11 +4374,19 @@ inline xtr::storage_interface_ptr xtr::make_fd_storage(FILE* fp, std::string reo
 
 inline xtr::storage_interface_ptr xtr::make_fd_storage(int fd, std::string reopen_path)
 {
+    return detail::make_fd_storage(fd, std::move(reopen_path), /* fd_created= */ false);
+}
+
+inline xtr::storage_interface_ptr xtr::detail::make_fd_storage(
+    int fd, std::string reopen_path, bool fd_created)
+{
 #if XTR_USE_IO_URING
     errno = 0;
     (void)syscall(__NR_io_uring_setup, 0, nullptr);
+    const bool has_io_uring = errno != ENOSYS;
 
-    if (detail::is_seekable(fd) && errno != ENOSYS)
+    if (has_io_uring && detail::is_seekable(fd) && !detail::is_append(fd) &&
+        detail::is_io_uring_working())
     {
 #if __cpp_exceptions
         try
@@ -4192,6 +4406,15 @@ inline xtr::storage_interface_ptr xtr::make_fd_storage(int fd, std::string reope
 #endif
     }
 #endif
+
+    if (fd_created && !detail::set_append(fd))
+    {
+        detail::throw_system_error_fmt(
+            errno,
+            "Failed to set O_APPEND on `%s'",
+            reopen_path.c_str());
+    }
+
     return std::make_unique<posix_fd_storage>(fd, std::move(reopen_path));
 }
 
@@ -4241,6 +4464,36 @@ inline void xtr::detail::file_descriptor::reset(int fd) noexcept
 #include <limits>
 #include <vector>
 
+#include <unistd.h>
+
+inline xtr::detail::unique_io_uring::unique_io_uring(std::size_t queue_size)
+{
+    const int flags =
+#if XTR_IO_URING_POLL
+        IORING_SETUP_SQPOLL;
+#else
+        0;
+#endif
+
+    if (const int errnum =
+            ::io_uring_queue_init(unsigned(queue_size), &ring_, flags))
+    {
+        throw_system_error_fmt(
+            -errnum,
+            "xtr::detail::unique_io_uring: io_uring_queue_init failed");
+    }
+}
+
+inline xtr::detail::unique_io_uring::~unique_io_uring()
+{
+    ::io_uring_queue_exit(&ring_);
+}
+
+inline io_uring* xtr::detail::unique_io_uring::get() noexcept
+{
+    return &ring_;
+}
+
 inline xtr::io_uring_fd_storage::io_uring_fd_storage(
     int fd,
     std::string reopen_path,
@@ -4253,6 +4506,7 @@ inline xtr::io_uring_fd_storage::io_uring_fd_storage(
     io_uring_sqring_wait_func_t io_uring_sqring_wait_func,
     io_uring_peek_cqe_func_t io_uring_peek_cqe_func) :
     fd_storage_base(fd, std::move(reopen_path)),
+    ring_(queue_size),
     buffer_capacity_(buffer_capacity),
     batch_size_(batch_size),
     io_uring_submit_func_(io_uring_submit_func),
@@ -4270,23 +4524,17 @@ inline xtr::io_uring_fd_storage::io_uring_fd_storage(
     if (batch_size == 0)
         detail::throw_invalid_argument("batch_size cannot be zero");
 
-    const int flags =
-#if XTR_IO_URING_POLL
-        IORING_SETUP_SQPOLL;
-#else
-        0;
-#endif
+    if (batch_size > queue_size)
+        detail::throw_invalid_argument("batch_size cannot exceed queue size");
 
-    if (const int errnum =
-            ::io_uring_queue_init(unsigned(queue_size), &ring_, flags))
-    {
-        detail::throw_system_error_fmt(
-            -errnum,
-            "xtr::io_uring_fd_storage::io_uring_fd_storage: "
-            "io_uring_queue_init failed");
-    }
+    if (!detail::is_seekable(fd))
+        detail::throw_invalid_argument("File descriptor is not seekable");
+
+    if (detail::is_append(fd))
+        detail::throw_invalid_argument("File descriptor has O_APPEND set");
 
     allocate_buffers(queue_size);
+    set_offset();
 }
 
 inline xtr::io_uring_fd_storage::io_uring_fd_storage(
@@ -4311,18 +4559,18 @@ inline xtr::io_uring_fd_storage::io_uring_fd_storage(
 
 inline xtr::io_uring_fd_storage::~io_uring_fd_storage()
 {
-    flush();
     sync();
-    ::io_uring_queue_exit(&ring_);
 }
 
 inline void xtr::io_uring_fd_storage::flush()
 {
-    io_uring_submit_func_(&ring_);
+    io_uring_submit_func_(ring_.get());
+    batch_index_ = 0;
 }
 
 inline void xtr::io_uring_fd_storage::sync() noexcept
 {
+    flush();
     while (pending_cqe_count_ > 0)
         wait_for_one_cqe();
     fd_storage_base::sync();
@@ -4360,22 +4608,46 @@ inline void xtr::io_uring_fd_storage::submit_buffer(char* data, std::size_t size
 
     ::io_uring_sqe_set_data(sqe, buf);
 
+    sqe->flags |= IOSQE_IO_HARDLINK;
+
+    if (batch_index_ % batch_size_ == 0)
+        sqe->flags |= IOSQE_IO_DRAIN;
+
     offset_ += size;
     ++pending_cqe_count_;
 
     if (++batch_index_ % batch_size_ == 0)
-        io_uring_submit_func_(&ring_);
+        io_uring_submit_func_(ring_.get());
 }
 
-inline void xtr::io_uring_fd_storage::replace_fd(int newfd) noexcept
+inline void xtr::io_uring_fd_storage::replace_fd(detail::file_descriptor fd) noexcept
 {
-    io_uring_sqe* sqe = get_sqe();
-    ::io_uring_prep_close(sqe, fd_.release());
-    sqe->flags |= IOSQE_IO_DRAIN;
-    ++pending_cqe_count_;
-    io_uring_submit_func_(&ring_);
+    flush();
 
-    fd_storage_base::replace_fd(newfd);
+    while (pending_cqe_count_ > 0)
+        wait_for_one_cqe();
+
+    fd_storage_base::replace_fd(std::move(fd));
+    set_offset();
+}
+
+inline void xtr::io_uring_fd_storage::set_offset() noexcept
+{
+    assert(fd_);
+    const ::off_t end = ::lseek(fd_.get(), 0, SEEK_CUR);
+    if (end == -1) [[unlikely]]
+    {
+        (void)std::fprintf(
+            stderr,
+            "xtr::io_uring_fd_storage::set_offset: lseek on \"%s\" (fd %d) "
+            "failed: %s\n",
+            reopen_path_.c_str(),
+            fd_.get(),
+            std::strerror(errno));
+        offset_ = 0;
+        return;
+    }
+    offset_ = std::size_t(end);
 }
 
 inline void xtr::io_uring_fd_storage::allocate_buffers(std::size_t queue_size)
@@ -4394,7 +4666,7 @@ inline void xtr::io_uring_fd_storage::allocate_buffers(std::size_t queue_size)
     {
         std::byte* storage =
             buffer_storage_.get() + buffer::size(buffer_capacity_) * i;
-        buffer* buf = ::new (storage) buffer;
+        auto* buf = ::new (storage) buffer;
         buf->index_ = int(i);
         iov.push_back({buf->data_, buffer_capacity_});
         *next = buf;
@@ -4405,7 +4677,7 @@ inline void xtr::io_uring_fd_storage::allocate_buffers(std::size_t queue_size)
     assert(free_list_ != nullptr);
 
     if (const int errnum =
-            ::io_uring_register_buffers(&ring_, &iov[0], unsigned(iov.size())))
+            ::io_uring_register_buffers(ring_.get(), &iov[0], unsigned(iov.size())))
     {
         detail::throw_system_error_fmt(
             -errnum,
@@ -4418,12 +4690,12 @@ inline io_uring_sqe* xtr::io_uring_fd_storage::get_sqe()
 {
     io_uring_sqe* sqe;
 
-    while ((sqe = io_uring_get_sqe_func_(&ring_)) == nullptr)
+    while ((sqe = io_uring_get_sqe_func_(ring_.get())) == nullptr)
     {
 #if XTR_IO_URING_POLL
-        io_uring_sqring_wait_func_(&ring_);
+        io_uring_sqring_wait_func_(ring_.get());
 #else
-        wait_for_one_cqe();
+        flush();
 #endif
     }
 
@@ -4439,10 +4711,13 @@ inline void xtr::io_uring_fd_storage::wait_for_one_cqe()
 
 retry:
 #if XTR_IO_URING_POLL
-    while ((errnum = io_uring_peek_cqe_func_(&ring_, &cqe)) == -EAGAIN)
+    while ((errnum = io_uring_peek_cqe_func_(ring_.get(), &cqe)) == -EAGAIN)
         ;
 #else
-    errnum = io_uring_wait_cqe_func_(&ring_, &cqe);
+    do
+    {
+        errnum = io_uring_wait_cqe_func_(ring_.get(), &cqe);
+    } while (errnum == -EINTR);
 #endif
 
     if (errnum != 0) [[unlikely]]
@@ -4465,22 +4740,9 @@ retry:
         static_cast<buffer*>(::io_uring_cqe_get_data(cqe)),
         std::move(deleter));
 
-    ::io_uring_cqe_seen(&ring_, cqe);
+    ::io_uring_cqe_seen(ring_.get(), cqe);
 
-    if (!buf) // close operation queued by replace_fd()
-    {
-        if (res < 0)
-        {
-            (void)std::fprintf(
-                stderr,
-                "xtr::io_uring_fd_storage::wait_for_one_cqe: "
-                "Error: close(2) failed during reopen: %s\n",
-                std::strerror(-res));
-        }
-        return;
-    }
-
-    if (res == -EAGAIN) [[unlikely]]
+    if (res == -EAGAIN || res == -ECANCELED) [[unlikely]]
     {
         resubmit_buffer(buf.release(), 0);
         goto retry;
@@ -4518,11 +4780,7 @@ inline void xtr::io_uring_fd_storage::resubmit_buffer(buffer* buf, unsigned nwri
     buf->offset_ += nwritten;
     buf->file_offset_ += nwritten;
 
-    assert(io_uring_sq_space_left(&ring_) >= 1);
-
-    io_uring_sqe* sqe = io_uring_get_sqe_func_(&ring_);
-
-    assert(sqe != nullptr);
+    io_uring_sqe* sqe = get_sqe();
 
     ::io_uring_prep_write_fixed(
         sqe,
@@ -4536,7 +4794,7 @@ inline void xtr::io_uring_fd_storage::resubmit_buffer(buffer* buf, unsigned nwri
 
     ++pending_cqe_count_;
 
-    io_uring_submit_func_(&ring_);
+    io_uring_submit_func_(ring_.get());
 }
 
 inline void xtr::io_uring_fd_storage::free_buffer(buffer* buf)
@@ -4722,9 +4980,9 @@ inline void xtr::detail::memory_mapping::reset(void* addr, std::size_t length) n
 #include <sys/stat.h>
 #include <unistd.h>
 
-#if !defined(__linux__)
 namespace xtr::detail
 {
+#if !defined(__linux__)
     inline file_descriptor shm_open_anon(int oflag, mode_t mode)
     {
         int fd;
@@ -4756,11 +5014,11 @@ namespace xtr::detail
 
         return file_descriptor(fd);
     }
-}
 #endif
+}
 
 inline xtr::detail::mirrored_memory_mapping::mirrored_memory_mapping(
-    std::size_t length, int fd, std::size_t offset, int flags)
+    std::size_t length, int fd, std::size_t offset, int flags, prefault_flags_t prefault_flags)
 {
     assert(!(flags & MAP_ANONYMOUS) || fd == -1);
     assert((flags & MAP_FIXED) == 0); // Not implemented (would be easy though)
@@ -4811,7 +5069,12 @@ inline xtr::detail::mirrored_memory_mapping::mirrored_memory_mapping(
         }
 
         reserve.release(); // mapping was destroyed by mremap
+
+        if (prefault_flags == prefault_flags_t::read_write)
+            prefault_rw(m_.get(), length * 2);
+
         mirror.release(); // mirror will be recreated in ~mirrored_memory_mapping
+
         return;
 #else
         if (!(temp_fd = shm_open_anon(O_RDWR, S_IRUSR | S_IWUSR)))
@@ -4850,7 +5113,11 @@ inline xtr::detail::mirrored_memory_mapping::mirrored_memory_mapping(
     m_ = memory_mapping(reserve.get(), length, prot, flags, fd, offset);
 
     reserve.release(); // mapping was destroyed when m_ was created
-    mirror.release();  // mirror will be recreated in ~mirrored_memory_mapping
+
+    if (prefault_flags == prefault_flags_t::read_write)
+        prefault_rw(m_.get(), length * 2);
+
+    mirror.release(); // mirror will be recreated in ~mirrored_memory_mapping
 }
 
 inline xtr::detail::mirrored_memory_mapping::~mirrored_memory_mapping()
@@ -4861,6 +5128,42 @@ inline xtr::detail::mirrored_memory_mapping::~mirrored_memory_mapping()
             static_cast<std::byte*>(m_.get()) + m_.length(),
             m_.length());
     }
+}
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+inline xtr::detail::file_descriptor xtr::detail::open_at_end(const char* path) noexcept
+{
+    const int fd = XTR_TEMP_FAILURE_RETRY(::open(
+        path,
+        O_CREAT | O_WRONLY,
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
+
+    if (fd != -1)
+        (void)::lseek(fd, 0, SEEK_END);
+
+    return file_descriptor(fd);
+}
+
+inline bool xtr::detail::is_seekable(int fd) noexcept
+{
+    return ::lseek(fd, 0, SEEK_CUR) != -1;
+}
+
+inline bool xtr::detail::is_append(int fd) noexcept
+{
+    const int flags = ::fcntl(fd, F_GETFL);
+    return flags != -1 && (flags & O_APPEND);
+}
+
+inline bool xtr::detail::set_append(int fd) noexcept
+{
+    const int flags = ::fcntl(fd, F_GETFL);
+    if (flags == -1)
+        return false;
+    return ::fcntl(fd, F_SETFL, flags | O_APPEND) == 0;
 }
 
 #include <cerrno>
@@ -4876,6 +5179,8 @@ inline std::size_t xtr::detail::align_to_page_size(std::size_t length)
 }
 
 #include <cerrno>
+#include <cstdio>
+#include <cstring>
 #include <memory>
 #include <utility>
 
@@ -4894,6 +5199,21 @@ inline std::span<char> xtr::posix_fd_storage::allocate_buffer()
     return {buf_.get(), buffer_capacity_};
 }
 
+inline void xtr::posix_fd_storage::replace_fd(detail::file_descriptor fd) noexcept
+{
+    if (!detail::set_append(fd.get()))
+    {
+        (void)std::fprintf(
+            stderr,
+            "xtr::posix_fd_storage::replace_fd: Failed to set O_APPEND on "
+            "\"%s\" (fd %d): %s\n",
+            reopen_path_.c_str(),
+            fd.get(),
+            std::strerror(errno));
+    }
+    fd_storage_base::replace_fd(std::move(fd));
+}
+
 inline void xtr::posix_fd_storage::submit_buffer(char* buf, std::size_t size)
 {
     while (size > 0)
@@ -4910,6 +5230,20 @@ inline void xtr::posix_fd_storage::submit_buffer(char* buf, std::size_t size)
         size -= std::size_t(nwritten);
         buf += std::size_t(nwritten);
     }
+}
+
+#include <sys/mman.h>
+
+inline void xtr::detail::prefault_rw(void* addr, std::size_t length)
+{
+#if defined(MADV_POPULATE_WRITE)
+    if (::madvise(addr, length, MADV_POPULATE_WRITE) == 0)
+        return;
+#endif
+    volatile std::byte* const p = static_cast<volatile std::byte*>(addr);
+    const std::size_t page_size = align_to_page_size(1);
+    for (std::size_t i = 0; i < length; i += page_size)
+        p[i] = p[i];
 }
 
 #include <cassert>

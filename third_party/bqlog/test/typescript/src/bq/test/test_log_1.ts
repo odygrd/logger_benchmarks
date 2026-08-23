@@ -11,7 +11,7 @@
  */
 import { test_base } from "./test_base.ts";
 import { test_result } from "./test_result.ts";
-import { bq } from "./bq_lib.ts";
+import { bq } from "@pippocao/bqlog";
 import { test_manager } from "./test_manager.ts";
 
 export class test_log_1 extends test_base {

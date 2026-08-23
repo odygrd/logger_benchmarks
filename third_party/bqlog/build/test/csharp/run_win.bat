@@ -16,7 +16,7 @@ echo PROCESSOR_ARCHITEW6432: %PROCESSOR_ARCHITEW6432%
 
 echo ===== Building BqLog Dynamic Library (Windows) =====
 pushd "%BUILD_LIB_DIR%"
-call dont_execute_this.bat build native msvc OFF OFF dynamic_lib
+call dont_execute_this.bat build native msvc OFF OFF OFF dynamic_lib
 popd
 
 echo ===== Building C# Test (.NET 6.0 SDK) =====

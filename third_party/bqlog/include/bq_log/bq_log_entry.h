@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 /*!
  * This is the only header file you need include in your project.
  *
@@ -52,11 +51,11 @@ namespace bq {
         {
         }
 
-        template <typename STR>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> do_log(uint32_t category_index, bq::log_level level, const STR& log_format_content) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true>
+        bool do_log(uint32_t category_index, bq::log_level level, const STR& log_format_content) const;
 
-        template <typename STR, typename... Args>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> do_log(uint32_t category_index, bq::log_level level, const STR& log_format_content, const Args&... args) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true, typename... Args>
+        bool do_log(uint32_t category_index, bq::log_level level, const STR& log_format_content, const Args&... args) const;
 
         static log get_log_by_id(uint64_t log_id);
 
@@ -151,8 +150,8 @@ namespace bq {
         /// <param name="level"></param>
         /// <param name="str"></param>
         /// <returns></returns>
-        template <typename STR>
-        static bq::enable_if_t<bq::is_same<bq::decay_t<bq::remove_cv_t<STR>>, char*>::value || bq::is_same<bq::decay_t<bq::remove_cv_t<STR>>, const char*>::value> console(bq::log_level level, const STR& str);
+        template <typename STR, bq::enable_if_t<bq::is_same<bq::decay_t<bq::remove_cv_t<STR>>, char*>::value || bq::is_same<bq::decay_t<bq::remove_cv_t<STR>>, const char*>::value, bool> = true>
+        static void console(bq::log_level level, const STR& str);
 
         /// <summary>
         /// Output to console with log_level.
@@ -162,8 +161,8 @@ namespace bq {
         /// <param name="level"></param>
         /// <param name="str"></param>
         /// <returns></returns>
-        template <typename STR>
-        static bq::enable_if_t<!(bq::is_same<bq::decay_t<bq::remove_cv_t<STR>>, char*>::value || bq::is_same<bq::decay_t<bq::remove_cv_t<STR>>, const char*>::value)> console(bq::log_level level, const STR& str);
+        template <typename STR, bq::enable_if_t<!(bq::is_same<bq::decay_t<bq::remove_cv_t<STR>>, char*>::value || bq::is_same<bq::decay_t<bq::remove_cv_t<STR>>, const char*>::value), bool> = true>
+        static void console(bq::log_level level, const STR& str);
 
     public:
         /// <summary>
@@ -236,30 +235,30 @@ namespace bq {
     public:
         /// Core log functions, there are 6 log levels:
         /// verbose, debug, info, warning, error, fatal
-        template <typename STR>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> verbose(const STR& log_content) const;
-        template <typename STR, typename... Args>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> verbose(const STR& log_format_content, const Args&... args) const;
-        template <typename STR>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> debug(const STR& log_content) const;
-        template <typename STR, typename... Args>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> debug(const STR& log_format_content, const Args&... args) const;
-        template <typename STR>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> info(const STR& log_content) const;
-        template <typename STR, typename... Args>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> info(const STR& log_format_content, const Args&... args) const;
-        template <typename STR>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> warning(const STR& log_content) const;
-        template <typename STR, typename... Args>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> warning(const STR& log_format_content, const Args&... args) const;
-        template <typename STR>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> error(const STR& log_content) const;
-        template <typename STR, typename... Args>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> error(const STR& log_format_content, const Args&... args) const;
-        template <typename STR>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> fatal(const STR& log_content) const;
-        template <typename STR, typename... Args>
-        bq::enable_if_t<is_bq_log_format<STR>::value, bool> fatal(const STR& log_format_content, const Args&... args) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true>
+        bool verbose(const STR& log_content) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true, typename... Args>
+        bool verbose(const STR& log_format_content, const Args&... args) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true>
+        bool debug(const STR& log_content) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true, typename... Args>
+        bool debug(const STR& log_format_content, const Args&... args) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true>
+        bool info(const STR& log_content) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true, typename... Args>
+        bool info(const STR& log_format_content, const Args&... args) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true>
+        bool warning(const STR& log_content) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true, typename... Args>
+        bool warning(const STR& log_format_content, const Args&... args) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true>
+        bool error(const STR& log_content) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true, typename... Args>
+        bool error(const STR& log_format_content, const Args&... args) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true>
+        bool fatal(const STR& log_content) const;
+        template <typename STR, bq::enable_if_t<bq::log::is_bq_log_format<STR>::value, bool> = true, typename... Args>
+        bool fatal(const STR& log_format_content, const Args&... args) const;
     };
 
     class category_log : public bq::log {

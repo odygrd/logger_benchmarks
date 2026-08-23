@@ -20,11 +20,15 @@ for (( i=1; i<=${#BUILD_LIB_TYPES[@]}; i++ )); do
       echo "== Configure/Build for PLATFORM=${TARGET_PLATFORM} =="
       rm -f CMakeCache.txt
       rm -rf CMakeFiles *.xcodeproj(N)
+      case ${TARGET_PLATFORM} in
+        VISIONOS|SIMULATOR_VISIONOS) DEPLOYMENT_TARGET_ARG=() ;;
+        *) DEPLOYMENT_TARGET_ARG=(-DDEPLOYMENT_TARGET=9.0) ;;
+      esac
       cmake ../../../../src \
             -G Xcode \
             -DCMAKE_TOOLCHAIN_FILE=../ios.toolchain.cmake \
             -DPLATFORM=${TARGET_PLATFORM} \
-            -DDEPLOYMENT_TARGET=9.0 \
+            "${DEPLOYMENT_TARGET_ARG[@]}" \
             -DCPP_VER=14 \
             -DBUILD_LIB_TYPE=$BUILD_LIB_TYPE \
             -DAPPLE_LIB_FORMAT=$APPLE_LIB_FORMAT \

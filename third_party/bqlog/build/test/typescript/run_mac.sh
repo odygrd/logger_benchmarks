@@ -16,7 +16,7 @@ popd > /dev/null
 echo "===== Building BqLog Dynamic Library (macOS) ====="
 pushd "$BUILD_LIB_DIR" > /dev/null
 # dont_execute_this.sh build [java] [node] [static_lib|dynamic_lib] [framework|dylib|a]
-./dont_execute_this.sh build OFF ON dynamic_lib dylib
+./dont_execute_this.sh build OFF ON OFF dynamic_lib dylib
 popd > /dev/null
 
 echo "===== Installing TypeScript Test Dependencies ====="
@@ -28,6 +28,37 @@ echo "===== Building TypeScript Wrapper (for tests) ====="
 pushd "$PROJECT_ROOT/wrapper/typescript" > /dev/null
 npm install
 npm run build
+popd > /dev/null
+
+echo "===== Finding and Staging .node Binary ====="
+# Find the .node file and copy to dist before packing
+NODE_LIB=$(find "$ARTIFACTS_DIR/dynamic_lib/lib" -name "*.node" 2>/dev/null | head -n 1) || true
+
+if [ -z "$NODE_LIB" ]; then
+    echo "Warning: .node file not found via find, checking common locations..."
+else
+    echo "Found Node Lib: $NODE_LIB"
+    DEST_DIR="$PROJECT_ROOT/wrapper/typescript/dist"
+    echo "Copying to $DEST_DIR..."
+    mkdir -p "$DEST_DIR"
+    cp -f "$NODE_LIB" "$DEST_DIR/BqLog.node"
+fi
+
+echo "===== Packing @pippocao/bqlog into tgz ====="
+pushd "$PROJECT_ROOT/wrapper/typescript" > /dev/null
+npm pack --pack-destination "$TEST_SRC_DIR/"
+popd > /dev/null
+
+echo "===== Installing @pippocao/bqlog tgz into test project ====="
+pushd "$TEST_SRC_DIR" > /dev/null
+BQLOG_TGZ=$(ls pippocao-bqlog-*.tgz 2>/dev/null | head -n 1)
+if [ -z "$BQLOG_TGZ" ]; then
+    echo "Error: tgz file not found!"
+    exit 1
+fi
+echo "Installing $BQLOG_TGZ..."
+npm install "./$BQLOG_TGZ" --no-save
+rm -f "$BQLOG_TGZ"
 popd > /dev/null
 
 echo "===== Running TypeScript Tests ====="
@@ -49,20 +80,6 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
         # Node.js (V8) generates SEGVs for internal checks.
         export ASAN_OPTIONS="handle_segv=0:allow_user_segv_handler=1"
     fi
-fi
-
-# Find the .node file
-NODE_LIB=$(find "$ARTIFACTS_DIR/dynamic_lib/lib" -name "*.node" 2>/dev/null | head -n 1) || true
-
-if [ -z "$NODE_LIB" ]; then
-    echo "Warning: .node file not found via find, checking common locations..."
-else
-    echo "Found Node Lib: $NODE_LIB"
-    # Copy to wrapper/typescript/dist so loader can find it
-    DEST_DIR="$PROJECT_ROOT/wrapper/typescript/dist"
-    echo "Copying to $DEST_DIR..."
-    mkdir -p "$DEST_DIR"
-    cp -f "$NODE_LIB" "$DEST_DIR/BqLog.node"
 fi
 
 # Use node directly instead of npm test to reduce shell layers that strip DYLD_INSERT_LIBRARIES

@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 /*!
  * This is a high-performance asynchronous buffer that balanced between performance and memory usage.
  *
@@ -171,9 +170,9 @@ namespace bq {
 
         void commit_write_chunk(const log_buffer_write_handle& handle);
 
-        log_buffer_read_handle read_chunk();
+        bq_forceinline log_buffer_read_handle read_chunk();
 
-        void return_read_chunk(const log_buffer_read_handle& handle);
+        bq_forceinline void return_read_chunk(const log_buffer_read_handle& handle);
 
 #if defined(BQ_JAVA)
         bq::java_buffer_info get_java_buffer_info(JNIEnv* env, const log_buffer_write_handle& handle);
@@ -187,6 +186,11 @@ namespace bq {
         bq_forceinline uint16_t get_current_reading_version() const
         {
             return rt_cache_.current_reading_.version_;
+        }
+
+        bq_forceinline bool is_current_reading_recovered() const
+        {
+            return rt_cache_.current_reading_.is_in_recovery_reading_;
         }
 
         bq_forceinline const log_buffer_config& get_config() const
@@ -233,6 +237,11 @@ namespace bq {
 
         // For reading thread.
         bool rt_read_from_lp_buffer(log_buffer_read_handle& out_handle);
+        log_buffer_read_handle read_chunk_full_impl();
+        void return_read_chunk_full_impl(const log_buffer_read_handle& handle);
+#if defined(BQ_LOG_BUFFER_DEBUG)
+        void debug_check_read_thread();
+#endif
         bool rt_try_traverse_to_next_block_in_group(context_verify_result& out_verify_result);
         bool rt_try_traverse_to_next_group();
         void rt_try_traverse_to_next_version();
@@ -271,6 +280,7 @@ namespace bq {
                 block_node_head* last_block_ = nullptr;
                 block_node_head* cur_block_ = nullptr;
                 uint16_t version_ = 0;
+                bool is_in_recovery_reading_ = true;
                 bq::array<bq::hash_map<void*, uint32_t>> recovery_records_; // <tls_buffer_info_ptr, seq> for each version, only works when reading recovering data
 #ifdef BQ_UNIT_TEST
                 bq::array<bq::hash_map<void*, bq::hash_map<uint32_t, uint16_t>>> recovery_seq_records_;
@@ -296,6 +306,44 @@ namespace bq {
         bq::platform::thread::thread_id read_thread_id_ = 0;
 #endif
     };
+
+    bq_forceinline log_buffer_read_handle log_buffer::read_chunk()
+    {
+#if defined(BQ_LOG_BUFFER_DEBUG)
+        debug_check_read_thread();
+#endif
+        auto& hp_handle = rt_cache_.current_reading_.hp_handle_cache_;
+        BQ_LIKELY_IF(hp_handle.result == enum_buffer_result_code::success)
+        {
+            if (hp_handle.has_next()) {
+                return hp_handle.next();
+            }
+            hp_handle.result = enum_buffer_result_code::err_empty_log_buffer;
+        }
+        return read_chunk_full_impl();
+    }
+
+    bq_forceinline void log_buffer::return_read_chunk(const log_buffer_read_handle& handle)
+    {
+#if defined(BQ_LOG_BUFFER_DEBUG)
+        debug_check_read_thread();
+#endif
+        auto& rt_reading = rt_cache_.current_reading_;
+        BQ_LIKELY_IF(rt_reading.hp_handle_cache_.result == enum_buffer_result_code::success)
+        {
+#if defined(BQ_LOG_BUFFER_DEBUG)
+            assert(rt_reading.hp_handle_cache_.verify_chunk(handle) && "log_buffer::return_read_chunk hp chunk return verify failed");
+#endif
+            if (!rt_reading.hp_handle_cache_.has_next()) {
+#if defined(BQ_LOG_BUFFER_DEBUG)
+                assert(rt_reading.cur_block_);
+#endif
+                rt_reading.cur_block_->get_buffer().return_batch_read_chunks(rt_reading.hp_handle_cache_);
+            }
+            return;
+        }
+        return_read_chunk_full_impl(handle);
+    }
 
     bq_forceinline log_buffer::log_tls_buffer_info& log_buffer::log_tls_info::get_buffer_info(const log_buffer* buffer)
     {

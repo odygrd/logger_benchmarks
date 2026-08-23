@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 /*!
  * This is the only header file you need include in your project.
  *
@@ -21,11 +20,9 @@
 #include <stdint.h>
 #include "bq_common/bq_common_public_include.h"
 
-/**
- * You can define BQ_LOG_DISABLE_ADAPTER_FOR_UE macro to disable default Unreal adapter
- */
-#if defined(ENGINE_MAJOR_VERSION) && !defined(BQ_LOG_DISABLE_ADAPTER_FOR_UE)
+#if defined(BQ_LOG_UE_PLUGIN)
 #include "CoreMinimal.h"
+#include "Runtime/Launch/Resources/Version.h"
 
 inline size_t bq_log_format_str_size(const FString& str)
 {
@@ -63,11 +60,13 @@ inline const char16_t* bq_log_format_str_chars(const FName& str)
     auto display_entry = str.GetDisplayNameEntry();
     if (!display_entry) {
         return nullptr;
-        ;
     }
-#if ENGINE_MAJOR_VERSION == 4
+// FNameEntry::GetUnterminatedName(TCHAR*, uint32) was not CORE_API-exported
+// until UE 5.2. On UE 4.x and UE 5.0/5.1 we take the stable GetWideName /
+// GetAnsiName path
+#if ENGINE_MAJOR_VERSION == 4 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 2)
     if (display_entry->IsWide()) {
-        static_assert(sizeof(WIDECHAR) == sizeof(char16_t), "only utf16 WIDECHAR is supported for default BqLog Unreal 4 apdater!");
+        static_assert(sizeof(WIDECHAR) == sizeof(char16_t), "only utf16 WIDECHAR is supported for default BqLog Unreal apdater!");
         display_entry->GetWideName((WIDECHAR(&)[NAME_SIZE])__bq_log_format_helper_for_fname<int32_t>::chars_cache);
     } else {
         display_entry->GetAnsiName(__bq_log_format_helper_for_fname<int32_t>::ansi_chars_cache);

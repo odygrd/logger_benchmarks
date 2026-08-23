@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+﻿/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -268,7 +267,9 @@ namespace bq {
 #ifndef NDEBUG
         assert(static_cast<size_type>(idx) < size_);
 #endif
+        BQ_SUPPRESS_NULL_DEREF_BEGIN();
         return data_[static_cast<size_type>(idx)];
+        BQ_SUPPRESS_NULL_DEREF_END();
     }
 
     template <typename T, typename Allocator, size_t TAIL_BUFFER_SIZE>
@@ -278,7 +279,9 @@ namespace bq {
 #ifndef NDEBUG
         assert(static_cast<size_type>(idx) < size_);
 #endif
+        BQ_SUPPRESS_NULL_DEREF_BEGIN();
         return data_[static_cast<size_type>(idx)];
+        BQ_SUPPRESS_NULL_DEREF_END();
     }
 
     template <typename T1, typename T2, typename Allocator1, typename Allocator2, size_t S1, size_t S2>
@@ -322,8 +325,8 @@ namespace bq {
         return *this;
     }
 
-    template <typename T, typename Allocator>
-    BQ_ARRAY_INLINE typename bq::enable_if<bq::is_trivially_copy_constructible<T>::value && bq::is_trivially_move_constructible<T>::value, void>::type
+    template <typename T, typename Allocator, bq::enable_if_t<bq::is_trivially_copy_constructible<T>::value && bq::is_trivially_move_constructible<T>::value, bool> = true>
+    BQ_ARRAY_INLINE void
     BQ_ARRAY_INLINE_MACRO(_inner_mem_copy)(Allocator&, T* dest, T* src, size_t count)
     {
         constexpr size_t item_size = sizeof(T);
@@ -335,8 +338,8 @@ namespace bq {
         }
     }
 
-    template <typename T, typename Allocator>
-    BQ_ARRAY_INLINE typename bq::enable_if<!(bq::is_trivially_copy_constructible<T>::value && bq::is_trivially_move_constructible<T>::value), void>::type
+    template <typename T, typename Allocator, bq::enable_if_t<!(bq::is_trivially_copy_constructible<T>::value && bq::is_trivially_move_constructible<T>::value), bool> = true>
+    BQ_ARRAY_INLINE void
     BQ_ARRAY_INLINE_MACRO(_inner_mem_copy)(Allocator& allocator, T* dest, T* src, size_t count)
     {
         for (size_t i = 0; i < count; ++i) {
@@ -345,16 +348,16 @@ namespace bq {
         }
     }
 
-    template <typename T, typename Allocator>
-    BQ_ARRAY_INLINE typename bq::enable_if<bq::is_trivially_copy_constructible<T>::value && bq::is_trivially_move_constructible<T>::value, void>::type
+    template <typename T, typename Allocator, bq::enable_if_t<bq::is_trivially_copy_constructible<T>::value && bq::is_trivially_move_constructible<T>::value, bool> = true>
+    BQ_ARRAY_INLINE void
     BQ_ARRAY_INLINE_MACRO(_inner_forward_move)(Allocator&, T* dest, T* src, size_t move_count)
     {
         // simply copy memory for non-trivial constructible type to optimize performance.
         memmove(dest, src, move_count * sizeof(T));
     }
 
-    template <typename T, typename Allocator>
-    BQ_ARRAY_INLINE typename bq::enable_if<!(bq::is_trivially_copy_constructible<T>::value && bq::is_trivially_move_constructible<T>::value), void>::type
+    template <typename T, typename Allocator, bq::enable_if_t<!(bq::is_trivially_copy_constructible<T>::value && bq::is_trivially_move_constructible<T>::value), bool> = true>
+    BQ_ARRAY_INLINE void
     BQ_ARRAY_INLINE_MACRO(_inner_forward_move)(Allocator& allocator, T* dest, T* src, size_t move_count)
     {
         size_t diff = static_cast<size_t>(dest - src);
@@ -369,8 +372,8 @@ namespace bq {
         }
     }
 
-    template <typename T, typename Allocator>
-    BQ_ARRAY_INLINE typename bq::enable_if<bq::is_trivially_copy_constructible<T>::value && bq::is_trivially_copy_assignable<T>::value, void>::type
+    template <typename T, typename Allocator, bq::enable_if_t<bq::is_trivially_copy_constructible<T>::value && bq::is_trivially_copy_assignable<T>::value, bool> = true>
+    BQ_ARRAY_INLINE void
     BQ_ARRAY_INLINE_MACRO(_inner_backward_copy)(Allocator&, T* dest, const T* src, size_t count, size_t constructed_count)
     {
         (void)constructed_count;
@@ -382,8 +385,8 @@ namespace bq {
         }
     }
 
-    template <typename T, typename Allocator>
-    BQ_ARRAY_INLINE typename bq::enable_if<!(bq::is_trivially_copy_constructible<T>::value && bq::is_trivially_copy_assignable<T>::value), void>::type
+    template <typename T, typename Allocator, bq::enable_if_t<!(bq::is_trivially_copy_constructible<T>::value && bq::is_trivially_copy_assignable<T>::value), bool> = true>
+    BQ_ARRAY_INLINE void
     BQ_ARRAY_INLINE_MACRO(_inner_backward_copy)(Allocator& allocator, T* dest, const T* src, size_t count, size_t constructed_count)
     {
         for (size_t i = 0; i < count; ++i) {
@@ -407,7 +410,7 @@ namespace bq {
         set_capacity(new_size);
         dest_it = begin() + diff;
         memmove(static_cast<void*>(end() + static_cast<difference_type>(count)), static_cast<void*>(end()), TAIL_BUFFER_SIZE * sizeof(value_type));
-        BQ_ARRAY_INLINE_MACRO(_inner_forward_move)<value_type, allocator_type>(allocator_, dest_it + static_cast<difference_type>(count), dest_it, static_cast<size_type>(move_count));
+        BQ_ARRAY_INLINE_MACRO(_inner_forward_move)<value_type, allocator_type>(allocator_, static_cast<value_type*>(dest_it + static_cast<difference_type>(count)), static_cast<value_type*>(dest_it), static_cast<size_type>(move_count));
         if (move_count > 0) {
             allocator_.destroy(static_cast<value_type*>(dest_it));
         }
@@ -430,8 +433,8 @@ namespace bq {
         if (static_cast<void*>(end())) {
             memmove(static_cast<void*>(end() + static_cast<difference_type>(count)), static_cast<void*>(end()), TAIL_BUFFER_SIZE * sizeof(value_type));
         }
-        BQ_ARRAY_INLINE_MACRO(_inner_forward_move)<value_type, allocator_type>(allocator_, dest_it + static_cast<difference_type>(count), dest_it, static_cast<size_type>(move_count));
-        BQ_ARRAY_INLINE_MACRO(_inner_backward_copy)<value_type, allocator_type>(allocator_, dest_it, src_it, count, static_cast<size_type>(move_count));
+        BQ_ARRAY_INLINE_MACRO(_inner_forward_move)<value_type, allocator_type>(allocator_, static_cast<value_type*>(dest_it + static_cast<difference_type>(count)), static_cast<value_type*>(dest_it), static_cast<size_type>(move_count));
+        BQ_ARRAY_INLINE_MACRO(_inner_backward_copy)<value_type, allocator_type>(allocator_, static_cast<value_type*>(dest_it), static_cast<typename const_iterator::value_type*>(src_it), count, static_cast<size_type>(move_count));
         size_ = new_size;
     }
 
@@ -458,8 +461,8 @@ namespace bq {
     }
 
     template <typename T, typename Allocator, size_t TAIL_BUFFER_SIZE>
-    template <typename U>
-    BQ_ARRAY_INLINE typename bq::enable_if<bq::is_pod<U>::value>::type BQ_ARRAY_CLS_NAME<T, Allocator, TAIL_BUFFER_SIZE>::fill_uninitialized(typename BQ_ARRAY_CLS_NAME<T, Allocator, TAIL_BUFFER_SIZE>::size_type count)
+    template <typename U, bq::enable_if_t<bq::is_pod<U>::value, bool>>
+    BQ_ARRAY_INLINE void BQ_ARRAY_CLS_NAME<T, Allocator, TAIL_BUFFER_SIZE>::fill_uninitialized(typename BQ_ARRAY_CLS_NAME<T, Allocator, TAIL_BUFFER_SIZE>::size_type count)
     {
         if (size() + count + TAIL_BUFFER_SIZE > capacity()) {
             set_capacity(size() + count);
@@ -487,16 +490,16 @@ namespace bq {
         allocator_.destroy(data_ + size_, count);
     }
 
-    template <typename T>
-    BQ_ARRAY_INLINE typename bq::enable_if<bq::is_trivially_move_assignable<T>::value && bq::is_trivially_copy_assignable<T>::value, void>::type BQ_ARRAY_INLINE_MACRO(_inner_backward_move)(T* _dest, T* _src, size_t count)
+    template <typename T, bq::enable_if_t<bq::is_trivially_move_assignable<T>::value && bq::is_trivially_copy_assignable<T>::value, bool> = true>
+    BQ_ARRAY_INLINE void BQ_ARRAY_INLINE_MACRO(_inner_backward_move)(T* _dest, T* _src, size_t count)
     {
         if (_dest != _src && count > 0) {
             memmove(_dest, _src, sizeof(T) * count);
         }
     }
 
-    template <typename T>
-    BQ_ARRAY_INLINE typename bq::enable_if<!(bq::is_trivially_move_assignable<T>::value && bq::is_trivially_copy_assignable<T>::value), void>::type BQ_ARRAY_INLINE_MACRO(_inner_backward_move)(T* _dest, T* _src, size_t count)
+    template <typename T, bq::enable_if_t<!(bq::is_trivially_move_assignable<T>::value && bq::is_trivially_copy_assignable<T>::value), bool> = true>
+    BQ_ARRAY_INLINE void BQ_ARRAY_INLINE_MACRO(_inner_backward_move)(T* _dest, T* _src, size_t count)
     {
         if (_dest != _src) {
             for (size_t i = 0; i < count; ++i) {
@@ -700,8 +703,8 @@ namespace bq {
     }
 
     template <typename T, typename Allocator, size_t TAIL_BUFFER_SIZE>
-    template <typename U>
-    BQ_ARRAY_INLINE typename bq::enable_if<bq::is_pod<U>::value>::type BQ_ARRAY_CLS_NAME<T, Allocator, TAIL_BUFFER_SIZE>::reset()
+    template <typename U, bq::enable_if_t<bq::is_pod<U>::value, bool>>
+    BQ_ARRAY_INLINE void BQ_ARRAY_CLS_NAME<T, Allocator, TAIL_BUFFER_SIZE>::reset()
     {
         if (capacity_ > 0) {
             allocator_.deallocate(data_, capacity_);
@@ -712,8 +715,8 @@ namespace bq {
     }
 
     template <typename T, typename Allocator, size_t TAIL_BUFFER_SIZE>
-    template <typename U>
-    BQ_ARRAY_INLINE typename bq::enable_if<!bq::is_pod<U>::value>::type BQ_ARRAY_CLS_NAME<T, Allocator, TAIL_BUFFER_SIZE>::reset()
+    template <typename U, bq::enable_if_t<!bq::is_pod<U>::value, bool>>
+    BQ_ARRAY_INLINE void BQ_ARRAY_CLS_NAME<T, Allocator, TAIL_BUFFER_SIZE>::reset()
     {
         if (capacity_ > 0) {
             allocator_.destroy(data_, size_);

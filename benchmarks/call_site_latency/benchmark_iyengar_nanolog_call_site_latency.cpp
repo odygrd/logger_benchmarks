@@ -9,7 +9,9 @@ void iyengar_nanoLog_benchmark(std::vector<int32_t> thread_count_array, size_t n
 {
   std::remove("iyengar_nanoLog_call_site_latency_percentile_linux_benchmark.log");
 
-  // Guaranteed nano log.
+  // Iyengar NanoLog does not expose its worker thread handle. Pin this thread
+  // before initialization so the worker inherits the backend CPU.
+  set_thread_affinity(5);
   nanolog::initialize(nanolog::GuaranteedLogger(), "./",
                       "iyengar_nanoLog_call_site_latency_percentile_linux_benchmark.log", 10 * 1024 /* 10GB */);
 
@@ -37,7 +39,7 @@ void iyengar_nanoLog_benchmark(std::vector<int32_t> thread_count_array, size_t n
   for (auto thread_count : thread_count_array)
   {
     run_benchmark("Logger: Iyengar NanoLog - Benchmark: Caller Thread Latency", thread_count,
-                  num_iterations_per_thread, on_start, log_func, on_exit);
+                  num_iterations_per_thread, MESSAGES_PER_ITERATION, on_start, log_func, on_exit);
   }
 }
 

@@ -99,7 +99,7 @@ namespace bq {
                 auto start_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
                 test_output_dynamic_param(bq::log_level::info, "[miso ring buffer] test %s\n", with_mmap ? "with mmap" : "without mmap");
-                test_output_dynamic_param(bq::log_level::info, "[miso ring buffer] test progress:%d%%, time cost:%dms\r", percent, 0);
+                test_output_dynamic_param(bq::log_level::info, "[miso ring buffer] test progress:%" PRId32 "%%, time cost:%" PRId32 "ms\r", percent, 0);
                 while (true) {
                     bool write_finished = true;
                     for (auto i = 0; i < miso_total_task; ++i) {
@@ -127,7 +127,7 @@ namespace bq {
                     if (new_percent != percent) {
                         percent = new_percent;
                         auto current_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-                        test_output_dynamic_param(bq::log_level::info, "[miso ring buffer] test progress:%d%%, time cost:%dms              \r", percent, (int32_t)(current_time - start_time));
+                        test_output_dynamic_param(bq::log_level::info, "[miso ring buffer] test progress:%" PRId32 "%%, time cost:%" PRId32 "ms              \r", percent, (int32_t)(current_time - start_time));
                     }
 
                     int32_t id = *(int32_t*)handle.data_addr;
@@ -140,7 +140,7 @@ namespace bq {
                     }
 
                     task_check_vector[id]++;
-                    result.add_result(task_check_vector[id] + left_count == chunk_count_per_task, "[miso ring buffer]chunk left task check error, real: %d, expected:%d", left_count, chunk_count_per_task - task_check_vector[id]);
+                    result.add_result(task_check_vector[id] + left_count == chunk_count_per_task, "[miso ring buffer]chunk left task check error, real: %" PRId32 ", expected:%" PRId32, left_count, chunk_count_per_task - task_check_vector[id]);
                     task_check_vector[id] = chunk_count_per_task - left_count; // error adjust
                     bool content_check = true;
                     for (size_t i = 2; i < static_cast<size_t>(size) / sizeof(int32_t); ++i) {
@@ -152,11 +152,11 @@ namespace bq {
                     result.add_result(content_check, "[miso ring buffer]content check error");
                 }
                 for (int i : task_check_vector) {
-                    result.add_result(i == chunk_count_per_task, "[miso ring buffer]chunk count check error, real:%d , expected:%d", i, chunk_count_per_task);
+                    result.add_result(i == chunk_count_per_task, "[miso ring buffer]chunk count check error, real:%" PRId32 " , expected:%" PRId32, i, chunk_count_per_task);
                 }
                 test_output_dynamic_param(bq::log_level::info, "\n[miso ring buffer] test %s finished\n", with_mmap ? "with mmap" : "without mmap");
-                result.add_result(total_chunk == miso_ring_buffer_test_total_write_count_.load(), "%s total write count error, real:%d , expected:%d", with_mmap ? "with mmap" : "without mmap", miso_ring_buffer_test_total_write_count_.load(), total_chunk);
-                result.add_result(total_chunk == readed_chunk, "[miso ring buffer] %s total chunk count check error, read:%d , expected:%d", with_mmap ? "with mmap" : "without mmap", readed_chunk, total_chunk);
+                result.add_result(total_chunk == miso_ring_buffer_test_total_write_count_.load(), "%s total write count error, real:%" PRId32 " , expected:%" PRId32, with_mmap ? "with mmap" : "without mmap", miso_ring_buffer_test_total_write_count_.load(), total_chunk);
+                result.add_result(total_chunk == readed_chunk, "[miso ring buffer] %s total chunk count check error, read:%" PRId32 " , expected:%" PRId32, with_mmap ? "with mmap" : "without mmap", readed_chunk, total_chunk);
             }
 
             void do_traverse_test(test_result& result)

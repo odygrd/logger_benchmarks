@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 #include "bq_common/bq_common.h"
 #include "bq_log/misc/bq_log_def.h"
 #include "bq_log/log/layout.h"
@@ -38,10 +37,10 @@ namespace bq {
         };
 
         struct seg_info {
-            uint64_t start_pos;
-            uint64_t end_pos;
-            appender_file_binary::appender_segment_type seg_type;
-            appender_file_binary::appender_encryption_type enc_type;
+            uint64_t start_pos = 0;
+            uint64_t end_pos = 0;
+            appender_file_binary::appender_segment_type seg_type = appender_file_binary::appender_segment_type::normal;
+            appender_file_binary::appender_encryption_type enc_type = appender_file_binary::appender_encryption_type::plaintext;
             bq::array<uint8_t, bq::aligned_allocator<uint8_t, appender_file_base::DEFAULT_BUFFER_ALIGNMENT>> xor_key_blob;
         };
 

@@ -9,7 +9,7 @@ option(QUILL_NO_EXCEPTIONS "Enable this option to build without exception handli
 
 option(QUILL_NO_THREAD_NAME_SUPPORT "Enable this option to disable features that require thread name retrieval, ensuring compatibility with older Windows versions (e.g., Windows Server 2012/2016) and Android." OFF)
 
-option(QUILL_X86ARCH "Enable x86-specific optimizations for cache coherence using _mm_prefetch, _mm_clflush, and _mm_clflushopt instructions. Ensure the target architecture must also be specified with -march=\"...\" when enabling this option." OFF)
+option(QUILL_USE_SEQUENTIAL_THREAD_ID "Enable this option to use a sequential counter for thread IDs instead of OS-assigned thread IDs. Requires defining QUILL_DEFINE_SEQUENTIAL_THREAD_ID (from quill/Utility.h) in exactly one translation unit." OFF)
 
 option(QUILL_DISABLE_NON_PREFIXED_MACROS "Enable this option to disable non-prefixed `LOG_*` macros, keeping only the `QUILL_LOG_*` macros to avoid conflicts with other logging libraries." OFF)
 
@@ -22,6 +22,10 @@ option(QUILL_DISABLE_FILE_INFO "Disable the use of __FILE__ and __LINE__ in `LOG
 option(QUILL_ENABLE_ASSERTIONS "Enable assertions in release builds. When disabled, assertions are only active in debug builds." OFF)
 
 option(QUILL_BUILD_EXAMPLES "Enable this option to build and install the examples. Set this to ON to include example projects in the build process and have them installed after configuring with CMake." OFF)
+
+option(QUILL_BUILD_MODULE "Enable this option to build the experimental C++20 named module target." OFF)
+
+option(QUILL_BUILD_EXAMPLE_PROMETHEUS "Build the prometheus-cpp metric publishing example. Requires prometheus-cpp to be installed and findable via CMAKE_PREFIX_PATH." OFF)
 
 option(QUILL_BUILD_TESTS "Enable this option to build the test suite." OFF)
 
@@ -42,6 +46,8 @@ option(QUILL_USE_VALGRIND "Use Valgrind as the default memory checking tool in C
 option(QUILL_ENABLE_INSTALL "Enable the CMake install target when Quill is not the master project." OFF)
 
 option(QUILL_DOCS_GEN "Generate documentation during the build process." OFF)
+
+option(QUILL_ENABLE_TIME_TRACE "Enable -ftime-trace to generate compile-time profiling data. Requires Clang." OFF)
 
 # Internal option
 set(QUILL_ENABLE_GCC_HARDENING OFF CACHE INTERNAL "")
@@ -124,19 +130,27 @@ endif ()
 
 message(STATUS "QUILL_NO_EXCEPTIONS: " ${QUILL_NO_EXCEPTIONS})
 message(STATUS "QUILL_NO_THREAD_NAME_SUPPORT: " ${QUILL_NO_THREAD_NAME_SUPPORT})
-message(STATUS "QUILL_X86ARCH: " ${QUILL_X86ARCH})
+message(STATUS "QUILL_USE_SEQUENTIAL_THREAD_ID: " ${QUILL_USE_SEQUENTIAL_THREAD_ID})
 message(STATUS "QUILL_DISABLE_NON_PREFIXED_MACROS: " ${QUILL_DISABLE_NON_PREFIXED_MACROS})
 message(STATUS "QUILL_DISABLE_FUNCTION_NAME: " ${QUILL_DISABLE_FUNCTION_NAME})
 message(STATUS "QUILL_DETAILED_FUNCTION_NAME: " ${QUILL_DETAILED_FUNCTION_NAME})
 message(STATUS "QUILL_DISABLE_FILE_INFO: " ${QUILL_DISABLE_FILE_INFO})
 message(STATUS "QUILL_ENABLE_ASSERTIONS: " ${QUILL_ENABLE_ASSERTIONS})
 message(STATUS "QUILL_ENABLE_INSTALL: " ${QUILL_ENABLE_INSTALL})
+message(STATUS "QUILL_BUILD_MODULE: " ${QUILL_BUILD_MODULE})
 
 #---------------------------------------------------------------------------------------
 # Verbose make file option
 #---------------------------------------------------------------------------------------
 if (QUILL_VERBOSE_MAKEFILE)
     set(CMAKE_VERBOSE_MAKEFILE TRUE CACHE BOOL "Verbose output" FORCE)
+endif ()
+
+# Strip MSVC default /EHsc when building without exceptions so that /EHs-c- is not
+# silently overridden. Must happen at directory scope; doing this inside a function
+# would be a no-op because CMAKE_CXX_FLAGS assignments would not escape the function.
+if (QUILL_NO_EXCEPTIONS AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    string(REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif ()
 
 # address sanitizer flags
@@ -155,9 +169,13 @@ if (QUILL_CODE_COVERAGE)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif ()
 
-if (QUILL_BUILD_EXAMPLES)
-    add_subdirectory(examples)
-    add_subdirectory(docs/examples)
+# Clang -ftime-trace for compile-time profiling
+if (QUILL_ENABLE_TIME_TRACE)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftime-trace")
+    else ()
+        message(WARNING "QUILL_ENABLE_TIME_TRACE is only supported with Clang. Ignoring.")
+    endif ()
 endif ()
 
 if (QUILL_BUILD_BENCHMARKS)
@@ -182,6 +200,7 @@ set(TARGET_NAME quill)
 # header files
 set(HEADER_FILES
         include/quill/backend/BackendManager.h
+        include/quill/backend/BackendMdcState.h
         include/quill/backend/BackendOptions.h
         include/quill/backend/BackendWorker.h
         include/quill/backend/BackendWorkerLock.h
@@ -225,6 +244,8 @@ set(HEADER_FILES
         include/quill/core/LogLevel.h
         include/quill/core/MacroMetadata.h
         include/quill/core/MathUtilities.h
+        include/quill/core/Metric.h
+        include/quill/core/MetricManager.h
         include/quill/core/PatternFormatterOptions.h
         include/quill/core/QuillError.h
         include/quill/core/Rdtsc.h
@@ -232,6 +253,7 @@ set(HEADER_FILES
         include/quill/core/SourceLocation.h
         include/quill/core/Spinlock.h
         include/quill/core/ThreadContextManager.h
+        include/quill/core/ThreadPrimitives.h
         include/quill/core/TimeUtilities.h
         include/quill/core/UnboundedSPSCQueue.h
         include/quill/backend/Utf8Conv.h
@@ -243,6 +265,7 @@ set(HEADER_FILES
         include/quill/sinks/FileSink.h
         include/quill/sinks/JsonSink.h
         include/quill/sinks/NullSink.h
+        include/quill/sinks/metrics/PrometheusSink.h
         include/quill/sinks/RotatingFileSink.h
         include/quill/sinks/RotatingJsonFileSink.h
         include/quill/sinks/RotatingSink.h
@@ -252,7 +275,9 @@ set(HEADER_FILES
         include/quill/sinks/SystemdSink.h
 
         include/quill/std/Array.h
+        include/quill/std/Bitset.h
         include/quill/std/Chrono.h
+        include/quill/std/Complex.h
         include/quill/std/Deque.h
         include/quill/std/FilesystemPath.h
         include/quill/std/ForwardList.h
@@ -261,9 +286,11 @@ set(HEADER_FILES
         include/quill/std/Optional.h
         include/quill/std/Pair.h
         include/quill/std/Set.h
+        include/quill/std/SystemError.h
         include/quill/std/Tuple.h
         include/quill/std/UnorderedMap.h
         include/quill/std/UnorderedSet.h
+        include/quill/std/Variant.h
         include/quill/std/Vector.h
         include/quill/std/WideString.h
 
@@ -278,6 +305,7 @@ set(HEADER_FILES
         include/quill/LogFunctions.h
         include/quill/Logger.h
         include/quill/LogMacros.h
+        include/quill/SimpleSetup.h
         include/quill/StopWatch.h
         include/quill/StringRef.h
         include/quill/UserClockSource.h
@@ -289,35 +317,35 @@ add_library(${TARGET_NAME} INTERFACE)
 add_library(${TARGET_NAME}::${TARGET_NAME} ALIAS ${TARGET_NAME})
 
 if (QUILL_NO_EXCEPTIONS)
-    target_compile_definitions(${TARGET_NAME} PUBLIC INTERFACE -DQUILL_NO_EXCEPTIONS)
+    target_compile_definitions(${TARGET_NAME} INTERFACE -DQUILL_NO_EXCEPTIONS)
 endif ()
 
 if (QUILL_NO_THREAD_NAME_SUPPORT)
-    target_compile_definitions(${TARGET_NAME} PUBLIC INTERFACE -DQUILL_NO_THREAD_NAME_SUPPORT)
+    target_compile_definitions(${TARGET_NAME} INTERFACE -DQUILL_NO_THREAD_NAME_SUPPORT)
 endif ()
 
-if (QUILL_X86ARCH)
-    target_compile_definitions(${TARGET_NAME} PUBLIC INTERFACE -DQUILL_X86ARCH)
+if (QUILL_USE_SEQUENTIAL_THREAD_ID)
+    target_compile_definitions(${TARGET_NAME} INTERFACE -DQUILL_USE_SEQUENTIAL_THREAD_ID)
 endif ()
 
 if (QUILL_DISABLE_NON_PREFIXED_MACROS)
-    target_compile_definitions(${TARGET_NAME} PUBLIC INTERFACE -DQUILL_DISABLE_NON_PREFIXED_MACROS)
+    target_compile_definitions(${TARGET_NAME} INTERFACE -DQUILL_DISABLE_NON_PREFIXED_MACROS)
 endif ()
 
 if (QUILL_DISABLE_FUNCTION_NAME)
-    target_compile_definitions(${TARGET_NAME} PUBLIC INTERFACE -DQUILL_DISABLE_FUNCTION_NAME)
+    target_compile_definitions(${TARGET_NAME} INTERFACE -DQUILL_DISABLE_FUNCTION_NAME)
 endif ()
 
 if (QUILL_DETAILED_FUNCTION_NAME)
-    target_compile_definitions(${TARGET_NAME} PUBLIC INTERFACE -DQUILL_DETAILED_FUNCTION_NAME)
+    target_compile_definitions(${TARGET_NAME} INTERFACE -DQUILL_DETAILED_FUNCTION_NAME)
 endif ()
 
 if (QUILL_DISABLE_FILE_INFO)
-    target_compile_definitions(${TARGET_NAME} PUBLIC INTERFACE -DQUILL_DISABLE_FILE_INFO)
+    target_compile_definitions(${TARGET_NAME} INTERFACE -DQUILL_DISABLE_FILE_INFO)
 endif ()
 
 if (QUILL_ENABLE_ASSERTIONS)
-    target_compile_definitions(${TARGET_NAME} PUBLIC INTERFACE -DQUILL_ENABLE_ASSERTIONS)
+    target_compile_definitions(${TARGET_NAME} INTERFACE -DQUILL_ENABLE_ASSERTIONS)
 endif ()
 
 if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.19)
@@ -326,15 +354,15 @@ if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.19)
 endif ()
 
 # Link dependencies
-target_link_libraries(${TARGET_NAME} PUBLIC INTERFACE Threads::Threads)
+target_link_libraries(${TARGET_NAME} INTERFACE Threads::Threads)
 
 if (MINGW)
     # strftime requires this when using MinGw to correctly format the time ..
-    target_link_libraries(${TARGET_NAME} PUBLIC INTERFACE ucrtbase)
+    target_link_libraries(${TARGET_NAME} INTERFACE ucrtbase)
 endif ()
 
-if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
-    target_link_libraries(${TARGET_NAME} PUBLIC INTERFACE stdc++fs)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
+    target_link_libraries(${TARGET_NAME} INTERFACE stdc++fs)
 endif ()
 
 # Add include directories for this library
@@ -346,6 +374,34 @@ target_include_directories(${TARGET_NAME}
 # Compiler options
 target_compile_options(${TARGET_NAME} INTERFACE
         $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wno-gnu-zero-variadic-macro-arguments>)
+
+if (QUILL_BUILD_MODULE)
+    if (CMAKE_VERSION VERSION_LESS 3.28)
+        message(FATAL_ERROR "QUILL_BUILD_MODULE requires CMake 3.28 or newer.")
+    endif ()
+
+    if (CMAKE_CXX_STANDARD LESS 20)
+        message(FATAL_ERROR "QUILL_BUILD_MODULE requires CMAKE_CXX_STANDARD to be 20 or higher.")
+    endif ()
+
+    add_library(quill_module)
+    add_library(quill::quill_module ALIAS quill_module)
+
+    target_sources(quill_module
+            PUBLIC
+            FILE_SET CXX_MODULES
+            BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+            FILES src/quill.cc)
+
+    target_link_libraries(quill_module PUBLIC ${TARGET_NAME})
+    target_compile_features(quill_module PUBLIC cxx_std_20)
+    set_target_properties(quill_module PROPERTIES CXX_SCAN_FOR_MODULES ON)
+endif ()
+
+if (QUILL_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+    add_subdirectory(docs/snippets)
+endif ()
 
 # Install
 if (QUILL_MASTER_PROJECT OR QUILL_ENABLE_INSTALL)
@@ -370,10 +426,12 @@ if (QUILL_MASTER_PROJECT OR QUILL_ENABLE_INSTALL)
     set(QUILL_PKGCONFIG_DIR ${CMAKE_INSTALL_LIBDIR}/pkgconfig CACHE PATH
             "Installation directory for pkgconfig (.pc) files, relative to ${CMAKE_INSTALL_PREFIX}.")
 
+    # Use the thread lib flag that find_package(Threads) resolved for this platform
+    # (e.g. -pthread on FreeBSD, -lpthread on older Linux, empty where pthread is in libc).
     if (WIN32)
         set(QUILL_PTHREAD_LIBS "")
     else ()
-        set(QUILL_PTHREAD_LIBS "-lpthread")
+        set(QUILL_PTHREAD_LIBS "${CMAKE_THREAD_LIBS_INIT}")
     endif ()
 
     # Generate pkgconfig

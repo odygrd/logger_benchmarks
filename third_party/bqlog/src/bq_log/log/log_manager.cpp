@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -23,7 +22,9 @@ namespace bq {
         public_worker_.init(log_thread_mode::async, nullptr);
         public_worker_.start();
         phase_ = phase::working;
+#if !defined(NDEBUG)
         bq::util::log_device_console(log_level::info, "log_manager is constructed");
+#endif
     }
 
     log_manager& log_manager::instance()
@@ -98,7 +99,7 @@ namespace bq {
             while (true) {
                 auto new_seq = automatic_log_name_seq_.add_fetch_relaxed(1);
                 char tmp[64];
-                snprintf(tmp, sizeof(tmp), "AutoBqLog_%d", new_seq);
+                snprintf(tmp, sizeof(tmp), "AutoBqLog_%" PRId32, new_seq);
                 bq::string random_log_name = tmp;
                 for (decltype(log_imp_list_)::iterator it = log_imp_list_.begin(); it != log_imp_list_.end(); ++it) {
                     if ((*it) && (*it)->get_name() == random_log_name) {

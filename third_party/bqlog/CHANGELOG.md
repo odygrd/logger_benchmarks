@@ -1,5 +1,50 @@
 # Changelog
 
+## [v2.4.1] - 2026-07-26
+- **Compatibility**: [Python wheel requires glibc 2.38+ #72](https://github.com/Tencent/BqLog/issues/72) — all release artifacts are now built on Ubuntu 22.04 (glibc 2.35), Windows Server 2022, and the lowest supported BSD releases (FreeBSD 13.2/13.5, OpenBSD 7.7, NetBSD 10.1, DragonFlyBSD 6.4.2, OmniOS r151054), so older Linux distros and BSD systems work out of the box.
+- **Build/CI**: BSD build-time dependencies are now installed from self-hosted, immutable dependency snapshots instead of upstream package repos (which delete packages for EOL releases), making the release pipeline reproducible.
+
+## [v2.4.0] - 2026-07-21
+- **Performance — Raising the bar once again**: Typical workloads improve by approximately **10%–20%**; actual gains vary with thread count, log format, argument types, and output mode.
+- **Bug fix**: [Slight memory leak #70](https://github.com/Tencent/BqLog/issues/70) — internal caches of the compressed file Appender are now strictly bounded, completely resolving the issue where memory usage could keep growing in certain cases.
+- **Bug fix**: Fixed parsing of `log.buffer_policy_when_full`; the configured `discard`, `block`, or `expand` policy is now applied correctly instead of silently falling back to the default `block` policy.
+- **Configuration**: Added `write_cache_size` for file Appenders, allowing the per-Appender write cache to be tuned from 64 KiB to 4 MiB.
+- **Configuration**: Added `format_template_cache_max_entries` and `thread_info_cache_max_entries` for compressed file Appenders. Defaults remain `100000` and `2048`; exceeding the configured entry limit keeps memory bounded but may emit repeated templates and increase compressed file size.
+- **Robustness**: Simplified the compressed-appender lookup cache (removed the redundant hot sub-table) and hardened its slot hashing with a murmur3-style full-avalanche finalizer, so the known structured key families (4-aligned thread ids, high-bits-only entropy, XOR/multiplier-cancelling keys) can no longer collapse the table into a single probe chain.
+
+## [v2.3.2] - 2026-07-12
+- **Bug fix**: [Embedded null bytes were dropped in decoder output #69](https://github.com/Tencent/BqLog/issues/69) — the log decoder now preserves embedded null bytes intact.
+- **Bug fix**: Fixed decoding and recovery in the extreme case where different encryption modes are switched repeatedly within the same log file (mixed-encryption multi-segment), so such files now decode and recover correctly.
+- **Robustness**: Hardened parsing of corrupted log files (guarding against unexpected-size memory allocations) and improved truncate validation and mmap allocation so disk-space errors surface before mapping access.
+- **Docs**: Completed missing Java wrapper API comments (Javadoc).
+
+## [v2.3.1] - 2026-06-16
+- **Bug fix**: [Library crashes (SIGBUS) or hangs when the disk is full #67](https://github.com/Tencent/BqLog/issues/67)
+- **Bug fix**: [\[C#\] \[\[Unity Editor\] fetch_and_remove_console_buffer occasionally crashes — delegate recycled by GC during native call #66](https://github.com/Tencent/BqLog/issues/66)
+- **Unreal Engine**: Added UE 5.8 support — Fab, Prebuilt, and Source distributions now cover UE 5.0 – 5.8.
+- **Unreal Engine 6**: Added Source and Prebuilt plugin packages for current UE6 development builds. UE6 packages are distributed through GitHub Releases only; Fab support is pending Epic's official UE6 availability.
+
+## [v2.3.0] - 2026-06-03
+- **OpenHarmony compatibility**: Replaced ES2020 `0n` BigInt literals with `BigInt(0)` in the TypeScript wrapper so the same `bqlog` package on ohpm works on **OpenHarmony 4.1+ (API 11+)** as well as HarmonyOS NEXT — no separate package needed.
+- **Recovery hardening**: Strengthened data validation during recovery to detect malformed entries earlier and avoid potential crashes when consuming a corrupted ring buffer.
+
+## [v2.2.9] - 2026-05-06
+- **Compatibility**: Improved code compatibility with earlier Clang toolchains and frameworks such as MFC.
+- **Compatibility**: Improved code compatibility across all supported Unreal Engine versions.
+
+## [v2.2.8] - 2026-04-10
+- **Code quality**: Refactored all SFINAE usages — moved `enable_if` from return types to template parameters for improved readability and consistency.
+- **Bug fix**: [Crash when enable stack trace in C++ #62](https://github.com/Tencent/BqLog/issues/62)
+
+## [v2.2.7] - 2026-04-01
+- **Python 3.7+ support**: Added Python 3.7+ support via CPython C Extension wrapper (Stable ABI).
+- **npm publishing**: Node.js wrapper is now published to npm as [`@pippocao/bqlog`](https://www.npmjs.com/package/@pippocao/bqlog), installable via `npm install @pippocao/bqlog`.
+- **PyPI publishing**: Python wrapper is now published to PyPI as [`bqlog`](https://pypi.org/project/bqlog/), installable via `pip install bqlog`.
+- **Python category log generator**: The `BqLog_CategoryLogGenerator` tool now generates Python category log wrappers (`.py`).
+- **TypeScript dual-target generation**: The generator now produces separate TypeScript outputs for Node.js (`_nodejs.ts`, imports `@pippocao/bqlog`) and HarmonyOS (`_ohos.ts`, imports `bqlog`).
+- **Category log test coverage**: Added category log test suites for Python, Java, C#, and TypeScript, covering category output, hierarchy, format parameters, and category mask filtering.
+- **Package registry publishing**: BqLog is now published to npm (@pippocao/bqlog), PyPI (bqlog), Maven Central (com.tencent.bqlog), and OHPM (bqlog) — installable via npm install @pippocao/bqlog, pip install bqlog, Gradle/Maven dependency, and ohpm install bqlog respectively.
+
 ## [v2.1.2] - 2026-03-17
 - **Bug fix**:  [Incorrect base_dir in GBox Sandbox environment on Android #61](https://github.com/Tencent/BqLog/issues/61)
 

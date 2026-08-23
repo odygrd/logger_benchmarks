@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 
 #include "bq_common/bq_common_public_include.h"
 #ifdef BQ_POSIX
@@ -27,15 +26,15 @@ namespace bq {
         // File exclusive works well across different processes,
         // but mutual exclusion within the same process is not explicitly documented to function reliably across different system platforms.
         // To eliminate platform compatibility risks, we decided to implement it ourselves.
-        BQ_PACK_BEGIN
-        struct alignas(4) file_node_info {
+        struct file_node_info {
+            decltype(bq::declval<struct stat>().st_dev) dev;
             decltype(bq::declval<struct stat>().st_ino) ino;
             uint64_t hash_code() const;
             bool operator==(const file_node_info& rhs) const
             {
-                return ino == rhs.ino;
+                return dev == rhs.dev && ino == rhs.ino;
             }
-        } BQ_PACK_END
+        };
     }
 }
 #endif

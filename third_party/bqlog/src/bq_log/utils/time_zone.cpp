@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -85,7 +84,7 @@ namespace bq {
                 break;
             }
             if (hour < -12 || hour > 14) {
-                bq::util::log_device_console(bq::log_level::warning, "invalid time_zone string %s, hour %d out of range[-12, 14], use local time as default.", time_zone_str.c_str(), hour);
+                bq::util::log_device_console(bq::log_level::warning, "invalid time_zone string %s, hour %" PRId32 " out of range[-12, 14], use local time as default.", time_zone_str.c_str(), hour);
                 break;
             }
             int32_t minute = 0;
@@ -97,7 +96,7 @@ namespace bq {
                     break;
                 }
                 if (minute < 0 || minute >= 60) {
-                    bq::util::log_device_console(bq::log_level::warning, "invalid time_zone string %s, minute %d out of range[0, 59], use local time as default.", time_zone_str.c_str(), minute);
+                    bq::util::log_device_console(bq::log_level::warning, "invalid time_zone string %s, minute %" PRId32 " out of range[0, 59], use local time as default.", time_zone_str.c_str(), minute);
                     break;
                 }
                 gmt_offset_minutes_ = minute;
@@ -138,7 +137,7 @@ namespace bq {
                 time_zone_str_ = buffer;
             } else {
                 char buffer[64];
-                snprintf(buffer, sizeof(buffer), "UTC%+d:%02" PRId32, gmt_offset_hours_, abs(gmt_offset_minutes_));
+                snprintf(buffer, sizeof(buffer), "UTC%+" PRId32 ":%02" PRId32, gmt_offset_hours_, abs(gmt_offset_minutes_));
                 time_zone_str_ = buffer;
             }
             time_zone_diff_to_gmt_ms_ = static_cast<int32_t>((gmt_offset_hours_ * 3600 + gmt_offset_minutes_ * 60) * 1000);
@@ -204,7 +203,7 @@ namespace bq {
         char time_buffer[128];
         struct tm result = {};
         get_tm_by_epoch(epoch_ms, result);
-        snprintf(time_buffer, sizeof(time_buffer), "%04d-%02d-%02d %02d:%02d:%02d",
+        snprintf(time_buffer, sizeof(time_buffer), "%04" PRId32 "-%02" PRId32 "-%02" PRId32 " %02" PRId32 ":%02" PRId32 ":%02" PRId32,
             result.tm_year + 1900, result.tm_mon + 1, result.tm_mday, result.tm_hour, result.tm_min, result.tm_sec);
         return time_buffer;
     }
@@ -214,7 +213,7 @@ namespace bq {
         struct tm time_st = {};
         get_tm_by_epoch(epoch_ms, time_st);
         time_cache_len_ = static_cast<size_t>(snprintf(time_cache_, sizeof(time_cache_),
-            "%s %d-%02d-%02d %02d:%02d:%02d.", get_time_zone_str().c_str(), time_st.tm_year + 1900, time_st.tm_mon + 1, time_st.tm_mday, time_st.tm_hour, time_st.tm_min, time_st.tm_sec));
+            "%s %" PRId32 "-%02" PRId32 "-%02" PRId32 " %02" PRId32 ":%02" PRId32 ":%02" PRId32 ".", get_time_zone_str().c_str(), time_st.tm_year + 1900, time_st.tm_mon + 1, time_st.tm_mday, time_st.tm_hour, time_st.tm_min, time_st.tm_sec));
         last_time_epoch_cache_ = epoch_ms;
     }
 }

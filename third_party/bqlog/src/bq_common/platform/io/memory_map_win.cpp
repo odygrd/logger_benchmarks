@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -50,15 +49,30 @@ namespace bq {
         size_t alignment_offset = offset - get_real_map_offset(offset);
         size_t real_min_file_size = get_min_size_of_memory_map_file(offset, size);
 
-        DWORD file_size_high = 0;
-        DWORD file_size_low = GetFileSize(file_handle, &file_size_high);
-        size_t current_file_size = ((size_t)file_size_high << 32) | (size_t)file_size_low;
+        LARGE_INTEGER file_size;
+        if (!GetFileSizeEx(file_handle, &file_size)) {
+            result.error_code_ = static_cast<int32_t>(GetLastError());
+            bq::util::log_device_console(log_level::error, "create_memory_map GetFileSize failed, path:%s, error_code:%" PRId32, map_file.abs_file_path().c_str(), result.error_code_);
+            return result;
+        }
+        size_t current_file_size = static_cast<size_t>(file_size.QuadPart);
+        if (real_min_file_size > 0 && current_file_size <= real_min_file_size) {
+            FILE_ALLOCATION_INFO allocation_info;
+            allocation_info.AllocationSize.QuadPart = static_cast<LONGLONG>(real_min_file_size);
+            if (!SetFileInformationByHandle(file_handle, FileAllocationInfo, &allocation_info, sizeof(allocation_info))) {
+                result.error_code_ = static_cast<int32_t>(GetLastError());
+                bq::util::log_device_console(log_level::warning, "create_memory_map preallocate file failed, path:%s, error_code:%" PRId32, map_file.abs_file_path().c_str(), result.error_code_);
+                return result;
+            }
+        }
         if (current_file_size < real_min_file_size) {
-            size_t new_size = real_min_file_size;
-            LONG new_size_high = (LONG)(new_size >> 32);
-            LONG new_size_low = (LONG)(new_size & 0xFFFFFFFF);
-            SetFilePointer(file_handle, new_size_low, &new_size_high, FILE_BEGIN);
-            SetEndOfFile(file_handle);
+            FILE_END_OF_FILE_INFO eof_info;
+            eof_info.EndOfFile.QuadPart = static_cast<LONGLONG>(real_min_file_size);
+            if (!SetFileInformationByHandle(file_handle, FileEndOfFileInfo, &eof_info, sizeof(eof_info))) {
+                result.error_code_ = static_cast<int32_t>(GetLastError());
+                bq::util::log_device_console(log_level::error, "create_memory_map set file size failed, path:%s, error_code:%" PRId32, map_file.abs_file_path().c_str(), result.error_code_);
+                return result;
+            }
         }
 
         DWORD new_size_high = (DWORD)(real_min_file_size >> 32);
@@ -67,7 +81,7 @@ namespace bq {
         memory_map_handle = CreateFileMapping(file_handle, NULL, PAGE_READWRITE, new_size_high, new_size_low, NULL);
         if (!memory_map_handle) {
             result.error_code_ = static_cast<int32_t>(GetLastError());
-            bq::util::log_device_console(log_level::error, "create_memory_map file failed, path:%s, error_code:%d", map_file.abs_file_path().c_str(), result.error_code_);
+            bq::util::log_device_console(log_level::error, "create_memory_map file failed, path:%s, error_code:%" PRId32, map_file.abs_file_path().c_str(), result.error_code_);
             return result;
         }
 
@@ -76,7 +90,10 @@ namespace bq {
             CloseHandle(memory_map_handle);
             memory_map_handle = 0;
             result.error_code_ = static_cast<int32_t>(GetLastError());
-            bq::util::log_device_console(log_level::error, "map_to_memory file failed, path:%s, error_code:%d", map_file.abs_file_path().c_str(), result.error_code_);
+            bq::util::log_device_console(log_level::error, "map_to_memory file failed, path:%s, error_code:%" PRId32, map_file.abs_file_path().c_str(), result.error_code_);
+            // must return here, otherwise a failed handle would be filled with
+            // a valid file_ and a bogus mapped_data_ when alignment_offset != 0
+            return result;
         }
         result.mapped_data_ = (void*)((uint8_t*)result.real_data_ + alignment_offset);
         result.file_ = map_file;

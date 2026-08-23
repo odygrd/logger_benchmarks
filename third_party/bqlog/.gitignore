@@ -7,3 +7,7 @@ install/
 node_modules/
 /package-lock.json
 /package.json
+Output/
+build_py/
+build_python_test/
+CLion_*/

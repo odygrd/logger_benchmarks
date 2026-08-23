@@ -5,20 +5,21 @@ rem ------------------------------------------------------------
 rem Unified build/generate/pack driver for Windows
 rem
 rem Usage patterns (all parameters optional; missing ones will be prompted):
-rem   Dont_Execute_This.bat all [arch] [compiler] [java] [node]
-rem   Dont_Execute_This.bat build [arch] [compiler] [java] [node] [static_lib|dynamic_lib]
-rem   Dont_Execute_This.bat gen-vsproj [arch] [msvc|clang] [java] [node] [static_lib|dynamic_lib]
+rem   Dont_Execute_This.bat all [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both]
+rem   Dont_Execute_This.bat build [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both]
+rem   Dont_Execute_This.bat gen-vsproj [arch] [msvc|clang] [java] [node] [python] [dynamic_lib|static_lib|both]
 rem   Dont_Execute_This.bat pack [arch]
 rem
 rem Legacy compatibility:
-rem   Dont_Execute_This.bat dynamic_lib [arch] [compiler] [java] [node]
-rem   Dont_Execute_This.bat static_lib  [arch] [compiler] [java] [node]
+rem   Dont_Execute_This.bat dynamic_lib [arch] [compiler] [java] [node] [python]
+rem   Dont_Execute_This.bat static_lib  [arch] [compiler] [java] [node] [python]
 rem
 rem Normalized values:
-rem   arch      : x86_64 | x86 | arm64 | native
-rem   compiler  : msvc | clang | mingw
-rem   java,node : ON | OFF
-rem   lib type  : static_lib | dynamic_lib
+rem   arch         : x86_64 | x86 | arm64 | native
+rem   compiler     : msvc | clang | mingw
+rem   java,node,python : ON | OFF
+rem   lib type     : static_lib | dynamic_lib
+rem   all lib type : dynamic_lib | static_lib | both  (default: both)
 rem ------------------------------------------------------------
 
 set "BUILD_JOBS=10"
@@ -29,6 +30,7 @@ set "ARG2=%~3"
 set "ARG3=%~4"
 set "ARG4=%~5"
 set "ARG5=%~6"
+set "ARG6=%~7"
 
 if /I "%ACTION%"=="dynamic_lib" (
   set "BUILD_LIB_TYPE=dynamic_lib"
@@ -45,15 +47,23 @@ call :normalize_arch "%ARG1%" ARCH_PARAM
 call :normalize_compiler "%ARG2%" COMPILER_TYPE
 call :normalize_onoff "%ARG3%" JAVA_SUPPORT
 call :normalize_onoff "%ARG4%" NODE_API_SUPPORT
-call :normalize_build_lib_type "%ARG5%" BUILD_LIB_TYPE
+call :normalize_onoff "%ARG5%" PYTHON_SUPPORT
+call :normalize_build_lib_type "%ARG6%" BUILD_LIB_TYPE
 
 if exist "..\..\..\artifacts" rmdir /s /q "..\..\..\artifacts"
 if exist "..\..\..\install" rmdir /s /q "..\..\..\install"
 
 if /I "%ACTION%"=="all" (
   call :ensure_common_params
-  call :build_one dynamic_lib || exit /b 1
-  call :build_one static_lib  || exit /b 1
+  if not defined BUILD_LIB_TYPE set "BUILD_LIB_TYPE=both"
+  if /I "%BUILD_LIB_TYPE%"=="dynamic_lib" (
+    call :build_one dynamic_lib || exit /b 1
+  ) else if /I "%BUILD_LIB_TYPE%"=="static_lib" (
+    call :build_one static_lib  || exit /b 1
+  ) else (
+    call :build_one dynamic_lib || exit /b 1
+    call :build_one static_lib  || exit /b 1
+  )
   call :do_pack               || exit /b 1
   goto :success
 ) else if /I "%ACTION%"=="build" (
@@ -90,6 +100,7 @@ if not defined ARCH_PARAM call :ask_arch ARCH_PARAM
 if not defined COMPILER_TYPE call :ask_compiler COMPILER_TYPE
 if not defined JAVA_SUPPORT call :ask_yes_no "Enable Java/JNI support?" JAVA_SUPPORT
 if not defined NODE_API_SUPPORT call :ask_yes_no "Enable Node-API (Node.js) support?" NODE_API_SUPPORT
+if not defined PYTHON_SUPPORT call :ask_yes_no "Enable Python (CPython C Extension) support?" PYTHON_SUPPORT
 goto :eof
 
 :ensure_arch_only
@@ -162,6 +173,7 @@ set "OUTVAR=%~2"
 set "%OUTVAR%="
 if /I "%VAL%"=="static_lib"  set "%OUTVAR%=static_lib"
 if /I "%VAL%"=="dynamic_lib" set "%OUTVAR%=dynamic_lib"
+if /I "%VAL%"=="both"        set "%OUTVAR%=both"
 goto :eof
 
 :ask_build_lib_type
@@ -215,6 +227,7 @@ echo   ARCH                : %ARCH_PARAM%
 echo   COMPILER            : %COMPILER_TYPE%
 echo   JAVA_SUPPORT        : %JAVA_SUPPORT%
 echo   NODE_API_SUPPORT    : %NODE_API_SUPPORT%
+echo   PYTHON_SUPPORT      : %PYTHON_SUPPORT%
 echo   CMake -A            : %VS_GEN_PLATFORM_ARG%
 echo   USER_DEF_ARCH       : %USER_DEF_ARCH%
 echo =================================
@@ -250,6 +263,7 @@ if /I "%COMPILER_TYPE%"=="mingw" (
       -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE_ARG% ^
       -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% ^
       -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% ^
+      -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% ^
       -DCMAKE_BUILD_TYPE=!CUR_CFG! ^
       -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_RC_COMPILER=llvm-rc ^
       -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld ^
@@ -261,9 +275,9 @@ if /I "%COMPILER_TYPE%"=="mingw" (
   )
 ) else (
   if /I "%COMPILER_TYPE%"=="clang" (
-    cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE_ARG% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -T ClangCl || exit /b 1
+    cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE_ARG% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% -T ClangCl || exit /b 1
   ) else (
-    cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE_ARG% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% || exit /b 1
+    cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE_ARG% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% || exit /b 1
   )
 
   for %%c in (%CONFIGS%) do (
@@ -302,6 +316,7 @@ echo   ARCH                : %ARCH_PARAM%
 echo   COMPILER            : %COMPILER_TYPE%
 echo   JAVA_SUPPORT        : %JAVA_SUPPORT%
 echo   NODE_API_SUPPORT    : %NODE_API_SUPPORT%
+echo   PYTHON_SUPPORT      : %PYTHON_SUPPORT%
 echo   BUILD_LIB_TYPE      : %BUILD_LIB_TYPE%
 echo   CMake -A            : %VS_GEN_PLATFORM_ARG%
 echo   USER_DEF_ARCH       : %USER_DEF_ARCH%
@@ -313,9 +328,9 @@ cd "VSProj" || exit /b 1
 
 set "SRC_DIR=..\..\..\..\src"
 if /I "%COMPILER_TYPE%"=="clang" (
-  cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -T ClangCl || exit /b 1
+  cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% -T ClangCl || exit /b 1
 ) else (
-  cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% || exit /b 1
+  cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% || exit /b 1
 )
 
 cd ..

@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 #include "bq_log/log/appender/appender_base.h"
 #include "bq_log/types/buffer/log_buffer.h"
 #include "bq_common/bq_common.h"
@@ -66,8 +65,8 @@ namespace bq {
     protected:
         virtual bool init_impl(const bq::property_value& config_obj) override;
         virtual bool reset_impl(const bq::property_value& config_obj) override;
-        virtual void log_impl(const log_entry_handle& handle) override;
-        virtual void on_log_item_recovery_begin(bq::log_entry_handle& read_handle) override;
+        virtual bool log_impl(const log_entry_handle& handle) override;
+        virtual bool on_log_item_recovery_begin(bq::log_entry_handle& read_handle) override;
         virtual void on_log_item_recovery_end() override;
 
     private:

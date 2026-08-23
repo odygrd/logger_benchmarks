@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 #include "bq_log/log/appender/appender_file_binary.h"
 
 namespace bq {
@@ -17,10 +16,10 @@ namespace bq {
         friend class appender_decoder_raw;
 
     public:
-        static constexpr uint32_t format_version = 6;
+        static constexpr uint32_t format_version = 7;
 
     protected:
-        virtual void log_impl(const log_entry_handle& handle) override;
+        virtual bool log_impl(const log_entry_handle& handle) override;
         virtual bq::string get_file_ext_name() override;
         virtual uint32_t get_binary_format_version() const override;
 

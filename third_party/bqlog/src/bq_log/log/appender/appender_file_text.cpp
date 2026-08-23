@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -15,13 +14,15 @@
 
 namespace bq {
 
-    void appender_file_text::log_impl(const log_entry_handle& handle)
+    bool appender_file_text::log_impl(const log_entry_handle& handle)
     {
-        appender_file_base::log_impl(handle);
+        if (!appender_file_base::log_impl(handle)) {
+            return false;
+        }
         auto layout_result = layout_ptr_->do_layout(handle, time_zone_, &parent_log_->get_categories_name());
         if (layout_result != layout::enum_layout_result::finished) {
-            bq::util::log_device_console(log_level::error, "text file layout error, result:%d, format str:%s", (int32_t)layout_result, handle.get_format_string_data());
-            return;
+            bq::util::log_device_console(log_level::error, "text file layout error, result:%" PRId32 ", format str:%s", (int32_t)layout_result, handle.get_format_string_data());
+            return false;
         }
         const char* write_data = layout_ptr_->get_formated_str();
         size_t data_len = (size_t)layout_ptr_->get_formated_str_len();
@@ -31,6 +32,7 @@ namespace bq {
         layout_ptr_->tidy_memory();
         return_write_cache(write_handle);
         mark_write_finished();
+        return true;
     }
 
     bool appender_file_text::parse_exist_log_file(parse_file_context& context)
@@ -66,13 +68,20 @@ namespace bq {
         direct_write("\n", 1, bq::file_manager::seek_option::current, 0);
     }
 
-    void appender_file_text::on_log_item_recovery_begin(bq::log_entry_handle& read_handle)
+    bool appender_file_text::on_log_item_recovery_begin(bq::log_entry_handle& read_handle)
     {
-        appender_file_base::on_log_item_recovery_begin(read_handle);
+        if (!appender_file_base::on_log_item_recovery_begin(read_handle)) {
+            // refresh failed (disk full). Skipping the cache write avoids
+            // leaving an orphaned "===== RECOVER START =====" line in cache
+            // that, when the disk later recovers, would flush out without a
+            // matching ===== RECOVER END ===== marker.
+            return false;
+        }
         auto write_handle = alloc_write_cache(strlen(log_global_vars::get().log_recover_start_str_) + sizeof('\n'));
         memcpy(write_handle.data(), log_global_vars::get().log_recover_start_str_, strlen(log_global_vars::get().log_recover_start_str_));
         write_handle.data()[strlen(log_global_vars::get().log_recover_start_str_)] = (uint8_t)'\n';
         return_write_cache(write_handle);
+        return true;
     }
 
     void appender_file_text::on_log_item_recovery_end()

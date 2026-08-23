@@ -10,7 +10,7 @@ CONFIG=${1:-RelWithDebInfo}
 
 echo "===== Building BqLog Dynamic Library (Linux) ====="
 pushd "$BUILD_LIB_DIR" > /dev/null
-./dont_execute_this.sh build native clang OFF OFF dynamic_lib
+./dont_execute_this.sh build native clang OFF OFF OFF dynamic_lib
 popd > /dev/null
 
 echo "===== Building C# Test Executable ====="

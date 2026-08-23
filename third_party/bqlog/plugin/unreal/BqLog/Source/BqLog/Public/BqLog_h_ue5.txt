@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+﻿/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -18,6 +16,7 @@
  * \author pippocao
  * \date 2025.10.14
  */
+ #pragma once
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "Subsystems/GameInstanceSubsystem.h"
@@ -113,23 +112,23 @@ struct BQLOG_API FBqLogAny
 {
     GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) EBqLogAnyType   Type = EBqLogAnyType::None;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool            B = false;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32           I32 = 0;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) int64           I64 = 0;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) float           F = 0.0;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) double          D = 0.0;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString         S;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FName           N;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FText           T;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) UObject*        Obj = nullptr;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) TSubclassOf<UObject> Cls;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FSoftObjectPath SoftPath;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector         V = FVector::ZeroVector;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FRotator        R = FRotator::ZeroRotator;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FTransform      Xform = FTransform::Identity;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FColor          Color = FColor::White;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FLinearColor    LColor = FLinearColor::White;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") EBqLogAnyType   Type = EBqLogAnyType::None;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") bool            B = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") int32           I32 = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") int64           I64 = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") float           F = 0.0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") double          D = 0.0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") FString         S;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") FName           N;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") FText           T;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") UObject*        Obj = nullptr;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") TSubclassOf<UObject> Cls;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") FSoftObjectPath SoftPath;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") FVector         V = FVector::ZeroVector;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") FRotator        R = FRotator::ZeroRotator;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") FTransform      Xform = FTransform::Identity;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") FColor          Color = FColor::White;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BqLog") FLinearColor    LColor = FLinearColor::White;
 
     UPROPERTY(Transient)    FString FormattedString;
 };

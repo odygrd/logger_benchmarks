@@ -1,6 +1,4 @@
-#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 #include "bq_common/bq_common.h"
 #include "bq_log/log/appender/appender_base.h"
 #include "bq_log/log/log_types.h"
@@ -108,6 +107,7 @@ namespace bq {
         void flush_appenders_io();
         void clear();
         void process_log_chunk(bq::log_entry_handle& read_handle);
+        void log_recovered(const log_entry_handle& handle);
 
     private:
         enum class recover_status_enum {
@@ -131,6 +131,8 @@ namespace bq {
         uint64_t last_flush_io_epoch_ms_;
         recover_status_enum recover_status_;
         bq::array_inline<bq::unique_ptr<appender_base>> appenders_list_;
+        bq::array_inline<appender_base*> recovery_appenders_;
+        bool recovery_appenders_need_begin_;
         bq::array<bq::string> categories_name_array_;
         bq::array_inline<uint8_t> categories_mask_array_;
 

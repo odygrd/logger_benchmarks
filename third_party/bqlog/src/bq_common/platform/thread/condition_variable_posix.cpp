@@ -1,5 +1,4 @@
-﻿/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -16,7 +15,7 @@
 #include <time.h>
 #include "bq_common/bq_common.h"
 
-#if defined(CLOCK_MONOTONIC) && !defined(BQ_APPLE)
+#if defined(CLOCK_MONOTONIC) && !defined(BQ_APPLE) && !(defined(BQ_ANDROID) && defined(BQ_ARM_32))
 #define BQ_POSIX_MONOTONIC_SUPPORTED 1
 #endif
 
@@ -45,11 +44,11 @@ namespace bq {
 
             int32_t cond_init_result = pthread_cond_init(&platform_data_->cond_handle, platform_data_->use_monotonic_clock ? &cond_attr : nullptr);
             if (cond_init_result != 0) {
-                bq::util::log_device_console(log_level::warning, "pthread_cond_init with custom clock failed: %d, falling back", cond_init_result);
+                bq::util::log_device_console(log_level::warning, "pthread_cond_init with custom clock failed: %" PRId32 ", falling back", cond_init_result);
                 platform_data_->use_monotonic_clock = false;
                 cond_init_result = pthread_cond_init(&platform_data_->cond_handle, nullptr);
                 if (cond_init_result != 0) {
-                    bq::util::log_device_console(log_level::fatal, "%s:%d pthread_cond_init failed: %d", __FILE__, __LINE__, cond_init_result);
+                    bq::util::log_device_console(log_level::fatal, "%s:%" PRId32 " pthread_cond_init failed: %" PRId32, __FILE__, __LINE__, cond_init_result);
                 }
             }
 
@@ -86,7 +85,7 @@ namespace bq {
         {
             int32_t result = pthread_cond_wait(&platform_data_->cond_handle, (pthread_mutex_t*)(lock.get_platform_handle()));
             if (result != 0) {
-                bq::util::log_device_console(log_level::error, "pthread_cond_wait failed: %d", result);
+                bq::util::log_device_console(log_level::error, "pthread_cond_wait failed: %" PRId32, result);
             }
         }
 
@@ -126,7 +125,7 @@ namespace bq {
                     return true;
 
                 if (result != ETIMEDOUT) {
-                    bq::util::log_device_console(log_level::error, "pthread_cond_timedwait failed: %d", result);
+                    bq::util::log_device_console(log_level::error, "pthread_cond_timedwait failed: %" PRId32, result);
                     return true;
                 }
             }

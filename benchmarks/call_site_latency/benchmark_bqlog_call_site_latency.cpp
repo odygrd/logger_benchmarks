@@ -46,7 +46,7 @@ void bqlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   for (auto thread_count : thread_count_array)
   {
     run_benchmark("Logger: bqlog - Benchmark: Caller Thread Latency", thread_count,
-                  num_iterations_per_thread, on_start, log_func, on_exit);
+                  num_iterations_per_thread, MESSAGES_PER_ITERATION, on_start, log_func, on_exit);
   }
 }
 

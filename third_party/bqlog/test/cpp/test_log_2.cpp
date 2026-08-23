@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
@@ -295,8 +295,14 @@ namespace bq {
                     }
                 }
                 bq::log::force_flush_all_logs();
-                result.add_result(test_force_flush_callback::idx.load_seq_cst() == test_force_flush_callback::current_idx_sync.load_seq_cst(), "force flush test sync total count, %" PRIu64 ", %" PRIu64, test_force_flush_callback::idx.load_seq_cst(), test_force_flush_callback::current_idx_sync.load_seq_cst());
-                result.add_result(test_force_flush_callback::idx.load_seq_cst() == test_force_flush_callback::current_idx_async.load_seq_cst(), "force flush test async total count, %" PRIu64 ", %" PRIu64, test_force_flush_callback::idx.load_seq_cst(), test_force_flush_callback::current_idx_async.load_seq_cst());
+                bool force_flush_sync_passed = (test_force_flush_callback::idx.load_seq_cst() == test_force_flush_callback::current_idx_sync.load_seq_cst());
+                bool force_flush_async_passed = (test_force_flush_callback::idx.load_seq_cst() == test_force_flush_callback::current_idx_async.load_seq_cst());
+                result.add_result(force_flush_sync_passed, "force flush test sync total count, %" PRIu64 ", %" PRIu64, test_force_flush_callback::idx.load_seq_cst(), test_force_flush_callback::current_idx_sync.load_seq_cst());
+                result.add_result(force_flush_async_passed, "force flush test async total count, %" PRIu64 ", %" PRIu64, test_force_flush_callback::idx.load_seq_cst(), test_force_flush_callback::current_idx_async.load_seq_cst());
+                if (!force_flush_sync_passed || !force_flush_async_passed) {
+                    bq::log::force_flush_all_logs();
+                    test_output_param(bq::log_level::error, "force flush re-check, idx:%" PRIu64 ", sync:%" PRIu64 ", async:%" PRIu64, test_force_flush_callback::idx.load_seq_cst(), test_force_flush_callback::current_idx_sync.load_seq_cst(), test_force_flush_callback::current_idx_async.load_seq_cst());
+                }
 
                 bq::log::register_console_callback(&test_log::console_callback);
                 test_output_dynamic(bq::log_level::info, "force flush testing is finished!\n");

@@ -1,0 +1,7 @@
+build/
+*.egg-info/
+__pycache__/
+*.pyc
+_bqlog*.pyd
+_bqlog*.so
+_bqlog*.dylib

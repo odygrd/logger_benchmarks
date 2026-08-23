@@ -1,10 +1,10 @@
 //Use This when your are using ESM
-import { bq } from "bqlog"
+import { bq } from "@pippocao/bqlog"
 import { demo_category_log } from "./demo_category_log.js";
 
 
 //Use This if you are using CJS
-//const { bq } = require("bqlog");   
+//const { bq } = require("@pippocao/bqlog");   
 
 console.log('cwd =', process.cwd());
 console.log('PID =', process.pid);
@@ -58,8 +58,8 @@ process.stdin.once("data", () => {
 */
 
 let dlog = demo_category_log.create_log("test_log2", config);
-dlog.debug(dlog.cat.Factory.House, "valid:{}", 2.23423534523451253245234523451243412);
-dlog.info(dlog.cat.Transport.Trains, "valid:{}", 33333);
+dlog.debug(dlog.cat.node_2.node_5, "valid:{}", 2.23423534523451253245234523451243412);
+dlog.info(dlog.cat.node_3.node_6, "valid:{}", 33333);
 
 
 bq.log.force_flush_all_logs();

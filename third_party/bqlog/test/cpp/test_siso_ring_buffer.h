@@ -86,13 +86,13 @@ namespace bq {
                     if (handle.result == enum_buffer_result_code::err_empty_log_buffer) {
                         continue;
                     } else if (handle.result != enum_buffer_result_code::success) {
-                        test_result_ptr_->add_result(false, "[siso ring buffer %s] error read return code:%d", ring_buffer_ptr_->get_is_memory_recovery() ? "with mmap" : "without mmap", (int32_t)handle.result);
+                        test_result_ptr_->add_result(false, "[siso ring buffer %s] error read return code:%" PRId32, ring_buffer_ptr_->get_is_memory_recovery() ? "with mmap" : "without mmap", (int32_t)handle.result);
                         break;
                     }
                     uint32_t expected_size = (uint32_t)(left_read_count_ % (8 * 1024));
                     expected_size = bq::max_value((uint32_t)1, expected_size);
                     expected_size = bq::min_value(expected_size, (uint32_t)(ring_buffer_ptr_->get_block_size() * ring_buffer_ptr_->get_total_blocks_count()) >> 1);
-                    test_result_ptr_->add_result(handle.data_size == expected_size, "[siso ring buffer %s] data size error ,expected:%d, read:%d", ring_buffer_ptr_->get_is_memory_recovery() ? "with mmap" : "without mmap", expected_size, (int32_t)handle.data_size);
+                    test_result_ptr_->add_result(handle.data_size == expected_size, "[siso ring buffer %s] data size error ,expected:%" PRId32 ", read:%" PRId32, ring_buffer_ptr_->get_is_memory_recovery() ? "with mmap" : "without mmap", expected_size, (int32_t)handle.data_size);
                     bool data_match = true;
                     int32_t read_index = 0;
                     for (; (size_t)read_index + sizeof(int32_t) <= (size_t)handle.data_size; read_index += (int32_t)sizeof(int32_t)) {
@@ -107,7 +107,7 @@ namespace bq {
                             data_match = false;
                         }
                     }
-                    test_result_ptr_->add_result(data_match, "[siso ring buffer %s] data mismatch for num:%d", ring_buffer_ptr_->get_is_memory_recovery() ? "with mmap" : "without mmap", left_read_count_);
+                    test_result_ptr_->add_result(data_match, "[siso ring buffer %s] data mismatch for num:%" PRId32, ring_buffer_ptr_->get_is_memory_recovery() ? "with mmap" : "without mmap", left_read_count_);
                     --left_read_count_;
                     ++siso_ring_buffer_test_total_read_count_;
                 }
@@ -138,7 +138,7 @@ namespace bq {
                 bq::siso_ring_buffer* ring_buffers[task_size] = { nullptr };
 
                 test_output_dynamic_param(bq::log_level::info, "[siso ring buffer] test %s\n", with_mmap ? "with mmap" : "without mmap");
-                test_output_dynamic_param(bq::log_level::info, "[siso ring buffer] test progress:%d%%, time cost:%dms\r", 0, 0);
+                test_output_dynamic_param(bq::log_level::info, "[siso ring buffer] test progress:%" PRId32 "%%, time cost:%" PRId32 "ms\r", 0, 0);
 #ifdef BQ_UNITE_TEST_LOW_PERFORMANCE_MODE
                 constexpr int32_t chunk_count_per_task = 500000 / 8;
 #else
@@ -186,16 +186,16 @@ namespace bq {
                     int32_t new_percent = current_read_count * 100 / total_chunk;
                     if (prev_percent != new_percent) {
                         auto current_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-                        test_output_dynamic_param(bq::log_level::info, "siso ring buffer test progress:%d%%, time cost:%dms              \r", new_percent, (int32_t)(current_time - start_time));
+                        test_output_dynamic_param(bq::log_level::info, "siso ring buffer test progress:%" PRId32 "%%, time cost:%" PRId32 "ms              \r", new_percent, (int32_t)(current_time - start_time));
                         last_read_count = current_read_count;
                         if (current_time - start_time > 300000) {
-                            test_output_dynamic_param(bq::log_level::info, "siso ring buffer time out, give up: time cost:%dms              \r", (int32_t)(current_time - start_time));
+                            test_output_dynamic_param(bq::log_level::info, "siso ring buffer time out, give up: time cost:%" PRId32 "ms              \r", (int32_t)(current_time - start_time));
                             timeout = true;
                             break;
                         }
                     }
                     if (all_finished) {
-                        result.add_result(current_read_count == total_chunk, "[siso_test] read write mismatch, read_count :%d, total_chunk:%d", current_read_count, total_chunk);
+                        result.add_result(current_read_count == total_chunk, "[siso_test] read write mismatch, read_count :%" PRId32 ", total_chunk:%" PRId32, current_read_count, total_chunk);
                         break;
                     }
                 }

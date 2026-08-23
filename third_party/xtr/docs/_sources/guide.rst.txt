@@ -122,7 +122,7 @@ Example
     XTR_LOG(s, "Hello {}", 123.456); // Hello 123.456
     XTR_LOG(s, "Hello {:.1f}", 123.456); // Hello 123.1
 
-View this example on `Compiler Explorer <https://godbolt.org/z/zxs7WThM6>`__.
+View this example on `Compiler Explorer <https://godbolt.org/z/xn3z5fnj3>`__.
 
 .. _copy_val_ref:
 
@@ -186,6 +186,33 @@ copied. The user is then responsible for ensuring that the string data remains
 valid long enough for the logger to process the log statement. Note that only
 the string data must remain valid---so for :cpp:expr:`std::string_view` the
 object itself does not need to remain valid, just the data it references.
+
+.. _variable_length_args:
+
+Variable-Length Arguments
+-------------------------
+
+Objects whose total size is known only at runtime---for example a struct with
+a flexible array member---may be logged by wrapping them in a call to
+:cpp:func:`xtr::vcopy`, passing the object and its total byte size:
+
+.. code-block:: c++
+
+    struct packet {
+        std::size_t size;
+        int data[];
+    };
+
+    // Allocate `p` with `sizeof(packet) + n * sizeof(int)` bytes...
+    XTR_LOG(s, "Got {}", vcopy(*p, total_size));
+
+The object's bytes are copied into the sink via memcpy, so the type must
+be trivially copyable. A formatter for the type must still be provided.
+
+Unlike string arguments (which may be truncated when the sink is full),
+vcopy arguments cannot truncate: if the ring buffer cannot accommodate
+the full object, the entire log record is dropped and the sink's dropped
+message counter is incremented.
 
 Log Levels
 ----------
@@ -285,7 +312,7 @@ Formatting a custom type via operator<<:
 
         xtr::sink s = log.get_sink("Main");
 
-        XTR_LOG(s, "Hello {}", xtr::streamed_copy(custom()));
+        XTR_LOG(s, "Hello {}", streamed_copy(custom()));
 
         return 0;
     }

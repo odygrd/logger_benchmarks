@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 /*!
  * \file type_traits.h
  * \we do not depend on STL for compatible reason.
@@ -398,13 +397,21 @@ namespace bq {
     constexpr bool is_trivially_move_constructible_v = is_trivially_move_constructible<T>::value;
 #endif
 
-#ifdef BQ_GCC
+#if defined(BQ_GCC)
     template <typename T>
     struct ___gcc_is_trivially_destructible_helper {
         static constexpr bool value = __has_trivial_destructor(T); // in GCC, __has_trivial_destructor is not visible in template parameter
     };
     template <typename T>
     struct is_trivially_destructible : bool_type<___gcc_is_trivially_destructible_helper<T>::value> {
+    };
+#elif defined(BQ_CLANG) && defined(__clang_major__) && (__clang_major__ < 4)
+    template <typename T>
+    struct ___clang_is_trivially_destructible_helper {
+        static constexpr bool value = __has_trivial_destructor(T); // in Clang version older than 4, __has_trivial_destructor is not visible in template parameter
+    };
+    template <typename T>
+    struct is_trivially_destructible : bool_type<___clang_is_trivially_destructible_helper<T>::value> {
     };
 #else
     template <typename T>

@@ -41,7 +41,7 @@ int main()
       {
         consume_result = binlog::consume(logfile);
 
-        if (done.load(std::memory_order_relaxed) && consume_result.bytesConsumed == 0)
+        if (done.load(std::memory_order_acquire) && consume_result.bytesConsumed == 0)
         {
           break;
         }
@@ -61,7 +61,7 @@ int main()
   BINLOG_ERROR("End");
 
   // block until all messages are flushed
-  done.store(true, std::memory_order_relaxed);
+  done.store(true, std::memory_order_release);
   backend.join();
 
   auto const end_time = std::chrono::steady_clock::now();

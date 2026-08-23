@@ -11,7 +11,7 @@ CONFIG=${1:-RelWithDebInfo}
 echo "===== Building BqLog Dynamic Library (Mac) ====="
 pushd "$BUILD_LIB_DIR" > /dev/null
 # dont_execute_this.sh build [java] [node] [static_lib|dynamic_lib] [framework|dylib|a]
-./dont_execute_this.sh build ON OFF dynamic_lib dylib
+./dont_execute_this.sh build ON OFF OFF dynamic_lib dylib
 popd > /dev/null
 
 echo "===== Building Java Test Jar ====="

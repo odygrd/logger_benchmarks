@@ -7,11 +7,15 @@ cd CMakeFiles
 
 CC=clang CXX=clang++ cmake -DTARGET_PLATFORM:STRING=unix -DCMAKE_BUILD_TYPE=Debug -DCPP_VER=$CPP_VER_PARAM ../../../../test/cpp
 make
-./BqLogUnitTest
-exit_code=$?
-if [ $exit_code -ne 0 ]; then
-    echo "Test failed."
-    exit 1
+if [ "$BQ_LOW_PERFORMANCE_TESTS" != "true" ]; then
+    ./BqLogUnitTest
+    exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        echo "Test failed."
+        exit 1
+    fi
+else
+    echo "Skip Debug tests in low performance mode."
 fi
 
 CC=clang CXX=clang++ cmake -DTARGET_PLATFORM:STRING=unix -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCPP_VER=$CPP_VER_PARAM ../../../../test/cpp

@@ -11,6 +11,12 @@ namespace bq {
 
         constexpr uint32_t TEST_THREAD_ATOMIC_LOOP_TIMES = 1000000;
 
+#if defined(BQ_UNITE_TEST_LOW_PERFORMANCE_MODE)
+        constexpr uint32_t TEST_CONDITION_VARIABLE_PING_PONG_COUNT = 2;
+#else
+        constexpr uint32_t TEST_CONDITION_VARIABLE_PING_PONG_COUNT = 10;
+#endif
+
         class test_thread_exist : public bq::platform::thread {
         public:
             bq::platform::thread::thread_id thread_id_ = 0;
@@ -182,13 +188,20 @@ namespace bq {
             {
                 auto tid = bq::platform::thread::get_current_thread_id();
                 uint32_t error_count = 0;
-                for (uint32_t i = 0; i < 10000000; ++i) {
-                    if (i % 500000 == 0) {
+#if defined(BQ_UNITE_TEST_LOW_PERFORMANCE_MODE)
+                constexpr uint32_t LOOP_COUNT = 1000000;
+                constexpr uint32_t OUTPUT_INTERVAL = 50000;
+#else
+                constexpr uint32_t LOOP_COUNT = 10000000;
+                constexpr uint32_t OUTPUT_INTERVAL = 500000;
+#endif
+                for (uint32_t i = 0; i < LOOP_COUNT; ++i) {
+                    if (i % OUTPUT_INTERVAL == 0) {
                         test_output_dynamic_param(bq::log_level::info, "[spin_lock_rw_crazy_read] thread %" PRIu64 " before read_lock, iteration %" PRIu32 "\n", tid, i);
                     }
                     {
                         bq::platform::scoped_spin_lock_read_crazy lock(spin_lock_);
-                        if (i % 500000 == 0) {
+                        if (i % OUTPUT_INTERVAL == 0) {
                             test_output_dynamic_param(bq::log_level::info, "[spin_lock_rw_crazy_read] thread %" PRIu64 " got read_lock, iteration %" PRIu32 "\n", tid, i);
                         }
                         error_count += (counter_modify_by_write_ % 10 == 0) ? 0U : 1U;
@@ -203,7 +216,7 @@ namespace bq {
                         counter_modify_by_read_.add_fetch_relaxed(1);
                         counter_modify_by_read_.add_fetch_relaxed(1);
                     }
-                    if (i % 500000 == 0) {
+                    if (i % OUTPUT_INTERVAL == 0) {
                         test_output_dynamic_param(bq::log_level::info, "[spin_lock_rw_crazy_read] thread %" PRIu64 " released read_lock, iteration %" PRIu32 "\n", tid, i);
                     }
                     bq::platform::thread::yield();
@@ -328,12 +341,12 @@ namespace bq {
             virtual void run() override
             {
                 uint32_t current_value = 0;
-                while (i_ptr->i.load(platform::memory_order::acquire) < 10) {
+                while (i_ptr->i.load(platform::memory_order::acquire) < TEST_CONDITION_VARIABLE_PING_PONG_COUNT) {
                     mutex_ptr_->lock();
                     condition_variable_ptr_->wait(*mutex_ptr_, [&]() {
                         return (i_ptr->i.load(platform::memory_order::acquire) % 2) == 0;
                     });
-                    result_ptr_->add_result(i_ptr->i.load(platform::memory_order::acquire) == current_value, "condition variable test %d", current_value);
+                    result_ptr_->add_result(i_ptr->i.load(platform::memory_order::acquire) == current_value, "condition variable test %" PRId32, current_value);
                     current_value += 2;
                     i_ptr->i.add_fetch(1, platform::memory_order::release);
                     mutex_ptr_->unlock();
@@ -367,11 +380,11 @@ namespace bq {
                     return predict;
                 });
                 mutex.unlock();
-                result_ptr_->add_result(result == predict, "wait for time out test, %d", predict);
+                result_ptr_->add_result(result == predict, "wait for time out test, %" PRId32, predict);
                 auto end_time = bq::platform::high_performance_epoch_ms();
                 if (!predict) {
                     auto diff = end_time - start_time;
-                    result_ptr_->add_result(diff > 4000 && diff < 6000, "wait for time out test, timeout:%d", diff);
+                    result_ptr_->add_result(diff > 4000 && diff < 6000, "wait for time out test, timeout:%" PRId32, diff);
                 }
             }
         };
@@ -412,7 +425,7 @@ namespace bq {
                     thread5.join();
 
                     auto i_result = i_value.i.load(platform::memory_order::acquire);
-                    result.add_result(i_result == TEST_THREAD_ATOMIC_LOOP_TIMES * 5, "atomic add test 1, final value:%d", i_result);
+                    result.add_result(i_result == TEST_THREAD_ATOMIC_LOOP_TIMES * 5, "atomic add test 1, final value:%" PRId32, i_result);
                 }
                 test_output_dynamic(bq::log_level::info, "atomic add test is finished, now begin the cas test, please wait...                \r");
                 {
@@ -496,7 +509,7 @@ namespace bq {
                     thread4.join();
                     thread5.join();
 
-                    result.add_result(test_array.size() == TEST_THREAD_ATOMIC_LOOP_TIMES * cas_times_per_loop * 5, "atomic mutex test 1, final size:%d", test_array.size());
+                    result.add_result(test_array.size() == TEST_THREAD_ATOMIC_LOOP_TIMES * cas_times_per_loop * 5, "atomic mutex test 1, final size:%" PRId32, test_array.size());
                     bool check_result = true;
                     uint32_t test_base_value = 0;
                     for (uint32_t i = 0; i < test_array.size(); ++i) {
@@ -545,7 +558,7 @@ namespace bq {
                     thread4.join();
                     thread5.join();
 
-                    result.add_result(test_array.size() == TEST_THREAD_ATOMIC_LOOP_TIMES * cas_times_per_loop * 5, "atomic mutex test 1, final size:%d", test_array.size());
+                    result.add_result(test_array.size() == TEST_THREAD_ATOMIC_LOOP_TIMES * cas_times_per_loop * 5, "atomic mutex test 1, final size:%" PRId32, test_array.size());
                     bool check_result = true;
                     uint32_t test_base_value = 0;
                     for (uint32_t i = 0; i < test_array.size(); ++i) {
@@ -596,6 +609,7 @@ namespace bq {
 
                 test_output_dynamic(bq::log_level::info, "spin_lock_rw_crazy test is finished, now begin the condition variable test, please wait...                \r");
                 {
+                    auto seg_start = bq::platform::high_performance_epoch_ms();
                     test_atomic_struct<uint32_t> i_value;
                     bq::platform::mutex test_mutex(false);
                     bq::platform::condition_variable test_cond;
@@ -603,18 +617,19 @@ namespace bq {
                     thread1.start();
 
                     uint32_t current_value = 1;
-                    while (i_value.i.load(platform::memory_order::acquire) < 10) {
+                    while (i_value.i.load(platform::memory_order::acquire) < TEST_CONDITION_VARIABLE_PING_PONG_COUNT) {
                         test_mutex.lock();
                         test_cond.wait(test_mutex, [&]() {
                             return (i_value.i.load(platform::memory_order::acquire) % 2) == 1;
                         });
-                        result.add_result(i_value.i.load(platform::memory_order::acquire) == current_value, "condition variable test %d", current_value);
+                        result.add_result(i_value.i.load(platform::memory_order::acquire) == current_value, "condition variable test %" PRId32, current_value);
                         current_value += 2;
                         i_value.i.add_fetch(1, platform::memory_order::release);
                         test_mutex.unlock();
                         test_cond.notify_one();
                     }
                     thread1.join();
+                    test_output_dynamic_param(bq::log_level::info, "[diag] cv ping-pong segment finished, time cost:%" PRIu64 "ms                \n", bq::platform::high_performance_epoch_ms() - seg_start);
                 }
 
 #ifndef BQ_IN_GITHUB_ACTIONS
@@ -665,6 +680,7 @@ namespace bq {
 #endif
 
                 {
+                    auto seg_start = bq::platform::high_performance_epoch_ms();
                     // Restart Test
                     test_thread_restart t_restart;
                     t_restart.set_thread_name("Run1");
@@ -689,9 +705,11 @@ namespace bq {
                     if (tid1 == tid2) {
                         bq::util::log_device_console(bq::log_level::info, "Thread ID was reused by OS: %" PRIu64, (uint64_t)tid1);
                     }
+                    test_output_dynamic_param(bq::log_level::info, "[diag] thread restart segment finished, time cost:%" PRIu64 "ms                \n", bq::platform::high_performance_epoch_ms() - seg_start);
                 }
 
                 {
+                    auto seg_start = bq::platform::high_performance_epoch_ms();
                     // Detach Test
                     // We only verify that detach() sets the status to detached.
                     // We do NOT call start() again because it is designed to crash (assert).
@@ -707,21 +725,25 @@ namespace bq {
                         bq::platform::thread::sleep(50);
                     }
                     bq::platform::thread::sleep(100);
+                    test_output_dynamic_param(bq::log_level::info, "[diag] thread detach segment finished, time cost:%" PRIu64 "ms                \n", bq::platform::high_performance_epoch_ms() - seg_start);
                 }
 
                 test_output_dynamic(bq::log_level::info, "                                                                                                          \r");
 
 #ifndef BQ_WIN
                 {
+                    auto seg_start = bq::platform::high_performance_epoch_ms();
                     // thread name test
                     bq::string thread_name = "test_thread_1";
                     test_thread_name test_thread(thread_name, result);
                     test_thread.set_thread_name(thread_name);
                     test_thread.start();
                     test_thread.join();
+                    test_output_dynamic_param(bq::log_level::info, "[diag] thread name segment finished, time cost:%" PRIu64 "ms                \n", bq::platform::high_performance_epoch_ms() - seg_start);
                 }
 #endif // !BQ_WIN
 
+                test_output_dynamic(bq::log_level::info, "[diag] test_thread_atomic::test about to return                \n");
                 return result;
             }
         };

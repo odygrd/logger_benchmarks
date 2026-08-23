@@ -1,6 +1,4 @@
-﻿#pragma once
-/*
- * Copyright (C) 2025 Tencent.
+/* Copyright (C) 2025 Tencent.
  * BQLOG is licensed under the Apache License, Version 2.0.
  * You may obtain a copy of the License at
  *
@@ -10,6 +8,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
+#pragma once
 /*!
  * \class bq::miso_ring_buffer V3
  *
@@ -94,7 +93,7 @@ namespace bq {
 
         // frequently modified by read thread, so don't access it in write thread too often.
         BQ_PACK_BEGIN
-        struct alignas(4) head {
+        struct alignas(BQ_CACHE_LINE_SIZE) head {
             // it is a snapshot of last read cursor when recovering from memory map file .
             uint32_t read_cursor_cache_;
             uint32_t read_cursor_start_cache_;

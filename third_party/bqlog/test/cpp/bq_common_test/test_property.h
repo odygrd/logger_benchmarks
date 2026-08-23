@@ -12,7 +12,7 @@ namespace bq {
             test_result result;
             void add_test_result(bool check_result)
             {
-                result.add_result(check_result, "property_test %d", ++result_idx);
+                result.add_result(check_result, "property_test %" PRId32, ++result_idx);
             }
 
         public:
