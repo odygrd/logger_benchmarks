@@ -350,7 +350,14 @@ def format_latency_table(results: dict, benchmark_type: str, thread_count: int) 
                 "p95": data["p95"],
                 "p99": data["p99"],
                 "p999": data["p999"],
-                "sort_key": (data["p95"], tie_breaker),
+                "sort_key": (
+                    data["p90"],
+                    data["p95"],
+                    data["p99"],
+                    data["p999"],
+                    tie_breaker,
+                    logger_info["name"].casefold(),
+                ),
             }
         )
 
