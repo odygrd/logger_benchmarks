@@ -2,8 +2,8 @@
   "dependencies": [
     {
       "name": "quill",
-      "repo_url": "https://github.com/odygrd/quill.git",
-      "ref": "202bc6ce52a624362d79fd7609eb67d504ff2bb4",
+      "repo_url": "https://github.com/NanKendrik/quill.git",
+      "ref": "39218c0d07eddfdc37acd0b765d5bc02d76defc7",
       "target_dir": "quill",
       "skip_update": true
     },
