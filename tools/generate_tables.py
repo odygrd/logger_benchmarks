@@ -6,6 +6,8 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
+QUILL_MACRO_FREE_MODE = "Quill - Macro Free Mode"
+
 LATENCY_LOGGER_MAP = {
     "Quill - Unbounded": {
         "name": "Quill Unbounded Queue",
@@ -15,8 +17,8 @@ LATENCY_LOGGER_MAP = {
         "name": "Quill Bounded Dropping Queue",
         "url": "https://github.com/odygrd/quill",
     },
-    "Quill - Unbounded With Functions": {
-        "name": "Quill Unbounded Queue (Log Functions)",
+    QUILL_MACRO_FREE_MODE: {
+        "name": QUILL_MACRO_FREE_MODE,
         "url": "https://github.com/odygrd/quill",
     },
     "fmtlog": {
@@ -95,7 +97,7 @@ BACKEND_LOGGER_MAP = {
         "url": "https://github.com/mattiasflodin/reckless",
     },
     "BENCHMARK_quill_with_functions_backend_total_time": {
-        "name": "Quill - Macro Free Mode",
+        "name": QUILL_MACRO_FREE_MODE,
         "url": "https://github.com/odygrd/quill",
     },
     "BENCHMARK_bqlog_backend_total_time": {
@@ -124,7 +126,7 @@ README_THROUGHPUT_LOGGERS = {
     "spdlog",
     "fmtlog",
     "Reckless",
-    "Quill - Macro Free Mode",
+    QUILL_MACRO_FREE_MODE,
     "BqLog",
     "Boost.Log",
 }
@@ -135,7 +137,7 @@ LATENCY_SECTION_METADATA = {
         "loggers": {
             "Quill - Bounded",
             "Quill - Unbounded",
-            "Quill - Unbounded With Functions",
+            QUILL_MACRO_FREE_MODE,
             "fmtlog",
             "PlatformLab NanoLog",
             "Ms binLog",
@@ -154,7 +156,7 @@ LATENCY_SECTION_METADATA = {
         "loggers": {
             "Quill - Bounded",
             "Quill - Unbounded",
-            "Quill - Unbounded With Functions",
+            QUILL_MACRO_FREE_MODE,
             "fmtlog",
             "PlatformLab NanoLog",
             "Ms binLog",
@@ -215,7 +217,7 @@ def parse_latency_bench(bench_path: str, content: str) -> list[dict]:
 
         if logger == "Quill":
             if "with_functions" in bench_path or "quill_with_functions" in bench_path:
-                logger_key = "Quill - Unbounded With Functions"
+                logger_key = QUILL_MACRO_FREE_MODE
             elif "quill_unbounded" in bench_path:
                 logger_key = "Quill - Unbounded"
             elif "quill_bounded" in bench_path:

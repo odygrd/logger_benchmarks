@@ -74,7 +74,7 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   auto on_exit = []() { frontend_t::get_all_loggers().front()->flush_log(); };
 
   // Run the benchmark for n threads
-  std::string benchmark_name = "Logger: Quill - Benchmark: Caller Thread Latency, Unbounded With Functions";
+  std::string benchmark_name = "Logger: Quill - Benchmark: Caller Thread Latency, Macro Free Mode";
   benchmark_name += " - ";
   benchmark_name += benchmark_type;
 
