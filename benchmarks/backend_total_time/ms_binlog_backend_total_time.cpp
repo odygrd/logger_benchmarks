@@ -55,8 +55,30 @@ int main()
   auto const start_time = std::chrono::steady_clock::now();
   for (size_t iteration = 0; iteration < total_iterations; ++iteration)
   {
-    BINLOG_INFO("Iteration: {} int: {} double: {}", iteration, iteration * 2,
-                static_cast<double>(iteration) / 2);
+    // Cycle between five log statements: an application does not repeat a single one
+    switch (iteration % 5)
+    {
+    case 0:
+      BINLOG_INFO("Iteration: {} int: {} double: {}", iteration, iteration * 2,
+                  static_cast<double>(iteration) / 2);
+      break;
+    case 1:
+      BINLOG_INFO("Order: {} quantity: {} price: {}", iteration, iteration * 2,
+                  static_cast<double>(iteration) / 2);
+      break;
+    case 2:
+      BINLOG_INFO("Request: {} bytes: {} elapsed: {}", iteration, iteration * 2,
+                  static_cast<double>(iteration) / 2);
+      break;
+    case 3:
+      BINLOG_INFO("Session: {} sequence: {} latency: {}", iteration, iteration * 2,
+                  static_cast<double>(iteration) / 2);
+      break;
+    default:
+      BINLOG_INFO("Worker: {} processed: {} load: {}", iteration, iteration * 2,
+                  static_cast<double>(iteration) / 2);
+      break;
+    }
   }
   BINLOG_ERROR("End");
 

@@ -49,8 +49,30 @@ int main()
   auto const start_time = std::chrono::steady_clock::now();
   for (size_t iteration = 0; iteration < total_iterations; ++iteration)
   {
-    g_log.info("Iteration: %d, int: %d, double: %f", iteration, iteration * 2,
-               static_cast<double>(iteration) / 2);
+    // Cycle between five log statements: an application does not repeat a single one
+    switch (iteration % 5)
+    {
+    case 0:
+      g_log.info("Iteration: %d, int: %d, double: %f", iteration, iteration * 2,
+                 static_cast<double>(iteration) / 2);
+      break;
+    case 1:
+      g_log.info("Order: %d, quantity: %d, price: %f", iteration, iteration * 2,
+                 static_cast<double>(iteration) / 2);
+      break;
+    case 2:
+      g_log.info("Request: %d, bytes: %d, elapsed: %f", iteration, iteration * 2,
+                 static_cast<double>(iteration) / 2);
+      break;
+    case 3:
+      g_log.info("Session: %d, sequence: %d, latency: %f", iteration, iteration * 2,
+                 static_cast<double>(iteration) / 2);
+      break;
+    default:
+      g_log.info("Worker: %d, processed: %d, load: %f", iteration, iteration * 2,
+                 static_cast<double>(iteration) / 2);
+      break;
+    }
   }
 
   g_log.error("End");

@@ -58,8 +58,30 @@ int main()
   auto const start_time = std::chrono::steady_clock::now();
   for (size_t iteration = 0; iteration < total_iterations; ++iteration)
   {
-    SPDLOG_LOGGER_INFO(logger, "Iteration: {} int: {} double: {}", iteration, iteration * 2,
-                       static_cast<double>(iteration) / 2);
+    // Cycle between five log statements: an application does not repeat a single one
+    switch (iteration % 5)
+    {
+    case 0:
+      SPDLOG_LOGGER_INFO(logger, "Iteration: {} int: {} double: {}", iteration, iteration * 2,
+                         static_cast<double>(iteration) / 2);
+      break;
+    case 1:
+      SPDLOG_LOGGER_INFO(logger, "Order: {} quantity: {} price: {}", iteration, iteration * 2,
+                         static_cast<double>(iteration) / 2);
+      break;
+    case 2:
+      SPDLOG_LOGGER_INFO(logger, "Request: {} bytes: {} elapsed: {}", iteration, iteration * 2,
+                         static_cast<double>(iteration) / 2);
+      break;
+    case 3:
+      SPDLOG_LOGGER_INFO(logger, "Session: {} sequence: {} latency: {}", iteration, iteration * 2,
+                         static_cast<double>(iteration) / 2);
+      break;
+    default:
+      SPDLOG_LOGGER_INFO(logger, "Worker: {} processed: {} load: {}", iteration, iteration * 2,
+                         static_cast<double>(iteration) / 2);
+      break;
+    }
   }
 
   SPDLOG_LOGGER_ERROR(logger, "End");
