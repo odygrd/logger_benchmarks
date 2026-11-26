@@ -94,9 +94,35 @@ int main()
 
   for (size_t iteration = 0; iteration < total_iterations; ++iteration)
   {
-    BOOST_LOG_SEV(logger, logging::trivial::info)
-      << "Iteration: " << iteration << " int: " << (iteration * 2)
-      << " double: " << (static_cast<double>(iteration) / 2);
+    // Cycle between five log statements: an application does not repeat a single one
+    switch (iteration % 5)
+    {
+    case 0:
+      BOOST_LOG_SEV(logger, logging::trivial::info)
+        << "Iteration: " << iteration << " int: " << (iteration * 2)
+        << " double: " << (static_cast<double>(iteration) / 2);
+      break;
+    case 1:
+      BOOST_LOG_SEV(logger, logging::trivial::info)
+        << "Order: " << iteration << " quantity: " << (iteration * 2)
+        << " price: " << (static_cast<double>(iteration) / 2);
+      break;
+    case 2:
+      BOOST_LOG_SEV(logger, logging::trivial::info)
+        << "Request: " << iteration << " bytes: " << (iteration * 2)
+        << " elapsed: " << (static_cast<double>(iteration) / 2);
+      break;
+    case 3:
+      BOOST_LOG_SEV(logger, logging::trivial::info)
+        << "Session: " << iteration << " sequence: " << (iteration * 2)
+        << " latency: " << (static_cast<double>(iteration) / 2);
+      break;
+    default:
+      BOOST_LOG_SEV(logger, logging::trivial::info)
+        << "Worker: " << iteration << " processed: " << (iteration * 2)
+        << " load: " << (static_cast<double>(iteration) / 2);
+      break;
+    }
   }
 
   BOOST_LOG_SEV(logger, logging::trivial::error) << "End";

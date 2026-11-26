@@ -48,8 +48,30 @@ int main()
   auto const start_time = std::chrono::steady_clock::now();
   for (size_t iteration = 0; iteration < total_iterations; ++iteration)
   {
-    XTR_LOGL_TSC(info, sink, "Iteration: {} int: {} double: {}", iteration, iteration * 2,
-                 static_cast<double>(iteration) / 2);
+    // Cycle between five log statements: an application does not repeat a single one
+    switch (iteration % 5)
+    {
+    case 0:
+      XTR_LOGL_TSC(info, sink, "Iteration: {} int: {} double: {}", iteration, iteration * 2,
+                   static_cast<double>(iteration) / 2);
+      break;
+    case 1:
+      XTR_LOGL_TSC(info, sink, "Order: {} quantity: {} price: {}", iteration, iteration * 2,
+                   static_cast<double>(iteration) / 2);
+      break;
+    case 2:
+      XTR_LOGL_TSC(info, sink, "Request: {} bytes: {} elapsed: {}", iteration, iteration * 2,
+                   static_cast<double>(iteration) / 2);
+      break;
+    case 3:
+      XTR_LOGL_TSC(info, sink, "Session: {} sequence: {} latency: {}", iteration, iteration * 2,
+                   static_cast<double>(iteration) / 2);
+      break;
+    default:
+      XTR_LOGL_TSC(info, sink, "Worker: {} processed: {} load: {}", iteration, iteration * 2,
+                   static_cast<double>(iteration) / 2);
+      break;
+    }
   }
 
   XTR_LOGL_TSC(error, sink, "End");

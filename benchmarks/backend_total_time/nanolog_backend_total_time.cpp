@@ -37,8 +37,30 @@ int main()
   auto const start_time = std::chrono::steady_clock::now();
   for (size_t iteration = 0; iteration < total_iterations; ++iteration)
   {
-    NANO_LOG(NOTICE, "Iteration: %lu int: %lu double: %f", iteration, iteration * 2,
-             static_cast<double>(iteration) / 2);
+    // Cycle between five log statements: an application does not repeat a single one
+    switch (iteration % 5)
+    {
+    case 0:
+      NANO_LOG(NOTICE, "Iteration: %lu int: %lu double: %f", iteration, iteration * 2,
+               static_cast<double>(iteration) / 2);
+      break;
+    case 1:
+      NANO_LOG(NOTICE, "Order: %lu quantity: %lu price: %f", iteration, iteration * 2,
+               static_cast<double>(iteration) / 2);
+      break;
+    case 2:
+      NANO_LOG(NOTICE, "Request: %lu bytes: %lu elapsed: %f", iteration, iteration * 2,
+               static_cast<double>(iteration) / 2);
+      break;
+    case 3:
+      NANO_LOG(NOTICE, "Session: %lu sequence: %lu latency: %f", iteration, iteration * 2,
+               static_cast<double>(iteration) / 2);
+      break;
+    default:
+      NANO_LOG(NOTICE, "Worker: %lu processed: %lu load: %f", iteration, iteration * 2,
+               static_cast<double>(iteration) / 2);
+      break;
+    }
   }
 
   NANO_LOG(ERROR, "End");
