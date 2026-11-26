@@ -25,9 +25,9 @@ int main()
   set_thread_affinity(1);
 
   std::filesystem::path log_file{"benchmark_fmtlog_backend_total_time.log"};
-  std::remove(log_file.c_str());
+  std::remove(log_file.string().c_str());
 
-  fmtlog::setLogFile(log_file.c_str(), true);
+  fmtlog::setLogFile(log_file.string().c_str(), true);
 
   std::atomic<bool> done{false};
 

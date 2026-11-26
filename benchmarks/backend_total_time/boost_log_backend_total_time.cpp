@@ -39,7 +39,7 @@ static constexpr size_t total_iterations = 4'000'000;
 int main()
 {
   std::filesystem::path log_file{"benchmark_boost_log_backend_total_time.log"};
-  std::remove(log_file.c_str());
+  std::remove(log_file.string().c_str());
 
   // Set main thread affinity
   set_thread_affinity(1);

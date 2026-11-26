@@ -15,7 +15,6 @@
 #include <boost/make_shared.hpp>
 #include <boost/shared_ptr.hpp>
 #include <fstream>
-#include <sched.h>
 #include <string>
 #include <system_error>
 #include <vector>
