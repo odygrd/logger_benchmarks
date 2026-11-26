@@ -139,3 +139,67 @@ To keep the tables:
 ```bash
 python3 tools/generate_tables.py > tables.md
 ```
+
+## Windows (MSVC)
+
+The benchmarks also build and run on Windows with MSVC. Linux builds are unaffected: every
+Windows change is behind a `WIN32`/`MSVC` CMake condition, an `#if defined(_WIN32)` block or an
+`os.name == "nt"` check.
+
+### Build
+
+Use an x64 Visual Studio developer environment (`x64 Native Tools Command Prompt`, or
+`vcvars64.bat`) with the Ninja generator that ships with Visual Studio.
+
+Boost.Log is built by `tools/setup_boost_simple.py` using the default CMake generator. Set
+`CMAKE_GENERATOR=Ninja` so it is built and installed as a single-configuration Release build:
+
+```bat
+set CMAKE_GENERATOR=Ninja
+python tools\setup_boost_simple.py
+```
+
+Configure and build:
+
+```bat
+cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -S . -B cmake-build-release
+cmake --build cmake-build-release
+```
+
+With MSVC the compile flags are `/DWIN32 /D_WINDOWS /EHsc /GR /utf-8 /arch:AVX2` plus the CMake
+Release defaults `/O2 /Ob2 /DNDEBUG`. `/arch:AVX2` is the MSVC equivalent of the Linux
+`-march=x86-64-v3` build and `/utf-8` is required by the bundled `fmt` in spdlog.
+
+### Libraries Excluded On Windows
+
+| Library             | Reason                                                                                                  |
+|---------------------|---------------------------------------------------------------------------------------------------------|
+| XTR                 | Linux only (POSIX file descriptors, `mmap`, io_uring)                                                    |
+| PlatformLab NanoLog | Linux only (POSIX AIO, `unistd.h`)                                                                      |
+| Iyengar NanoLog     | Does not compile with MSVC (`flag{ ATOMIC_FLAG_INIT }` in `NanoLog.cpp`)                                |
+| Reckless            | Does not compile with MSVC and the current Windows SDK (its Win32 API redeclarations conflict with the SDK) |
+
+Their targets are not added on Windows and `tools/run_all.py` skips their benchmarks.
+
+### CPU Affinity
+
+There is no `taskset` on Windows. On Windows `tools/run_all.py` starts each benchmark directly with
+`HIGH_PRIORITY_CLASS`, and the benchmarks pin their threads in-process with
+`SetThreadAffinityMask`.
+
+The benchmark CPU numbers (0 main thread, 1-4 caller threads, 5 backend thread) are mapped by
+`bench_cpu()` in `benchmarks/bench_platform.h` to the first logical processor of distinct physical
+cores, preferring the highest performance efficiency class (P-cores on hybrid CPUs), so the
+benchmark threads never share an SMT sibling. On Linux `bench_cpu()` is the identity mapping.
+
+Windows threads start with the process affinity rather than the affinity of the thread that
+created them. For loggers that do not expose their worker thread (BqLog, g3log), the benchmarks
+call `pin_other_threads_on_windows(5)` after the logger is initialised, which pins every other
+thread of the process to the backend CPU. It is a no-op on Linux.
+
+### Run
+
+```bat
+python tools\run_all.py
+python tools\generate_tables.py
+```
