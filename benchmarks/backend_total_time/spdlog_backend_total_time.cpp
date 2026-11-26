@@ -26,7 +26,7 @@ int main()
   set_thread_affinity(1);
 
   std::filesystem::path log_file{"benchmark_spdlog_backend_total_time.log"};
-  std::remove(log_file.c_str());
+  std::remove(log_file.string().c_str());
 
   // Setup
   spdlog::set_automatic_registration(false);
@@ -39,7 +39,7 @@ int main()
 
   spdlog::init_thread_pool(8388608, 1, on_backend_start);
 
-  auto sink = std::make_shared<spdlog::sinks::basic_file_sink_st>(log_file);
+  auto sink = std::make_shared<spdlog::sinks::basic_file_sink_st>(log_file.string());
   auto logger = std::make_shared<spdlog::async_logger>("bench_logger", sink, spdlog::thread_pool(),
                                                        spdlog::async_overflow_policy::block);
   logger->set_pattern("%T.%F [%t] %s:%# %l %v");

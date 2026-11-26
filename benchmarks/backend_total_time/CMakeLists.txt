@@ -10,22 +10,34 @@ target_link_libraries(BENCHMARK_fmtlog_backend_total_time fmtlog fmt::fmt)
 add_executable(BENCHMARK_spdlog_backend_total_time spdlog_backend_total_time.cpp)
 target_link_libraries(BENCHMARK_spdlog_backend_total_time spdlog fmt::fmt Threads::Threads)
 
-add_executable(BENCHMARK_xtr_backend_total_time xtr_backend_total_time.cpp)
-#find_package(PkgConfig REQUIRED)
-#pkg_check_modules(LIBURING REQUIRED liburing)
-target_link_libraries(BENCHMARK_xtr_backend_total_time xtr fmt::fmt Threads::Threads ${LIBURING_LIBRARIES})
+if(NOT WIN32)
+    # XTR is Linux only
+    add_executable(BENCHMARK_xtr_backend_total_time xtr_backend_total_time.cpp)
+    #find_package(PkgConfig REQUIRED)
+    #pkg_check_modules(LIBURING REQUIRED liburing)
+    target_link_libraries(BENCHMARK_xtr_backend_total_time xtr fmt::fmt Threads::Threads ${LIBURING_LIBRARIES})
+endif()
 
 add_executable(BENCHMARK_ms_binlog_backend_total_time ms_binlog_backend_total_time.cpp)
 target_link_libraries(BENCHMARK_ms_binlog_backend_total_time binlog fmt::fmt)
 
-add_executable(BENCHMARK_reckless_backend_total_time reckless_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_reckless_backend_total_time reckless fmt::fmt)
+if(NOT WIN32)
+    # Reckless does not compile with MSVC and the current Windows SDK
+    add_executable(BENCHMARK_reckless_backend_total_time reckless_backend_total_time.cpp)
+    target_link_libraries(BENCHMARK_reckless_backend_total_time reckless fmt::fmt)
+endif()
 
-add_executable(BENCHMARK_iyengar_nanolog_backend_total_time iyengar_nanolog_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_iyengar_nanolog_backend_total_time IyengarNanoLog fmt::fmt)
+if(NOT WIN32)
+    # Iyengar NanoLog does not compile with MSVC
+    add_executable(BENCHMARK_iyengar_nanolog_backend_total_time iyengar_nanolog_backend_total_time.cpp)
+    target_link_libraries(BENCHMARK_iyengar_nanolog_backend_total_time IyengarNanoLog fmt::fmt)
+endif()
 
-add_executable(BENCHMARK_nanolog_backend_total_time nanolog_backend_total_time.cpp)
-target_link_libraries(BENCHMARK_nanolog_backend_total_time platformlab_nanolog fmt::fmt)
+if(NOT WIN32)
+    # PlatformLab NanoLog is Linux only
+    add_executable(BENCHMARK_nanolog_backend_total_time nanolog_backend_total_time.cpp)
+    target_link_libraries(BENCHMARK_nanolog_backend_total_time platformlab_nanolog fmt::fmt)
+endif()
 
 add_executable(BENCHMARK_bqlog_backend_total_time bqlog_backend_total_time.cpp)
 target_link_libraries(BENCHMARK_bqlog_backend_total_time bqlog fmt::fmt)

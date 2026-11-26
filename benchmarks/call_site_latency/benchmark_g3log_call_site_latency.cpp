@@ -16,6 +16,7 @@ void g3log_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   auto worker = g3::LogWorker::createLogWorker();
   auto handle = worker->addDefaultLogger("g2log_logger", "./");
   g3::initializeLogging(worker.get());
+  pin_other_threads_on_windows(5);
 
   // wait for the backend thread to start
   std::this_thread::sleep_for(std::chrono::seconds(1));

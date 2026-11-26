@@ -175,6 +175,7 @@ LATENCY_SECTION_METADATA = {
         "loggers": {
             "Quill - Bounded",
             "Quill - Unbounded",
+            QUILL_MACRO_FREE_MODE,
             "fmtlog",
             "Ms binLog",
             "XTR",
@@ -253,6 +254,9 @@ def parse_latency_bench(bench_path: str, content: str) -> list[dict]:
 
 def parse_backend_bench(bench_path: str, content: str) -> dict | None:
     bench_name = Path(bench_path).name
+    if bench_name.endswith(".exe"):
+        # Windows executables
+        bench_name = bench_name[: -len(".exe")]
     logger_info = BACKEND_LOGGER_MAP.get(bench_name)
     if not logger_info:
         return None

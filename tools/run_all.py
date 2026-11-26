@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 from pathlib import Path
 import subprocess
 
@@ -38,6 +39,7 @@ CALL_SITE_BENCHMARKS = [
     "benchmark_reckless_call_site_latency_int_int_largestr",
     "benchmark_boost_log_call_site_latency_int_int_largestr",
     "benchmark_bqlog_call_site_latency_int_int_largestr",
+    "benchmark_quill_with_functions_unbounded_call_site_latency_vector_largestr",
     "benchmark_quill_unbounded_call_site_latency_vector_largestr",
     "benchmark_quill_bounded_call_site_latency_vector_largestr",
     "benchmark_fmtlog_call_site_latency_int_vector_largestr",
@@ -63,13 +65,33 @@ BACKEND_TOTAL_BENCHMARKS = [
 ]
 
 
+IS_WINDOWS = os.name == "nt"
+
+# Libraries that are not built on Windows, see the Windows section in README.md
+WINDOWS_EXCLUDED_LIBRARIES = ["xtr", "platformlab", "nanolog_backend", "iyengar", "reckless"]
+
+
+def is_excluded_on_windows(name: str) -> bool:
+    return any(library in name for library in WINDOWS_EXCLUDED_LIBRARIES)
+
+
 def benchmark_paths() -> list[Path]:
     paths = [CALL_SITE_DIR / name for name in CALL_SITE_BENCHMARKS]
     paths.extend(BACKEND_TOTAL_DIR / name for name in BACKEND_TOTAL_BENCHMARKS)
+
+    if IS_WINDOWS:
+        paths = [path.with_suffix(".exe") for path in paths if not is_excluded_on_windows(path.name)]
+
     return paths
 
 
 def benchmark_command(bench: Path) -> list[str]:
+    if IS_WINDOWS:
+        # There is no taskset on Windows. The benchmarks pin their caller and backend threads
+        # in-process, mapping the benchmark CPUs to distinct physical cores (see bench_cpu() in
+        # benchmarks/bench_platform.h)
+        return [str(bench)]
+
     # BqLog creates its asynchronous worker before main() changes the caller
     # thread's affinity. Start it on CPU 5 so the worker inherits the backend
     # CPU; the benchmark then moves its caller threads to CPUs 0-4.
@@ -79,6 +101,9 @@ def benchmark_command(bench: Path) -> list[str]:
 
 def main() -> int:
     benchmarks = benchmark_paths()
+
+    # Run the benchmarks with high priority on Windows
+    creation_flags = subprocess.HIGH_PRIORITY_CLASS if IS_WINDOWS else 0
 
     missing_benchmarks = [bench for bench in benchmarks if not bench.exists()]
     if missing_benchmarks:
@@ -93,7 +118,8 @@ def main() -> int:
             output.write(f"bench: {bench}\n")
             output.flush()
             print(f"Running {bench}")
-            subprocess.run(benchmark_command(bench), cwd=repo_root(), stdout=output, check=True)
+            subprocess.run(benchmark_command(bench), cwd=repo_root(), stdout=output, check=True,
+                           creationflags=creation_flags)
 
     return 0
 

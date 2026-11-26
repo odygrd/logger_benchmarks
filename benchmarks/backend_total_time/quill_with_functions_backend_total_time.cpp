@@ -7,6 +7,8 @@
 
 #include <filesystem>
 
+#include "utils.h"
+
 #include <chrono>
 #include <iostream>
 
@@ -18,14 +20,14 @@ static constexpr size_t total_iterations = 4'000'000;
 int main()
 {
   std::filesystem::path log_file{"benchmark_quill_backend_total_time.log"};
-  std::remove(log_file.c_str());
+  std::remove(log_file.string().c_str());
 
   // main thread affinity
-  quill::detail::set_cpu_affinity({1});
+  quill::detail::set_cpu_affinity({static_cast<uint16_t>(bench_cpu(1))});
 
   // Setup
   quill::BackendOptions backend_options;
-  backend_options.cpu_affinity = {5};
+  backend_options.cpu_affinity = {static_cast<uint16_t>(bench_cpu(5))};
   backend_options.sleep_duration = std::chrono::nanoseconds{0};
   backend_options.log_timestamp_ordering_grace_period = std::chrono::microseconds{1};
   quill::Backend::start(backend_options);

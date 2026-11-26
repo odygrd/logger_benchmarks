@@ -12,6 +12,7 @@ void bqlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
 {
   // BqLog does not expose its backend worker affinity. tools/run_all.py starts this process on
   // CPU 5 so the worker inherits that affinity before the benchmark moves caller threads.
+  // On Windows the worker is pinned explicitly instead.
 
   bq::log log_obj = bq::log::create_log("text", R"(
         log.buffer_size=131072
@@ -23,20 +24,22 @@ void bqlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
         appenders_config.appender_0.capacity_limit= 1
     )");
 
+  pin_other_threads_on_windows(5);
+
 #ifdef BENCH_INT_INT_DOUBLE
   auto log_func = [&log_obj](uint64_t i, uint64_t j, double d)
-  { log_obj.info("Logging int: {}, int: {}, double: {}", i, j, d); };
+  { BQ_LOG_FAST_INFO(log_obj, "Logging int: {}, int: {}, double: {}", i, j, d); };
 #elif defined(BENCH_INT_INT_LARGESTR)
   auto log_func = [&log_obj](uint64_t i, uint64_t j, std::string const& s)
-  { log_obj.info("Logging int: {}, int: {}, string: {}", i, j, s); };
+  { BQ_LOG_FAST_INFO(log_obj, "Logging int: {}, int: {}, string: {}", i, j, s); };
 #elif defined(BENCH_VECTOR_LARGESTR)
   auto log_func = [&log_obj](uint64_t i, uint64_t j, std::vector<std::string> const& s)
-  { /** log_obj.info("Logging int: {}, int: {}, vector: {}", i, j, s); **/ };
+  { /** BQ_LOG_FAST_INFO(log_obj, "Logging int: {}, int: {}, vector: {}", i, j, s); **/ };
 #endif
 
   auto on_start = [&log_obj]()
   {
-    log_obj.info("Warm up");
+    BQ_LOG_FAST_INFO(log_obj, "Warm up");
     log_obj.force_flush();
   };
 
