@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -275,7 +276,7 @@ def parse_backend_bench(bench_path: str, content: str) -> dict | None:
     }
 
 
-def collect_latency_results() -> dict:
+def collect_latency_results(best_of_runs: bool = False) -> dict:
     samples = defaultdict(lambda: defaultdict(list))
 
     for filepath in sorted(repo_root().glob("bench_results_*.txt")):
@@ -290,6 +291,13 @@ def collect_latency_results() -> dict:
     averaged = defaultdict(dict)
     for key, logger_results in samples.items():
         for logger, results_list in logger_results.items():
+            if best_of_runs:
+                # The single run with the lowest 90th percentile, then 95th, 99th and 99.9th
+                averaged[key][logger] = min(
+                    results_list, key=lambda item: (item["p90"], item["p95"], item["p99"], item["p999"])
+                )
+                continue
+
             averaged[key][logger] = {
                 "p50": round(sum(item["p50"] for item in results_list) / len(results_list)),
                 "p75": round(sum(item["p75"] for item in results_list) / len(results_list)),
@@ -302,7 +310,7 @@ def collect_latency_results() -> dict:
     return averaged
 
 
-def collect_backend_results() -> dict:
+def collect_backend_results(best_of_runs: bool = False) -> dict:
     samples = defaultdict(list)
 
     for filepath in sorted(repo_root().glob("bench_results_*.txt")):
@@ -316,6 +324,11 @@ def collect_backend_results() -> dict:
 
     averaged = {}
     for logger, results_list in samples.items():
+        if best_of_runs:
+            # The single run with the highest throughput
+            averaged[logger] = max(results_list, key=lambda item: item["throughput"])
+            continue
+
         averaged[logger] = {
             "throughput": sum(item["throughput"] for item in results_list) / len(results_list),
             "elapsed_ms": round(sum(item["elapsed_ms"] for item in results_list) / len(results_list)),
@@ -418,8 +431,17 @@ def format_throughput_table(results: dict) -> str:
 
 
 def main() -> None:
-    latency_results = collect_latency_results()
-    backend_results = collect_backend_results()
+    parser = argparse.ArgumentParser(description="Generate markdown tables from bench_results_*.txt files.")
+    parser.add_argument(
+        "--best-of-runs",
+        action="store_true",
+        help="for every library, show its best run instead of the average of all runs: the lowest 90th, then 95th, "
+        "99th and 99.9th percentile for latency, and the highest msg/s for throughput",
+    )
+    args = parser.parse_args()
+
+    latency_results = collect_latency_results(args.best_of_runs)
+    backend_results = collect_backend_results(args.best_of_runs)
 
     for benchmark_type in ("int_int_double", "int_int_largestr", "vector_largestr"):
         print(LATENCY_SECTION_METADATA[benchmark_type]["title"])

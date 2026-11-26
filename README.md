@@ -140,6 +140,21 @@ To keep the tables:
 python3 tools/generate_tables.py > tables.md
 ```
 
+To combine several passes, rename each pass's files before starting the next one, because `tools/run_all.py` writes
+`bench_results_0.txt` onwards every time:
+
+```bash
+for f in bench_results_[0-9]*.txt; do mv "$f" "${f/bench_results_/bench_results_run1_}"; done
+```
+
+`--best-of-runs` shows each library's best run instead of the average: the run with the lowest 90th percentile (then
+95th, 99th and 99.9th) for each latency table, and the highest msg/s for throughput. The same rule applies to every
+library.
+
+```bash
+python3 tools/generate_tables.py --best-of-runs > tables.md
+```
+
 ## Windows (MSVC)
 
 The benchmarks also build and run on Windows with MSVC. Linux builds are unaffected: every
