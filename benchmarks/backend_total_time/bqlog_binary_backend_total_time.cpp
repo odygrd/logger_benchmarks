@@ -36,6 +36,7 @@ int main()
 
   // BqLog does not expose its backend worker affinity. tools/run_all.py starts this process on
   // CPU 5 so the worker inherits that affinity before this caller thread moves to CPU 1.
+  // On Windows the worker is pinned explicitly instead.
 
   bq::log log_obj = bq::log::create_log("text", R"(
         log.buffer_size=131072
@@ -47,6 +48,7 @@ int main()
         appenders_config.appender_0.capacity_limit= 1
     )");
 
+  pin_other_threads_on_windows(5);
   set_thread_affinity(1);
 
   log_obj.info("Warm up");

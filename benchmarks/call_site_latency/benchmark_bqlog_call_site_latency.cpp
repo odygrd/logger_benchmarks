@@ -12,6 +12,7 @@ void bqlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
 {
   // BqLog does not expose its backend worker affinity. tools/run_all.py starts this process on
   // CPU 5 so the worker inherits that affinity before the benchmark moves caller threads.
+  // On Windows the worker is pinned explicitly instead.
 
   bq::log log_obj = bq::log::create_log("text", R"(
         log.buffer_size=131072
@@ -22,6 +23,8 @@ void bqlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
         appenders_config.appender_0.file_name= bqlog_call_site_latency_percentile_linux_benchmark.log
         appenders_config.appender_0.capacity_limit= 1
     )");
+
+  pin_other_threads_on_windows(5);
 
 #ifdef BENCH_INT_INT_DOUBLE
   auto log_func = [&log_obj](uint64_t i, uint64_t j, double d)
