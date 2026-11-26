@@ -23,7 +23,7 @@ int main()
   set_thread_affinity(1);
 
   std::filesystem::path log_file{"benchmark_ms_binlog_backend_total_time.blog"};
-  std::remove(log_file.c_str());
+  std::remove(log_file.string().c_str());
 
   // Start a binlog backend logging threads to consume the logs
   std::atomic<bool> done{false};
