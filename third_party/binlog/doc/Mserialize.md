@@ -89,14 +89,6 @@ declarations can be added to the type:
 
     [catchfile test/unit/mserialize/documentation.cpp adapt_custom_type_with_private_members]
 
-If a type publicly derives from serializable or deserializable bases, it can be made
-serializable and deserializable without repeating the fields of its bases:
-
-    [catchfile test/unit/mserialize/documentation.cpp adapt_custom_derived_type]
-
-The same rules apply as above, with the addition that the second argument must be
-a non-empty parenthesised list of serializable or deserializable base classes.
-
 Class templates can be made serializable and deserializable on the same conditions,
 except that a different macro must be called:
 
@@ -171,14 +163,6 @@ The member list must be in sync with the `MSERIALIZE_MAKE_STRUCT_SERIALIZABLE` c
 if visitation of objects serialized that way is desired.
 `MSERIALIZE_MAKE_STRUCT_TAG` cannot be used with recursive types.
 See [Adapting user defined recursive types for visitation](#adapting-user-defined-recursive-types-for-visitation) for a solution.
-
-A tag can be assigned to a class that derives from a base or bases
-that are tagged already, without enumerating the members of the bases again:
-
-    [catchfile test/unit/mserialize/documentation.cpp custom_tag_derived]
-
-The same rules apply as above, with the addition that the second argument must be
-a non-empty parenthesised list of tagged base classes.
 
 A tag can be assigned to class templates on the same conditions,
 except that a different macro must be called:

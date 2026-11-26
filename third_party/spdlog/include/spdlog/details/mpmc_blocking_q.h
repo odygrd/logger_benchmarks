@@ -16,7 +16,7 @@
 #include <condition_variable>
 #include <mutex>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace details {
 
 template <typename T>
@@ -170,8 +170,8 @@ private:
     std::mutex queue_mutex_;
     std::condition_variable push_cv_;
     std::condition_variable pop_cv_;
-    circular_q<T> q_;
+    spdlog::details::circular_q<T> q_;
     std::atomic<size_t> discard_counter_{0};
 };
 }  // namespace details
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog

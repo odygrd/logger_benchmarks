@@ -43,6 +43,16 @@ def enable_auto_crash_handler():
     _bqlog.enable_auto_crash_handler()
 
 
+def get_recovery_capability():
+    """What this platform offers for crash recovery. Returns a recovery_capability value."""
+    return _bqlog.get_recovery_capability()
+
+
+def get_platform_capabilities():
+    """Capability bits the library was built with. Compare with bq.defs.platform_capability."""
+    return _bqlog.get_platform_capabilities()
+
+
 def create_log(name, config, categories_count, categories):
     """Create a log object. Returns log_id (0 means failure)."""
     return _bqlog.create_log(name, config, categories_count, categories)

@@ -50,7 +50,7 @@ namespace bq {
 
         // Larger parameter (eg. 3) will result in an exponential increase in test time overhead.
         template <size_t BITS>
-        struct param_count_helper { };
+        struct param_count_helper {};
         template <>
         struct param_count_helper<32> {
             constexpr static int32_t MAX_PARAM = 2;
@@ -454,51 +454,15 @@ namespace bq {
             }
             static bq::string trans(float value)
             {
-                bq::string result;
-                int32_t precision = 7;
-                if (value >= 0) {
-                    uint64_t i_part = static_cast<uint64_t>(value);
-                    result = trans(i_part);
-                    value -= static_cast<float>(i_part);
-                } else {
-                    int64_t i_part = static_cast<int64_t>(value);
-                    result = trans(i_part);
-                    value -= static_cast<float>(i_part);
-                }
-                value = fabsf(value);
-                result += ".";
-                while (precision > 0) {
-                    value *= 10;
-                    int32_t digit = (int32_t)value;
-                    value -= (float)(digit);
-                    --precision;
-                    result.push_back((char)('0' + (char)digit));
-                }
-                return result;
+                char tmp_str[512];
+                snprintf(tmp_str, sizeof(tmp_str), "%.7f", static_cast<double>(value));
+                return tmp_str;
             }
             static bq::string trans(double value)
             {
-                bq::string result;
-                int32_t precision = 15;
-                if (value >= 0) {
-                    uint64_t i_part = static_cast<uint64_t>(value);
-                    result = trans(i_part);
-                    value -= static_cast<double>(i_part);
-                } else {
-                    int64_t i_part = static_cast<int64_t>(value);
-                    result = trans(i_part);
-                    value -= static_cast<double>(i_part);
-                }
-                value = fabs(value);
-                result += ".";
-                while (precision > 0) {
-                    value *= 10;
-                    int32_t digit = (int32_t)value;
-                    value -= (double)(digit);
-                    --precision;
-                    result.push_back((char)('0' + (char)digit));
-                }
-                return result;
+                char tmp_str[512];
+                snprintf(tmp_str, sizeof(tmp_str), "%.15f", value);
+                return tmp_str;
             }
             template <size_t N>
             static bq::string trans_utf8_char_array_impl(const char (&value)[N])
@@ -685,18 +649,7 @@ namespace bq {
             }
         };
 
-        static const bq::string& decode_raw_item()
-        {
-            static decoder_test decoder(".lograw");
-            auto result = decoder.get().decode();
-            if (result == bq::appender_decode_result::eof) {
-                decoder.pick_new_log_file();
-                result = decoder.get().decode();
-            }
-            result_ptr->add_result(result == bq::appender_decode_result::success, "decoder failed, error code:%" PRId32, (int32_t)result);
-            return decoder.get().get_last_decoded_log_entry();
-        }
-
+#if BQ_HAS_DIRENT
         static const bq::string& decode_compressed_item()
         {
             static decoder_test decoder(".logcompr");
@@ -717,6 +670,7 @@ namespace bq {
             return decoded_item.begin_with("/************************************* BQLOG RECOVER START")
                 && decoded_item.end_with(console_output);
         }
+#endif
 
         template <typename First>
         void parameter_expand_tools(First first)
@@ -1044,14 +998,6 @@ namespace bq {
 						appenders_config.CompressedAppender.max_file_size=100000000
 						appenders_config.CompressedAppender.expire_time_days=2
 						
-						appenders_config.RawAppender.type=raw_file
-						appenders_config.RawAppender.time_zone=localtime
-						appenders_config.RawAppender.levels=[error,fatal]
-						appenders_config.RawAppender.file_name=bqLog/UnitTestLog/test3
-						appenders_config.RawAppender.base_dir_type=0
-						appenders_config.RawAppender.max_file_size=100000000
-						appenders_config.RawAppender.expire_time_days=2
-					
 						log.thread_mode=sync
 						log.categories_mask=[ModuleA.SystemA,ModuleB]
 			        )"
@@ -1098,14 +1044,14 @@ namespace bq {
             log_param_test<MAX_PARAM>();
             bq::log::force_flush_all_logs();
 
+#if BQ_HAS_DIRENT
             // decode test
             bool is_encrypted = !get_encript_config().is_empty();
             for (size_t i = 0; i < test_log_3_all_console_outputs.size(); ++i) {
-                const bq::string& raw_item = decode_raw_item();
-                result_ptr->add_result(decoded_item_matches_console_output(raw_item, test_log_3_all_console_outputs[i]), "%s test idx:%" PRIu64 ", raw test, \ndecoded: %s, \nconsole: %s", (is_encrypted ? "encrypt" : ""), static_cast<uint64_t>(i), raw_item.c_str(), test_log_3_all_console_outputs[i].c_str());
                 const bq::string& compressed_item = decode_compressed_item();
                 result_ptr->add_result(decoded_item_matches_console_output(compressed_item, test_log_3_all_console_outputs[i]), "%s test idx:%" PRIu64 ", compressed test, \ndecoded: %s, \nconsole: %s", (is_encrypted ? "encrypt" : ""), static_cast<uint64_t>(i), compressed_item.c_str(), test_log_3_all_console_outputs[i].c_str());
             }
+#endif
         }
 
         void test_log::test_3(test_result& result, const test_category_log& log_inst)
@@ -1161,8 +1107,6 @@ namespace bq {
                 + "OmO+42HqCD4mqxMU1rgcWOn+LLW3HSqbE5kYA9XDwEtxCnMiKqP7sA==\n"
                 + "-----END RSA PRIVATE KEY-----\n";
             set_encript_config("appenders_config.CompressedAppender.pub_key="
-                + pub_key + "\n"
-                + "appenders_config.RawAppender.pub_key="
                 + pub_key + "\n");
             create_test_log_3_file_appender("snapshot.buffer_size=65536\n" + get_encript_config());
 

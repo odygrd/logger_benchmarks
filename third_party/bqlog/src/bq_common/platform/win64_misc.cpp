@@ -15,14 +15,16 @@
 #include <sys/stat.h>
 #include <direct.h>
 #include <fileapi.h>
+#include <bcrypt.h>
 #include <DbgHelp.h>
 #include <wchar.h>
 #include "bq_common/bq_common.h"
 
 #ifdef BQ_VISUAL_STUDIO
 #pragma comment(lib, "dbghelp.lib")
+#pragma comment(lib, "bcrypt.lib")
 #else
-#pragma message("Warning: DbgHelp.a is not linked without MSVC automatically. Please link it manually by -ldbghelp. ")
+#pragma message("Warning: DbgHelp.a and bcrypt.a are not linked without MSVC automatically. Please link them manually by -ldbghelp -lbcrypt. ")
 #endif
 
 namespace bq {
@@ -66,7 +68,7 @@ namespace bq {
         }
 
         // TODO optimize use TSC
-        uint64_t high_performance_epoch_ms()
+        uint64_t system_epoch_ms()
         {
             FILETIME ft;
             LARGE_INTEGER li;
@@ -86,6 +88,7 @@ namespace bq {
             return ret;
         }
 
+#if BQ_HAS_DEFAULT_BASE_DIR
         base_dir_initializer::base_dir_initializer()
         {
             static_assert(sizeof(char16_t) == sizeof(WCHAR), "WCHAR must be 16bits on WIndows Platform!");
@@ -99,8 +102,9 @@ namespace bq {
             set_base_dir_0(base_dir);
             set_base_dir_1(base_dir);
         }
+#endif
 
-        int32_t get_file_size(const char* file_path, size_t& size_ref)
+        int32_t get_file_size(const char* file_path, uint64_t& size_ref)
         {
             bq::u16string file_path_w = u"\\\\?\\" + trans_to_windows_wide_string(force_to_abs_path(get_lexically_path(file_path)));
             HANDLE file = CreateFileW(
@@ -119,14 +123,19 @@ namespace bq {
             return result;
         }
 
-        int32_t get_file_size(const platform_file_handle& file_handle, size_t& size_ref)
+        int32_t get_file_size(const platform_file_handle& file_handle, uint64_t& size_ref)
         {
             size_ref = 0;
             LARGE_INTEGER file_size;
             if (!GetFileSizeEx(file_handle, &file_size)) {
                 return static_cast<int32_t>(GetLastError());
             }
-            size_ref = static_cast<size_t>(file_size.QuadPart);
+            size_ref = static_cast<uint64_t>(file_size.QuadPart);
+            return 0;
+        }
+
+        int64_t get_max_supported_file_size()
+        {
             return 0;
         }
 
@@ -193,20 +202,62 @@ namespace bq {
             return result;
         }
 
-        bool lock_file(const platform_file_handle& file_handle)
+        bool is_cross_process_file_lock_supported()
         {
-            if (!is_platform_handle_valid(file_handle)) {
-                return false;
-            }
-            return LockFile(file_handle, 0, 0, 0xFFFFFFFF, 0xFFFFFFFF);
+#if defined(BQ_TEST_DISABLE_FILE_LOCK)
+            return false;
+#else
+            return true;
+#endif
         }
 
-        bool unlock_file(const platform_file_handle& file_handle)
+        // A byte-range lock is owned by the handle: it conflicts with every other open of the file,
+        // in this process or another, and only closing this handle releases it.
+        static file_lock_result try_lock_file(const platform_file_handle& file_handle)
         {
-            if (!is_platform_handle_valid(file_handle)) {
-                return false;
+            if (!is_cross_process_file_lock_supported()) {
+                return file_lock_result::error;
             }
-            return UnlockFile(file_handle, 0, 0, 0xFFFFFFFF, 0xFFFFFFFF);
+            OVERLAPPED ov = {};
+            if (LockFileEx(file_handle, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &ov)) {
+                return file_lock_result::locked;
+            }
+            // only a real contention is retryable; a volume without locking support must not be retried forever
+            return GetLastError() == ERROR_LOCK_VIOLATION ? file_lock_result::held_by_other : file_lock_result::error;
+        }
+
+        file_lock_result try_lock_instance_file(const char* abs_path, platform_file_handle& out_handle)
+        {
+            out_handle = invalid_platform_file_handle;
+            if (!is_cross_process_file_lock_supported()) {
+                return file_lock_result::error;
+            }
+            bq::u16string file_path_w = u"\\\\?\\" + trans_to_windows_wide_string(force_to_abs_path(get_lexically_path(abs_path)));
+            SECURITY_ATTRIBUTES sa = { sizeof(sa), nullptr, FALSE }; // not inherited by child processes
+            HANDLE h = CreateFileW(
+                (LPCWSTR)file_path_w.c_str(),
+                GENERIC_READ | GENERIC_WRITE,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                &sa,
+                OPEN_ALWAYS,
+                FILE_ATTRIBUTE_NORMAL,
+                nullptr);
+            if (h == INVALID_HANDLE_VALUE) {
+                return file_lock_result::error;
+            }
+            const file_lock_result result = try_lock_file(h);
+            if (result != file_lock_result::locked) {
+                CloseHandle(h);
+                return result;
+            }
+            out_handle = h;
+            return result;
+        }
+
+        void unlock_instance_file(platform_file_handle& handle)
+        {
+            // closing the handle releases the LockFileEx lock
+            close_descriptor(handle);
         }
 
         bq::string get_lexically_path(const bq::string& original_path)
@@ -344,10 +395,10 @@ namespace bq {
             node_info.idx_low = static_cast<uint32_t>(file_info.nFileIndexLow);
             auto iter = file_exclusive_cache.find(node_info);
             if (iter == file_exclusive_cache.end()) {
-                file_exclusive_cache.add(node_info, mode);
+                file_exclusive_cache.add(node_info, file_exclusive_entry { mode, file_handle });
                 return true;
             } else {
-                if ((int32_t)((iter->value() | mode) & file_open_mode_enum::exclusive)) {
+                if ((int32_t)((iter->value().mode_ | mode) & file_open_mode_enum::exclusive)) {
                     return false;
                 }
             }
@@ -366,7 +417,10 @@ namespace bq {
             node_info.volumn = static_cast<uint32_t>(file_info.dwVolumeSerialNumber);
             node_info.idx_high = static_cast<uint32_t>(file_info.nFileIndexHigh);
             node_info.idx_low = static_cast<uint32_t>(file_info.nFileIndexLow);
-            file_exclusive_cache.erase(node_info);
+            auto iter = file_exclusive_cache.find(node_info);
+            if (iter != file_exclusive_cache.end() && iter->value().owner_ == file_handle) {
+                file_exclusive_cache.erase(iter);
+            }
         }
 
         int32_t open_file(const char* path, file_open_mode_enum mode, platform_file_handle& out_file_handle)
@@ -402,6 +456,14 @@ namespace bq {
             return static_cast<int32_t>(GetLastError());
         }
 
+        void close_descriptor(platform_file_handle& in_out_file_handle)
+        {
+            if (is_platform_handle_valid(in_out_file_handle)) {
+                CloseHandle(in_out_file_handle);
+            }
+            in_out_file_handle = invalid_platform_file_handle;
+        }
+
         int32_t read_file(const platform_file_handle& file_handle, void* target_addr, size_t read_size, size_t& out_real_read_size)
         {
             out_real_read_size = 0;
@@ -430,6 +492,13 @@ namespace bq {
             if (test_inject::get_fault() == test_inject::fault_kind::enospc_on_write) {
                 return static_cast<int32_t>(ERROR_DISK_FULL);
             }
+            size_t short_write_limit = 0;
+            bool is_short_write = test_inject::get_short_write_limit(short_write_limit);
+            if (is_short_write && write_size > short_write_limit) {
+                write_size = short_write_limit;
+            } else {
+                is_short_write = false;
+            }
 #endif
             const char* current_src = static_cast<const char*>(src_addr);
             size_t remaining = write_size;
@@ -450,6 +519,11 @@ namespace bq {
                     break;
                 }
             }
+#if defined(BQ_UNIT_TEST)
+            if (is_short_write) {
+                return static_cast<int32_t>(ERROR_DISK_FULL);
+            }
+#endif
             return 0;
         }
 
@@ -512,7 +586,7 @@ namespace bq {
             return epoch_ms;
         }
 
-        int32_t truncate_file(const platform_file_handle& file_handle, size_t offset)
+        int32_t truncate_file(const platform_file_handle& file_handle, uint64_t offset)
         {
             FILE_END_OF_FILE_INFO eof_info;
             eof_info.EndOfFile.QuadPart = static_cast<LONGLONG>(offset);
@@ -774,6 +848,30 @@ namespace bq {
                 return reinterpret_cast<void*>(GetProcAddress(module, api_name));
             }
             return nullptr;
+        }
+
+        bool secure_random_bytes(void* buf, size_t size)
+        {
+            if (!buf || size == 0) {
+                return true;
+            }
+#if defined(BQ_UNIT_TEST)
+            if (test_inject::get_disable_secure_random()) {
+                return false;
+            }
+#endif
+            uint8_t* out = static_cast<uint8_t*>(buf);
+            const ULONG max_chunk = static_cast<ULONG>(-1);
+            size_t done = 0;
+            while (done < size) {
+                const size_t left = size - done;
+                const ULONG chunk = (left < static_cast<size_t>(max_chunk)) ? static_cast<ULONG>(left) : max_chunk;
+                if (BCryptGenRandom(nullptr, out + done, chunk, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
+                    return false;
+                }
+                done += chunk;
+            }
+            return true;
         }
 
     }

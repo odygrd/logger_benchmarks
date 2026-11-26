@@ -6,11 +6,11 @@
 #include <ctime>  // std::time_t
 #include <spdlog/common.h>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace details {
 namespace os {
 
-SPDLOG_API log_clock::time_point now() SPDLOG_NOEXCEPT;
+SPDLOG_API spdlog::log_clock::time_point now() SPDLOG_NOEXCEPT;
 
 SPDLOG_API std::tm localtime(const std::time_t &time_tt) SPDLOG_NOEXCEPT;
 
@@ -120,7 +120,7 @@ SPDLOG_API bool fwrite_bytes(const void *ptr, const size_t n_bytes, FILE *fp);
 
 }  // namespace os
 }  // namespace details
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog
 
 #ifdef SPDLOG_HEADER_ONLY
 #include "os-inl.h"

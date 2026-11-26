@@ -16,7 +16,7 @@
 
 #include <spdlog/logger.h>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 
 // Async overflow policy - block by default.
 enum class async_overflow_policy {
@@ -67,7 +67,7 @@ private:
     std::weak_ptr<details::thread_pool> thread_pool_;
     async_overflow_policy overflow_policy_;
 };
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog
 
 #ifdef SPDLOG_HEADER_ONLY
 #include "async_logger-inl.h"

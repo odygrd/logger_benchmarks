@@ -34,6 +34,7 @@ from bq.test.test_manager import test_manager
 from bq.test.test_log_1 import test_log_1
 from bq.test.test_log_2 import test_log_2
 from bq.test.test_log_category import test_log_category
+from bq.test.test_log_embedded_nul import test_log_embedded_nul
 
 
 def main():
@@ -44,10 +45,14 @@ def main():
         print("BqLog Version: " + (version or ""))
         if not version:
             raise RuntimeError("Failed to get version")
+        # The recovery capability query must be reachable from this wrapper as well.
+        print("Recovery capability: " + str(log.get_recovery_capability()))
+        print("Platform capabilities: " + str(log.get_platform_capabilities()))
 
         test_manager.add_test(test_log_1("Test Log Basic"))
         test_manager.add_test(test_log_2("Test Log MultiThread"))
         test_manager.add_test(test_log_category("Test Log Category"))
+        test_manager.add_test(test_log_embedded_nul("Test Log Embedded NUL"))
         success = test_manager.test()
 
         if success:

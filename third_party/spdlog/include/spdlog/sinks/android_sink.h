@@ -22,7 +22,7 @@
 #define SPDLOG_ANDROID_RETRIES 2
 #endif
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace sinks {
 
 /*
@@ -85,19 +85,19 @@ private:
         return __android_log_buf_write(ID, prio, tag, text);
     }
 
-    static android_LogPriority convert_to_android_(level::level_enum level) {
+    static android_LogPriority convert_to_android_(spdlog::level::level_enum level) {
         switch (level) {
-            case level::trace:
+            case spdlog::level::trace:
                 return ANDROID_LOG_VERBOSE;
-            case level::debug:
+            case spdlog::level::debug:
                 return ANDROID_LOG_DEBUG;
-            case level::info:
+            case spdlog::level::info:
                 return ANDROID_LOG_INFO;
-            case level::warn:
+            case spdlog::level::warn:
                 return ANDROID_LOG_WARN;
-            case level::err:
+            case spdlog::level::err:
                 return ANDROID_LOG_ERROR;
-            case level::critical:
+            case spdlog::level::critical:
                 return ANDROID_LOG_FATAL;
             default:
                 return ANDROID_LOG_DEFAULT;
@@ -120,18 +120,18 @@ using android_sink_buf_st = android_sink<details::null_mutex, BufferId>;
 
 // Create and register android syslog logger
 
-template <typename Factory = synchronous_factory>
+template <typename Factory = spdlog::synchronous_factory>
 inline std::shared_ptr<logger> android_logger_mt(const std::string &logger_name,
                                                  const std::string &tag = "spdlog") {
     return Factory::template create<sinks::android_sink_mt>(logger_name, tag);
 }
 
-template <typename Factory = synchronous_factory>
+template <typename Factory = spdlog::synchronous_factory>
 inline std::shared_ptr<logger> android_logger_st(const std::string &logger_name,
                                                  const std::string &tag = "spdlog") {
     return Factory::template create<sinks::android_sink_st>(logger_name, tag);
 }
 
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog
 
 #endif  // __ANDROID__

@@ -6,7 +6,39 @@
 
 ---
 
+## Distribution channels
+
+The C/C++ packages published by vcpkg and Homebrew contain the C and C++ APIs and the command line tools only. The Java, C#, Node.js and Python wrappers are not part of them: a wrapper is built together with a core library compiled for that language, so each wrapper ships with its own package (see the per-language sections below). Use vcpkg / Homebrew for C/C++ projects, or to build a wrapper from the source tree.
+
+---
+
 ## C++ (dynamic / static / source)
+
+- **Homebrew (macOS / Linux)**
+
+  ```bash
+  brew install bqlog
+  ```
+
+  The formula includes the `BqLog_CategoryLogGenerator` and `BqLog_LogDecoder` command line tools by default. The package is then found through CMake or pkg-config:
+
+  ```cmake
+  find_package(BqLog REQUIRED)
+  target_link_libraries(your_target PRIVATE bqlog::BqLogShared)   # or bqlog::BqLogStatic
+  ```
+
+  ```bash
+  pkg-config --cflags --libs bqlog
+  ```
+
+- **vcpkg (Windows / Linux / macOS)**
+
+  ```bash
+  vcpkg install bqlog
+  vcpkg install "bqlog[tools]"   # also the command line tools (off by default), into installed/<triplet>/tools/bqlog/
+  ```
+
+  In manifest mode, list `{ "name": "bqlog", "features": ["tools"] }` in `vcpkg.json`. The triplet decides static or shared; the target is `bqlog::BqLog`.
 
 - **Dynamic library**
   Download `dynamic_lib_{version}` archive:
@@ -26,6 +58,43 @@
   - If you need to enable Java / NAPI (Node.js / HarmonyOS ArkTS) support, as well as system link libraries and some macro definitions, please refer to `/src/CMakeLists.txt`(If the file implies complexity, consider using AI to interpret it.).
   - When NAPI environment (Node.js or HarmonyOS ArkTS) is present, or when Java / C# needs to call, it is not recommended to integrate directly as "pure C++ source", because initialization and library loading processes need to be handled manually; using prebuilt packages and corresponding wrappers is more recommended.
 
+### C++20 modules (`import`)
+
+```cpp
+import bq.log;
+```
+
+The module interface unit `bq_log/bq.log.cppm` ships with the headers and is compiled by your project. With CMake 3.28+ (Ninja or Visual Studio generator):
+
+```cmake
+find_package(BqLog REQUIRED)
+
+target_sources(your_target PRIVATE FILE_SET CXX_MODULES
+    BASE_DIRS "${BQLOG_INCLUDE_DIR}"
+    FILES "${BQLOG_MODULE_FILE}")
+target_link_libraries(your_target PRIVATE bqlog::BqLogStatic)
+```
+
+Supported compilers: Clang 16+, MSVC 19.34+, GCC 15+ (GCC 14 crashes with an internal compiler error on the module). GCC also needs `-fmodules-ts`.
+
+**Known GCC 16 issue:** a C header included after `import bq.log;` — `<string.h>` among them — may be reported as `redefinition of 'strstr'` (or `memcpy`). It is a GCC 16 regression: GCC 15, Clang and MSVC accept the same code. Workaround: include your system headers before the import.
+
+```cpp
+#include <string.h> // system headers first
+import bq.log;
+```
+
+Without CMake, with clang:
+
+```bash
+clang++ -std=c++20 -x c++-module --precompile -I$PREFIX/include $PREFIX/include/bq_log/bq.log.cppm -o bq.log.pcm
+clang++ -std=c++20 -c bq.log.pcm -o bq.log.o
+clang++ -std=c++20 -fmodule-file=bq.log=bq.log.pcm -c app.cpp
+clang++ bq.log.o app.o -lBqLog -o app
+```
+
+Macros are not exported, so with `import` the fast log is written as `log.fast_info<"...">(args...)`.
+
 ---
 
 ## C# (Unity / Tuanjie Engine / .NET)
@@ -33,7 +102,16 @@
 - **Unity / Tuanjie Engine**
   For full engine integration steps, see [Game Engine Integration Guide](./ENGINE_INTEGRATION.md).
 
-- **.NET**
+- **.NET — NuGet**
+
+  ```bash
+  dotnet add package BqLog
+  ```
+
+  Includes the C# bindings and the native libraries for `win-x64`, `win-arm64`, `linux-x64`,
+  `linux-arm64`, `osx-x64` and `osx-arm64`.
+
+- **.NET — manual**
   - Download the dynamic library package `{os}_{arch}_libs_{version}` for the corresponding platform, and import the dynamic libraries within;
   - Add the C# wrapper source to your project — either clone the repository and include `/wrapper/csharp/src`, or download `c#_wrapper_{version}` from the [Releases page](https://github.com/Tencent/BqLog/releases) which contains the same source files pre-packaged.
 
@@ -374,9 +452,106 @@ For more examples, refer to `/demo/java` directory.
 
 ---
 
+<!-- go-module:start -->
+## Go
+
+Install through Go Modules:
+
+```sh
+# Skip initialization if the project already has go.mod
+go mod init example.com/myapp
+go get github.com/Tencent/BqLog/go/v2@latest
+```
+
+Save the following as `main.go`:
+
+```go
+package main
+
+import bq "github.com/Tencent/BqLog/go/v2"
+
+func main() {
+    config := `
+appenders_config.console.type=console
+appenders_config.console.levels=[all]
+`
+    log := bq.Create_log("go_log", config, nil)
+    if !log.Is_valid() {
+        panic("invalid log config")
+    }
+    defer log.Force_flush()
+
+    log.Info("Hello from Go! params: {}, {}", "text", 123)
+}
+```
+
+Run the example:
+
+```sh
+go run .
+```
+
+Logging methods accept zero or any number of arguments. Objects support Go's
+String/Error methods, and nil is logged as null.
+
+### Packages and versions
+
+The module follows the BqLog version. Go Modules downloads the source, and
+`go build` compiles the native sources automatically.
+
+[pkg.go.dev](https://pkg.go.dev/github.com/Tencent/BqLog/go/v2) provides package
+search, README and API documentation.
+<!-- go-module:end -->
+
+- **Prebuilt library**: when linking a prebuilt BqLog library instead of letting cgo build the
+  sources, use a desktop (Windows / Linux / macOS) package from the release page; it includes the
+  Go bridge.
+
+---
+
 ## Next Steps
 
 - [API Reference](./API_REFERENCE.md) — Core APIs for creating logs, writing logs, and more
 - [Configuration](./CONFIGURATION.md) — Full configuration reference
 - [Advanced Usage](./ADVANCED_USAGE.md) — Category, encryption, custom types, and more
 - [Game Engine Integration](./ENGINE_INTEGRATION.md) — Unity, Tuanjie Engine, Unreal Engine
+
+## Console platforms
+
+Because of licensing, PS4, PS5 and Switch are source integrations only: add `src/` and `include/`
+to the platform toolchain's project and build them there.
+
+The platform is recognized from macros the toolchain passes: `__ORBIS__` (PS4), `__PROSPERO__`
+(PS5), `__SWITCH__` or `NN_NINTENDO_SDK` (Switch). A normal console build environment already
+defines them, so they usually need no manual work.
+
+Both base dirs (type 0 and type 1) must be set before the first log is created, once the storage is
+mounted; a console has no writable working directory, so otherwise the process stops with a fatal
+message.
+
+```cpp
+// Mount the console's storage first and take mount_path from it
+bq::log::reset_base_dir(0, mount_path);   // after the game mounts its storage
+bq::log::reset_base_dir(1, mount_path);
+auto log = bq::log::create_log("game", R"({"log_config": {"recovery": true}})");
+```
+
+Note: integrating through Unreal Engine lets you skip this step, because the plugin already points
+both base dirs at the project's saved directory; see
+[Game Engine Integration — Unreal Engine](./ENGINE_INTEGRATION.md#unreal-engine).
+
+| Capability | PS4 / PS5 | Switch | Effect when absent |
+|---|---|---|---|
+| `memory_map` | yes | no | no crash recovery, buffers stay on the heap |
+| `multi_process` | no | no | one instance per title; no multi-process isolation |
+| `cross_process_file_lock` | no | no | implied by the line above |
+| `crash_handler` | no | no | `enable_auto_crash_handle()` installs nothing |
+| `backtrace` | no | no | the stack field says it is unsupported |
+| `dirent` | yes | yes | `expire_time_*` and `capacity_limit` need it |
+| `thread_name` | no | no | threads report `thread_<id>` |
+| `default_base_dir` | no | no | `reset_base_dir` is mandatory |
+| `user_counter` | no | no | timestamps come from the system clock |
+
+`bq::log::get_platform_capabilities()` returns these as bits, and the same values are printed once
+at startup, so a bug report can carry them. PlayStation and Switch are experimental for now: if you
+hit a problem, please file an issue with the `get_platform_capabilities()` output mentioned above.

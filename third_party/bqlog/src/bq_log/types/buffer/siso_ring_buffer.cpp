@@ -118,7 +118,14 @@ namespace bq {
         new_block.to_chunk_head().block_num = need_block_count;
         new_block.to_chunk_head().data_size = size;
 
-        handle.low_space_flag = ((aligned_blocks_count_ - left_space) << 1) >= aligned_blocks_count_;
+        // edge triggered: only the allocation crossing half full reports low space
+        const uint32_t used_before = aligned_blocks_count_ - left_space;
+        handle.low_space_flag = (used_before << 1) < aligned_blocks_count_ && ((used_before + need_block_count) << 1) >= aligned_blocks_count_;
+        if (handle.low_space_flag) {
+            head_->wt_reading_cursor_cache_ = head_->reading_cursor().load_acquire();
+            left_space = static_cast<uint32_t>(head_->wt_reading_cursor_cache_ + aligned_blocks_count_ - head_->wt_writing_cursor_cache_);
+            handle.low_space_flag = ((aligned_blocks_count_ - left_space + need_block_count) << 1) >= aligned_blocks_count_;
+        }
         handle.result = enum_buffer_result_code::success;
 #if defined(BQ_LOG_BUFFER_DEBUG)
         ++result_code_statistics_[(int32_t)enum_buffer_result_code::success];
@@ -295,6 +302,14 @@ namespace bq {
         return handle;
     }
 
+    void siso_ring_buffer::mark_persisted(const siso_ring_buffer::siso_buffer_batch_read_handle& handle)
+    {
+        // The recovery snapshot is what a restart resumes from. Advancing it per record, as soon
+        // as that record has been persisted, means a crash mid-batch replays at most the current
+        // record instead of the whole batch, without moving the reading_cursor the writer sees.
+        head_->rt_reading_cursor_cache_ = handle.current_cursor_;
+    }
+
     void siso_ring_buffer::return_batch_read_chunks(const siso_ring_buffer::siso_buffer_batch_read_handle& handle)
     {
 #if defined(BQ_LOG_BUFFER_DEBUG)
@@ -309,12 +324,20 @@ namespace bq {
             return;
         }
 #if defined(BQ_LOG_BUFFER_DEBUG)
-        assert(handle.end_cursor_ == handle.current_cursor_ && "siso_buffer_batch_read_handle::return_batch_read_chunks called with not finished reading handle");
+        // the snapshot advanced record by record and lies between the batch start and its end.
+        // Difference comparison: the cursors are uint32 and wrap.
+        assert(static_cast<uint32_t>(head_->rt_reading_cursor_cache_ - handle.start_cursor_)
+                <= static_cast<uint32_t>(handle.end_cursor_ - handle.start_cursor_)
+            && "invalid batch recovery snapshot");
         assert(handle.start_cursor_ == head_->reading_cursor().load_relaxed() && "invalid batch handle start cursor");
-        assert(handle.end_cursor_ == head_->rt_reading_cursor_cache_ && "invalid batch handle end cursor");
         assert(handle.end_cursor_ == head_->rt_writing_cursor_cache_ && "invalid batch handle end cursor");
 #endif
-        head_->reading_cursor().store_release(head_->rt_reading_cursor_cache_);
+        // The whole batch is consumed now: move the recovery snapshot to the batch end. During the
+        // batch, mark_persisted() had already been moving it past each persisted record,
+        // so a crash mid-batch resumes from there rather than from the batch start. The writer's
+        // reading_cursor is published here, once per batch, and never per record.
+        head_->rt_reading_cursor_cache_ = handle.end_cursor_;
+        head_->reading_cursor().store_release(handle.end_cursor_);
     }
 
     void siso_ring_buffer::data_traverse(void (*in_callback)(uint8_t* data, uint32_t size, void* user_data), void* in_user_data)
@@ -431,6 +454,24 @@ namespace bq {
         head_->writing_cursor().store_release(head_->wt_writing_cursor_cache_);
         mmap_buffer_state_ = memory_map_buffer_state::recover_from_memory_map;
         return true;
+    }
+
+    void siso_ring_buffer::fill_fast_log_thread_state(_api_fast_log_thread_state& state)
+    {
+        state.siso_head = reinterpret_cast<uint8_t*>(head_);
+        state.siso_units = reinterpret_cast<uint8_t*>(aligned_blocks_);
+        state.unit_count = aligned_blocks_count_;
+        state.half_unit_count = aligned_blocks_count_ >> 1;
+    }
+
+    void siso_ring_buffer::fill_fast_log_layout(_api_fast_log_layout& layout)
+    {
+        layout.head_wt_reading_cursor_cache = static_cast<uint32_t>(BQ_POD_RUNTIME_OFFSET_OF(head, wt_reading_cursor_cache_));
+        layout.head_wt_writing_cursor_cache = static_cast<uint32_t>(BQ_POD_RUNTIME_OFFSET_OF(head, wt_writing_cursor_cache_));
+        layout.head_writing_cursor = static_cast<uint32_t>(BQ_POD_RUNTIME_OFFSET_OF(head, writing_cursor_place_holder_));
+        layout.head_reading_cursor = static_cast<uint32_t>(BQ_POD_RUNTIME_OFFSET_OF(head, reading_cursor_place_holder_));
+        layout.chunk_data_offset = static_cast<uint32_t>(BQ_POD_RUNTIME_OFFSET_OF(chunk_head_def, data));
+        layout.block_size_log2 = static_cast<uint32_t>(BLOCK_SIZE_LOG2);
     }
 
     void siso_ring_buffer::init_with_memory(void* buffer, size_t buffer_size)

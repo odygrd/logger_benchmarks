@@ -11,7 +11,7 @@
 #include <mutex>
 #include <string>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace sinks {
 
 //
@@ -33,7 +33,6 @@ public:
     std::size_t get_max_size();
     void set_max_files(std::size_t max_files);
     std::size_t get_max_files();
-    std::size_t get_current_size();
 
 protected:
     void sink_it_(const details::log_msg &msg) override;
@@ -66,7 +65,7 @@ using rotating_file_sink_st = rotating_file_sink<details::null_mutex>;
 //
 // factory functions
 //
-template <typename Factory = synchronous_factory>
+template <typename Factory = spdlog::synchronous_factory>
 std::shared_ptr<logger> rotating_logger_mt(const std::string &logger_name,
                                            const filename_t &filename,
                                            size_t max_file_size,
@@ -77,7 +76,7 @@ std::shared_ptr<logger> rotating_logger_mt(const std::string &logger_name,
         logger_name, filename, max_file_size, max_files, rotate_on_open, event_handlers);
 }
 
-template <typename Factory = synchronous_factory>
+template <typename Factory = spdlog::synchronous_factory>
 std::shared_ptr<logger> rotating_logger_st(const std::string &logger_name,
                                            const filename_t &filename,
                                            size_t max_file_size,
@@ -87,7 +86,7 @@ std::shared_ptr<logger> rotating_logger_st(const std::string &logger_name,
     return Factory::template create<sinks::rotating_file_sink_st>(
         logger_name, filename, max_file_size, max_files, rotate_on_open, event_handlers);
 }
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog
 
 #ifdef SPDLOG_HEADER_ONLY
 #include "rotating_file_sink-inl.h"

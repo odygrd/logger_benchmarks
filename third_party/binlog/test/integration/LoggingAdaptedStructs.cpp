@@ -41,7 +41,6 @@ class Private
 };
 BINLOG_ADAPT_STRUCT(Private, a, b)
 
-//[adapt_template
 template <typename A, typename B, std::size_t C>
 struct Triplet
 {
@@ -50,7 +49,6 @@ struct Triplet
   std::array<int, C> c{};
 };
 BINLOG_ADAPT_TEMPLATE((typename A, typename B, std::size_t C), (Triplet<A,B,C>), a, b, c)
-//]
 
 class first
 {
@@ -74,14 +72,6 @@ struct Foo
 };
 
 BINLOG_ADAPT_STRUCT(Foo, a, b, c)
-//]
-
-//[derived
-struct Base { int a = 0; };
-struct Derived : Base { int b = 1; int c = 2; };
-
-BINLOG_ADAPT_STRUCT(Base, a)
-BINLOG_ADAPT_DERIVED(Derived, (Base), b, c)
 //]
 
 int main()
@@ -114,12 +104,6 @@ int main()
 
   BINLOG_INFO("My foo: {}", Foo{1, "two"});
   // Outputs: My foo: Foo{ a: 1, b: two, c: true }
-  //]
-
-  //[derived
-
-  BINLOG_INFO("Hierarchy: {}", Derived{});
-  // Outputs: Hierarchy: Derived{ Base{ a: 0 }, b: 1, c: 2 }
   //]
 
   binlog::consume(std::cout);

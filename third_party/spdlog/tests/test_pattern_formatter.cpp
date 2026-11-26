@@ -4,11 +4,7 @@
 #include <chrono>
 
 using spdlog::memory_buf_t;
-
-SPDLOG_CONSTEXPR_FUNC spdlog::string_view_t to_string_view(const memory_buf_t &buf)
-    SPDLOG_NOEXCEPT {
-    return spdlog::string_view_t{buf.data(), buf.size()};
-}
+using spdlog::details::to_string_view;
 
 // log to str and return it
 template <typename... Args>

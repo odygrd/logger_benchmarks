@@ -6,7 +6,7 @@
 #include <spdlog/common.h>
 #include <string>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace details {
 struct SPDLOG_API log_msg {
     log_msg() = default;
@@ -33,7 +33,7 @@ struct SPDLOG_API log_msg {
     string_view_t payload;
 };
 }  // namespace details
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog
 
 #ifdef SPDLOG_HEADER_ONLY
 #include "log_msg-inl.h"

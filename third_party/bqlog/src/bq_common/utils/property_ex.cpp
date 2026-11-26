@@ -46,7 +46,9 @@ namespace bq {
 
     static bool parse_number_value(double& out, const char* str)
     {
-
+        if (!str) {
+            return false;
+        }
         switch (*str) {
         case '0':
         case '1':
@@ -61,7 +63,6 @@ namespace bq {
             break;
         default:
             return false;
-            break;
         }
         char* end;
         double number = 0;
@@ -148,7 +149,6 @@ namespace bq {
         switch (keys.size()) {
         case 0:
             return;
-            break;
         case 1: {
             string new_key = keys[0];
             property_value pv = move(parse_to_property_value(root, key, value));
@@ -157,8 +157,7 @@ namespace bq {
             }
         } break;
         default:
-            // retain the following content for new key
-            // old key=a.b.c -> new key = b.c
+            // keep what follows the first segment: a.b.c -> b.c
             string new_key = key.substr(keys[0].size() + 1, key.size() - keys[0].size() - 1);
             trans_parson_to_property_value(root[keys[0]], new_key, value);
             break;

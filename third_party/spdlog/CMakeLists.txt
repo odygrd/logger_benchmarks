@@ -30,9 +30,7 @@ endif()
 # Compiler config
 # ---------------------------------------------------------------------------------------
 if(SPDLOG_USE_STD_FORMAT)
-if(NOT DEFINED CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 20)
-endif()
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 elseif(NOT CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 11)
@@ -201,7 +199,7 @@ spdlog_enable_warnings(spdlog)
 
 set_target_properties(spdlog PROPERTIES VERSION ${SPDLOG_VERSION} SOVERSION
                                                                   ${SPDLOG_VERSION_MAJOR}.${SPDLOG_VERSION_MINOR})
-set_target_properties(spdlog PROPERTIES DEBUG_POSTFIX "${SPDLOG_DEBUG_POSTFIX}")
+set_target_properties(spdlog PROPERTIES DEBUG_POSTFIX ${SPDLOG_DEBUG_POSTFIX})
 
 if(COMMAND target_precompile_headers AND SPDLOG_ENABLE_PCH)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pch.h.in ${PROJECT_BINARY_DIR}/spdlog_pch.h @ONLY)
@@ -394,19 +392,6 @@ if(SPDLOG_INSTALL)
     string(CONCAT PKG_CONFIG_DEFINES "-D" "${PKG_CONFIG_DEFINES}")
     configure_file("cmake/${PROJECT_NAME}.pc.in" "${pkg_config}" @ONLY)
     install(FILES "${pkg_config}" DESTINATION "${pkgconfig_install_dir}")
-
-    # Header-only pkg-config file: no libspdlog to link and no SPDLOG_COMPILED_LIB,
-    # so header-only consumers get the correct flags.
-    set(pkg_config_header_only "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}_header_only.pc")
-    get_target_property(PKG_CONFIG_HO_DEFINES spdlog_header_only INTERFACE_COMPILE_DEFINITIONS)
-    if(PKG_CONFIG_HO_DEFINES)
-        string(REPLACE ";" " -D" PKG_CONFIG_HO_DEFINES "${PKG_CONFIG_HO_DEFINES}")
-        string(CONCAT PKG_CONFIG_HO_DEFINES "-D" "${PKG_CONFIG_HO_DEFINES}")
-    else()
-        set(PKG_CONFIG_HO_DEFINES "")
-    endif()
-    configure_file("cmake/${PROJECT_NAME}_header_only.pc.in" "${pkg_config_header_only}" @ONLY)
-    install(FILES "${pkg_config_header_only}" DESTINATION "${pkgconfig_install_dir}")
 
     # ---------------------------------------------------------------------------------------
     # Install CMake config files

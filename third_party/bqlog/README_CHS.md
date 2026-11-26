@@ -2,44 +2,36 @@
   <img src="banner.jpg" alt="BqLog Banner" width="100%">
 </p>
 
-# BqLog (扁鹊日志) V 2.4.1
+# BqLog (扁鹊日志) V 2.8.3
 
 [English](./README.md) | **简体中文**
 
 [![license](https://img.shields.io/badge/license-APACHE2.0-brightgreen.svg?style=flat)](LICENSE.txt)
-[![Release Version](https://img.shields.io/badge/release-2.4.1-red.svg)](https://github.com/Tencent/BqLog/releases)
-[![ChangeLog](https://img.shields.io/badge/📋_更新日志-v2.4.1-orange.svg?style=flat)](CHANGELOG.md)
+[![Release Version](https://img.shields.io/badge/release-2.8.3-red.svg)](https://github.com/Tencent/BqLog/releases)
+[![ChangeLog](https://img.shields.io/badge/📋_更新日志-v2.8.3-orange.svg?style=flat)](CHANGELOG_CHS.md)
 [![GitHub Stars](https://img.shields.io/github/stars/Tencent/BqLog?style=flat&logo=github)](https://github.com/Tencent/BqLog/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/Tencent/BqLog?style=flat&logo=github)](https://github.com/Tencent/BqLog/network/members)
 [![GitHub Issues](https://img.shields.io/github/issues/Tencent/BqLog?style=flat&logo=github)](https://github.com/Tencent/BqLog/issues)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20iOS%20%7C%20Android%20%7C%20HarmonyOS%20%7C%20OpenHarmony%20%7C%20Unix-lightgrey.svg?style=flat)]()
-[![Language](https://img.shields.io/badge/language-C%2B%2B%20%7C%20Java%20%7C%20C%23%20%7C%20Kotlin%20%7C%20TypeScript%20%7C%20Python-blue.svg?style=flat)]()
+
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20iOS%20%7C%20Android%20%7C%20HarmonyOS%20%7C%20OpenHarmony%20%7C%20Unix%20%7C%20PS4%2F5%20%7C%20Switch-lightgrey.svg?style=flat)]()
+[![PlayStation 4/5](https://img.shields.io/badge/PlayStation_4%2F5-experimental-lightgrey?logo=playstation&style=flat)]()
+[![Nintendo Switch](https://img.shields.io/badge/Switch-experimental-lightgrey?logo=nintendoswitch&style=flat)]()
+[![Language](https://img.shields.io/badge/language-C%2B%2B%20%7C%20Java%20%7C%20C%23%20%7C%20Kotlin%20%7C%20TypeScript%20%7C%20Python%20%7C%20Go-blue.svg?style=flat)]()
+[![Homebrew](https://img.shields.io/badge/Homebrew-bqlog-orange?logo=homebrew&logoColor=white&style=flat)](https://formulae.brew.sh/formula/bqlog)
+[![NuGet](https://img.shields.io/nuget/v/BqLog?logo=nuget&label=nuget&style=flat)](https://www.nuget.org/packages/BqLog)
+[![Maven Central](https://img.shields.io/maven-central/v/com.tencent.bqlog/java?label=maven%20java&style=flat)](https://central.sonatype.com/artifact/com.tencent.bqlog/java)
+[![Maven Central](https://img.shields.io/maven-central/v/com.tencent.bqlog/android?label=maven%20android&style=flat)](https://central.sonatype.com/artifact/com.tencent.bqlog/android)
+[![PyPI](https://img.shields.io/pypi/v/bqlog?logo=pypi&label=pypi&style=flat)](https://pypi.org/project/bqlog/)
+[![npm](https://img.shields.io/npm/v/@pippocao/bqlog?logo=npm&label=npm&style=flat)](https://www.npmjs.com/package/@pippocao/bqlog)
+[![ohpm](https://img.shields.io/badge/ohpm-bqlog-blue?style=flat)](https://ohpm.openharmony.cn/#/cn/detail/bqlog)
+[![Go](https://img.shields.io/badge/Go-go%2Fv2-00ADD8?logo=go&logoColor=white&style=flat)](https://pkg.go.dev/github.com/Tencent/BqLog/go/v2)
+[![vcpkg](https://img.shields.io/vcpkg/v/bqlog?logo=vcpkg&style=flat)](https://vcpkg.io/en/package/bqlog.html)
+[![Unity](https://img.shields.io/badge/Unity-package-black?logo=unity&style=flat)](https://github.com/Tencent/BqLog/releases)
+[![Unreal](https://img.shields.io/badge/Unreal-Fab-0E1128?logo=unrealengine&style=flat)](https://www.fab.com/listings/386d1c78-e164-4e97-8b3e-e88cbf9b6acf)
 
 > BqLog 是一个轻量级、高性能的工业级日志系统，已在线上广泛应用于《王者荣耀》等项目。
-> **BqLog 2.x 正式发布！** 新增`纯血鸿蒙`、`Python` 与 `Node.js` 支持，并带来非对称混合加密能力。
->
-> 🚀 在 [Benchmark](#-benchmark-结果) 中，BqLog 压缩日志模式比 fmtlog 快 **2–3 倍**、quill 快 **3–6 倍**、spdlog 快 **3–16 倍**、Log4j2 快 **10–12 倍**、glog 快 **25–60 倍**；纯文本模式同样全面领先。
 
 ---
-
-[![Download](https://img.shields.io/badge/⬇_下载-Release_2.4.1-blue.svg?style=for-the-badge)](https://github.com/Tencent/BqLog/releases/tag/Release_2.4.1)
-
-## 📋 v2.4.1 更新亮点
-
-- **性能优化——“百尺竿头，更进一步”**：常规使用场景下，性能通常提升约 **10%～20%**；实际收益会随线程数、日志格式、参数类型及输出模式而有所不同。
-- **兼容性**——[修复 Linux 产物要求 glibc 2.38+ 的问题（#72）](https://github.com/Tencent/BqLog/issues/72)：全部产物改为在 Ubuntu 22.04（glibc 2.35）、Windows Server 2022 及最低可用 BSD 版本上构建，老发行版和 BSD 系统开箱即用。
-- **构建/CI**——BSD 构建依赖改由自托管不可变快照提供，发布产物可复现，不再受上游软件源删包影响。
-
-**v2.4.0 更新亮点：**
-
-- **Bug 修复**：[彻底解决了压缩日志内存在某些情况下可能会持续增大的问题（#70）](https://github.com/Tencent/BqLog/issues/70)。
-- **Bug 修复**：修复 `log.buffer_policy_when_full` 的解析错误，`discard`、`block` 和 `expand` 策略现在均可正确生效。
-- **配置扩展**：文件 Appender 新增 `write_cache_size` 配置，可在 64 KiB～4 MiB 范围内调整每个 Appender 的写缓存。
-
-> 完整更新日志 → [CHANGELOG.md](CHANGELOG.md)
-
----
-
 ## 💡 如果您有以下困扰，可以尝试 BqLog
 
 - 如果您的客户端产品（尤其是游戏）希望同时满足以下「不可能三角」：
@@ -47,15 +39,50 @@
   - 性能足够好（日志要少写）
   - 节约存储空间（日志最好就别写）
 - 如果您是后台服务开发者，现有日志库在**高并发场景**下性能不足，导致日志丢失或程序阻塞。
-- 如果您的编程语言是 C++、Java、C#、Kotlin、TypeScript、JavaScript、Python 之一，或者同时使用多种语言，希望有一套**统一的跨语言日志解决方案**。
+- 如果您的编程语言是 C++、Java、C#、Kotlin、TypeScript、JavaScript、Python、Go 之一，或者同时使用多种语言，希望有一套**统一的跨语言日志解决方案**。
 
+---
+
+## 🎯 BqLog 的定位
+
+**极限性能是 BqLog 的起点，而不是全部。** 它是一个成熟的工业级组件，为要发布上线的产品而生：
+
+- **甘心做配角。** 一台现代设备上，日志系统要尽可能少占用系统资源。不管是日志线程还是消费者线程，都要尽量少占用 CPU、内存和磁盘 I/O。我们不是单纯为了跑分，我们所有的优化都针对实际应用场景。
+- **跑在哪里都兼容。** Windows、macOS、Linux、iOS、Android、HarmonyOS、OpenHarmony 和各类 Unix；C++、Java/Kotlin、C#、Python、TypeScript/ArkTS、Go 共用同一个内核，甚至可以共用同一个日志对象；游戏引擎、不带 STL 的移动端工具链、开着 `-Werror` 的严格构建都没问题。
+- **为出事的那一天准备好。** 进程崩溃后能把崩溃前写下的日志恢复回来；磁盘写满时既不崩溃也不卡死；损坏的文件也能尽可能恢复；日志文件可加密，保护隐私。
+- **关注代码体验。** 一行创建日志、一行写日志；内部机制尽可能透明，避免复杂配置；所有的接口都对IDE代码提示友好；提供UE蓝图等方便的接入工具适配。
+
+---
+
+[![Download](https://img.shields.io/badge/⬇_下载-Release_2.8.3-blue.svg?style=for-the-badge)](https://github.com/Tencent/BqLog/releases)
+
+## 📋 v2.8.x 更新亮点
+
+- **新的加密日志格式**：加密方案升级，可以抵抗已知明文攻击和 AI 分析。
+- **工具兼容性**：`BqLog_LogDecoder` 可以解码 2.x 全系列版本写出的压缩日志。
+- **Unreal Engine 6**：实验性支持 UE6 的 Verse 脚本，提供对应的 Wrapper 和 Category Log Wrapper 生成，详见[引擎集成指南](docs/ENGINE_INTEGRATION_CHS.md)。
+- **快速模式代码尺寸**：无宏接口 `log.fast_info<"...">()` 的慢路径改为按参数类型共享，生成的代码体积明显变小（GCC/Clang 实测减少 50%~65%，MSVC 约 25%），调用点指令与运行时开销不变。
+
+## 📋 v2.7.x 更新亮点
+
+- **C++20 模块**：支持 `import bq.log;`，并在模块模式下提供无宏的快速模式接口。
+- **主机平台**：实验性支持 PlayStation 4、PlayStation 5 与 Nintendo Switch。
+- **多进程**：多个进程可以写同一个日志目录，各自拥有独立的恢复数据。
+- **软件包仓库**：支持 Homebrew、vcpkg、NuGet。
+
+## 📋 v2.6.x 更新亮点
+
+- **快速模式**：新增 C++ 专用的 `BQ_LOG_FAST_*` 宏，把级别判断、时间戳和参数写入内联到调用点，大幅降低调用线程的延迟。
+- **整体性能提升**：同一 benchmark 下，文本输出快 14%～30%，压缩输出最多快约 40%，详见 [Benchmark](docs/BENCHMARK_CHS.md)。
+
+> 完整更新日志 → [CHANGELOG_CHS.md](CHANGELOG_CHS.md)
 
 ---
 
 ## ✨ 特点
 
 - 相比常见开源日志库有显著性能优势（详见 [Benchmark](#-benchmark-结果)），不仅适用于服务器和客户端，也非常适合移动端设备。
-- 内存消耗少：在 Benchmark 用例中，10 线程、2,000 万条日志，BqLog 自身内存消耗约为 2-3 MB。移动平台场景一般在1 MB左右。
+- 内存消耗少：在 Benchmark 用例中（10 线程、每线程 200 万条日志），macOS 上整个 benchmark 进程的峰值内存不超过 3.1 MB。移动平台上，BqLog 自身一般在 1 MB 左右。
 - 提供高性能、高压缩比的实时压缩日志格式。
 - 以接近于0的性能损耗，提供高强度的非对称混合加密日志，保护日志内容安全（可选）。
 - 可在游戏引擎（`Unity`、`Unreal` 等）中正常使用，对 Unreal 提供蓝图和常用类型的支持。
@@ -66,6 +93,7 @@
 - 仅依赖标准 C 语言库与平台 API，可在 Android 的 `ANDROID_STL = none` 模式下编译通过。
 - 支持 `C++11` 及之后的标准，可在极其严格的编译选项下工作。
 - 编译系统基于 `CMake`，并提供多平台编译脚本，集成简单。
+- 可通过 Homebrew、vcpkg、NuGet 安装，支持 `find_package` 与 pkg-config。
 - 支持自定义参数类型。
 - 对代码提示非常友好。
 
@@ -75,10 +103,44 @@
 
 | 平台 | 语言 |
 |------|------|
-| Windows 64-bit、macOS、Linux（含嵌入式）、iOS、Android、HarmonyOS、OpenHarmony、Unix（FreeBSD、NetBSD、OpenBSD、Solaris 等） | C++（C++11+）、Java / Kotlin、C#（Unity、.NET）、ArkTS / C++（HarmonyOS 与 OpenHarmony 同一份包）、JavaScript / TypeScript（Node.js）、Python 3.7+、Unreal Engine（UE4、UE5 与 UE6 开发版） |
+| Windows 64-bit、macOS、Linux（含嵌入式）、iOS、Android、HarmonyOS、OpenHarmony、Unix（FreeBSD、NetBSD、OpenBSD、Solaris 等） | C++（C++11+）、Java / Kotlin、C#（Unity、.NET）、ArkTS / C++（HarmonyOS 与 OpenHarmony 同一份包）、JavaScript / TypeScript（Node.js）、Python 3.7+、Go、Unreal Engine（UE4、UE5 与 UE6 开发版） |
+| PlayStation 4、PlayStation 5、Nintendo Switch（实验性，源码接入） | C++（C++11+） |
 
 **硬件架构**：x86、x86_64、ARM32、ARM64
 **引入方式**：动态库、静态库、源代码
+
+---
+
+## 📦 安装
+
+| 生态 | 安装命令 | 库 | 命令行工具 | 平台主页 |
+|------|---------|:--:|:---------:|----------|
+| [**Homebrew**](docs/INTEGRATION_GUIDE_CHS.md#c动态库--静态库--源码)<br>macOS · Linux | `brew install bqlog` | ✅ | ✅ | [formulae.brew.sh](https://formulae.brew.sh/formula/bqlog) |
+| [**vcpkg**](docs/INTEGRATION_GUIDE_CHS.md#c动态库--静态库--源码)<br>Windows · Linux · macOS | `vcpkg install bqlog` | ✅ | `bqlog[tools]` | [vcpkg.io](https://vcpkg.io/en/package/bqlog.html) |
+| [**NuGet**](docs/INTEGRATION_GUIDE_CHS.md#cunity--团结引擎--net)<br>C# · .NET · Unity | `dotnet add package BqLog` | ✅ | — | [nuget.org](https://www.nuget.org/packages/BqLog) |
+| [**Maven Central — Java**](docs/INTEGRATION_GUIDE_CHS.md#javaserver--desktop)<br>Java · Kotlin · 服务端 | `implementation("com.tencent.bqlog:java:2.+")` | ✅ | — | [com.tencent.bqlog:java](https://central.sonatype.com/artifact/com.tencent.bqlog/java) |
+| [**Maven Central — Android**](docs/INTEGRATION_GUIDE_CHS.md#android)<br>Android · Kotlin | `implementation("com.tencent.bqlog:android:2.+")` | ✅ | — | [com.tencent.bqlog:android](https://central.sonatype.com/artifact/com.tencent.bqlog/android) |
+| [**PyPI**](docs/INTEGRATION_GUIDE_CHS.md#python)<br>Python 3.7+ | `pip install bqlog` | ✅ | — | [pypi.org](https://pypi.org/project/bqlog/) |
+| [**npm**](docs/INTEGRATION_GUIDE_CHS.md#nodejs)<br>Node.js · TypeScript | `npm install @pippocao/bqlog` | ✅ | — | [npmjs.com](https://www.npmjs.com/package/@pippocao/bqlog) |
+| [**ohpm**](docs/INTEGRATION_GUIDE_CHS.md#harmonyos--openharmonyarkts--c)<br>HarmonyOS · OpenHarmony | `ohpm install bqlog` | ✅ | — | [ohpm.openharmony.cn](https://ohpm.openharmony.cn/#/cn/detail/bqlog) |
+| [**Go modules**](docs/INTEGRATION_GUIDE_CHS.md#go)<br>Go | `go get github.com/Tencent/BqLog/go/v2@latest` | ✅ | — | [pkg.go.dev](https://pkg.go.dev/github.com/Tencent/BqLog/go/v2) |
+| [**Unity**](docs/INTEGRATION_GUIDE_CHS.md#unity--团结引擎--unreal-engine)<br>UPM tarball | *从 tarball 安装* | ✅ | — | [release 页面](https://github.com/Tencent/BqLog/releases) |
+| [**Unreal Engine**](docs/INTEGRATION_GUIDE_CHS.md#unity--团结引擎--unreal-engine)<br>UE4 · UE5 | *放进 `Plugins/`* | ✅ | — | [release 页面](https://github.com/Tencent/BqLog/releases) · [Fab](https://www.fab.com/listings/386d1c78-e164-4e97-8b3e-e88cbf9b6acf) |
+
+> [!IMPORTANT]
+> **表格里没有你的平台？** iOS、tvOS 等 Apple 平台不走包管理器，需要通过 Xcode 或 CMake 集成 —— 见[集成指南：iOS / Apple 平台](docs/INTEGRATION_GUIDE_CHS.md#ios--apple-平台c--objective-c)。嵌入式 Linux、各类 BSD、以及从源码构建的情况，同样见[集成指南](docs/INTEGRATION_GUIDE_CHS.md)与 [release 页面](https://github.com/Tencent/BqLog/releases)的预编译包。
+
+---
+
+## 📖 为何 BqLog 如此快？—— 三部曲系列文章
+
+BqLog 的快不是变魔术变出来的。这个系列从一行日志出发，配示意图，把整套设计一步步推导出来：
+
+1. **[之一：高性能实时压缩日志格式](<docs/文章1_为何BqLog如此快 - 高性能实时压缩日志格式.MD>)** —— 从一行文本推导出压缩格式：模板、VLQ、UTF-Mixed、分段与加密
+2. **[之二：从环形队列到自适应数据总线](<docs/文章2_为何BqLog如此快 - 从环形队列到自适应数据总线.MD>)** —— 从 kFifo、LMAX Disruptor 到 BqLog 自适应总线：fetch_add + 回滚、MISO/SISO、无锁增删线程与崩溃复盘
+3. **[之三：压缩日志执行路径优化](<docs/文章3_为何BqLog如此快 - 压缩日志执行路径优化.MD>)** —— 一次内存读取能顺便做多少事：融合拷贝哈希、模板缓存、长度回填、批量 I/O
+
+全部插图和系列目录见 [性能设计](docs/PERFORMANCE_DESIGN_CHS.md)。
 
 ---
 
@@ -101,6 +163,7 @@
 > 调用 API 前，请先将 BqLog 集成到您的项目：
 > - **常规编程环境**（C++、Java、C#、Python、Node.js 等）→ [集成指南](docs/INTEGRATION_GUIDE_CHS.md)
 > - **游戏引擎**（Unity、团结引擎、Unreal Engine）→ [游戏引擎集成指南](docs/ENGINE_INTEGRATION_CHS.md)
+> - **其他问题** → [常见问题（FAQ）](docs/FAQ_CHS.md)
 
 ### C++
 
@@ -119,6 +182,15 @@ int main() {
     return 0;
 }
 ```
+
+**C++ 专属的快速模式。** 在 C++ 最热的代码路径上，可以用 `BQ_LOG_FAST_*` 宏写同样的日志，调用线程的开销只有普通模式的一小部分。详见 [API 参考：快速模式](docs/API_REFERENCE_CHS.md#fast-mode)。
+
+```cpp
+BQ_LOG_FAST_INFO(log, "Hello BqLog fast mode! int:{}, float:{}", 123, 3.14f);
+log.fast_info<"Hello BqLog fast mode! int:{}, float:{}">(123, 3.14f);  // C++20，import bq.log; 时只能用这种
+```
+
+输出和 `log.info` 完全一样。代价是内存使用稍高一点。宏的每个调用点还会绑定第一次调用时的日志对象和格式串，所以同一个宏调用点要固定使用同一个日志对象；`fast_info<...>` 没有这个限制。
 
 ### Java
 
@@ -168,6 +240,28 @@ my_log.info("Hello from Python! params: {}, {}", "text", 123)
 log.force_flush_all_logs()
 ```
 
+### Go
+
+```go
+package main
+
+import bq "github.com/Tencent/BqLog/go/v2"
+
+func main() {
+    config := `
+appenders_config.console.type=console
+appenders_config.console.levels=[all]
+`
+    log := bq.Create_log("go_log", config, nil)
+    if !log.Is_valid() {
+        panic("invalid log config")
+    }
+    defer log.Force_flush()
+
+    log.Info("Hello from Go! params: {}, {}", "text", 123)
+}
+```
+
 ### TypeScript (鸿蒙 / OpenHarmony ArkTS)
 
 > 同一个 ohpm 上的 `bqlog` 包同时适用于 **HarmonyOS**（NEXT）和 **OpenHarmony**（4.1+ / API 11+）。安装、引用、API 完全一致。
@@ -189,62 +283,33 @@ bq.log.force_flush_all_logs();
 
 ## 📊 Benchmark 结果
 
-测试：1-10 线程，每线程写 2,000,000 条日志。环境：MacBook Pro，Apple M4 Pro（14 核：10P + 4E），48 GB，macOS。
+日志系统不是业务的核心，占用大量 CPU 或内存的日志库是不合格的。所以 Benchmark 测的是真实场景下的总消耗：所有日志落盘的总耗时，连同为此花掉的 CPU 和内存；另外还测了日志线程上单次调用的延迟。完整的测试用例和数据见 [Benchmark](docs/BENCHMARK_CHS.md)。
 
-对比：BqLog（Text / Compress / Compress+Encrypt）vs spdlog 1.17.0、glog 0.7.1、fmtlog、quill 11.1.0、Log4j2 2.23.1。
+**吞吐，4 个参数，macOS（Apple M4 Pro）**。每线程 2,000,000 条，计时到全部落盘；所有库都用固定大小、写满阻塞的缓冲区；BqLog 为 C++ 快速模式：
 
-#### 吞吐量 — 带 4 个参数的总耗时（毫秒）
+| | 1 线程 | 4 线程 | 10 线程 |
+|---|---:|---:|---:|
+| BqLog，压缩 | 39 ms / CPU 76 ms | 148 ms / CPU 734 ms | 375 ms / CPU 3984 ms |
+| BqLog，文本 | 152 ms / CPU 303 ms | 617 ms / CPU 3047 ms | 1548 ms / CPU 16307 ms |
+| quill | 331 ms / CPU 493 ms | 1517 ms / CPU 4697 ms | 4338 ms / CPU 29048 ms |
+| fmtlog | 254 ms / CPU 475 ms | 1089 ms / CPU 5310 ms | 2982 ms / CPU 32093 ms |
+| Log4j2（Java） | 665 ms / CPU 2810 ms | 1872 ms / CPU 9206 ms | 3754 ms / CPU 19383 ms |
+| spdlog（异步） | 535 ms / CPU 966 ms | 6758 ms / CPU 20142 ms | - |
+| glog（同步） | 2322 ms / CPU 2318 ms | 9929 ms / CPU 30661 ms | - |
 
-|                              | 1 线程 | 2 线程 | 3 线程 | 4 线程 | 5 线程 | 6 线程 | 7 线程 | 8 线程 | 9 线程 | 10 线程 |
-|------------------------------|--------|--------|--------|--------|--------|--------|--------|--------|--------|---------|
-| BqLog Compress (C++)         | 79     | 99     | 115    | 170    | 222    | 311    | 324    | 372    | 484    | 759     |
-| BqLog Compress+Encrypt (C++) | 83     | 106    | 134    | 189    | 223    | 328    | 337    | 390    | 532    | 995     |
-| BqLog Text (C++)             | 202    | 417    | 648    | 910    | 1167   | 1425   | 1718   | 1969   | 2281   | 2718    |
-| fmtlog                       | 248    | 489    | 765    | 1059   | 1341   | 1588   | 1906   | 2234   | 2379   | 2818    |
-| quill                        | 425    | 805    | 1222   | 1700   | 2108   | 2592   | 2951   | 3458   | 3957   | 4316    |
-| spdlog                       | 434    | 1366   | 3133   | 4779   | 6228   | 9241   | 10829  | 11348  | 11197  | 12003   |
-| Log4j2 (Java)                | 946    | 1841   | 2422   | 3685   | 5542   | 5245   | 5775   | 5786   | 8048   | 8752    |
-| glog                         | 2138   | 3812   | 7144   | 10446  | 13552  | 21695  | 28806  | 35153  | 40397  | 45162   |
-
-#### 峰值内存占用（MB）
-
-|                              | 1 线程 | 4 线程 | 10 线程 |
-|------------------------------|--------|--------|---------|
-| BqLog Compress (C++)         | 2.7    | 3.0    | 3.9     |
-| BqLog Compress+Encrypt (C++) | 2.8    | 3.2    | 4.2     |
-| BqLog Text (C++)             | 2.7    | 3.5    | 4.4     |
-| spdlog                       | 2.1    | 2.2    | 2.4     |
-| glog                         | 2.1    | 2.5    | 3.2     |
-| fmtlog                       | 3.9    | 6.1    | 12.7    |
-| quill                        | 272.9  | 1058.5 | 2746.6  |
-
-#### 日志文件大小（1 线程，400 万条日志）
-
-| 库 | 格式 | 大小 | 压缩比 |
-|----|------|------|--------|
-| BqLog Compress | 二进制 | 45 MB | 比文本 **小 6.7 倍** |
-| BqLog Compress+Encrypt | 加密 | 45 MB | 比文本 **小 6.7 倍** |
-| BqLog Text | 文本 | 302 MB | — |
-| spdlog | 文本 | 293 MB | — |
-| quill | 文本 | 255 MB | — |
-| fmtlog | 文本 | 285 MB | — |
-| glog | 文本 | 348 MB | — |
-
-- BqLog Compress 比 fmtlog 快 **2-3 倍**，比 spdlog 快 **3-16 倍**，比 glog 快 **25-60 倍**
-- 加密几乎 **零额外开销**
-- 压缩格式比文本 **小 6.7 倍**
-- BqLog 所有模式和线程数下仅使用 **2.7-4.4 MB** 内存
-
-> 完整 Benchmark 代码、方法论和功能对比请见 [Benchmark](docs/BENCHMARK_CHS.md)。
+- BqLog 压缩格式的总耗时和CPU负载都明显倍数快于其它同类日志库。
+- 峰值内存：BqLog 在 10 线程时不超过 3.1 MB。
+- 开启扩容时，与同样可以扩容的队列相比，BqLog 快 2～8 倍，CPU 时间更少，峰值内存约为一半。
+- 日志线程上单次调用的延迟：BqLog 是所测库中最低的一档（1 线程 p50 4 ns、p99 29 ns）。
 
 ---
 
 ## 🔄 从 1.x 版本升级到 2.x 版本的变化
 
-1. 增加对鸿蒙系统的支持，包括 ArkTS 和 C++ 两种语言。
-2. 增加对 Node.js 的支持（CJS 和 ESM）。
+1. 增加对鸿蒙系统以及 PS4、PS5、Switch 的支持（主机平台为实验性，源码接入）。
+2. 增加对 TypeScript（Node.js、ArkTS）、Python、Go 等语言的支持。
 3. 增强跨平台兼容性、稳定性与通用性，支持更多 Unix 系统。
-4. utf8编码下性能平均提升约 80%，utf16编码环境（C#，Unreal，Unity）提升超过500%。
+4. 性能大幅提升，UTF-16 环境（C#、Unreal、Unity）尤为明显，详见[性能基准](docs/BENCHMARK_CHS.md)。
 5. Android 不再强制要求与 Java 一起使用。
 6. 移除 `is_in_sandbox` 配置，改用 `base_dir_type`；对 snapshot 增加过滤配置，支持每次启动新开日志文件。详见 [配置说明](docs/CONFIGURATION_CHS.md)。
 7. 支持高性能非对称混合加密，几乎无额外性能损耗，详见 [高级用法 — 加密](docs/ADVANCED_USAGE_CHS.md#6-日志加密和解密)。
@@ -252,7 +317,7 @@ bq.log.force_flush_all_logs();
 9. 仓库不再包含二进制产物，从 2.x 版本起请从 [Releases 页面](https://github.com/Tencent/BqLog/releases)下载对应平台和语言的二进制包。
 10. 单条日志长度不再受log.buffer_size限制。
 11. 可以精确手动设置时区。
-12. `raw_file`类型的appender不再维护，标记为`废弃`，请用`compressed_file`类型替代。
+12. `raw_file`类型的appender已删除。配置为`type=raw_file`的appender会打印警告并被忽略，请用`compressed_file`类型替代。
 13. 复盘能力增加可靠性，从实验性功能变成正式能力。见[高级用法 — 数据保护](docs/ADVANCED_USAGE_CHS.md#3-程序异常退出的数据保护)。
 
 ---
@@ -261,16 +326,21 @@ bq.log.force_flush_all_logs();
 
 | 文档 | 说明 |
 |------|------|
+| [开发规范](DEVELOPMENT_GUIDELINES_CHS.md) | 贡献代码的编码规范 |
+| [常见问题（FAQ）](docs/FAQ_CHS.md) | 常见问题：对比、平台与语言、发布渠道、崩溃恢复 |
 | [集成指南](docs/INTEGRATION_GUIDE_CHS.md) | 所有平台完整集成步骤 + 各语言 Demo |
 | [游戏引擎集成](docs/ENGINE_INTEGRATION_CHS.md) | Unity、团结引擎、Unreal Engine 插件与蓝图使用 |
 | [API 参考](docs/API_REFERENCE_CHS.md) | 核心 API、同步/异步日志、Appender 介绍、构建与工具 |
 | [配置说明](docs/CONFIGURATION_CHS.md) | 完整配置参考（appenders、log、snapshot） |
 | [高级用法](docs/ADVANCED_USAGE_CHS.md) | 无 Heap Alloc、Category、崩溃恢复、自定义类型、加密 |
-| [Benchmark](docs/BENCHMARK_CHS.md) | 完整 Benchmark 代码（C++、Java、Log4j）和结果 |
+| [Benchmark](docs/BENCHMARK_CHS.md) | Benchmark 代码、测试方法和结果 |
+| [性能设计三篇](docs/PERFORMANCE_DESIGN_CHS.md) | 压缩文件格式、自适应数据总线与写入路径优化 |
 
 ---
 
 ## 🤝 如何贡献代码
+
+请先阅读[开发规范](DEVELOPMENT_GUIDELINES_CHS.md)。
 
 若您希望贡献代码，请确保您的改动能通过仓库中 GitHub Actions 下的以下工作流：
 

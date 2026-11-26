@@ -49,7 +49,7 @@
  */
 
 #include "bq_common/bq_common.h"
-#include "bq_log/misc/bq_log_api.h"
+#include "bq_log/api/bq_log_api.h"
 #include "bq_log/types/buffer/log_buffer_defs.h"
 #include "bq_log/types/buffer/normal_buffer.h"
 
@@ -84,7 +84,9 @@ namespace bq {
                 {
                     *(uint32_t*)block_num_ = num;
                 }
-        } BQ_PACK_END public : static constexpr uint32_t MAX_BLOCK_NUM_PER_CHUNK = 0xFFFFFF;
+            } BQ_PACK_END
+        public:
+            static constexpr uint32_t MAX_BLOCK_NUM_PER_CHUNK = 0xFFFFFF;
             chunk_head_def chunk_head;
 
         private:
@@ -99,7 +101,8 @@ namespace bq {
             uint32_t read_cursor_start_cache_;
             uint64_t log_checksum_;
             char mmap_misc_data_[BQ_CACHE_LINE_SIZE - sizeof(read_cursor_cache_) - sizeof(log_checksum_) - sizeof(read_cursor_start_cache_)];
-        } BQ_PACK_END static_assert(sizeof(head) == BQ_CACHE_LINE_SIZE, "the size of head should be equal to cache line size");
+        } BQ_PACK_END
+        static_assert(sizeof(head) == BQ_CACHE_LINE_SIZE, "the size of head should be equal to cache line size");
 
         static_assert(sizeof(block) == BQ_CACHE_LINE_SIZE, "the size of block should be equal to cache line size");
         const ptrdiff_t data_block_offset = reinterpret_cast<ptrdiff_t>(((block*)0)->chunk_head.data);
@@ -121,6 +124,7 @@ namespace bq {
         block* aligned_blocks_;
         uint32_t aligned_blocks_count_; // the max size of aligned_blocks_count_ will not exceed (INT32_MAX / sizeof(block))
         bq::unique_ptr<bq::normal_buffer> buffer_entity_;
+        bq::string mmap_path_override_;
 #if defined(BQ_LOG_BUFFER_DEBUG)
         alignas(BQ_CACHE_LINE_SIZE) bool check_thread_ = true;
         bq::platform::thread::thread_id empty_thread_id_ = 0;
@@ -133,7 +137,7 @@ namespace bq {
     public:
         miso_ring_buffer() = delete;
 
-        miso_ring_buffer(const log_buffer_config& config);
+        miso_ring_buffer(const log_buffer_config& config, const bq::string& mmap_path_override = bq::string());
 
         miso_ring_buffer(const miso_ring_buffer& rhs) = delete;
 
@@ -193,6 +197,15 @@ namespace bq {
         void data_traverse(void (*in_callback)(uint8_t* data, uint32_t size, void* user_data), void* in_user_data);
 
         /// <summary>
+        /// Re-initializes a recovered memory mapped buffer to an empty state,
+        /// keeping the backing file. Used when recovered data is judged stale.
+        /// </summary>
+        void discard_recovered_data()
+        {
+            init_with_memory_map();
+        }
+
+        /// <summary>
         /// Warning:ring buffer can only be read from one thread at same time.
         /// This option is only work in Debug build and will be ignored in Release build.
         /// </summary>
@@ -223,6 +236,11 @@ namespace bq {
         bq_forceinline const uint8_t* get_buffer_addr() const
         {
             return (uint8_t*)aligned_blocks_;
+        }
+
+        bq_forceinline bool is_memory_mapped() const
+        {
+            return buffer_entity_->is_memory_mapped();
         }
 
         bq_forceinline uint32_t get_block_size() const

@@ -9,12 +9,14 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
 #include "bq_log/log/log_imp.h"
+#include "bq_log/log/log_manager.h"
 #include "bq_log/log/log_snapshot.h"
 #include "bq_log/log/log_types.h"
+#include "bq_log/log/log_record_reader.h"
 #include "bq_log/log/appender/appender_console.h"
-#include "bq_log/log/appender/appender_file_raw.h"
 #include "bq_log/log/appender/appender_file_text.h"
 #include "bq_log/log/appender/appender_file_compressed.h"
+#include "bq_log/types/meta/meta_registry.h"
 #include "bq_log/utils/log_utils.h"
 
 namespace bq {
@@ -152,6 +154,8 @@ namespace bq {
         {
             categories_mask_array_.fill_uninitialized(categories_name_array_.size());
             bq::log_utils::get_categories_mask_by_config(categories_name_array_, log_config["categories_mask"], categories_mask_array_);
+            fast_level_words_.fill_uninitialized(categories_name_array_.size());
+            memset(&fast_level_words_[0], 0, fast_level_words_.size() * sizeof(uint32_t));
         }
 
         // init print_stack_levels
@@ -168,7 +172,16 @@ namespace bq {
                     buffer_config.default_buffer_size = (uint32_t)log_config["buffer_size"];
                 }
                 if (log_config["recovery"].is_bool()) {
-                    buffer_config.need_recovery = (bool)log_config["recovery"] && bq::memory_map::is_platform_support();
+                    const bool recovery_requested = (bool)log_config["recovery"];
+                    const recovery_capability capability = log_utils::get_recovery_capability();
+                    if (recovery_requested && capability != recovery_capability::ready) {
+                        // only safe when the instances can see each other, so warn instead of failing
+                        util::log_device_console(log_level::warning,
+                            "log %s: recovery needs %s and this platform has none, so recovery stays off",
+                            name_.c_str(),
+                            capability == recovery_capability::no_memory_map ? "a writable memory map" : "a cross-process file lock");
+                    }
+                    buffer_config.need_recovery = recovery_requested && capability == recovery_capability::ready;
                 }
                 if (log_config["buffer_policy_when_full"].is_string()) {
                     if (((bq::string)log_config["buffer_policy_when_full"]).equals_ignore_case("discard")) {
@@ -186,6 +199,16 @@ namespace bq {
                     }
                 }
             }
+            storage_ = log_storage::create(name_, buffer_config.need_recovery);
+            buffer_config.storage = storage_.get();
+            if (buffer_config.need_recovery && !storage_) {
+                // no instance: same as mmap failure today, buffers fall back to heap
+                buffer_config.need_recovery = false;
+                util::log_device_console(log_level::warning, "log %s recovery disabled: no instance directory available", name_.c_str());
+            }
+            if (buffer_config.need_recovery && !bq::meta_registry::instance().enable_meta_records()) {
+                util::log_device_console(log_level::warning, "fast log meta records unavailable, fast records of log %s can not be recovered", name_.c_str());
+            }
             buffer_ = bq::util::aligned_new<bq::log_buffer>(alignof(bq::log_buffer), buffer_config);
         }
         // init appenders
@@ -198,7 +221,11 @@ namespace bq {
 
             auto appender_names = all_apenders_config.get_object_key_set();
             for (const auto& name_key : appender_names) {
-                add_appender(name_key, all_apenders_config[name_key]);
+                if (!add_appender(name_key, all_apenders_config[name_key])) {
+                    // a log whose appenders are gone would look alive and write nothing
+                    util::log_device_console(bq::log_level::error, "create log \"%s\" failed: appender \"%s\" config is invalid", name_.c_str(), name_key.c_str());
+                    return false;
+                }
             }
             refresh_merged_log_level_bitmap();
         }
@@ -209,6 +236,15 @@ namespace bq {
             snapshot_ = new log_snapshot(this, snapshot_config);
         }
         worker_.init(thread_mode_, this);
+        if (log_config["worker_interval_ms"].is_integral()) {
+            // independent: this log's own worker; async: the public worker shared by all async logs
+            auto interval_ms = (uint64_t)(int64_t)log_config["worker_interval_ms"];
+            if (thread_mode_ == bq::log_thread_mode::independent) {
+                worker_.set_process_interval_ms(interval_ms);
+            } else if (thread_mode_ == bq::log_thread_mode::async) {
+                bq::log_manager::instance().get_public_worker().set_process_interval_ms(interval_ms);
+            }
+        }
         if (thread_mode_ == log_thread_mode::independent) {
             worker_.start();
         }
@@ -218,6 +254,27 @@ namespace bq {
     bool log_imp::reset_config(const property_value& config)
     {
         const auto& log_config = config["log"];
+        const auto& all_apenders_config = config["appenders_config"];
+
+        // Checked before anything is touched: the block below destroys the working appenders while
+        // it swaps them out, so an unusable config would leave this log alive with none.
+        {
+            if (!all_apenders_config.is_object()) {
+                util::log_device_console(bq::log_level::error, "reset log \"%s\" failed, invalid appenders_config", name_.c_str());
+                return false;
+            }
+            auto appender_names = all_apenders_config.get_object_key_set();
+            for (const auto& name_key : appender_names) {
+                const auto& appender_config = all_apenders_config[name_key];
+                if (appender_base::check_config(appender_config) == appender_base::config_check_result::reject) {
+                    const bq::string type_str = ((bq::string)appender_config["type"]).trim();
+                    util::log_device_console(bq::log_level::error,
+                        "reset log \"%s\" failed: appender \"%s\" of type \"%s\" needs a non-empty \"file_name\" config",
+                        name_.c_str(), name_key.c_str(), type_str.c_str());
+                    return false;
+                }
+            }
+        }
 
         // init print_stack_levels
         {
@@ -227,11 +284,6 @@ namespace bq {
         // init or reset appenders
         {
             bq::platform::scoped_spin_lock lock(spin_lock_);
-            const auto& all_apenders_config = config["appenders_config"];
-            if (!all_apenders_config.is_object()) {
-                util::log_device_console(bq::log_level::error, "create_log parse property failed, invalid appenders_config");
-                return false;
-            }
             decltype(recovery_appenders_) previous_recovery_appenders;
             if (recover_status_ == recover_status_enum::in_recovering) {
                 previous_recovery_appenders = bq::move(recovery_appenders_);
@@ -266,17 +318,25 @@ namespace bq {
                 }
             }
             tmp_list.clear();
+            bool all_appenders_created = true;
             for (const auto& name : new_create_appender_names) {
-                add_appender(name, all_apenders_config[name]);
+                if (!add_appender(name, all_apenders_config[name])) {
+                    // the check above accepted this config, so only a real creation failure gets here
+                    all_appenders_created = false;
+                }
             }
             if (recover_status_ == recover_status_enum::in_recovering) {
                 recovery_appenders_need_begin_ = recovery_appenders_.size() != appenders_list_.size();
             }
             refresh_merged_log_level_bitmap();
+            if (!all_appenders_created) {
+                return false;
+            }
         }
         // init categories mask
         {
             bq::log_utils::get_categories_mask_by_config(categories_name_array_, log_config["categories_mask"], categories_mask_array_);
+            refresh_fast_level_words();
         }
 
         // init snapshot
@@ -300,31 +360,36 @@ namespace bq {
     bool log_imp::add_appender(const string& name, const bq::property_value& jobj)
     {
         const auto& type_obj = jobj["type"];
-        if (!type_obj.is_string()) {
-            util::log_device_console(bq::log_level::error, "add_appender failed, appender \"%s\" has invalid \"type\" config", name.c_str());
-            return false;
-        }
-        bq::string type_str = ((string)type_obj).trim();
-        for (int32_t i = 0; i < (int32_t)appender_base::appender_type::type_count; ++i) {
-            if (type_str.equals_ignore_case(appender_base::get_config_name_by_type((appender_base::appender_type)i))) {
+        const bq::string type_str = type_obj.is_string() ? ((string)type_obj).trim() : bq::string("");
 
-                break;
-            }
+        switch (appender_base::check_config(jobj)) {
+        case appender_base::config_check_result::reject:
+            util::log_device_console(bq::log_level::error,
+                "add_appender failed, appender \"%s\" of type \"%s\" needs a non-empty \"file_name\" config",
+                name.c_str(), type_str.c_str());
+            return false;
+        case appender_base::config_check_result::ignore:
+            // a type this version does not know (raw_file was removed): skip it, the log is fine
+            util::log_device_console(bq::log_level::warning, "bq log warning: appender \"%s\" ignored, unsupported type \"%s\"", name.c_str(), type_str.c_str());
+            return true;
+        default:
+            break;
         }
+
         bq::unique_ptr<appender_base> appender;
         if (type_str.equals_ignore_case(appender_base::get_config_name_by_type(appender_base::appender_type::console))) {
             appender = bq::make_unique<appender_console>();
         } else if (type_str.equals_ignore_case(appender_base::get_config_name_by_type(appender_base::appender_type::text_file))) {
             appender = bq::make_unique<appender_file_text>();
-        } else if (type_str.equals_ignore_case(appender_base::get_config_name_by_type(appender_base::appender_type::raw_file))) {
-            appender = bq::make_unique<appender_file_raw>();
         } else if (type_str.equals_ignore_case(appender_base::get_config_name_by_type(appender_base::appender_type::compressed_file))) {
             appender = bq::make_unique<appender_file_compressed>();
         } else {
-            util::log_device_console(bq::log_level::error, "bq log error: invalid Appender type : %s", type_str.c_str());
-            return false;
+            // check_config() accepted the type, so this is unreachable
+            util::log_device_console(bq::log_level::warning, "bq log warning: appender \"%s\" ignored, unsupported type \"%s\"", name.c_str(), type_str.c_str());
+            return true;
         }
         if (!appender->init(name, jobj, this)) {
+            util::log_device_console(bq::log_level::error, "add_appender failed, appender \"%s\" of type \"%s\" could not be created", name.c_str(), type_str.c_str());
             return false;
         }
         appenders_list_.push_back(bq::move(appender));
@@ -340,16 +405,24 @@ namespace bq {
         categories_name_array_.clear();
         name_.clear();
         merged_log_level_bitmap_.clear();
+        no_stack_level_bitmap_.clear();
         if (buffer_) {
             bq::util::aligned_delete(buffer_);
         }
+        storage_.reset();
         delete snapshot_;
         snapshot_ = nullptr;
         id_ = 0;
     }
 
-    void log_imp::process_log_chunk(bq::log_entry_handle& read_handle)
+    void log_imp::process_log_chunk(bq::log_entry_handle& read_handle, bool recovery_error)
     {
+        BQ_LIKELY_IF(recover_status_ == recover_status_enum::recovered && !buffer_->is_current_reading_recovered())
+        {
+            keep_timestamp_monotonic(read_handle.get_log_head());
+            log(read_handle);
+            return;
+        }
         bool is_recovered_entry = false;
         BQ_UNLIKELY_IF(buffer_->is_current_reading_recovered())
         {
@@ -414,21 +487,14 @@ namespace bq {
             }
         }
 
-        auto& head = read_handle.get_log_head();
-
-        // Due to the high concurrency of our ring_buffer,
-        // we cannot guarantee that the order of log entries matches the sequence of system time retrieval for each entry.
-        // To avoid timestamp regression in such scenarios, we've implemented a minor safeguard.
-        if (head.timestamp_epoch > last_log_entry_epoch_ms_) {
-            last_log_entry_epoch_ms_ = head.timestamp_epoch;
-        } else {
-            head.timestamp_epoch = last_log_entry_epoch_ms_;
-        }
+        keep_timestamp_monotonic(read_handle.get_log_head());
         BQ_LIKELY_IF(!is_recovered_entry)
         {
             log(read_handle);
-        } else {
-            log_recovered(read_handle);
+        }
+        else
+        {
+            log_recovered(read_handle, recovery_error);
         }
     }
 
@@ -446,14 +512,18 @@ namespace bq {
         }
     }
 
-    void log_imp::log_recovered(const log_entry_handle& handle)
+    void log_imp::log_recovered(const log_entry_handle& handle, bool recovery_error)
     {
         auto category_idx = handle.get_log_head().category_idx;
-        if (categories_mask_array_.size() <= category_idx || categories_mask_array_[category_idx] == 0) {
+        if (!recovery_error && (categories_mask_array_.size() <= category_idx || categories_mask_array_[category_idx] == 0)) {
             return;
         }
         for (decltype(recovery_appenders_)::size_type i = 0; i < recovery_appenders_.size(); ++i) {
-            recovery_appenders_[i]->log(handle);
+            if (recovery_error) {
+                recovery_appenders_[i]->log_recovery_error(handle);
+            } else {
+                recovery_appenders_[i]->log(handle);
+            }
         }
         if (snapshot_->is_enable()) {
             snapshot_->write_data(handle);
@@ -485,19 +555,47 @@ namespace bq {
         }
         // make sure atomic
         merged_log_level_bitmap_ = tmp;
+        no_stack_level_bitmap_ = log_level_bitmap(bitmap_value & ~*print_stack_level_bitmap_.get_bitmap_ptr());
+        refresh_fast_level_words();
     }
 
-    void log_imp::process(bool is_force_flush)
+    void log_imp::refresh_fast_level_words()
     {
+        const uint32_t no_stack = *no_stack_level_bitmap_.get_bitmap_ptr();
+        const uint32_t with_stack = *merged_log_level_bitmap_.get_bitmap_ptr() & *print_stack_level_bitmap_.get_bitmap_ptr();
+        const uint32_t word = no_stack | (with_stack << BQ_LOG_LEVEL_WORD_STACK_SHIFT);
+        for (decltype(fast_level_words_)::size_type i = 0; i < fast_level_words_.size(); ++i) {
+            fast_level_words_[i] = (i < categories_mask_array_.size() && categories_mask_array_[i]) ? word : 0;
+        }
+    }
+
+    bool log_imp::process(bool is_force_flush)
+    {
+#if defined(BQ_UNIT_TEST)
+        if (test_consumer_paused_.load_acquire()) {
+            return false;
+        }
+#endif
         constexpr uint64_t flush_io_min_interval_ms = 100;
         uint64_t current_epoch_ms = 0;
+        bool did_work = false;
         while (true) {
             auto read_chunk = buffer_->read_chunk();
             scoped_log_buffer_handle<log_buffer> scoped_read_chunk(*buffer_, read_chunk);
             if (read_chunk.result == enum_buffer_result_code::success) {
+                did_work = true;
                 bq::log_entry_handle log_item(read_chunk.data_addr, read_chunk.data_size);
+                bool recovery_error = false;
+                if (!log_record_reader::read(*buffer_, read_chunk.data_addr, read_chunk.data_size,
+                        fast_record_data_, log_item)) {
+                    recovery_error = log_record_reader::make_recovery_error(*buffer_,
+                        read_chunk.data_addr, read_chunk.data_size, fast_record_data_, log_item);
+                    if (!recovery_error) {
+                        continue;
+                    }
+                }
                 current_epoch_ms = log_item.get_log_head().timestamp_epoch;
-                process_log_chunk(log_item);
+                process_log_chunk(log_item, recovery_error);
             } else if (read_chunk.result == enum_buffer_result_code::err_empty_log_buffer) {
                 break;
             }
@@ -514,6 +612,7 @@ namespace bq {
                 last_flush_io_epoch_ms_ = current_epoch_ms;
             }
         }
+        return did_work;
     }
 
     void log_imp::sync_process(bool is_force_flush)
@@ -562,7 +661,6 @@ namespace bq {
     {
         for (decltype(appenders_list_)::size_type i = 0; i < appenders_list_.size(); ++i) {
             switch (appenders_list_[i]->get_type()) {
-            case appender_base::appender_type::raw_file:
             case appender_base::appender_type::text_file:
             case appender_base::appender_type::compressed_file:
                 static_cast<bq::appender_file_base*>(appenders_list_[i].operator->())->flush_write_cache();
@@ -577,7 +675,6 @@ namespace bq {
     {
         for (decltype(appenders_list_)::size_type i = 0; i < appenders_list_.size(); ++i) {
             switch (appenders_list_[i]->get_type()) {
-            case appender_base::appender_type::raw_file:
             case appender_base::appender_type::text_file:
             case appender_base::appender_type::compressed_file:
                 static_cast<bq::appender_file_base*>(appenders_list_[i].operator->())->flush_write_io();

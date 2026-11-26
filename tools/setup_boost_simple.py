@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-Simple script to download Boost and build only Boost.Log using b2.
+Download Boost and build Boost.Log and its dependencies.
 """
 
-import os
 import sys
 import subprocess
 import shutil
@@ -18,16 +17,15 @@ def repo_root() -> Path:
 
 
 # Configuration
-BOOST_VERSION = "1.91.0"
-BOOST_RELEASE = f"{BOOST_VERSION}-1"
-BOOST_URL = f"https://github.com/boostorg/boost/releases/download/boost-{BOOST_RELEASE}/boost-{BOOST_RELEASE}-b2-nodocs.tar.gz"
+BOOST_VERSION = "1.92.0"
+BOOST_URL = f"https://github.com/boostorg/boost/releases/download/boost-{BOOST_VERSION}/boost-{BOOST_VERSION}-cmake.tar.gz"
 TARGET_DIR = repo_root() / "third_party" / "boost"
 
 
 def download_and_extract_boost(temp_dir):
     """Download and extract Boost."""
     print(f"Downloading Boost {BOOST_VERSION}...")
-    boost_archive = temp_dir / f"boost-{BOOST_RELEASE}-b2-nodocs.tar.gz"
+    boost_archive = temp_dir / f"boost-{BOOST_VERSION}-cmake.tar.gz"
 
     urlretrieve(BOOST_URL, boost_archive)
     print(f"Downloaded to {boost_archive}")
@@ -36,35 +34,25 @@ def download_and_extract_boost(temp_dir):
     with tarfile.open(boost_archive, "r:gz") as tar:
         tar.extractall(temp_dir)
 
-    boost_root = temp_dir / f"boost-{BOOST_RELEASE}"
+    boost_root = temp_dir / f"boost-{BOOST_VERSION}"
     return boost_root
 
 
 def build_boost_log(boost_root, install_dir):
-    """Build Boost.Log using b2."""
-    print("Bootstrapping Boost.Build...")
-    subprocess.run([str(boost_root / "bootstrap.sh")], cwd=boost_root, check=True)
-
+    """Build and install Boost.Log and its dependencies."""
+    build_dir = boost_root / "build"
     print(f"Building Boost.Log to {install_dir}...")
-    # Build only log library and its dependencies
-    b2_command = [
-        str(boost_root / "b2"),
-        "--with-log",  # Only build log
-        f"--prefix={install_dir}",
-        "variant=release",
-        "link=static",
-        "threading=multi",
-        "runtime-link=shared",
-        "-j4",
-        "install"
-    ]
-
-    cxxflags = os.environ.get("CXXFLAGS", "").strip()
-    if cxxflags:
-        print(f"Using CXXFLAGS: {cxxflags}")
-        b2_command.append(f"cxxflags={cxxflags}")
-
-    subprocess.run(b2_command, cwd=boost_root, check=True)
+    subprocess.run([
+        "cmake", "-S", str(boost_root), "-B", str(build_dir),
+        "-DCMAKE_BUILD_TYPE=Release",
+        f"-DCMAKE_INSTALL_PREFIX={install_dir}",
+        "-DCMAKE_INSTALL_LIBDIR=lib",
+        "-DBOOST_INCLUDE_LIBRARIES=log",
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DBUILD_TESTING=OFF",
+    ], check=True)
+    subprocess.run(["cmake", "--build", str(build_dir), "--parallel", "4"], check=True)
+    subprocess.run(["cmake", "--install", str(build_dir)], check=True)
 
     print("Boost.Log built successfully!")
 
@@ -74,26 +62,15 @@ def create_cmake_file(install_dir):
     print("Creating CMakeLists.txt...")
 
     cmake_content = '''# Boost.Log library - using prebuilt Boost
-# Libraries built by tools/setup_boost_simple.py using Boost's b2 build system
+# Libraries built by tools/setup_boost_simple.py
 
-# Create interface library for Boost.Log
-add_library(boost_log INTERFACE)
-
-# Set include directory
-target_include_directories(boost_log INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-# Link all required Boost libraries
-target_link_libraries(boost_log INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/libboost_log.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/libboost_log_setup.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/libboost_thread.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/libboost_filesystem.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/libboost_chrono.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/libboost_regex.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/libboost_atomic.a
-    Threads::Threads
-    rt
+find_package(Boost CONFIG REQUIRED COMPONENTS log_setup
+    PATHS "${CMAKE_CURRENT_SOURCE_DIR}/lib/cmake"
+    NO_DEFAULT_PATH
 )
+
+add_library(boost_log INTERFACE)
+target_link_libraries(boost_log INTERFACE Boost::log_setup)
 '''
 
     cmake_file = install_dir / "CMakeLists.txt"

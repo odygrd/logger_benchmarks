@@ -15,6 +15,9 @@ using bq.def;
 
 namespace bq.impl
 {
+    /// <summary>
+    /// Thin 1:1 bindings to the native entry points; the public API goes through this class.
+    /// </summary>
     public class log_invoker
     {
 #if UNITY_IOS && !UNITY_EDITOR
@@ -27,6 +30,12 @@ namespace bq.impl
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl,CharSet = CharSet.Unicode)]
         public static unsafe extern void __api_enable_auto_crash_handler();
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl,CharSet = CharSet.Unicode)]
+        public static unsafe extern int __api_get_recovery_capability();
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl,CharSet = CharSet.Unicode)]
+        public static unsafe extern uint __api_get_platform_capabilities();
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl,CharSet = CharSet.Unicode)]
         public static unsafe extern ulong __api_create_log(byte*  log_name_utf8, byte*  config_content_utf8, uint category_count, byte** category_names_array_utf8);
@@ -69,6 +78,9 @@ namespace bq.impl
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl,CharSet = CharSet.Unicode)]
         public unsafe static extern uint* __api_get_log_print_stack_level_bitmap_by_log_id(ulong log_id);
+
+        [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl,CharSet = CharSet.Unicode)]
+        public unsafe static extern uint* __api_get_log_category_level_words_by_log_id(ulong log_id);
 
         [DllImport(LIB_NAME, CallingConvention = CallingConvention.Cdecl,CharSet = CharSet.Unicode)]
         public unsafe static extern byte* __api_log_device_console(log_level level, byte* content);

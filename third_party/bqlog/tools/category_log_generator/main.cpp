@@ -13,7 +13,7 @@
 #include "category_generator.h"
 
 #include <iostream>
-#if defined(WIN32)
+#if defined(BQ_WIN)
 #include "Windows.h"
 #include <shellapi.h> // for CommandLineToArgvW
 #endif // WIN
@@ -33,7 +33,7 @@ static void print_usage(std::ostream& os)
        << "  BqLog_CategoryLogGenerator DemoCategoryLog ./categories.txt ./out\n\n";
 }
 
-#if defined(WIN32)
+#if defined(BQ_WIN)
 // Convert wide string to UTF-8
 static bq::string wchar_to_utf8(const wchar_t* wstr)
 {
@@ -53,7 +53,7 @@ static bq::string wchar_to_utf8(const wchar_t* wstr)
 
 int32_t main(int32_t argc, char* argv[])
 {
-#if defined(WIN32)
+#if defined(BQ_WIN)
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 
@@ -65,8 +65,8 @@ int32_t main(int32_t argc, char* argv[])
     bq::array<bq::string> utf8_args;
     bq::array<char*> utf8_argv_ptrs;
     if (wargv) {
-        utf8_args.set_capacity(wargc);
-        utf8_argv_ptrs.set_capacity(wargc);
+        utf8_args.set_capacity(static_cast<size_t>(wargc));
+        utf8_argv_ptrs.set_capacity(static_cast<size_t>(wargc));
         for (int32_t i = 0; i < wargc; ++i) {
             utf8_args.push_back(wchar_to_utf8(wargv[i]));
         }

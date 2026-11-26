@@ -61,6 +61,22 @@ snapshot.categories_mask=[ModuleA.SystemA.ClassA,ModuleB]
 
 ---
 
+## 转义与续行
+
+值取第一个 `=`（没有 `=` 时取第一个 `:`）之后的内容，并去掉首尾空白。
+
+| 写法 | 结果 |
+|------|------|
+| 行尾的 `\` | 值续到下一行 |
+| `\n` | 换行 |
+| `\=`、`\:` | `=`、`:` 本身 |
+
+所以以 `\` 结尾的值会把下一行接上来。值确实要以反斜杠结尾时（比如 `D:\logs\` 这样的 Windows 目录），把这一行放在配置最后一行，或者改用 `/`。
+
+空值（`key=`）会被忽略。
+
+---
+
 ## 详细解释
 
 ### `appenders_config`
@@ -70,7 +86,7 @@ snapshot.categories_mask=[ModuleA.SystemA.ClassA,ModuleB]
 
 | 名称                         | 是否必须 | 可配置值                                | 默认值               | ConsoleAppender | TextFileAppender | CompressedFileAppender |
 |------------------------------|---------|-----------------------------------------|-------------------|-----------------|------------------|------------------------|
-| `type`                       | ✔       | `console` / `text_file` / `compressed_file` / `raw_file` | -                 | ✔               | ✔                | ✔（加密需此类型）      |
+| `type`                       | ✔       | `console` / `text_file` / `compressed_file` | -                 | ✔               | ✔                | ✔（加密需此类型）      |
 | `enable`                     | ✘       | `true` / `false`                        | `true`            | ✔               | ✔                | ✔                      |
 | `levels`                     | ✘       | 日志等级数组（`[verbose,...]` 或 `[all]`） | `[all]`           | ✔               | ✔                | ✔                      |
 | `time_zone`                  | ✘       | `gmt` / `localtime` / `Z` / `UTC` / `utc+8` / `utc-2` / `utc+11:30` 等 | `localtime` | ✔               | ✔                | ✔（影响滚动日期）      |
@@ -87,6 +103,8 @@ snapshot.categories_mask=[ModuleA.SystemA.ClassA,ModuleB]
 | `always_create_new_file`    | ✘       | `true` / `false`                        | `false`           | ✘               | ✔                | ✔                      |
 | `enable_rolling_log_file`    | ✘       | `true` / `false`                        | `true`            | ✘               | ✔                | ✔                      |
 | `pub_key`                   | ✘       | RSA2048 公钥（OpenSSH `ssh-rsa` 文本）  | 空（不加密）            | ✘               | ✘                | ✔（启用混合加密）      |
+
+必填项缺失或为空属于配置错误，不是警告：`create_log` 与 `reset_config` 会返回失败，已存在的 log 保留原有配置与 appender。本版本不认识的 `type`（`raw_file` 已被移除）只打印警告并跳过该 appender，其它版本写的配置仍然可以创建 log。
 
 #### `appenders_config.xxx.type`
 
@@ -116,7 +134,7 @@ snapshot.categories_mask=[ModuleA.SystemA.ClassA,ModuleB]
 
 影响：
 - ConsoleAppender / TextFileAppender：决定日志文本中时间字段的显示；
-- TextFileAppender / CompressedFileAppender / RawFileAppender：决定文件按日期滚动的切分点（每天 0 点）。
+- TextFileAppender / CompressedFileAppender：决定文件按日期滚动的切分点（每天 0 点）。
 
 #### `appenders_config.xxx.base_dir_type`
 
@@ -176,6 +194,7 @@ appenders_config.appender_3.file_name=~/bqLog/compress_log
 | `log.print_stack_levels`                  | ✘       | 日志等级数组                           | 空（不打印调用栈）                                             | ✔                              |
 | `log.buffer_policy_when_full`             | ✘       | `discard` / `block` / `expand`         | `block`                                                        | ✘                              |
 | `log.high_perform_mode_freq_threshold_per_second` | ✘ | 64 位正整数                            | `1000`                                                         | ✘                              |
+| `log.worker_interval_ms`                  | ✘       | 64 位非负整数（毫秒）                   | `66`                                                           | ✘                              |
 
 #### `log.thread_mode`
 
@@ -194,6 +213,8 @@ appenders_config.appender_3.file_name=~/bqLog/compress_log
 
 - `true`：当异步日志遇到程序异常退出时，缓冲区中还未落盘的数据会在下次启动后重新写入日志文件。
 - `false`：进程异常退出且未调用 `force_flush()` 时，缓冲中的日志数据将丢失。
+
+少数平台（例如 Solaris）不支持，配置后只打印警告并忽略，见 [`get_recovery_capability()`](./API_REFERENCE_CHS.md#恢复能力查询)。
 
 具体行为详见 [高级用法 — 程序异常退出的数据保护](./ADVANCED_USAGE_CHS.md#3-程序异常退出的数据保护)。
 
@@ -224,6 +245,22 @@ log.print_stack_levels=[error,fatal]
 - `block`（推荐默认）：写日志的线程会阻塞等待缓冲区有空间；
 - `expand`（不推荐）：缓冲区会动态扩容为原来两倍，直到可写。
   可能显著增加内存占用，虽然 BqLog 通过良好的线程调度减少了扩容次数，但仍建议谨慎使用。
+
+#### `log.worker_interval_ms`
+
+消费线程无事可做时最多休眠多久（毫秒），缓冲区快满时会被提前唤醒。默认 `66`。
+
+> ⚠️ **在 `async` 模式（默认）下，这是一个全局设置。** 所有 `async` 模式的 Log 对象共用同一个公共 worker 线程，这个配置改的就是这个公共线程，因此会**同时影响进程里所有其他 `async` Log 对象**：
+> - 只要有一个 `async` Log 配置了它，所有 `async` Log 的消费线程都按这个间隔运行；
+> - 多个 `async` Log 配置了不同的值时，以**最后创建**的那个为准；
+> - 没有配置这一项的 Log，不会把公共 worker 恢复成默认值。
+>
+> 如果只想调整某一个 Log 的消费间隔，而不影响其他 Log，请把该 Log 设为 `log.thread_mode=independent`，它会有自己专属的 worker 线程，这个配置只作用于它自己。
+
+- `independent` 模式：只作用于该 Log 自己的 worker 线程，不影响其他 Log。
+- `sync` 模式：没有 worker 线程，配置无效。
+- 配置为 `0` 表示消费线程从不休眠，一直轮询。这会占满一个 CPU 核心；在 `async` 模式下，意味着公共 worker 为所有 `async` Log 一直轮询。只建议在延迟极其敏感、并且有空闲核心的场景使用。
+- 只在 `create_log` 时生效，不能通过 `reset_config` 修改。
 
 #### `log.high_perform_mode_freq_threshold_per_second`
 

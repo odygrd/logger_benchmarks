@@ -16,13 +16,13 @@
     {
       "name": "binlog",
       "repo_url": "https://github.com/Morgan-Stanley/binlog.git",
-      "ref": "fd20f5a7592f040141ccbdcc737386235bc8b0cf",
+      "ref": "5467217310eb0c43452bbd810d3f093e6eb737d9",
       "target_dir": "third_party/binlog"
     },
     {
       "name": "bqlog",
       "repo_url": "https://github.com/Tencent/BqLog.git",
-      "ref": "60ef4d3ea52635dc54e87e79dfb3a71fb5b1ecc9",
+      "ref": "fd4c97e45a2e54c183044c9832df9761dfbaebd9",
       "target_dir": "third_party/bqlog"
     },
     {
@@ -34,14 +34,14 @@
     {
       "name": "fmt",
       "repo_url": "https://github.com/fmtlib/fmt.git",
-      "ref": "12.1.0",
+      "ref": "208219daff58f2a7438f6931cc2ddc358acf33ef",
       "target_dir": "third_party/fmt",
       "skip_update": true
     },
     {
       "name": "g3log",
       "repo_url": "https://github.com/KjellKod/g3log.git",
-      "ref": "8217b08dcc7515809f59f7b53915269b47453b0f",
+      "ref": "f7014e42e48d52db0c4c973658a8027dbf7a576e",
       "target_dir": "third_party/g3log"
     },
     {
@@ -59,14 +59,14 @@
     {
       "name": "spdlog",
       "repo_url": "https://github.com/gabime/spdlog.git",
-      "ref": "f5f173a1a57d0e2e0115f2ed71ee7ea316516853",
+      "ref": "79524ddd08a4ec981b7fea76afd08ee05f83755d",
       "target_dir": "third_party/spdlog",
       "update_branch": "v1.x"
     },
     {
       "name": "xtr",
       "repo_url": "https://github.com/choll/xtr.git",
-      "ref": "6bb69e9ae1d8d6a906aa7b1e6b27a3b354dbae2c",
+      "ref": "d0428bf5c64454e84ee79a6144bf1e7831d37e56",
       "target_dir": "third_party/xtr"
     }
   ]

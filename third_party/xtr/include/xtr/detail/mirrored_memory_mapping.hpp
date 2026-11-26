@@ -22,7 +22,6 @@
 #define XTR_DETAIL_MEMORY_MIRRORED_MEMORY_MAPPING_HPP
 
 #include "memory_mapping.hpp"
-#include "prefault.hpp"
 
 #include <cstddef>
 
@@ -51,8 +50,7 @@ public:
         std::size_t length, // must be multiple of page size
         int fd = -1,
         std::size_t offset = 0, // must be multiple of page size
-        int flags = 0,
-        prefault_flags_t prefault_flags = prefault_flags_t::none);
+        int flags = 0);
 
     ~mirrored_memory_mapping();
 

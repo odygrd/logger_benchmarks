@@ -14,6 +14,7 @@
 //
 
 #include "bq_common/global/common_vars.h"
+#include <stdio.h>
 #ifdef BQ_WIN
 #include "bq_common/platform/win64_includes_begin.h"
 #endif
@@ -68,7 +69,10 @@ namespace bq {
         bq::util::set_log_device_console_min_level(bq::log_level::info);
 #endif
 #if !defined(NDEBUG) || defined(BQ_UNIT_TEST)
-        bq::util::log_device_console(bq::log_level::info, "Hardware AVX2 support:%s", result ? "true" : "false");
+        // common_global_vars is still being constructed here, so log_device_console would re-enter it.
+        char text[64];
+        snprintf(text, sizeof(text), "Hardware AVX2 support:%s", result ? "true" : "false");
+        bq::util::_default_console_output(bq::log_level::info, text);
 #endif
 #ifdef BQ_UNIT_TEST
         bq::util::set_log_device_console_min_level(bq::log_level::warning);
@@ -123,7 +127,10 @@ namespace bq {
         bq::util::set_log_device_console_min_level(bq::log_level::info);
 #endif
 #if !defined(NDEBUG) || defined(BQ_UNIT_TEST)
-        bq::util::log_device_console(bq::log_level::info, "Hardware CRC32 support:%s", result ? "true" : "false");
+        // common_global_vars is still being constructed here, so log_device_console would re-enter it.
+        char text[64];
+        snprintf(text, sizeof(text), "Hardware CRC32 support:%s", result ? "true" : "false");
+        bq::util::_default_console_output(bq::log_level::info, text);
 #endif
 #ifdef BQ_UNIT_TEST
         bq::util::set_log_device_console_min_level(bq::log_level::warning);
@@ -167,7 +174,11 @@ namespace bq {
         GetSystemInfo(&sysInfo);
         page_size_ = static_cast<size_t>(sysInfo.dwPageSize);
 #elif defined(BQ_POSIX)
+#if BQ_HAS_GETPAGESIZE
         page_size_ = static_cast<size_t>(getpagesize());
+#else
+        page_size_ = static_cast<size_t>(4096);
+#endif
 #endif
 
 #if defined(BQ_X86)

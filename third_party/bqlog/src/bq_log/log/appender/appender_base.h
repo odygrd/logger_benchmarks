@@ -23,10 +23,20 @@ namespace bq {
         enum appender_type {
             console,
             text_file,
-            raw_file,
             compressed_file,
             type_count
         };
+
+        // ignore: a type this version does not know, the caller warns and skips it.
+        // reject: a known appender whose config cannot work, the caller fails the call.
+        enum class config_check_result {
+            ok,
+            ignore,
+            reject,
+        };
+
+        // No side effects and no output: a caller can reject a config before it disturbs a working log.
+        static config_check_result check_config(const bq::property_value& config_obj);
 
         appender_base();
         virtual ~appender_base();
@@ -38,7 +48,15 @@ namespace bq {
         void clear();
         bool init(const bq::string& name, const bq::property_value& config_obj, const log_imp* parent_log);
         bool reset(const bq::property_value& config_obj);
-        bool log(const log_entry_handle& handle);
+        bq_forceinline bool log(const log_entry_handle& handle)
+        {
+            const uint32_t category_idx = handle.get_log_head().category_idx;
+            if (categories_mask_array_.size() <= category_idx || categories_mask_array_[category_idx] == 0) {
+                return false;
+            }
+            return log_level_bitmap_.have_level(handle.get_level()) && appenders_enable && log_impl(handle);
+        }
+        bool log_recovery_error(const log_entry_handle& handle);
 
         inline log_level_bitmap get_log_level_bitmap() const
         {
@@ -56,32 +74,28 @@ namespace bq {
         }
 
     private:
-        void set_basic_configs(const bq::property_value& config_obj);
+        // False means the config cannot produce a working appender, so init() fails.
+        bool set_basic_configs(const bq::property_value& config_obj);
 
     protected:
+        // A file appender without a usable "file_name" cannot be created.
+        static bool is_valid_file_name(const bq::property_value& config_obj);
+
         virtual bool init_impl(const bq::property_value& config_obj) = 0;
 
         virtual bool reset_impl(const bq::property_value& config_obj) = 0;
 
         virtual bool log_impl(const log_entry_handle& handle) = 0;
 
-        // Per-entry segment-boundary hooks. Called by process_log_chunk()
-        // BEFORE log_impl on the entry that triggers a recovery / new-segment
-        // transition. Subclasses use them to insert a marker (binary segment
-        // header, "===== RECOVER START =====\n", etc.) into the output stream.
-        // Return false to signal that the segment marker could NOT be emitted
-        // (e.g. disk-full, refresh_file_handle failed, file_ stays closed) so
-        // subclasses can bail BEFORE mutating subclass-side state (xor_key_blob_,
-        // cache padding, segment counters, etc.). The caller in log_imp.cpp
-        // ignores the return value today; this is purely a chain-of-responsibility
-        // signal between base and derived hooks.
+        // Called before log_impl on the entry that starts a recovery or a new segment.
+        // False means the marker could not be written, so a subclass must not update its own state.
         virtual bool on_log_item_recovery_begin(bq::log_entry_handle& read_handle)
         {
             (void)read_handle;
             return true;
         }
 
-        virtual void on_log_item_recovery_end() { }
+        virtual void on_log_item_recovery_end() {}
 
         virtual bool on_log_item_new_begin(bq::log_entry_handle& read_handle)
         {

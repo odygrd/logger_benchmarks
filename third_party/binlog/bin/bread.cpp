@@ -33,7 +33,7 @@ void showHelp()
     "  bread logfile.blog"                                 "\n"
     "  bread -f '%S %m (%G:%L)' logfile.blog"              "\n"
     "  zcat logfile.blog.gz | bread -f '%S %m (%G:%L)' -"  "\n"
-    "  tail -c +0 -F logfile.blog | bread"                 "\n"
+    "  tail -c0 -F logfile.blog | bread"                   "\n"
     "\n"
     "Arguments:\n"
     "  filename       Path to a logfile. If '-' or unspecified, read from stdin\n"
@@ -100,7 +100,7 @@ int main(int argc, /*const*/ char* argv[])
   bool sorted = false;
 
   int opt;
-  while ((opt = getopt(argc, argv, "f:d:sh")) != -1) // NOLINT(concurrency-mt-unsafe)
+  while ((opt = getopt(argc, argv, "f:d:sh")) != -1)
   {
     switch (opt)
     {

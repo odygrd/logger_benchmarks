@@ -148,6 +148,60 @@ function(BQ_DETECT_ARCH OUT_VAR)
     set(${OUT_VAR} "${INNER_DETECTED_ARCH}" PARENT_SCOPE)
 endfunction()
 
+# File positions wider than 32 bits where the platform can offer them. Each CMakeLists calls this
+# next to bq_default_target_platform(), so the definition a target gets is visible where the target is
+# described; a project that compiles these sources into its own build has to call it as well.
+function(bq_require_large_file_support)
+    add_compile_definitions(_FILE_OFFSET_BITS=64)
+endfunction()
+
+# A function, not a macro: a macro's return would leave the caller as well.
+# Call it after project(): before that the toolchain file has not set CMAKE_SYSTEM_NAME.
+function(bq_default_target_platform)
+    if(DEFINED TARGET_PLATFORM AND NOT "${TARGET_PLATFORM}" STREQUAL "")
+        return()
+    endif()
+
+    # Console toolchains are under NDA or set no CMAKE_SYSTEM_NAME, so ask the compiler.
+    include(CheckCXXSymbolExists)
+    check_cxx_symbol_exists(__PROSPERO__ "" BQ_COMPILER_IS_PS5)
+    check_cxx_symbol_exists(__ORBIS__ "" BQ_COMPILER_IS_PS4)
+    check_cxx_symbol_exists(__SWITCH__ "" BQ_COMPILER_IS_SWITCH)
+    check_cxx_symbol_exists(NN_NINTENDO_SDK "" BQ_COMPILER_IS_NINTENDO_SDK)
+    check_cxx_symbol_exists(NN_BUILD_TARGET_PLATFORM_NX "" BQ_COMPILER_IS_NX)
+
+    if(ANDROID)
+        set(_bq_detected_platform "android")
+    elseif(BQ_COMPILER_IS_PS5)
+        set(_bq_detected_platform "ps5")
+    elseif(BQ_COMPILER_IS_PS4)
+        set(_bq_detected_platform "ps4")
+    elseif(WIN32)
+        # Before the Nintendo SDK on purpose, matching macros.h: an SDK build on a PC is Windows.
+        set(_bq_detected_platform "win64")
+    elseif(BQ_COMPILER_IS_SWITCH OR BQ_COMPILER_IS_NINTENDO_SDK OR BQ_COMPILER_IS_NX OR CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+        set(_bq_detected_platform "switch")
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        set(_bq_detected_platform "ios")
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "OHOS")
+        set(_bq_detected_platform "ohos")
+    elseif(APPLE)
+        set(_bq_detected_platform "mac")
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        set(_bq_detected_platform "linux")
+    elseif(UNIX)
+        set(_bq_detected_platform "unix")
+    else()
+        set(_bq_detected_platform "win64")
+        message(WARNING "bq_default_target_platform: unrecognized platform, using win64")
+    endif()
+
+    set(TARGET_PLATFORM "${_bq_detected_platform}" CACHE STRING "Choose the target platform")
+    set_property(CACHE TARGET_PLATFORM PROPERTY STRINGS
+        "win64" "mac" "ios" "android" "linux" "unix" "ohos" "switch" "ps4" "ps5")
+    message(STATUS "TARGET_PLATFORM:${TARGET_PLATFORM} (from the CMake built-ins)")
+endfunction()
+
 function(set_xcode_property TARGET_NAME ATTRIBUTE_NAME VALUE)
     # if a fourth argument is given, it is the build configuration
     if (ARGC GREATER 3)
@@ -162,4 +216,31 @@ function(set_xcode_property TARGET_NAME ATTRIBUTE_NAME VALUE)
     endif()
 
     set_property(TARGET ${TARGET_NAME} PROPERTY XCODE_ATTRIBUTE_${ATTRIBUTE_NAME}${CONFIG} "${VALUE}")
+endfunction()
+
+# -Werror stays optional: a newer compiler's warning must not fail a package build of released code.
+function(bq_set_warning_flags)
+    if(MSVC)
+        add_compile_options(/W4)
+        if(BQ_WERROR)
+            add_compile_options(/WX)
+        endif()
+        return()
+    endif()
+
+    set(_bq_warning_flags
+        -Wall -Wextra -pedantic
+        -Wundef -Wshadow -Wstrict-aliasing
+        -Wcast-qual -Wconversion -Wsign-conversion
+        -Wnull-dereference -Wformat=2 -Wuninitialized
+    )
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        list(APPEND _bq_warning_flags -Wshorten-64-to-32 -Wno-error=unused-command-line-argument)
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        list(APPEND _bq_warning_flags -Wlogical-op -Wduplicated-branches -Warray-bounds)
+    endif()
+    if(BQ_WERROR)
+        list(APPEND _bq_warning_flags -Werror)
+    endif()
+    add_compile_options(${_bq_warning_flags})
 endfunction()

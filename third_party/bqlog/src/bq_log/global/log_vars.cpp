@@ -37,22 +37,8 @@ namespace bq {
     }
 #endif
 
-    void log_global_vars::init_layout_values() const
-    {
-        for (uint32_t i = 0; i < 1000; ++i) {
-            // 16 may overflow, it only make compilers ignore warning.
-            snprintf(const_cast<char*>(digit3_array) + i * 3, 16, "%03" PRIu32, i);
-        }
-    }
-
     void log_global_vars::partial_destruct()
     {
-        /*delete log_manager_inst_;
-        log_manager_inst_ = nullptr;
-        delete appender_decoder_manager_inst_;
-        appender_decoder_manager_inst_ = nullptr;
-        delete console_static_misc_;
-        console_static_misc_ = nullptr;*/
         bool force_flush_success = false;
         for (uint32_t i = 0; i < 128; ++i) {
             if (log_manager_inst_.try_flush_all()) {
@@ -74,7 +60,6 @@ namespace bq {
 #if defined(BQ_JAVA)
         platform::jni_onload_register register_(&log_global_vars::jni_onload_callback);
 #endif
-        init_layout_values();
     }
 
 }

@@ -39,14 +39,16 @@ bool UBqLogFunctionLibrary::DoBqLogFormat(UBqLog* LogInstance, EBqLogLevel Level
         return false;
     }
     const uint64_t log_id = LogInstance->log_id_;
-    if (!(((*LogInstance->merged_log_level_bitmap_ & (1U << static_cast<int32_t>(Level))) != 0) && LogInstance->categories_mask_array_[CategoryIndex]))
+    const bool without_stack = LogInstance->category_level_words_
+        && ((LogInstance->category_level_words_[CategoryIndex] >> static_cast<uint32_t>(Level)) & 1U) != 0;
+    if (!without_stack && !(((*LogInstance->merged_log_level_bitmap_ & (1U << static_cast<int32_t>(Level))) != 0) && LogInstance->categories_mask_array_[CategoryIndex]))
     {
         return false;
     }
     bq::_api_u16string_def stack_string_def;
     stack_string_def.str = nullptr;
     stack_string_def.len = 0;
-    bool should_print_stack = (*LogInstance->print_stack_level_bitmap_ & (1 << static_cast<int32_t>(Level)));
+    bool should_print_stack = !without_stack && (*LogInstance->print_stack_level_bitmap_ & (1 << static_cast<int32_t>(Level)));
     if(should_print_stack){
         bq::api::__api_get_stack_trace_utf16(&stack_string_def, 0);
     }
@@ -129,7 +131,6 @@ bool UBqLogFunctionLibrary::DoBqLogFormat(UBqLog* LogInstance, EBqLogLevel Level
             Arg.FormattedString = Arg.LColor.ToString();
             total_args_size += bq::tools::make_size_seq<true>(Arg.FormattedString).get_element().get_aligned_value();
             break;
-        break;
         }
     }
     const void* format_data_ptr = should_print_stack ? nullptr : bq::tools::_serialize_str_helper_by_type<FString>::get_storage_data_addr(FormatString);
@@ -291,9 +292,11 @@ FString UBqLogFunctionLibrary::BqLogTakeSnapshot(UBqLog* LogInstance, const FStr
     FString SnapshotString;
     if (snapshot_str_def.len > 0 && snapshot_str_def.str != nullptr)
     {
-        SnapshotString = snapshot_str_def.str;
-        FUTF8ToTCHAR Converter(reinterpret_cast<const ANSICHAR*>(snapshot_str_def.str), snapshot_str_def.len);
-        SnapshotString = FString(Converter.Get(), Converter.Length());
+        // Copy exactly len bytes. The converted text has no terminator, and a log entry may itself
+        // contain '\0', so reading up to a zero would run past the end or stop early. FString(Ptr, N)
+        // does just that: N is extra slack, not a length.
+        FUTF8ToTCHAR Converter(reinterpret_cast<const ANSICHAR*>(snapshot_str_def.str), static_cast<int32>(snapshot_str_def.len));
+        SnapshotString.AppendChars(Converter.Get(), Converter.Length());
     }
     bq::api::__api_release_snapshot_string(log_id, &snapshot_str_def);
     return SnapshotString;

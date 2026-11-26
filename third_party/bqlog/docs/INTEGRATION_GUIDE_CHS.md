@@ -6,7 +6,39 @@
 
 ---
 
+## 发行渠道
+
+vcpkg 与 Homebrew 发布的是 C/C++ 包：只包含 C 与 C++ 接口以及命令行工具。Java、C#、Node.js、Python 的 wrapper 不在其中 —— wrapper 需要与一份针对该语言编译的核心库一起构建，所以每种 wrapper 都随自己的包发布（见下面各语言章节）。vcpkg / Homebrew 请用于 C/C++ 工程，或用于从源码树构建 wrapper。
+
+---
+
 ## C++（动态库 / 静态库 / 源码）
+
+- **Homebrew（macOS / Linux）**
+
+  ```bash
+  brew install bqlog
+  ```
+
+  该包默认包含 `BqLog_CategoryLogGenerator` 与 `BqLog_LogDecoder` 两个命令行工具。之后即可通过 CMake 或 pkg-config 找到该包：
+
+  ```cmake
+  find_package(BqLog REQUIRED)
+  target_link_libraries(your_target PRIVATE bqlog::BqLogShared)   # 或 bqlog::BqLogStatic
+  ```
+
+  ```bash
+  pkg-config --cflags --libs bqlog
+  ```
+
+- **vcpkg（Windows / Linux / macOS）**
+
+  ```bash
+  vcpkg install bqlog
+  vcpkg install "bqlog[tools]"   # 同时安装命令行工具（默认不装），位于 installed/<triplet>/tools/bqlog/
+  ```
+
+  manifest 模式在 `vcpkg.json` 中写 `{ "name": "bqlog", "features": ["tools"] }`。静态库还是动态库由 triplet 决定，目标名为 `bqlog::BqLog`。
 
 - **动态库**
   下载 `dynamic_lib_{version}` 压缩包：
@@ -26,6 +58,43 @@
   - 如需启用 Java / NAPI（Node.js / HarmonyOS ArkTS）支持，以及系统链接库与部分宏定义，请参考 `/src/CMakeLists.txt`（如果觉得难以理解，建议求助AI提炼）。
   - 当存在 NAPI 环境（Node.js 或 HarmonyOS ArkTS）或需要 Java / C# 调用时，不推荐以「纯 C++ 源码」直接集成，因为需要手动处理初始化和库加载流程；更推荐使用预编译包及对应 wrapper。
 
+### C++20 模块（`import`）
+
+```cpp
+import bq.log;
+```
+
+模块接口单元 `bq_log/bq.log.cppm` 随头文件分发，由你的工程编译。CMake 3.28 及以上（Ninja 或 Visual Studio 生成器）：
+
+```cmake
+find_package(BqLog REQUIRED)
+
+target_sources(your_target PRIVATE FILE_SET CXX_MODULES
+    BASE_DIRS "${BQLOG_INCLUDE_DIR}"
+    FILES "${BQLOG_MODULE_FILE}")
+target_link_libraries(your_target PRIVATE bqlog::BqLogStatic)
+```
+
+支持的编译器：Clang 16+、MSVC 19.34+、GCC 15+（GCC 14 编译该模块时会触发内部编译器错误）。GCC 还需要 `-fmodules-ts`。
+
+**GCC 16 已知问题：** 在 `import bq.log;` 之后 include C 头文件（`<string.h>` 就会踩），可能被判成 `redefinition of 'strstr'`（或 `memcpy`）。这是 GCC 16 的回归：同样代码在 GCC 15、Clang、MSVC 上都正常。规避方法：把系统头文件写在 import 之前。
+
+```cpp
+#include <string.h> // 系统头文件放前面
+import bq.log;
+```
+
+不用 CMake 时（以 clang 为例）：
+
+```bash
+clang++ -std=c++20 -x c++-module --precompile -I$PREFIX/include $PREFIX/include/bq_log/bq.log.cppm -o bq.log.pcm
+clang++ -std=c++20 -c bq.log.pcm -o bq.log.o
+clang++ -std=c++20 -fmodule-file=bq.log=bq.log.pcm -c app.cpp
+clang++ bq.log.o app.o -lBqLog -o app
+```
+
+模块不导出宏，所以 `import` 时快速模式写成 `log.fast_info<"...">(args...)`。
+
 ---
 
 ## C#（Unity / 团结引擎 / .NET）
@@ -33,7 +102,16 @@
 - **Unity / 团结引擎**
   完整引擎集成步骤请见 [游戏引擎集成指南](./ENGINE_INTEGRATION_CHS.md)。
 
-- **.NET**
+- **.NET —— NuGet**
+
+  ```bash
+  dotnet add package BqLog
+  ```
+
+  包内含 C# 绑定以及 `win-x64`、`win-arm64`、`linux-x64`、`linux-arm64`、`osx-x64`、`osx-arm64`
+  的原生库。
+
+- **.NET —— 手工集成**
   - 下载对应平台的动态库包 `{os}_{arch}_libs_{version}`，引入其中动态库；
   - 将 C# wrapper 源码加入工程 —— 可以直接使用仓库下 `/wrapper/csharp/src`，也可以从 [Releases 页面](https://github.com/Tencent/BqLog/releases) 下载 `c#_wrapper_{version}` 预打包的源码包。
 
@@ -375,9 +453,94 @@ log.info("Hello Java! value: {}", 3.14);
 
 ---
 
+## Go
+
+- **预编译库**：不用 cgo 编译源码、而是链接预编译库时，请使用发布页上的桌面平台（Windows / Linux / macOS）包，其中已包含 Go bridge。
+
+通过 Go Modules 安装：
+
+```sh
+# 已有 go.mod 的项目跳过初始化
+go mod init example.com/myapp
+go get github.com/Tencent/BqLog/go/v2@latest
+```
+
+将以下代码保存为 `main.go`：
+
+```go
+package main
+
+import bq "github.com/Tencent/BqLog/go/v2"
+
+func main() {
+    config := `
+appenders_config.console.type=console
+appenders_config.console.levels=[all]
+`
+    log := bq.Create_log("go_log", config, nil)
+    if !log.Is_valid() {
+        panic("invalid log config")
+    }
+    defer log.Force_flush()
+
+    log.Info("Hello from Go! params: {}, {}", "text", 123)
+}
+```
+
+运行示例：
+
+```sh
+go run .
+```
+
+日志方法接受零个或任意数量的参数。对象支持 Go 的 String/Error 方法，
+nil 输出为 null。
+
+### 包与版本
+
+模块版本与 BqLog 一致。通过 Go Modules 获取源码，
+`go build` 自动编译 native 部分。
+
+[pkg.go.dev](https://pkg.go.dev/github.com/Tencent/BqLog/go/v2) 提供包搜索、
+README 和 API 文档展示。
+
+---
+
 ## 接下来
 
 - [API 参考](./API_REFERENCE_CHS.md) — 创建日志、写日志等核心 API
 - [配置说明](./CONFIGURATION_CHS.md) — 完整配置参考
 - [高级用法](./ADVANCED_USAGE_CHS.md) — Category、加密、自定义类型等
 - [游戏引擎集成](./ENGINE_INTEGRATION_CHS.md) — Unity、团结引擎、Unreal Engine
+
+## 主机平台
+
+由于许可的原因，PS4、PS5 与 Switch 只提供源码接入：把 `src/` 与 `include/` 加进平台工具链的工程里一起编译。
+
+平台由工具链传入的宏识别：`__ORBIS__`（PS4）、`__PROSPERO__`（PS5）、`__SWITCH__` 或 `NN_NINTENDO_SDK`（Switch）。正常的主机构建环境已经预设值了这些宏，一般不需要手动添加。
+
+类型 0 与类型 1 的 base dir 都必须在创建第一个日志之前挂载存储并设置，否则主机没有可写的工作目录，会直接以 fatal 信息终止。
+
+```cpp
+// 先调用主机的存储挂载API，并获取挂载目录mount_path
+bq::log::reset_base_dir(0, mount_path);   // 游戏挂载存储之后
+bq::log::reset_base_dir(1, mount_path);
+auto log = bq::log::create_log("game", R"({"log_config": {"recovery": true}})");
+```
+
+注意：通过 UE 接入的话这一步可以跳过，因为插件已经把两个 base dir 都指到工程的 Saved 目录，详见[游戏引擎集成 — Unreal Engine](./ENGINE_INTEGRATION_CHS.md#unreal-engine)。
+
+| 能力 | PS4 / PS5 | Switch | 缺失时的表现 |
+|---|---|---|---|
+| `memory_map` | 有 | 无 | 无崩溃恢复，缓冲区留在堆上 |
+| `multi_process` | 无 | 无 | 每个 title 单实例，无多进程隔离 |
+| `cross_process_file_lock` | 无 | 无 | 由上一条决定 |
+| `crash_handler` | 无 | 无 | `enable_auto_crash_handle()` 不安装任何处理器 |
+| `backtrace` | 无 | 无 | 栈字段写明不支持 |
+| `dirent` | 有 | 有 | `expire_time_*` 与 `capacity_limit` 依赖它 |
+| `thread_name` | 无 | 无 | 线程名返回 `thread_<id>` |
+| `default_base_dir` | 无 | 无 | 必须调用 `reset_base_dir` |
+| `user_counter` | 无 | 无 | 时间戳取自系统时钟 |
+
+`bq::log::get_platform_capabilities()` 以位掩码返回上述能力，启动时也会打印一次，反馈问题时可直接带上。PlayStation 与 Switch 目前为实验版本，如果遇到问题请反馈Issue并带上上述`get_platform_capabilities()`输出的信息。
+

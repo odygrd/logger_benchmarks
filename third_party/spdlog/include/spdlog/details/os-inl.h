@@ -68,11 +68,11 @@
 #define __has_feature(x) 0  // Compatibility with non-clang compilers.
 #endif
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace details {
 namespace os {
 
-SPDLOG_INLINE log_clock::time_point now() SPDLOG_NOEXCEPT {
+SPDLOG_INLINE spdlog::log_clock::time_point now() SPDLOG_NOEXCEPT {
 #if defined __linux__ && defined SPDLOG_CLOCK_COARSE
     timespec ts;
     ::clock_gettime(CLOCK_REALTIME_COARSE, &ts);
@@ -162,10 +162,7 @@ SPDLOG_INLINE int remove(const filename_t &filename) SPDLOG_NOEXCEPT {
 }
 
 SPDLOG_INLINE int remove_if_exists(const filename_t &filename) SPDLOG_NOEXCEPT {
-    if (remove(filename) == 0)
-        return 0;
-
-    return (errno == ENOENT) ? 0 : -1;
+    return path_exists(filename) ? remove(filename) : 0;
 }
 
 SPDLOG_INLINE int rename(const filename_t &filename1, const filename_t &filename2) SPDLOG_NOEXCEPT {
@@ -511,10 +508,8 @@ SPDLOG_INLINE bool create_dir(const filename_t &path) {
 #endif
 
         if (!subdir.empty() && !path_exists(subdir) && !mkdir_(subdir)) {
-                if (errno != EEXIST) {
-                        return false;  // return error if failed creating dir
-                }
-    }
+            return false;  // return error if failed creating dir
+        }
         search_offset = token_pos + 1;
     } while (search_offset < path.size());
 
@@ -572,4 +567,4 @@ SPDLOG_INLINE bool fwrite_bytes(const void *ptr, const size_t n_bytes, FILE *fp)
 
 }  // namespace os
 }  // namespace details
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog

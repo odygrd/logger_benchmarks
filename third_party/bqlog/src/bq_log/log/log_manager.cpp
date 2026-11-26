@@ -14,6 +14,23 @@
 #include "bq_log/log/log_worker.h"
 
 namespace bq {
+    const platform_capability_row* platform_capability_rows(uint32_t& out_count)
+    {
+        static const platform_capability_row rows[] = {
+            { "mmap", platform_capability::memory_map, BQ_HAS_MMAP },
+            { "multi_process", platform_capability::multi_process, BQ_HAS_MULTI_PROCESS },
+            { "file_lock", platform_capability::cross_process_file_lock, BQ_HAS_CROSS_PROCESS_FILE_LOCK },
+            { "crash_handler", platform_capability::crash_handler, BQ_HAS_CRASH_HANDLER },
+            { "backtrace", platform_capability::backtrace, BQ_HAS_BACKTRACE },
+            { "dirent", platform_capability::dirent, BQ_HAS_DIRENT },
+            { "thread_name", platform_capability::thread_name, BQ_HAS_THREAD_NAME },
+            { "default_base_dir", platform_capability::default_base_dir, BQ_HAS_DEFAULT_BASE_DIR },
+            { "user_counter", platform_capability::user_counter, BQ_HAS_USER_COUNTER },
+        };
+        out_count = static_cast<uint32_t>(sizeof(rows) / sizeof(rows[0]));
+        return rows;
+    }
+
     log_manager::log_manager()
     {
         phase_ = phase::invalid;
@@ -25,6 +42,19 @@ namespace bq {
 #if !defined(NDEBUG)
         bq::util::log_device_console(log_level::info, "log_manager is constructed");
 #endif
+        {
+            bq::string base_dir;
+            const bool base_dir_ready = bq::platform::try_get_base_dir(0, base_dir);
+            uint32_t capability_count = 0;
+            const platform_capability_row* rows = platform_capability_rows(capability_count);
+            bq::string report;
+            for (uint32_t i = 0; i < capability_count; ++i) {
+                char item[64];
+                snprintf(item, sizeof(item), "%s=%" PRId32 "%s", rows[i].name_, rows[i].supported_, (i + 1 < capability_count) ? " " : "");
+                report += item;
+            }
+            bq::util::log_device_console(log_level::info, "platform capabilities: %s base_dir=%s", report.c_str(), base_dir_ready ? base_dir.c_str() : "<unset>");
+        }
     }
 
     log_manager& log_manager::instance()
@@ -53,13 +83,11 @@ namespace bq {
         case phase::invalid:
             util::log_device_console(bq::log_level::error, "you can not create log before BqLog initing!");
             return 0;
-            break;
         case phase::working:
             break;
         case phase::uninitialized:
             util::log_device_console(bq::log_level::error, "you can not create log after BqLog is uninited!");
             return 0;
-            break;
         default:
             break;
         }
@@ -89,7 +117,10 @@ namespace bq {
                 if (categories_changed) {
                     assert(false && "categories can not been changed during runtime, please check the generated categories file for all the wrappers");
                 }
-                (*exist_iter)->reset_config(config_obj);
+                if (!(*exist_iter)->reset_config(config_obj)) {
+                    // the log that already exists keeps its previous config and appenders
+                    return 0;
+                }
                 return (*exist_iter).get()->id();
             }
         }
@@ -139,43 +170,45 @@ namespace bq {
         case phase::invalid:
             util::log_device_console(bq::log_level::error, "you can not reset log config before BqLog initing!");
             return 0;
-            break;
         case phase::working:
             break;
         case phase::uninitialized:
             util::log_device_console(bq::log_level::error, "you can not reset log config after BqLog is uninited!");
             return 0;
-            break;
         default:
             break;
         }
         for (decltype(log_imp_list_)::iterator it = log_imp_list_.begin(); it != log_imp_list_.end(); ++it) {
             if ((*it) && (*it)->get_name() == log_name) {
-                if ((*it)->reset_config(config_obj)) {
+                // a rejected config leaves the log as it was, so report what reset_config() decided
+                const bool reset_ok = (*it)->reset_config(config_obj);
+                if (reset_ok) {
                     (*it)->set_config(config_content);
                 }
-                return true;
+                return reset_ok;
             }
         }
         return false;
     }
 
-    void log_manager::process_by_worker(log_imp* target_log, bool is_force_flush)
+    bool log_manager::process_by_worker(log_imp* target_log, bool is_force_flush)
     {
         bq::platform::scoped_spin_lock_read_crazy scoped_lock(logs_lock_);
         if (phase::working != phase_.load(bq::platform::memory_order::relaxed)) {
-            return;
+            return false;
         }
+        bool did_work = false;
         if (target_log) {
-            target_log->process(is_force_flush);
+            did_work = target_log->process(is_force_flush);
         } else {
             for (decltype(log_imp_list_)::size_type i = 0; i < log_imp_list_.size(); ++i) {
                 auto& log_impl = log_imp_list_[i];
                 if (log_impl->get_thread_mode() == log_thread_mode::async) {
-                    log_imp_list_[i]->process(is_force_flush);
+                    did_work = log_imp_list_[i]->process(is_force_flush) || did_work;
                 }
             }
         }
+        return did_work;
     }
 
     void log_manager::force_flush_all()
@@ -216,7 +249,7 @@ namespace bq {
         }
         switch (log->get_thread_mode()) {
         case log_thread_mode::sync:
-            // do nothing
+            // Nothing pending, for the reason given in force_flush_all.
             break;
         case log_thread_mode::async:
         case log_thread_mode::independent: {
@@ -230,6 +263,44 @@ namespace bq {
         }
     }
 
+#if defined(BQ_UNIT_TEST)
+    void log_manager::test_crash_log(uint64_t log_id)
+    {
+        log_imp* log = get_log_by_id(log_id);
+        // an independent worker would be restarted by its watch dog when stopped here
+        if (!log || log->get_thread_mode() != log_thread_mode::async) {
+            assert(false && "test_crash_log supports async logs only");
+            return;
+        }
+        bq::platform::scoped_spin_lock_write_crazy scoped_lock(logs_lock_);
+        for (decltype(log_imp_list_)::size_type i = 0; i < log_imp_list_.size(); ++i) {
+            if (log_imp_list_[i].get() == log) {
+                log_imp_list_.erase(log_imp_list_.begin() + static_cast<ptrdiff_t>(i));
+                return;
+            }
+        }
+    }
+
+    void log_manager::test_teardown_appenders(uint64_t log_id)
+    {
+        log_imp* log = get_log_by_id(log_id);
+        if (!log) {
+            return;
+        }
+        bq::platform::scoped_spin_lock_write_crazy scoped_lock(logs_lock_);
+        log->test_teardown_appenders();
+    }
+
+    void log_manager::test_force_flush(uint64_t log_id)
+    {
+        log_imp* log = get_log_by_id(log_id);
+        if (!log) {
+            return;
+        }
+        bq::platform::scoped_spin_lock_write_crazy scoped_lock(logs_lock_);
+        log->sync_process(true);
+    }
+#endif
     void log_manager::uninit()
     {
         bq::platform::scoped_spin_lock_read_crazy scoped_lock(logs_lock_);
@@ -274,9 +345,11 @@ namespace bq {
         bq::util::log_device_console(bq::log_level::warning, "thread id:%" PRIu64 ", name:%s was terminated, try restart it!", worker_ptr->get_thread_id(), worker_ptr->get_thread_name().c_str());
         auto thread_mode = worker_ptr->get_thread_mode();
         auto target_log = worker_ptr->get_log_target();
+        auto process_interval_ms = worker_ptr->get_process_interval_ms();
         bq::object_destructor<log_worker>::destruct(worker_ptr);
         bq::object_constructor<log_worker>::construct(worker_ptr);
         worker_ptr->init(thread_mode, target_log);
+        worker_ptr->set_process_interval_ms(process_interval_ms);
         worker_ptr->start();
     }
 

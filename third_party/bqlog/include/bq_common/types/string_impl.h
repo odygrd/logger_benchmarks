@@ -15,8 +15,10 @@
  * \date 2022/08/10
  *
  */
+#if !defined(BQ_MODULE_SYSTEM_HEADERS_PREINCLUDED)
 #include <string.h>
 #include <ctype.h>
+#endif
 #include "bq_common/misc/assert.h"
 #include "bq_common/types/type_tools.h"
 #include "bq_common/types/string_def.h"
@@ -402,7 +404,7 @@ namespace bq {
     {
         size_type start_pos = 0;
         while (start_pos < size()) {
-            if (!isspace((int32_t)(uint8_t)(*(c_str() + start_pos)))) {
+            if (!string_tools::is_space(*(c_str() + start_pos))) {
                 break;
             }
             ++start_pos;
@@ -413,7 +415,7 @@ namespace bq {
         size_type end_pos = size();
         while (end_pos > 0) {
             --end_pos;
-            if (!isspace((int32_t)(uint8_t)(*(c_str() + end_pos)))) {
+            if (!string_tools::is_space(*(c_str() + end_pos))) {
                 break;
             }
         }

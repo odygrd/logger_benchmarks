@@ -34,7 +34,7 @@
  */
 
 #include "bq_common/bq_common.h"
-#include "bq_log/misc/bq_log_api.h"
+#include "bq_log/api/bq_log_api.h"
 #include "bq_log/types/buffer/log_buffer_defs.h"
 
 namespace bq {
@@ -52,7 +52,7 @@ namespace bq {
             uint8_t padding[3];
         } BQ_PACK_END
 
-            static_assert(sizeof(chunk_head_def) == 12, "the size of chunk_head_def should be equal to 12 bytes");
+        static_assert(sizeof(chunk_head_def) == 12, "the size of chunk_head_def should be equal to 12 bytes");
 
         struct block {
             uint8_t padding[BLOCK_SIZE];
@@ -92,7 +92,8 @@ namespace bq {
             {
                 return *bq::launder(reinterpret_cast<bq::platform::atomic_trivially_constructible<uint32_t>*>(writing_cursor_place_holder_));
             }
-        } BQ_PACK_END static_assert(sizeof(head) == 4 * BQ_CACHE_LINE_SIZE, "the size of head should be equal to 2 X cache line size");
+        } BQ_PACK_END
+        static_assert(sizeof(head) == 4 * BQ_CACHE_LINE_SIZE, "the size of head should be equal to 2 X cache line size");
 
         head* head_;
         block* aligned_blocks_;
@@ -145,8 +146,10 @@ namespace bq {
 #if defined(BQ_LOG_BUFFER_DEBUG)
                 last_cursor_ = current_cursor_;
 #endif
+                // advance the handle-local cursor only; rt_reading_cursor_cache_
+                // (the mmap recovery snapshot) must not move before the appender
+                // has persisted the record, otherwise a crash here loses it
                 current_cursor_ += current_block.to_chunk_head().block_num;
-                parent_->head_->rt_reading_cursor_cache_ = current_cursor_;
                 return handle;
             }
 
@@ -243,6 +246,14 @@ namespace bq {
         void return_batch_read_chunks(const siso_buffer_batch_read_handle& handle);
 
         /// <summary>
+        /// Marks the record most recently handed out by the handle as persisted, moving the mmap
+        /// recovery snapshot past it. The caller must only call this after that record's persistence
+        /// has finished (the appender's mark_write_finished); the reading_cursor released to the
+        /// writer still only moves when the whole batch is returned.
+        /// </summary>
+        void mark_persisted(const siso_buffer_batch_read_handle& handle);
+
+        /// <summary>
         /// Traverses all data written, invoking the provided callback for each chunk from the consumer thread.
         /// </summary>
         /// <param name="in_callback">A function pointer to the callback that will be called with the data and its size.</param>
@@ -256,6 +267,11 @@ namespace bq {
         /// <param name="expected_buffer_size">The desired memory size to be guaranteed</param>
         /// <returns>The minimum buffer size required</returns>
         static uint32_t calculate_min_size_of_memory(uint32_t expected_buffer_size);
+
+        // offsets for the header-inlined fast path, which writes the same chunks as alloc/commit
+        static void fill_fast_log_layout(_api_fast_log_layout& layout);
+
+        void fill_fast_log_thread_state(_api_fast_log_thread_state& state);
 
         /// <summary>
         /// Warning:ring buffer can only be read from one thread at same time.
@@ -296,6 +312,12 @@ namespace bq {
         bq_forceinline uint32_t get_total_blocks_count() const
         {
             return aligned_blocks_count_;
+        }
+
+        // commits pages without touching contents, which may be recovered data
+        void prefault()
+        {
+            bq::platform::prefault_pages(aligned_blocks_, static_cast<size_t>(aligned_blocks_count_) * sizeof(block));
         }
 
         bq_forceinline bool get_is_memory_recovery() const

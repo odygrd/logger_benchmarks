@@ -20,6 +20,24 @@
 #include "bq_log/global/log_vars.h"
 
 namespace bq {
+    void init_log_thread_info(log_thread_info& info)
+    {
+        bq::string thread_name = bq::platform::thread::get_current_thread_name();
+        info.thread_name_len_ = static_cast<uint8_t>(bq::min_value(static_cast<size_t>(MAX_THREAD_NAME_LEN), thread_name.size()));
+        if (info.thread_name_len_ > 0) {
+            memcpy(info.thread_name_, thread_name.c_str(), info.thread_name_len_);
+        }
+        info.thread_id_ = bq::platform::thread::get_current_thread_id();
+    }
+
+    static const bool fast_state_no_reallocate = false;
+
+    static void clear_fast_state(_api_fast_log_thread_state& state)
+    {
+        state.buffer_key = 0;
+        state.need_reallocate = &fast_state_no_reallocate;
+    }
+
     bq_forceinline static void mark_block_removed(block_node_head* block, bool removed)
     {
         block->get_misc_data<log_buffer::block_misc_data>().is_removed().store_release(removed);
@@ -70,6 +88,12 @@ namespace bq {
 
     log_buffer::log_tls_info::~log_tls_info()
     {
+        // first: a later log from another thread_local destructor must take the slow path
+        if (fast_state_) {
+            clear_fast_state(*fast_state_);
+            fast_state_ = nullptr;
+            fast_state_buffer_id_ = 0;
+        }
         if (log_map_) {
             for (auto pair : *log_map_) {
                 bq::shared_ptr<destruction_mark> destruction_protector = pair.value()->destruction_mark_;
@@ -122,27 +146,71 @@ namespace bq {
         cur_buffer_info_ = nullptr;
     }
 
-    BQ_TLS_NON_POD(log_buffer::log_tls_info, log_tls_info_)
+    BQ_TLS_NON_POD_INLINE_IMPL(log_buffer::log_tls_info, log_tls_info_)
+
+    void log_buffer::log_tls_info::bind_fast_state(_api_fast_log_thread_state* state)
+    {
+        fast_state_ = state;
+        fast_state_buffer_id_ = cur_log_buffer_id_;
+        publish_fast_state(cur_buffer_info_ ? cur_buffer_info_->cur_block_ : nullptr);
+    }
+
+    void log_buffer::log_tls_info::publish_fast_state(block_node_head* block)
+    {
+        if (!fast_state_) {
+            return;
+        }
+        if (!block) {
+            clear_fast_state(*fast_state_);
+            return;
+        }
+        block->get_buffer().fill_fast_log_thread_state(*fast_state_);
+        fast_state_->need_reallocate = &block->get_misc_data<block_misc_data>().need_reallocate_;
+        fast_state_->buffer_key = ~fast_state_buffer_id_;
+    }
+
+    uint16_t log_buffer::recovery_run_version()
+    {
+        auto* inst = instance_storage::get();
+        return inst ? inst->run_version() : 0;
+    }
 
     log_buffer::log_buffer(log_buffer_config& config)
         : config_(config)
         , hp_buffer_(config_, BLOCKS_PER_GROUP_NODE)
         , lp_buffer_(config_)
         , hp_buffer_max_alloc_size_(UINT32_MAX)
-        , version_(config_.need_recovery ? ++lp_buffer_.get_mmap_misc_data<lp_buffer_head_misc>().saved_version_ : 0)
+        // instance_storage::get() is null when the platform does not support mmap (or the instance
+        // could not be claimed); there is nothing to recover then
+        , version_(config_.need_recovery ? recovery_run_version() : 0)
         , destruction_mark_(bq::make_shared<destruction_mark>())
         , current_oversize_buffer_index_(0)
     {
         static bq::platform::atomic<uint64_t> id_generator(0);
         id_ = id_generator.add_fetch_relaxed(1);
-        const_cast<log_buffer_config&>(config_).default_buffer_size = bq::max_value((uint32_t)(16 * bq::BQ_CACHE_LINE_SIZE), bq::roundup_pow_of_two(config_.default_buffer_size));
-        if (config.need_recovery) {
+        const_cast<log_buffer_config&>(config_).default_buffer_size = bq::max_value((uint32_t)(16 * BQ_CACHE_LINE_SIZE), bq::roundup_pow_of_two(config_.default_buffer_size));
+        if (config_.need_recovery) {
+            auto* inst = instance_storage::get();
+            auto& misc = lp_buffer_.get_mmap_misc_data<lp_buffer_head_misc>();
+            const uint64_t serial = inst ? inst->run_serial() : 0;
+            if (inst) {
+                // data from another instance (copied directory) or older than the
+                // recovery window is unreachable via version numbers anyway; the
+                // serial check also covers wrap-around collisions of run_version
+                const bool stale = misc.saved_run_serial_ == 0
+                    || serial <= misc.saved_run_serial_
+                    || serial - misc.saved_run_serial_ > MAX_RECOVERY_VERSION_RANGE;
+                if (stale) {
+                    discard_recovery_data();
+                }
+                misc.saved_version_ = static_cast<uint16_t>(version_);
+                misc.saved_run_serial_ = serial;
+            }
             rt_cache_.current_reading_.version_ = static_cast<uint16_t>(version_ - MAX_RECOVERY_VERSION_RANGE);
             prepare_and_fix_recovery_data();
         } else {
             assert(lp_buffer_.get_mmap_misc_data<lp_buffer_head_misc>().saved_version_ == 0 && "invalid lp_buffer_head_misc init value");
             rt_cache_.current_reading_.version_ = 0;
-            clear_recovery_data();
         }
         rt_cache_.current_reading_.is_in_recovery_reading_
             = (rt_cache_.current_reading_.version_ != version_);
@@ -159,19 +227,17 @@ namespace bq {
         destruction_mark_->is_destructed_ = true;
     }
 
-    log_buffer_write_handle log_buffer::alloc_write_chunk(uint32_t size, uint64_t current_epoch_ms)
+    log_buffer_write_handle log_buffer::alloc_write_chunk_full_impl(log_tls_buffer_info& tls_buffer, uint32_t size, uint32_t ext_info_size, uint64_t current_epoch_ms)
     {
-        auto& tls_buffer = log_tls_info__get_direct().get_buffer_info(this);
-
         block_node_head*& block_cache = tls_buffer.cur_block_;
         uint64_t& thread_last_update_epoch_ms = tls_buffer.last_update_epoch_ms_;
         uint64_t& thread_update_times = tls_buffer.update_times_;
 
         // frequency check
-        bool is_high_frequency = (bool)block_cache;
+        bool is_high_frequency = (bool)block_cache || tls_buffer.fast_mode_;
         BQ_UNLIKELY_IF(current_epoch_ms >= thread_last_update_epoch_ms + HP_BUFFER_CALL_FREQUENCY_CHECK_INTERVAL)
         {
-            if (thread_update_times < config_.high_frequency_threshold_per_second) {
+            if (thread_update_times < config_.high_frequency_threshold_per_second && !tls_buffer.fast_mode_) {
                 is_high_frequency = false;
             }
             thread_last_update_epoch_ms = current_epoch_ms;
@@ -188,23 +254,23 @@ namespace bq {
             if (is_high_frequency) {
                 BQ_UNLIKELY_IF(!block_cache)
                 {
-                    block_cache = alloc_new_hp_block();
+                    set_cur_block(tls_buffer, alloc_new_hp_block());
                 }
                 else BQ_UNLIKELY_IF(is_block_need_reallocate(block_cache))
                 {
                     mark_block_removed(block_cache, true); // mark removed
-                    block_cache = alloc_new_hp_block();
+                    set_cur_block(tls_buffer, alloc_new_hp_block());
                 }
                 result = block_cache->get_buffer().alloc_write_chunk(size);
+                result.ext_info_reserved = false;
                 if (enum_buffer_result_code::err_not_enough_space == result.result) {
                     switch (config_.policy) {
                     case log_memory_policy::auto_expand_when_full:
                         // discard result and switch to high frequency mode and try again
                         block_cache->get_buffer().commit_write_chunk(result);
                         mark_block_removed(block_cache, true); // mark removed
-                        block_cache = alloc_new_hp_block();
+                        set_cur_block(tls_buffer, alloc_new_hp_block());
                         continue;
-                        break;
                     case log_memory_policy::block_when_full:
                         result.result = enum_buffer_result_code::err_wait_and_retry;
                         break;
@@ -214,7 +280,7 @@ namespace bq {
                 }
                 break;
             } else {
-                result = lp_buffer_.alloc_write_chunk(size + static_cast<uint32_t>(sizeof(context_head)));
+                result = lp_buffer_.alloc_write_chunk(size + ext_info_size + static_cast<uint32_t>(sizeof(context_head)));
                 if (enum_buffer_result_code::success == result.result) {
                     auto* context = reinterpret_cast<context_head*>(result.data_addr);
                     context->version_ = version_;
@@ -232,7 +298,6 @@ namespace bq {
                         // discard result and switch to high frequency mode and try again
                         lp_buffer_.commit_write_chunk(result);
                         continue;
-                        break;
                     case log_memory_policy::block_when_full:
                         result.result = enum_buffer_result_code::err_wait_and_retry;
                         break;
@@ -242,7 +307,7 @@ namespace bq {
                 }
                 if (block_cache) {
                     mark_block_removed(block_cache, true); // mark removed;
-                    block_cache = nullptr;
+                    set_cur_block(tls_buffer, nullptr);
                 }
                 break;
             }
@@ -251,14 +316,13 @@ namespace bq {
         // For chunks larger than lp_buffer size and hp_buffer size.
         BQ_UNLIKELY_IF((is_invalid_hp_size || enum_buffer_result_code::err_alloc_size_invalid == result.result) && size > 0)
         {
-            return wt_alloc_oversize_write_chunk(size, current_epoch_ms);
+            return wt_alloc_oversize_write_chunk(size + ext_info_size, current_epoch_ms);
         }
         return result;
     }
 
-    void log_buffer::commit_write_chunk(const log_buffer_write_handle& handle)
+    void log_buffer::commit_write_chunk_full_impl(log_tls_buffer_info& tls_buffer_info, const log_buffer_write_handle& handle)
     {
-        auto& tls_buffer_info = log_tls_info__get_direct().get_buffer_info_directly(this);
         block_node_head*& block_cache = tls_buffer_info.cur_block_;
         bool is_high_frequency = (block_cache != nullptr);
         if (is_high_frequency) {
@@ -282,6 +346,49 @@ namespace bq {
             }
         }
     }
+
+    const fast_format_meta* log_buffer::register_fast_log_format(const char* format, uint32_t format_size,
+        uint8_t level, uint32_t category_idx, uint8_t format_type,
+        const uint8_t* arg_types, uint16_t arg_count)
+    {
+        return meta_registry::instance().register_format(format, format_size, level, category_idx,
+            format_type, arg_types, arg_count);
+    }
+
+    const fast_format_meta* log_buffer::resolve_fast_log_meta(uint16_t version, uint64_t old_addr)
+    {
+        return meta_registry::instance().resolve_recovered(version, old_addr);
+    }
+
+#if defined(BQ_UNIT_TEST)
+    log_buffer_write_handle log_buffer::test_alloc_fast_record(const fast_format_meta* format, uint32_t args_size)
+    {
+        auto& tls_info = log_tls_info__get_direct().get_buffer_info(this);
+        tls_info.fast_mode_ = true;
+        log_buffer_write_handle handle;
+        if (!ensure_fast_hp_block(tls_info)) {
+            return handle;
+        }
+        handle = tls_info.cur_block_->get_buffer().alloc_write_chunk(static_cast<uint32_t>(sizeof(log_head_fast_def)) + args_size);
+        if (handle.result == enum_buffer_result_code::success) {
+            auto& head = *reinterpret_cast<log_head_fast_def*>(handle.data_addr);
+            head.timestamp_epoch = log_head_base_def::set_fast(bq::platform::high_performance_epoch_ms());
+            head.format_meta_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(format));
+        }
+        return handle;
+    }
+
+#endif
+#if defined(BQ_UNIT_TEST) || defined(BQ_MULTI_INSTANCE_TEST)
+    bool log_buffer::is_first_hp_group_memory_mapped()
+    {
+        auto group = hp_buffer_.first(group_list::lock_type::no_lock);
+        if (!group) {
+            return false;
+        }
+        return group.value().get_memory_map_status() != create_memory_map_result::failed;
+    }
+#endif
 
 #if defined(BQ_LOG_BUFFER_DEBUG)
     void log_buffer::debug_check_read_thread()
@@ -316,6 +423,7 @@ namespace bq {
                 }
                 rt_reading.state_ = read_state::next_group_finding;
                 rt_recycle_oversize_buffers();
+                hp_buffer_.garbage_collect_if_pending();
                 break;
             case read_state::hp_block_reading:
                 rt_reading.hp_handle_cache_ = rt_reading.cur_block_->get_buffer().batch_read();
@@ -490,11 +598,29 @@ namespace bq {
         misc_data.context_.version_ = version_;
         misc_data.context_.is_thread_finished_ = false;
         misc_data.context_.seq_ = tls_buffer_info.wt_data_.current_write_seq_++;
+        misc_data.thread_info_ = get_log_thread_info();
         auto new_node = hp_buffer_.alloc_new_block(&misc_data, sizeof(block_misc_data));
         if (hp_buffer_max_alloc_size_ == UINT32_MAX) {
             hp_buffer_max_alloc_size_ = new_node->get_buffer().get_max_alloc_size();
         }
+        // keeps first-touch page faults off the producer's hot path
+        new_node->get_buffer().prefault();
         return new_node;
+    }
+
+    bq::block_node_head* log_buffer::ensure_fast_hp_block(log_tls_buffer_info& tls_buffer_info)
+    {
+        block_node_head* block_cache = tls_buffer_info.cur_block_;
+        BQ_UNLIKELY_IF(!block_cache)
+        {
+            set_cur_block(tls_buffer_info, alloc_new_hp_block());
+        }
+        else BQ_UNLIKELY_IF(is_block_need_reallocate(block_cache))
+        {
+            mark_block_removed(block_cache, true);
+            set_cur_block(tls_buffer_info, alloc_new_hp_block());
+        }
+        return tls_buffer_info.cur_block_;
     }
 
     log_buffer::context_verify_result log_buffer::verify_context(const context_head& context)
@@ -544,7 +670,7 @@ namespace bq {
                 return context_verify_result::seq_invalid;
             }
         }
-        else if (parent_context.version_ < oversize_context.version_)
+        else if (static_cast<int16_t>(static_cast<uint16_t>(oversize_context.version_ - parent_context.version_)) > 0)
         {
             BQ_UNLIKELY_IF(!is_version_valid(oversize_context.version_))
             {
@@ -575,11 +701,13 @@ namespace bq {
             }
         } else {
             // for recovering data
-            auto& recover_map = rt_cache_.current_reading_.recovery_records_[static_cast<uint16_t>(version_ - 1 - context.version_)];
+            const uint16_t version_idx = static_cast<uint16_t>(version_ - 1 - context.version_);
+            auto& recover_map = rt_cache_.current_reading_.recovery_records_[version_idx];
 #if defined(BQ_LOG_BUFFER_DEBUG)
             assert((recover_map.find(context.get_tls_info()) != recover_map.end()) && "unregister none exist seq");
 #endif
             ++recover_map[context.get_tls_info()];
+            ++rt_cache_.current_reading_.recovery_replayed_counts_[version_idx];
 #if defined(BQ_UNIT_TEST)
             // In unit tests, recovery happens in the same process, so the pointer is valid and safe to delete.
             if (context.is_thread_finished_) {
@@ -626,7 +754,6 @@ namespace bq {
                 case context_verify_result::seq_pending:
                     lp_buffer_.discard_read_chunk(read_handle);
                     return false;
-                    break;
                 default:
                     break;
                 }
@@ -784,10 +911,20 @@ namespace bq {
     void log_buffer::rt_try_traverse_to_next_version()
     {
         auto& rt_reading = rt_cache_.current_reading_;
-        auto& recover_map = rt_cache_.current_reading_.recovery_records_[static_cast<uint16_t>(version_ - 1 - rt_reading.version_)];
+        const uint16_t version_idx = static_cast<uint16_t>(version_ - 1 - rt_reading.version_);
+        // the reader leaves this version for good: whatever was found but not replayed is lost
+        const uint32_t found = rt_reading.recovery_found_counts_[version_idx];
+        const uint32_t replayed = rt_reading.recovery_replayed_counts_[version_idx];
+        if (replayed < found) {
+            bq::util::log_device_console(bq::log_level::error, "recovery of version %" PRIu16 " ended with %" PRIu32 " of %" PRIu32 " contexts not replayed, their logs are lost, log_name:%s",
+                rt_reading.version_, found - replayed, found, config_.log_name.c_str());
+        }
+        rt_reading.recovery_found_counts_[version_idx] = 0;
+        rt_reading.recovery_replayed_counts_[version_idx] = 0;
+        auto& recover_map = rt_reading.recovery_records_[version_idx];
         recover_map.clear();
 #ifdef BQ_UNIT_TEST
-        rt_cache_.current_reading_.recovery_seq_records_[static_cast<uint16_t>(version_ - 1 - rt_reading.version_)].clear();
+        rt_cache_.current_reading_.recovery_seq_records_[version_idx].clear();
 #endif
         ++rt_reading.version_;
         rt_reading.is_in_recovery_reading_ = (rt_reading.version_ != version_);
@@ -810,10 +947,9 @@ namespace bq {
     log_buffer_write_handle log_buffer::wt_alloc_oversize_write_chunk(uint32_t size, uint64_t current_epoch_ms)
     {
         auto& tls_buffer = log_tls_info__get_direct().get_buffer_info(this);
-        auto& block_cache = tls_buffer.cur_block_;
-        if (block_cache) {
-            mark_block_removed(block_cache, true); // mark removed;
-            block_cache = nullptr;
+        if (tls_buffer.cur_block_) {
+            mark_block_removed(tls_buffer.cur_block_, true); // mark removed;
+            set_cur_block(tls_buffer, nullptr);
         }
         auto parent_result = lp_buffer_.alloc_write_chunk(sizeof(context_head));
         if (enum_buffer_result_code::success != parent_result.result) {
@@ -824,6 +960,9 @@ namespace bq {
                     || config_.policy == log_memory_policy::block_when_full)
                 && parent_result.result == enum_buffer_result_code::err_not_enough_space) {
                 parent_result.result = enum_buffer_result_code::err_wait_and_retry;
+            }
+            if (tls_buffer.fast_mode_) {
+                set_cur_block(tls_buffer, alloc_new_hp_block());
             }
             return parent_result;
         }
@@ -861,11 +1000,9 @@ namespace bq {
         if (enum_buffer_result_code::success != over_size_handle.result) {
             uint32_t default_buffer_size = (size < (UINT32_MAX >> 1)) ? (size << 1) : UINT32_MAX;
             bq::string abs_recovery_file_path;
-            if (config_.need_recovery) {
+            if (config_.need_recovery && config_.storage) {
                 auto new_index = current_oversize_buffer_index_.add_fetch(1, bq::platform::memory_order::relaxed);
-                char tmp[32];
-                snprintf(tmp, sizeof(tmp), "_%" PRIu64, new_index);
-                abs_recovery_file_path = TO_ABSOLUTE_PATH("bqlog_mmap/mmap_" + config_.log_name + "/os/" + config_.log_name + tmp + ".mmap", 0);
+                abs_recovery_file_path = config_.storage->os_path(new_index);
             }
             bq::platform::scoped_spin_lock_write_crazy w_lock(temprorary_oversize_buffer_.array_lock_);
             temprorary_oversize_buffer_.buffers_array_.emplace_back(bq::make_unique<oversize_buffer_obj_def>(default_buffer_size, abs_recovery_file_path, true));
@@ -904,36 +1041,16 @@ namespace bq {
         }
 
         if (enum_buffer_result_code::success != over_size_handle.result) {
-            // Both "find existing" and "alloc new" failed. Most likely cause:
-            // need_recovery=true and the recovery mmap file could not be created
-            // because the disk is full (or some other unrecoverable IO error).
-            //
-            // The lp_buffer parent slot is already populated with a real
-            // version/seq/tls_info pointing at this tls_buffer. We must commit
-            // it (otherwise the lp_buffer cursor is stuck), but the reader must
-            // NOT later try to read an oversize payload that doesn't exist.
-            // Two surgical adjustments make this clean:
-            //   1. Bump version_ on the parent so verify_context() classifies it
-            //      as version_invalid - the reader returns the chunk and skips
-            //      it without ever calling deregister_seq() or
-            //      rt_read_oversize_chunk().
-            //   2. Roll back the write_seq we already incremented; the next alloc
-            //      from this tls thread reuses the same seq value. The reader's
-            //      current_read_seq_ is NEVER advanced for this entry (because it
-            //      was version_invalid), so write/read seqs stay aligned.
-            // is_external_ref_ no longer matters - the version_invalid branch in
-            // rt_read_from_lp_buffer (case version_invalid) goes straight to
-            // return_read_chunk without inspecting it.
-            //
-            // Return err_io_failure_drop (NOT err_not_enough_space) so the upper
-            // layer (__api_log_write_begin) drops this entry immediately and
-            // never enters the wait_and_retry spin loop. Disk-full is not a
-            // back-pressure scenario - waiting is futile.
+            // Both "find existing" and "alloc new" failed, typically a full disk: commit the parent as
+            // version_invalid with the seq rolled back so the reader skips it, and drop instead of retry.
             --tls_buffer.wt_data_.current_write_seq_;
-            parent_context->version_ = static_cast<uint16_t>(version_ + 1);
+            parent_context->version_ = invalid_recovery_version();
             lp_buffer_.commit_write_chunk(parent_result);
             log_buffer_write_handle fail;
             fail.result = enum_buffer_result_code::err_io_failure_drop;
+            if (tls_buffer.fast_mode_) {
+                set_cur_block(tls_buffer, alloc_new_hp_block());
+            }
             return fail;
         }
 
@@ -955,6 +1072,9 @@ namespace bq {
         tls_buffer_info.oversize_target_buffer_->buffer_lock_.read_unlock();
         tls_buffer_info.oversize_target_buffer_ = nullptr;
         lp_buffer_.commit_write_chunk(tls_buffer_info.oversize_parent_handle_);
+        if (tls_buffer_info.fast_mode_) {
+            set_cur_block(tls_buffer_info, alloc_new_hp_block());
+        }
     }
 
     BQ_TLS_NON_POD(log_buffer_read_handle, rt_oversize_parent_handle_)
@@ -981,7 +1101,6 @@ namespace bq {
                         rt_oversize_target_buffer_ = buffer.operator->();
                         out_oversize_handle = read_handle;
                         return true;
-                        break;
                     case bq::log_buffer::context_verify_result::version_invalid:
                     case bq::log_buffer::context_verify_result::seq_invalid:
                         buffer->buffer_.return_read_chunk(read_handle);
@@ -1085,8 +1204,8 @@ namespace bq {
                     if (is_empty) {
                         bq::string abs_mmap_file_path = temprorary_oversize_buffer_.buffers_array_[index]->buffer_.get_mmap_file_path();
                         temprorary_oversize_buffer_.buffers_array_.erase_replace(temprorary_oversize_buffer_.buffers_array_.begin() + static_cast<ptrdiff_t>(index));
-                        if (bq::file_manager::is_file(abs_mmap_file_path)) {
-                            bq::file_manager::remove_file_or_dir(abs_mmap_file_path);
+                        if (config_.storage && !abs_mmap_file_path.is_empty() && bq::file_manager::is_file(abs_mmap_file_path)) {
+                            config_.storage->remove(abs_mmap_file_path);
                         }
                     }
                 }
@@ -1101,6 +1220,39 @@ namespace bq {
     }
 #endif
 
+    void log_buffer::discard_recovery_data()
+    {
+        // LP: re-init in place, the backing file stays but all cursors and the
+        // misc area (saved_version_ / saved_run_serial_) are reset
+        lp_buffer_.discard_recovered_data();
+        // HP: groups were already recovered from their mmap files, so the files
+        // cannot be deleted; invalidating every used/stage block's context
+        // makes the reader recycle them through the regular version_invalid path
+        const uint16_t invalid_version = invalid_recovery_version();
+        auto group = hp_buffer_.first(group_list::lock_type::no_lock);
+        while (group) {
+            block_node_head* block = group.value().get_data_head().used_.first();
+            while (block) {
+                block->get_misc_data<block_misc_data>().context_.version_ = invalid_version;
+                block = group.value().get_data_head().used_.next(block);
+            }
+            block = group.value().get_data_head().stage_.first();
+            while (block) {
+                block->get_misc_data<block_misc_data>().context_.version_ = invalid_version;
+                block = group.value().get_data_head().stage_.next(block);
+            }
+            group = hp_buffer_.next(group, group_list::lock_type::no_lock);
+        }
+        // OS (oversize) files are not mapped yet at this point, they can simply
+        // be removed. lp.mmap / hp files are currently mapped, they stay (their
+        // contents are neutralized above / by the LP re-init). The instance-level
+        // meta records of a stale run are handled by meta_registry's expired-file
+        // cleanup at the next enable_meta_records.
+        if (config_.storage) {
+            config_.storage->remove(config_.storage->os_dir());
+        }
+    }
+
     /**
      * @brief Fixes mmap data errors by invalidating data with the same version as the current run.
      *
@@ -1113,6 +1265,8 @@ namespace bq {
     {
         for (uint32_t i = 0; i < MAX_RECOVERY_VERSION_RANGE; ++i) {
             rt_cache_.current_reading_.recovery_records_.push_back(decltype(rt_cache_.current_reading_.recovery_records_)::value_type());
+            rt_cache_.current_reading_.recovery_found_counts_.push_back(0u);
+            rt_cache_.current_reading_.recovery_replayed_counts_.push_back(0u);
 #ifdef BQ_UNIT_TEST
             rt_cache_.current_reading_.recovery_seq_records_.push_back(decltype(rt_cache_.current_reading_.recovery_seq_records_)::value_type());
 #endif
@@ -1126,9 +1280,10 @@ namespace bq {
 #ifdef BQ_UNIT_TEST
                 bq::util::log_device_console(bq::log_level::error, "fix invalid log data in lp_buffer when recovering, version:%" PRIu16 ", seq:%" PRIu32, context.version_, context.seq_);
 #endif
-                context.version_++; // mark invalid
+                context.version_ = invalid_recovery_version_for(buffer.get_version()); // mark unrecoverable
             } else if (static_cast<uint16_t>(buffer.version_ - 1 - context.version_) < MAX_RECOVERY_VERSION_RANGE) {
                 auto& recovery_map = buffer.rt_cache_.current_reading_.recovery_records_[static_cast<uint16_t>(buffer.version_ - 1 - context.version_)];
+                ++buffer.rt_cache_.current_reading_.recovery_found_counts_[static_cast<uint16_t>(buffer.version_ - 1 - context.version_)];
                 auto iter = recovery_map.find(context.get_tls_info());
                 if (iter == recovery_map.end()) {
                     recovery_map[context.get_tls_info()] = context.seq_;
@@ -1157,9 +1312,10 @@ namespace bq {
 #ifdef BQ_UNIT_TEST
                     bq::util::log_device_console(bq::log_level::error, "fix invalid log data in hp_buffer used list when recovering, version:%" PRIu16 ", seq:%" PRIu32, context.version_, context.seq_);
 #endif
-                    context.version_++; // mark invalid
+                    context.version_ = invalid_recovery_version(); // mark unrecoverable
                 } else if (static_cast<uint16_t>(version_ - 1 - context.version_) < MAX_RECOVERY_VERSION_RANGE) {
                     auto& recovery_map = rt_cache_.current_reading_.recovery_records_[static_cast<uint16_t>(version_ - 1 - context.version_)];
+                    ++rt_cache_.current_reading_.recovery_found_counts_[static_cast<uint16_t>(version_ - 1 - context.version_)];
                     auto iter = recovery_map.find(context.get_tls_info());
                     if (iter == recovery_map.end()) {
                         recovery_map[context.get_tls_info()] = context.seq_;
@@ -1184,9 +1340,10 @@ namespace bq {
 #ifdef BQ_UNIT_TEST
                     bq::util::log_device_console(bq::log_level::error, "fix invalid log data in hp_buffer stage list when recovering, version:%" PRIu16 ", seq:%" PRIu32, context.version_, context.seq_);
 #endif
-                    context.version_++; // mark invalid
+                    context.version_ = invalid_recovery_version(); // mark unrecoverable
                 } else if (static_cast<uint16_t>(version_ - 1 - context.version_) < MAX_RECOVERY_VERSION_RANGE) {
                     auto& recovery_map = rt_cache_.current_reading_.recovery_records_[static_cast<uint16_t>(version_ - 1 - context.version_)];
+                    ++rt_cache_.current_reading_.recovery_found_counts_[static_cast<uint16_t>(version_ - 1 - context.version_)];
                     auto iter = recovery_map.find(context.get_tls_info());
                     if (iter == recovery_map.end()) {
                         recovery_map[context.get_tls_info()] = context.seq_;
@@ -1208,27 +1365,31 @@ namespace bq {
         }
 
         // Recover oversize buffers
-        bq::string over_size_memory_map_folder = TO_ABSOLUTE_PATH("bqlog_mmap/mmap_" + config_.log_name + "/os", 0);
+        if (!config_.storage) {
+            return;
+        }
+        bq::string over_size_memory_map_folder = config_.storage->os_dir();
         if (bq::file_manager::is_dir(over_size_memory_map_folder)) {
             bq::array<bq::string> sub_names = bq::file_manager::get_sub_dirs_and_files_name(over_size_memory_map_folder);
             for (const bq::string& file_name : sub_names) {
                 bq::string full_path = bq::file_manager::combine_path(over_size_memory_map_folder, file_name);
-                if (!file_name.end_with(".mmap") || !file_name.begin_with(config_.log_name + "_")) {
+                if (!file_name.end_with(".mmap")) {
                     bq::util::log_device_console(bq::log_level::warning, "remove invalid mmap file:%s", full_path.c_str());
-                    bq::file_manager::remove_file_or_dir(full_path);
+                    config_.storage->remove(full_path);
                     continue;
                 }
                 char* end_ptr = nullptr;
                 errno = 0;
-                bq::string file_name_cpy = file_name.substr(config_.log_name.size() + 1);
+                bq::string file_name_cpy = file_name.substr(0, file_name.size() - strlen(".mmap"));
                 uint64_t u64_value = strtoull(file_name_cpy.c_str(), &end_ptr, 10);
                 if (errno == ERANGE
-                    || end_ptr != file_name_cpy.c_str() + (file_name_cpy.size() - strlen(".mmap"))) {
+                    || file_name_cpy.is_empty()
+                    || end_ptr != file_name_cpy.c_str() + file_name_cpy.size()) {
                     bq::util::log_device_console(bq::log_level::warning, "remove invalid mmap file:%s", full_path.c_str());
-                    bq::file_manager::remove_file_or_dir(full_path);
+                    config_.storage->remove(full_path);
                     continue;
                 }
-                size_t file_size = bq::file_manager::get_file_size(full_path);
+                uint64_t file_size = bq::file_manager::get_file_size(full_path);
                 uint32_t default_buffer_size = static_cast<uint32_t>(BQ_CACHE_LINE_SIZE);
                 while (default_buffer_size < UINT32_MAX) {
                     uint32_t map_size = oversize_buffer::calculate_size_of_memory(default_buffer_size);
@@ -1240,7 +1401,7 @@ namespace bq {
                 }
                 if (default_buffer_size == UINT32_MAX) {
                     bq::util::log_device_console(bq::log_level::warning, "remove invalid mmap file:%s, invalid size:%" PRIu64, full_path.c_str(), static_cast<uint64_t>(file_size));
-                    bq::file_manager::remove_file_or_dir(full_path);
+                    config_.storage->remove(full_path);
                     continue;
                 }
                 if (u64_value > current_oversize_buffer_index_.load(bq::platform::memory_order::relaxed)) {
@@ -1253,7 +1414,7 @@ namespace bq {
                     || !is_version_valid(oversize_buffer_context.version_)) {
                     bq::util::log_device_console(bq::log_level::warning, "remove invalid mmap file when recovery:%s, invalid context", full_path.c_str());
                     recovery_buffer.reset();
-                    bq::file_manager::remove_file_or_dir(full_path);
+                    config_.storage->remove(full_path);
                 } else {
                     temprorary_oversize_buffer_.buffers_array_.emplace_back(bq::move(recovery_buffer));
                 }
@@ -1286,11 +1447,4 @@ namespace bq {
 #endif
     }
 
-    void log_buffer::clear_recovery_data()
-    {
-        bq::string memory_map_folder = TO_ABSOLUTE_PATH("bqlog_mmap/mmap_" + config_.log_name, 0);
-        if (bq::file_manager::is_dir(memory_map_folder)) {
-            bq::file_manager::remove_file_or_dir(memory_map_folder);
-        }
-    }
 }

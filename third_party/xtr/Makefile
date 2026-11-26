@@ -125,7 +125,6 @@ endif
 
 ifneq ($(SANITIZER),)
 	CXXFLAGS += -fno-omit-frame-pointer -fsanitize=$(SANITIZER) -fno-sanitize-recover=all
-	CPPFLAGS += -DXTR_SANITIZER_ENABLED
 	LDFLAGS += -fsanitize=$(SANITIZER)
 	BUILD_TAG := $(BUILD_TAG)-$(SANITIZER)-sanitizer
 endif
@@ -142,9 +141,8 @@ SRCS := \
 	src/file_descriptor.cpp src/io_uring_fd_storage.cpp src/logger.cpp \
 	src/log_level.cpp src/matcher.cpp src/memory_mapping.cpp \
 	src/mirrored_memory_mapping.cpp src/open.cpp src/pagesize.cpp \
-	src/posix_fd_storage.cpp src/prefault.cpp src/regex_matcher.cpp \
-	src/sink.cpp src/throw.cpp src/tsc.cpp \
-	src/wildcard_matcher.cpp
+	src/posix_fd_storage.cpp src/regex_matcher.cpp src/sink.cpp \
+	src/throw.cpp src/tsc.cpp src/wildcard_matcher.cpp
 
 OBJS = $(SRCS:%=$(BUILD_DIR)/%.o)
 

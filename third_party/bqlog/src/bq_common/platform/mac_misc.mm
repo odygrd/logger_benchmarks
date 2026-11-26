@@ -23,7 +23,7 @@ namespace bq {
         //gettimeofday has higher performance than "mach_absolute_time"
         //and "CLOCK_REALTIME_COARSE clock_gettime" on mac.
         //TSC is not recommended because of different hardware architectures.
-        uint64_t high_performance_epoch_ms()
+        uint64_t system_epoch_ms()
         {
             struct timeval tv;
             gettimeofday(&tv, NULL);
@@ -33,6 +33,7 @@ namespace bq {
             return ret;
         }
 
+#if BQ_HAS_DEFAULT_BASE_DIR
         base_dir_initializer::base_dir_initializer()
         {
             bq::array<char> tmp;
@@ -44,6 +45,7 @@ namespace bq {
             set_base_dir_0(&tmp[0]);
             set_base_dir_1(&tmp[0]);
         }
+#endif
 
         bool share_file(const char* file_path)
 		{

@@ -21,7 +21,7 @@
 
 #include <string>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace details {
 class tcp_client {
     int socket_ = -1;
@@ -200,4 +200,4 @@ public:
     }
 };
 }  // namespace details
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog

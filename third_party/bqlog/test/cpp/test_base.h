@@ -15,7 +15,9 @@
 #include <iostream>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "bq_common/bq_common.h"
+#include "bq_log/bq_log.h"
 
 namespace bq {
     namespace test {
@@ -41,6 +43,13 @@ namespace bq {
         };
 
         extern void add_to_test_output_str(bool is_dynamic, bq::log_level level, const char* format, ...);
+
+        // the case that is running, so a timeout or a core dump can name it
+        inline const char*& current_test_case()
+        {
+            static const char* name = "<none>";
+            return name;
+        }
 
 #define test_output(LEVEL, FORMAT)                                          \
     {                                                                       \
@@ -72,6 +81,48 @@ namespace bq {
         fflush(stdout);                                                     \
     }
 
+        // Source-tree test data: <repo>/test/data/<sub>, located from this header, or BQ_TEST_DATA_DIR
+        // when the binary runs outside the checkout.
+        inline bq::string test_data_dir(const char* header_file, const char* sub_dir)
+        {
+            // Two separators back from the file name: <...>/<test dir>/<header>.
+            size_t prev_sep = 0;
+            size_t last_sep = 0;
+            for (size_t i = 0; header_file[i] != '\0'; ++i) {
+                if (header_file[i] == '/' || header_file[i] == '\\') {
+                    prev_sep = last_sep;
+                    last_sep = i;
+                }
+            }
+            char buffer[4096];
+            snprintf(buffer, sizeof(buffer), "%.*s/data/%s", static_cast<int32_t>(prev_sep), header_file, sub_dir);
+            bq::string from_source(buffer);
+            if (bq::platform::is_dir(from_source.c_str())) {
+                return from_source;
+            }
+            const char* injected = getenv("BQ_TEST_DATA_DIR");
+            if (injected && injected[0] != '\0') {
+                bq::string from_env(injected);
+                from_env += "/";
+                from_env += sub_dir;
+                if (bq::platform::is_dir(from_env.c_str())) {
+                    return from_env;
+                }
+            }
+            return from_source;
+        }
+
+        // The recovery suites ask the library instead of testing the platform themselves.
+        inline bool recovery_available()
+        {
+            return bq::log::get_recovery_capability() == bq::recovery_capability::ready;
+        }
+
+        inline void skip_recovery_tests(const char* subject)
+        {
+            test_output_param(bq::log_level::info, "SKIP %s tests: no platform recovery support\n", subject);
+        }
+
         extern std::string get_test_output();
     }
 }
@@ -82,10 +133,20 @@ namespace bq {
 
 #define TEST_GROUP(group_name, name_space, test_type_name)                             \
     {                                                                                  \
+        bq::test::current_test_case() = #test_type_name;                               \
         name_space::test_type_name inst_##test_type_name;                              \
         bq::test::test_result result__##test_type_name = inst_##test_type_name.test(); \
         result__##test_type_name.output(#test_type_name);                              \
         __test_result_##group_name &= result__##test_type_name.is_all_pass();          \
+    }
+
+// Runs the group only where the platform provides what it exercises; the degraded CI
+// configuration reports why it was skipped instead of failing for an absent capability.
+#define TEST_GROUP_IF(cond, group_name, name_space, test_type_name)                                     \
+    if (cond) {                                                                                         \
+        TEST_GROUP(group_name, name_space, test_type_name);                                             \
+    } else {                                                                                            \
+        test_output_param(bq::log_level::info, "SKIP %s: capability not available\n", #test_type_name); \
     }
 
 #define TEST_GROUP_END(group_name)                                                                                                                                                                                                                              \

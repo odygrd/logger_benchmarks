@@ -17,6 +17,9 @@
 #include <sys/select.h>
 #include <sys/time.h>
 
+// Naming probes are skipped entirely where the platform has no pthread naming API, so the
+// overloads below never form a reference to a symbol that does not exist.
+#if BQ_HAS_THREAD_NAME
 #if defined(__has_include)
 #if __has_include(<sys/prctl.h>)
 #include <sys/prctl.h>
@@ -31,6 +34,7 @@
 #endif
 #endif
 
+#endif
 #endif
 
 #if defined(BQ_JAVA)
@@ -91,60 +95,60 @@ namespace bq {
 
         // 1) pthread_getname_np
         template <typename U, typename = void>
-        struct get_thread_name_func_sfinae1 : bq::false_type { };
+        struct get_thread_name_func_sfinae1 : bq::false_type {};
 #if defined(BQ_HAVE_PTHREAD_NP)
         template <typename U>
-        struct get_thread_name_func_sfinae1<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_getname_param_ver1<U>(&::pthread_getname_np)), int32_t>::value, int32_t>>> : bq::true_type { };
+        struct get_thread_name_func_sfinae1<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_getname_param_ver1<U>(&::pthread_getname_np)), int32_t>::value, int32_t>>> : bq::true_type {};
 #endif
         // 2) pthread_get_name_np
         template <typename U, typename = void>
-        struct get_thread_name_func_sfinae2 : bq::false_type { };
+        struct get_thread_name_func_sfinae2 : bq::false_type {};
 #if defined(BQ_HAVE_PTHREAD_NP_UNIX)
         template <typename U>
-        struct get_thread_name_func_sfinae2<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_getname_param_ver2<U>(&::pthread_get_name_np)), int32_t>::value, int32_t>>> : bq::true_type { };
+        struct get_thread_name_func_sfinae2<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_getname_param_ver2<U>(&::pthread_get_name_np)), int32_t>::value, int32_t>>> : bq::true_type {};
 #endif
         // 3) prctl(PR_GET_NAME)
         template <typename U, typename = void>
-        struct get_thread_name_func_sfinae3 : bq::false_type { };
+        struct get_thread_name_func_sfinae3 : bq::false_type {};
 #if defined(BQ_HAVE_DLFCN)
         template <typename U>
-        struct get_thread_name_func_sfinae3<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_prctl_param<U>(&::prctl)), int32_t>::value, int32_t>>> : bq::true_type { };
+        struct get_thread_name_func_sfinae3<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_prctl_param<U>(&::prctl)), int32_t>::value, int32_t>>> : bq::true_type {};
 #endif
 
         // 1) pthread_setname_np(pthread_t, const char*, void*)
         template <typename U, typename = void>
-        struct set_thread_name_func_sfinae1 : bq::false_type { };
+        struct set_thread_name_func_sfinae1 : bq::false_type {};
 #if defined(BQ_HAVE_PTHREAD_NP)
         template <typename U>
-        struct set_thread_name_func_sfinae1<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_setname_param_ver1<U>(&::pthread_setname_np)), int32_t>::value, int32_t>>> : bq::true_type { };
+        struct set_thread_name_func_sfinae1<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_setname_param_ver1<U>(&::pthread_setname_np)), int32_t>::value, int32_t>>> : bq::true_type {};
 #endif
         // 2) pthread_setname_np(pthread_t, const char*)
         template <typename U, typename = void>
-        struct set_thread_name_func_sfinae2 : bq::false_type { };
+        struct set_thread_name_func_sfinae2 : bq::false_type {};
 #if defined(BQ_HAVE_PTHREAD_NP)
         template <typename U>
-        struct set_thread_name_func_sfinae2<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_setname_param_ver2<U>(&::pthread_setname_np)), int32_t>::value, int32_t>>> : bq::true_type { };
+        struct set_thread_name_func_sfinae2<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_setname_param_ver2<U>(&::pthread_setname_np)), int32_t>::value, int32_t>>> : bq::true_type {};
 #endif
         // 3) pthread_set_name_np(pthread_t, const char*)
         template <typename U, typename = void>
-        struct set_thread_name_func_sfinae3 : bq::false_type { };
+        struct set_thread_name_func_sfinae3 : bq::false_type {};
 #if defined(BQ_HAVE_PTHREAD_NP_UNIX)
         template <typename U>
-        struct set_thread_name_func_sfinae3<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_setname_param_ver3<U>(&::pthread_set_name_np)), int32_t>::value, int32_t>>> : bq::true_type { };
+        struct set_thread_name_func_sfinae3<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_setname_param_ver3<U>(&::pthread_set_name_np)), int32_t>::value, int32_t>>> : bq::true_type {};
 #endif
         // 4) pthread_setname_np(const char*)
         template <typename U, typename = void>
-        struct set_thread_name_func_sfinae4 : bq::false_type { };
+        struct set_thread_name_func_sfinae4 : bq::false_type {};
 #if defined(BQ_HAVE_PTHREAD_NP)
         template <typename U>
-        struct set_thread_name_func_sfinae4<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_setname_param_ver4<U>(&::pthread_setname_np)), int32_t>::value, int32_t>>> : bq::true_type { };
+        struct set_thread_name_func_sfinae4<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_setname_param_ver4<U>(&::pthread_setname_np)), int32_t>::value, int32_t>>> : bq::true_type {};
 #endif
         // 5) prctl(PR_SET_NAME)
         template <typename U, typename = void>
-        struct set_thread_name_func_sfinae5 : bq::false_type { };
+        struct set_thread_name_func_sfinae5 : bq::false_type {};
 #if defined(BQ_HAVE_DLFCN)
         template <typename U>
-        struct set_thread_name_func_sfinae5<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_prctl_param<U>(&::prctl)), int32_t>::value, int32_t>>> : bq::true_type { };
+        struct set_thread_name_func_sfinae5<U, bq::void_t<bq::enable_if_t<bq::is_same<decltype(accept_prctl_param<U>(&::prctl)), int32_t>::value, int32_t>>> : bq::true_type {};
 #endif
 
 #if defined(BQ_HAVE_PTHREAD_NP)
@@ -160,8 +164,7 @@ namespace bq {
         }
 #endif
 #if defined(BQ_HAVE_PTHREAD_NP_UNIX)
-        template <typename U, bq::enable_if_t<!get_thread_name_func_sfinae1<U>::value
-                && get_thread_name_func_sfinae2<U>::value, bool> = true>
+        template <typename U, bq::enable_if_t<!get_thread_name_func_sfinae1<U>::value && get_thread_name_func_sfinae2<U>::value, bool> = true>
         bq::string get_thread_name_impl(U thread_handle)
         {
             char thread_name_buf[thread_name_max_len()] = { 0 };
@@ -170,9 +173,7 @@ namespace bq {
         }
 #endif
 #if defined(BQ_HAVE_DLFCN)
-        template <typename U, bq::enable_if_t<!get_thread_name_func_sfinae1<U>::value
-                && !get_thread_name_func_sfinae2<U>::value
-                && get_thread_name_func_sfinae3<U>::value, bool> = true>
+        template <typename U, bq::enable_if_t<!get_thread_name_func_sfinae1<U>::value && !get_thread_name_func_sfinae2<U>::value && get_thread_name_func_sfinae3<U>::value, bool> = true>
         bq::string get_thread_name_impl(U thread_handle)
         {
             (void)thread_handle;
@@ -185,14 +186,23 @@ namespace bq {
             return bq::string(thread_name_buf);
         }
 #endif
-        template <typename U, bq::enable_if_t<!get_thread_name_func_sfinae1<U>::value
-                && !get_thread_name_func_sfinae2<U>::value
-                && !get_thread_name_func_sfinae3<U>::value, bool> = true>
+        // pthread_t is an integer on Linux and a pointer on FreeBSD and the consoles.
+        template <typename U, bq::enable_if_t<bq::is_pointer<U>::value, bool> = true>
+        uint64_t thread_handle_to_u64(U thread_handle)
+        {
+            return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(thread_handle));
+        }
+        template <typename U, bq::enable_if_t<!bq::is_pointer<U>::value, bool> = true>
+        uint64_t thread_handle_to_u64(U thread_handle)
+        {
+            return static_cast<uint64_t>(thread_handle);
+        }
+
+        template <typename U, bq::enable_if_t<!get_thread_name_func_sfinae1<U>::value && !get_thread_name_func_sfinae2<U>::value && !get_thread_name_func_sfinae3<U>::value, bool> = true>
         bq::string get_thread_name_impl(U thread_handle)
         {
             char thread_name_buf[64] = { 0 };
-            uint64_t tid = static_cast<uint64_t>(thread_handle);
-            snprintf(thread_name_buf, sizeof(thread_name_buf), "pthread_%" PRIu64, tid);
+            snprintf(thread_name_buf, sizeof(thread_name_buf), "pthread_%" PRIu64, thread_handle_to_u64(thread_handle));
             return thread_name_buf;
         }
 
@@ -207,8 +217,7 @@ namespace bq {
         }
 #endif
 #if defined(BQ_HAVE_PTHREAD_NP)
-        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
-                && set_thread_name_func_sfinae2<U>::value, bool> = true>
+        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value && set_thread_name_func_sfinae2<U>::value, bool> = true>
         bool set_thread_name_impl(U thread_handle, const bq::string& thread_name)
         {
             using func_type = int32_t (*)(pthread_t, const char*);
@@ -218,9 +227,7 @@ namespace bq {
         }
 #endif
 #if defined(BQ_HAVE_PTHREAD_NP_UNIX)
-        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
-                && !set_thread_name_func_sfinae2<U>::value
-                && set_thread_name_func_sfinae3<U>::value, bool> = true>
+        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value && !set_thread_name_func_sfinae2<U>::value && set_thread_name_func_sfinae3<U>::value, bool> = true>
         bool set_thread_name_impl(U thread_handle, const bq::string& thread_name)
         {
             pthread_set_name_np(thread_handle, thread_name.c_str());
@@ -228,10 +235,7 @@ namespace bq {
         }
 #endif
 #if defined(BQ_HAVE_PTHREAD_NP)
-        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
-                && !set_thread_name_func_sfinae2<U>::value
-                && !set_thread_name_func_sfinae3<U>::value
-                && set_thread_name_func_sfinae4<U>::value, bool> = true>
+        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value && !set_thread_name_func_sfinae2<U>::value && !set_thread_name_func_sfinae3<U>::value && set_thread_name_func_sfinae4<U>::value, bool> = true>
         bool set_thread_name_impl(U thread_handle, const bq::string& thread_name)
         {
             (void)thread_handle;
@@ -243,11 +247,7 @@ namespace bq {
         }
 #endif
 #if defined(BQ_HAVE_DLFCN)
-        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
-                && !set_thread_name_func_sfinae2<U>::value
-                && !set_thread_name_func_sfinae3<U>::value
-                && !set_thread_name_func_sfinae4<U>::value
-                && set_thread_name_func_sfinae5<U>::value, bool> = true>
+        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value && !set_thread_name_func_sfinae2<U>::value && !set_thread_name_func_sfinae3<U>::value && !set_thread_name_func_sfinae4<U>::value && set_thread_name_func_sfinae5<U>::value, bool> = true>
         bool set_thread_name_impl(U thread_handle, const bq::string& thread_name)
         {
             (void)thread_handle;
@@ -256,11 +256,7 @@ namespace bq {
             return set_name_result >= 0;
         }
 #endif
-        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value
-                && !set_thread_name_func_sfinae2<U>::value
-                && !set_thread_name_func_sfinae3<U>::value
-                && !set_thread_name_func_sfinae4<U>::value
-                && !set_thread_name_func_sfinae5<U>::value, bool> = true>
+        template <typename U, bq::enable_if_t<!set_thread_name_func_sfinae1<U>::value && !set_thread_name_func_sfinae2<U>::value && !set_thread_name_func_sfinae3<U>::value && !set_thread_name_func_sfinae4<U>::value && !set_thread_name_func_sfinae5<U>::value, bool> = true>
         bool set_thread_name_impl(U thread_handle, const bq::string& thread_name)
         {
             (void)thread_handle;

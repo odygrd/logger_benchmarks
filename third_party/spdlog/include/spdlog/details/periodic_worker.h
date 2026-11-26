@@ -15,7 +15,7 @@
 #include <functional>
 #include <mutex>
 #include <thread>
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace details {
 
 class SPDLOG_API periodic_worker {
@@ -51,7 +51,7 @@ private:
     std::condition_variable cv_;
 };
 }  // namespace details
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog
 
 #ifdef SPDLOG_HEADER_ONLY
 #include "periodic_worker-inl.h"

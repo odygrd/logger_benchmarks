@@ -105,43 +105,41 @@ struct StructSerializer
   }
 
 private:
-  // U might be the base of T, if T got adopted through a concept
-
-  template <typename U, typename Field, typename OutputStream>
-  static void serialize_member(const T& t, Field U::*field, OutputStream& ostream)
+  template <typename Field, typename OutputStream>
+  static void serialize_member(const T& t, Field T::*field, OutputStream& ostream)
   {
     mserialize::serialize(t.*field, ostream);
   }
 
-  template <typename U, typename Field, typename OutputStream>
-  static void serialize_member(const T& t, Field (U::*getter)() const, OutputStream& ostream)
+  template <typename Field, typename OutputStream>
+  static void serialize_member(const T& t, Field (T::*getter)() const, OutputStream& ostream)
   {
     mserialize::serialize((t.*getter)(), ostream);
   }
 
 #if __cplusplus >= 201703L
-  template <typename U, typename Field, typename OutputStream>
-  static void serialize_member(const T& t, Field (U::*getter)() const noexcept, OutputStream& ostream)
+  template <typename Field, typename OutputStream>
+  static void serialize_member(const T& t, Field (T::*getter)() const noexcept, OutputStream& ostream)
   {
     mserialize::serialize((t.*getter)(), ostream);
   }
 #endif
 
-  template <typename U, typename Field>
-  static std::size_t serialized_size_member(const T& t, Field U::*field)
+  template <typename Field>
+  static std::size_t serialized_size_member(const T& t, Field T::*field)
   {
     return mserialize::serialized_size(t.*field);
   }
 
-  template <typename U, typename Field>
-  static std::size_t serialized_size_member(const T& t, Field (U::*getter)() const)
+  template <typename Field>
+  static std::size_t serialized_size_member(const T& t, Field (T::*getter)() const)
   {
     return mserialize::serialized_size((t.*getter)());
   }
 
 #if __cplusplus >= 201703L
-  template <typename U, typename Field>
-  static std::size_t serialized_size_member(const T& t, Field (U::*getter)() const noexcept)
+  template <typename Field>
+  static std::size_t serialized_size_member(const T& t, Field (T::*getter)() const noexcept)
   {
     return mserialize::serialized_size((t.*getter)());
   }

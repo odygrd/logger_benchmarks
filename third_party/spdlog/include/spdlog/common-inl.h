@@ -9,9 +9,8 @@
 
 #include <algorithm>
 #include <iterator>
-#include <cctype>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace level {
 
 #if __cplusplus >= 201703L
@@ -21,40 +20,24 @@ constexpr
 
 static const char *short_level_names[] SPDLOG_SHORT_LEVEL_NAMES;
 
-SPDLOG_INLINE const string_view_t &to_string_view(level::level_enum l) SPDLOG_NOEXCEPT {
+SPDLOG_INLINE const string_view_t &to_string_view(spdlog::level::level_enum l) SPDLOG_NOEXCEPT {
     return level_string_views[l];
 }
 
-SPDLOG_INLINE const char *to_short_c_str(level::level_enum l) SPDLOG_NOEXCEPT {
+SPDLOG_INLINE const char *to_short_c_str(spdlog::level::level_enum l) SPDLOG_NOEXCEPT {
     return short_level_names[l];
 }
 
-SPDLOG_INLINE level::level_enum from_str(const std::string &name) SPDLOG_NOEXCEPT {
-    auto it = std::find_if(std::begin(level_string_views), std::end(level_string_views),
-                           [&name](const string_view_t &level_name) {
-                               return level_name.size() == name.size() &&
-                                      std::equal(name.begin(), name.end(), level_name.begin(),
-                                                 [](char a, char b) {
-                                                     return std::tolower(static_cast<unsigned char>(a)) ==
-                                                            std::tolower(static_cast<unsigned char>(b));
-                                                 });
-                           });
+SPDLOG_INLINE spdlog::level::level_enum from_str(const std::string &name) SPDLOG_NOEXCEPT {
+    auto it = std::find(std::begin(level_string_views), std::end(level_string_views), name);
     if (it != std::end(level_string_views))
         return static_cast<level::level_enum>(std::distance(std::begin(level_string_views), it));
 
     // check also for "warn" and "err" before giving up..
-    auto iequals = [](const std::string &a, const std::string &b) {
-        return a.size() == b.size() &&
-               std::equal(a.begin(), a.end(), b.begin(), [](char ac, char bc) {
-                   return std::tolower(static_cast<unsigned char>(ac)) ==
-                          std::tolower(static_cast<unsigned char>(bc));
-               });
-    };
-
-    if (iequals(name, "warn")) {
+    if (name == "warn") {
         return level::warn;
     }
-    if (iequals(name, "err")) {
+    if (name == "err") {
         return level::err;
     }
     return level::off;
@@ -82,4 +65,4 @@ SPDLOG_INLINE void throw_spdlog_ex(const std::string &msg, int last_errno) {
 
 SPDLOG_INLINE void throw_spdlog_ex(std::string msg) { SPDLOG_THROW(spdlog_ex(std::move(msg))); }
 
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog

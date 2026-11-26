@@ -15,7 +15,7 @@
 #include <string>
 #include <utility>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace cfg {
 namespace helpers {
 
@@ -70,12 +70,12 @@ inline std::unordered_map<std::string, std::string> extract_key_vals_(const std:
     return rv;
 }
 
-SPDLOG_INLINE void load_levels(const std::string &levels_spec) {
-    if (levels_spec.empty() || levels_spec.size() >= 32768) {
+SPDLOG_INLINE void load_levels(const std::string &input) {
+    if (input.empty() || input.size() >= 32768) {
         return;
     }
 
-    auto key_vals = extract_key_vals_(levels_spec);
+    auto key_vals = extract_key_vals_(input);
     std::unordered_map<std::string, level::level_enum> levels;
     level::level_enum global_level = level::info;
     bool global_level_found = false;
@@ -83,7 +83,7 @@ SPDLOG_INLINE void load_levels(const std::string &levels_spec) {
     for (auto &name_level : key_vals) {
         const auto &logger_name = name_level.first;
         const auto &level_name = to_lower_(name_level.second);
-        const auto level = level::from_str(level_name);
+        auto level = level::from_str(level_name);
         // ignore unrecognized level names
         if (level == level::off && level_name != "off") {
             continue;
@@ -103,4 +103,4 @@ SPDLOG_INLINE void load_levels(const std::string &levels_spec) {
 
 }  // namespace helpers
 }  // namespace cfg
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog

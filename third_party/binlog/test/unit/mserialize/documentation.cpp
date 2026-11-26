@@ -1,10 +1,6 @@
 // The purpose of this suite is to test snippets which are included in the documentation automatically.
 // This suite is not to test the features themselves, which are tested in other suites.
 
-// Different snippets that are extracted automatically into the doc
-// include the same headers, ignore them:
-// NOLINTBEGIN(readability-duplicate-include)
-
 #include <doctest/doctest.h>
 
 #include <sstream>
@@ -75,16 +71,6 @@ class Gamma
 };
 //]
 
-//[adapt_custom_derived_type
-#include <mserialize/make_derived_struct_deserializable.hpp>
-#include <mserialize/make_derived_struct_serializable.hpp>
-
-struct Zeta : Beta { int e = 0; };
-
-MSERIALIZE_MAKE_DERIVED_STRUCT_SERIALIZABLE(Zeta, (Beta), e)
-MSERIALIZE_MAKE_DERIVED_STRUCT_DESERIALIZABLE(Zeta, (Beta), e)
-//]
-
 //[visit_out
 #include <mserialize/serialize.hpp>
 #include <mserialize/tag.hpp>
@@ -120,13 +106,6 @@ class Phi
 };
 
 MSERIALIZE_MAKE_STRUCT_TAG(Phi, i)
-
-MSERIALIZE_MAKE_STRUCT_TAG(Beta)
-//[custom_tag_derived
-#include <mserialize/make_derived_struct_tag.hpp>
-
-MSERIALIZE_MAKE_DERIVED_STRUCT_TAG(Zeta, (Beta), e)
-//]
 
 //[adapt_custom_template_for_visit
 #include <mserialize/make_template_tag.hpp>
@@ -192,7 +171,7 @@ TEST_CASE("roundtrip")
     //]
   }
 
-  (void)std::remove(path.data());
+  std::remove(path.data());
   CHECK(true);
 }
 
@@ -247,8 +226,6 @@ TEST_CASE("visit")
     //]
   }
 
-  (void)std::remove(path.data());
+  std::remove(path.data());
   CHECK(true);
 }
-
-// NOLINTEND(readability-duplicate-include)

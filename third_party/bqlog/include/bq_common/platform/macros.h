@@ -10,6 +10,9 @@
  */
 #pragma once
 #include <stddef.h>
+
+#define BQ_CACHE_LINE_SIZE static_cast<size_t>(128)
+#define BQ_CACHE_LINE_SIZE_LOG2 static_cast<size_t>(7)
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 #define BQ_WIN 1
 #ifdef _WIN64
@@ -48,11 +51,18 @@
 #endif
 #endif
 #endif
-#elif defined(__ORBIS__)
+#elif defined(__ORBIS__) || defined(__PROSPERO__) || defined(__Prospero__)
 #define BQ_PS 1
 #define BQ_POSIX 1
-#elif defined(__Prospero__)
-#define BQ_PS 1
+#if defined(__ORBIS__)
+#define BQ_PS4 1
+#else
+#define BQ_PS5 1
+#endif
+#elif defined(__SWITCH__) || defined(NN_NINTENDO_SDK) || defined(NN_BUILD_TARGET_PLATFORM_NX)
+// Not predefined by the compiler: devkitPro passes __SWITCH__, the Nintendo SDK the NN_ macros.
+// After Windows on purpose: an SDK build that also has _WIN32 runs on a PC and needs the Win32 backend.
+#define BQ_SWITCH 1
 #define BQ_POSIX 1
 #elif defined(__linux__)
 #define BQ_LINUX 1
@@ -62,8 +72,16 @@
 #define BQ_UNIX 1
 #elif defined(_POSIX_VERSION)
 #define BQ_POSIX 1
-#else
+#elif defined(__aarch64__) && defined(__ELF__) && defined(__has_include)
+// Bare-metal aarch64 that was not told it targets Switch: only libnx ships <switch.h> there.
+#if __has_include(<switch.h>)
+#define BQ_SWITCH 1
+#define BQ_POSIX 1
+#endif
+#endif
 
+#if !defined(BQ_WIN) && !defined(BQ_POSIX)
+#error "BqLog: the toolchain did not define a platform this header recognizes"
 #endif
 
 #ifdef __clang__
@@ -74,11 +92,11 @@
 #define BQ_GCC 1
 #endif
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) // compiler detection, also true for clang-cl
 #define BQ_VISUAL_STUDIO 1
 #endif
 
-#if defined(_M_ARM64) || defined(__aarch64__)
+#if defined(_M_ARM64) || defined(_M_ARM64EC) || defined(__aarch64__)
 #define BQ_ARM 1
 #define BQ_ARM_64 1
 #define BQ_ARM_V8 1 // ARMv8-A
@@ -108,20 +126,33 @@
 
 #ifdef BQ_MSVC
 #define bq_forceinline __forceinline
+#define bq_noinline __declspec(noinline)
 #elif defined(BQ_GCC) || defined(BQ_CLANG)
 #define bq_forceinline __inline__ __attribute__((always_inline))
+#define bq_noinline __attribute__((noinline))
 #else
 #define bq_forceinline inline
+#define bq_noinline
 #endif
 
 #include "bq_common/platform/build_type.h"
 
-#if defined(_MSC_VER)
-#define BQ_API_EXPORT extern "C" __declspec(dllexport)
-#define BQ_API_IMPORT extern "C" __declspec(dllimport)
+#if defined(__cplusplus)
+#define BQ_EXTERN_C_BEGIN extern "C" {
+#define BQ_EXTERN_C_END }
+#define BQ_EXTERN_C extern "C"
 #else
-#define BQ_API_EXPORT extern "C" __attribute__((visibility("default")))
-#define BQ_API_IMPORT extern "C" __attribute__((visibility("default")))
+#define BQ_EXTERN_C_BEGIN
+#define BQ_EXTERN_C_END
+#define BQ_EXTERN_C
+#endif
+
+#if defined(BQ_MSVC) || defined(BQ_VISUAL_STUDIO)
+#define BQ_API_EXPORT BQ_EXTERN_C __declspec(dllexport)
+#define BQ_API_IMPORT BQ_EXTERN_C __declspec(dllimport)
+#else
+#define BQ_API_EXPORT BQ_EXTERN_C __attribute__((visibility("default")))
+#define BQ_API_IMPORT BQ_EXTERN_C __attribute__((visibility("default")))
 #endif
 
 #if defined(BQ_DYNAMIC_LIB)
@@ -132,21 +163,72 @@
 #define BQ_API BQ_API_EXPORT
 #endif
 
-#ifdef _MSC_VER
+#if defined(BQ_WIN)
 #define BQ_STDCALL __stdcall
-#define BQ_TLS __declspec(thread)
 #else
 #define BQ_STDCALL
+#endif
+#if defined(BQ_MSVC) || defined(BQ_VISUAL_STUDIO)
+#define BQ_TLS __declspec(thread)
+#else
 #define BQ_TLS __thread
 #endif
 
 // thread_local has use-after-free issue on MinGW GCC
 // use BQ_TLS_NON_POD instead of thread_local can avoid crash when thread exit.
-namespace bq {
-}
 #define BQ_TLS_CONCAT_INNER(a, b) a##b
 #define BQ_TLS_CONCAT(a, b) BQ_TLS_CONCAT_INNER(a, b)
-#define BQ_TLS_DEFINE(Type, Name)                                                \
+#define BQ_TLS_DEFINE_IMPL(Type, Name, Inline)                                      \
+    Inline BQ_TLS Type* ____BQ_TLS_##Name##_ptr;                                    \
+    Inline BQ_TLS bool ____BQ_TSL_##Name##_recycled;                                \
+    struct BQ_TLS_CONCAT(_bq_non_pod_holder_##Name##_, __LINE__) {                  \
+        BQ_TLS_CONCAT(_bq_non_pod_holder_##Name##_, __LINE__)()                     \
+        {                                                                           \
+        }                                                                           \
+        ~BQ_TLS_CONCAT(_bq_non_pod_holder_##Name##_, __LINE__)()                    \
+        {                                                                           \
+            if (____BQ_TLS_##Name##_ptr) {                                          \
+                delete ____BQ_TLS_##Name##_ptr;                                     \
+                ____BQ_TLS_##Name##_ptr = nullptr;                                  \
+                ____BQ_TSL_##Name##_recycled = true;                                \
+            }                                                                       \
+        }                                                                           \
+        bq_forceinline operator bool() { return !____BQ_TSL_##Name##_recycled; }    \
+        bq_forceinline Type& get()                                                  \
+        {                                                                           \
+            if (!____BQ_TLS_##Name##_ptr) {                                         \
+                ____BQ_TLS_##Name##_ptr = new Type();                               \
+            }                                                                       \
+            return *____BQ_TLS_##Name##_ptr;                                        \
+        }                                                                           \
+    };                                                                              \
+    Inline thread_local BQ_TLS_CONCAT(_bq_non_pod_holder_##Name##_, __LINE__) Name; \
+    bq_forceinline Type& BQ_TLS_CONCAT(Name, _get_direct)()                         \
+    {                                                                               \
+        Type* ____p = ____BQ_TLS_##Name##_ptr;                                      \
+        if (____p) {                                                                \
+            return *____p;                                                          \
+        }                                                                           \
+        return Name.get();                                                          \
+    }
+#define BQ_TLS_DEFINE(Type, Name) BQ_TLS_DEFINE_IMPL(Type, Name, )
+#define BQ_TLS_NON_POD(Type, Name) BQ_TLS_DEFINE(Type, Name)
+// Header part: declares the POD TLS defined by BQ_TLS_NON_POD_INLINE_IMPL, so inline code can read it. An inline non-POD
+// thread_local would emit a strong TLS init routine per TU on Apple ld64.
+#define BQ_TLS_NON_POD_INLINE(Type, Name)                   \
+    extern BQ_TLS Type* ____BQ_TLS_##Name##_ptr;            \
+    extern BQ_TLS bool ____BQ_TSL_##Name##_recycled;        \
+    Type& BQ_TLS_CONCAT(Name, _get_slow)();                 \
+    bq_forceinline Type& BQ_TLS_CONCAT(Name, _get_direct)() \
+    {                                                       \
+        Type* ____p = ____BQ_TLS_##Name##_ptr;              \
+        if (____p) {                                        \
+            return *____p;                                  \
+        }                                                   \
+        return BQ_TLS_CONCAT(Name, _get_slow)();            \
+    }
+// Source part: exactly one translation unit. Same storage as BQ_TLS_NON_POD.
+#define BQ_TLS_NON_POD_INLINE_IMPL(Type, Name)                                   \
     BQ_TLS Type* ____BQ_TLS_##Name##_ptr;                                        \
     BQ_TLS bool ____BQ_TSL_##Name##_recycled;                                    \
     struct BQ_TLS_CONCAT(_bq_non_pod_holder_##Name##_, __LINE__) {               \
@@ -171,17 +253,12 @@ namespace bq {
         }                                                                        \
     };                                                                           \
     thread_local BQ_TLS_CONCAT(_bq_non_pod_holder_##Name##_, __LINE__) Name;     \
-    bq_forceinline Type& BQ_TLS_CONCAT(Name, _get_direct)()                      \
+    Type& BQ_TLS_CONCAT(Name, _get_slow)()                                       \
     {                                                                            \
-        Type* ____p = ____BQ_TLS_##Name##_ptr;                                   \
-        if (____p) {                                                             \
-            return *____p;                                                        \
-        }                                                                        \
         return Name.get();                                                       \
     }
-#define BQ_TLS_NON_POD(Type, Name) BQ_TLS_DEFINE(Type, Name)
 
-#if defined(_MSC_VER) && !defined(__clang__)
+#if defined(BQ_MSVC)
 #define BQ_PACK_BEGIN __pragma(pack(push, 1))
 #define BQ_PACK_END \
     ;               \
@@ -205,8 +282,11 @@ namespace bq {
 #if defined(__cplusplus) && (__cplusplus >= 201703L)
 #define BQ_CPP_17 1
 #define BQ_CONSTEXPR_IF if constexpr
+// gives a namespace-scope constant external linkage, so a module entry can export it
+#define BQ_INLINE_CONSTEXPR inline constexpr
 #else
 #define BQ_CONSTEXPR_IF if
+#define BQ_INLINE_CONSTEXPR constexpr
 #endif
 
 #if defined(__cplusplus) && (__cplusplus >= 202002L)
@@ -215,6 +295,15 @@ namespace bq {
 
 #if defined(__cplusplus) && (__cplusplus >= 202302L)
 #define BQ_CPP_23 1
+#endif
+
+// Empty base class optimization: some MSVC compilers do not enable it by default. It lives here,
+// with the other language-level macros, because a macro is not exported by a module: a generated
+// category module needs it and can only reach it by including this macro-only header.
+#ifdef BQ_VISUAL_STUDIO
+#define BQ_EBCO __declspec(empty_bases)
+#else
+#define BQ_EBCO
 #endif
 
 #if defined(BQ_GCC) || defined(BQ_CLANG)
@@ -233,6 +322,24 @@ namespace bq {
 #else
 #define BQ_SUPPRESS_NULL_DEREF_BEGIN()
 #define BQ_SUPPRESS_NULL_DEREF_END()
+#endif
+
+#if defined(BQ_GCC)
+#define BQ_SUPPRESS_MAYBE_UNINITIALIZED_BEGIN() \
+    _Pragma("GCC diagnostic push")              \
+        _Pragma("GCC diagnostic ignored \"-Wmaybe-uninitialized\"")
+#define BQ_SUPPRESS_MAYBE_UNINITIALIZED_END() \
+    _Pragma("GCC diagnostic pop")
+#elif defined(BQ_MSVC)
+#define BQ_SUPPRESS_MAYBE_UNINITIALIZED_BEGIN()                                          \
+    __pragma(warning(push))                                                              \
+        __pragma(warning(disable : 4700)) /* C4700: Uninitialized Local Variable Used */ \
+        __pragma(warning(disable : 4701)) /* C4701: Potentially Uninitialized Local Variable Used */
+#define BQ_SUPPRESS_MAYBE_UNINITIALIZED_END() \
+    __pragma(warning(pop))
+#else
+#define BQ_SUPPRESS_MAYBE_UNINITIALIZED_BEGIN()
+#define BQ_SUPPRESS_MAYBE_UNINITIALIZED_END()
 #endif
 
 #if (defined(BQ_CLANG) || defined(BQ_GCC)) && defined(__has_builtin)
@@ -282,10 +389,13 @@ namespace bq {
 #define BQ_HW_CRC_TARGET __attribute__((target("sse4.2")))
 #define BQ_HW_SIMD_TARGET __attribute__((target("avx2")))
 #define BQ_HW_SIMD_SSE_TARGET __attribute__((target("sse4.1")))
+// For kernels that run without a CPU check, so they may use only the x86 baseline.
+#define BQ_HW_SIMD_SSE2_TARGET __attribute__((target("sse2")))
 #else
 #define BQ_HW_CRC_TARGET
 #define BQ_HW_SIMD_TARGET
 #define BQ_HW_SIMD_SSE_TARGET
+#define BQ_HW_SIMD_SSE2_TARGET
 #endif
 #define BQ_CRC_HW_INLINE inline
 #define BQ_SIMD_HW_INLINE inline
@@ -293,6 +403,7 @@ namespace bq {
 #define BQ_HW_CRC_TARGET
 #define BQ_HW_SIMD_TARGET
 #define BQ_HW_SIMD_SSE_TARGET
+#define BQ_HW_SIMD_SSE2_TARGET
 #define BQ_CRC_HW_INLINE bq_forceinline
 #define BQ_SIMD_HW_INLINE bq_forceinline
 #endif
@@ -312,3 +423,145 @@ namespace bq {
 #else
 #define BQ_API_DEF(return_type, name, parameters, arguments) BQ_API return_type name parameters
 #endif
+
+// Each switch guards the #include, the body and every symbol reference, and -D can force it.
+//
+// A console gives up what a desktop takes for granted: Horizon maps memory but never files,
+// a title is the only process on its storage, the game mounts that storage instead of the
+// path being guessed, thread naming goes through the SDK, and a kernel may trap user mode
+// reads of the cycle counter.
+
+#if !defined(BQ_HAS_MMAP)
+#if defined(BQ_SWITCH)
+#define BQ_HAS_MMAP 0
+#else
+#define BQ_HAS_MMAP 1
+#endif
+#endif
+
+#if !defined(BQ_HAS_MULTI_PROCESS)
+#if defined(BQ_PS) || defined(BQ_SWITCH)
+#define BQ_HAS_MULTI_PROCESS 0
+#else
+#define BQ_HAS_MULTI_PROCESS 1
+#endif
+#endif
+
+#if !defined(BQ_HAS_CROSS_PROCESS_FILE_LOCK)
+#if defined(BQ_WIN) || (defined(BQ_POSIX) && BQ_HAS_MULTI_PROCESS)
+#define BQ_HAS_CROSS_PROCESS_FILE_LOCK 1
+#else
+#define BQ_HAS_CROSS_PROCESS_FILE_LOCK 0
+#endif
+#endif
+
+// Whether the platform has fork(). Only the tests use it, to run a check in a child process.
+// BqLog itself has no fork handling: a child that keeps running must not touch what it inherited
+// (the instance claim and the log objects belong to the parent), and a child that execs inherits
+// nothing, because every descriptor is opened close-on-exec and exec drops the mappings.
+#if !defined(BQ_HAS_FORK)
+#if defined(BQ_WIN) || defined(BQ_PS) || defined(BQ_SWITCH)
+#define BQ_HAS_FORK 0
+#else
+#define BQ_HAS_FORK 1
+#endif
+#endif
+
+#if !defined(BQ_HAS_CRASH_HANDLER)
+#if defined(BQ_POSIX) && !defined(BQ_PS) && !defined(BQ_SWITCH)
+#define BQ_HAS_CRASH_HANDLER 1
+#else
+#define BQ_HAS_CRASH_HANDLER 0
+#endif
+#endif
+
+#if !defined(BQ_HAS_BACKTRACE)
+#if defined(BQ_WIN) || defined(BQ_ANDROID) || defined(BQ_IOS) || defined(BQ_OHOS)
+#define BQ_HAS_BACKTRACE 1
+#elif defined(BQ_PS) || defined(BQ_SWITCH)
+#define BQ_HAS_BACKTRACE 0
+#elif defined(__has_include)
+#if __has_include(<execinfo.h>)
+#define BQ_HAS_BACKTRACE 1
+#else
+#define BQ_HAS_BACKTRACE 0
+#endif
+#else
+#define BQ_HAS_BACKTRACE 0
+#endif
+#endif
+
+#if !defined(BQ_HAS_EXECINFO)
+// Android, iOS and OHOS walk the stack in their own platform file.
+#if BQ_HAS_BACKTRACE && defined(BQ_POSIX) && !defined(BQ_ANDROID) && !defined(BQ_IOS) && !defined(BQ_OHOS)
+#define BQ_HAS_EXECINFO 1
+#else
+#define BQ_HAS_EXECINFO 0
+#endif
+#endif
+
+#if !defined(BQ_HAS_DIRENT)
+#if defined(BQ_WIN) || defined(BQ_PS) || defined(BQ_SWITCH)
+#define BQ_HAS_DIRENT 1
+#elif defined(__has_include)
+#if __has_include(<dirent.h>)
+#define BQ_HAS_DIRENT 1
+#else
+#define BQ_HAS_DIRENT 0
+#endif
+#else
+#define BQ_HAS_DIRENT 0
+#endif
+#endif
+
+#if !defined(BQ_HAS_THREAD_NAME)
+#if defined(BQ_PS) || defined(BQ_SWITCH)
+#define BQ_HAS_THREAD_NAME 0
+#else
+#define BQ_HAS_THREAD_NAME 1
+#endif
+#endif
+
+#if !defined(BQ_HAS_DEFAULT_BASE_DIR)
+#if defined(BQ_PS) || defined(BQ_SWITCH)
+#define BQ_HAS_DEFAULT_BASE_DIR 0
+#else
+#define BQ_HAS_DEFAULT_BASE_DIR 1
+#endif
+#endif
+
+#if !defined(BQ_HAS_POSIX_MEMALIGN)
+#if defined(BQ_WIN) || defined(BQ_SWITCH)
+#define BQ_HAS_POSIX_MEMALIGN 0
+#else
+#define BQ_HAS_POSIX_MEMALIGN 1
+#endif
+#endif
+
+#if !defined(BQ_HAS_FDATASYNC)
+#if defined(BQ_WIN) || defined(BQ_APPLE) || defined(BQ_SWITCH)
+#define BQ_HAS_FDATASYNC 0
+#else
+#define BQ_HAS_FDATASYNC 1
+#endif
+#endif
+
+#if !defined(BQ_HAS_GETPAGESIZE)
+#if defined(BQ_SWITCH)
+#define BQ_HAS_GETPAGESIZE 0
+#else
+#define BQ_HAS_GETPAGESIZE 1
+#endif
+#endif
+
+#if !defined(BQ_HAS_USER_COUNTER)
+#if defined(BQ_PS) || defined(BQ_SWITCH)
+#define BQ_HAS_USER_COUNTER 0
+#else
+#define BQ_HAS_USER_COUNTER 1
+#endif
+#endif
+
+// newlib (devkitA64) has no SSIZE_MAX.
+#define BQ_SIZE_MAX (static_cast<size_t>(~static_cast<size_t>(0)))
+#define BQ_SSIZE_MAX (BQ_SIZE_MAX >> 1)

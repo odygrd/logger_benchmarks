@@ -6,7 +6,7 @@
 #include <spdlog/common.h>
 #include <unordered_map>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace cfg {
 namespace helpers {
 //
@@ -18,11 +18,11 @@ namespace helpers {
 // turn off all logging except for logger1: "off,logger1=debug"
 // turn off all logging except for logger1 and logger2: "off,logger1=debug,logger2=info"
 //
-SPDLOG_API void load_levels(const std::string &levels_spec);
+SPDLOG_API void load_levels(const std::string &txt);
 }  // namespace helpers
 
 }  // namespace cfg
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog
 
 #ifdef SPDLOG_HEADER_ONLY
 #include "helpers-inl.h"

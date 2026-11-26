@@ -74,11 +74,26 @@ namespace xtr::detail
         return file_descriptor(fd);
     }
 #endif
+
+    // This is required because MAP_POPULATE only sets up readable pages.
+    XTR_FUNC
+    void prefault_write(void* addr, std::size_t length)
+    {
+#if defined(MADV_POPULATE_WRITE)
+        if (::madvise(addr, length, MADV_POPULATE_WRITE) == 0)
+            return;
+#endif
+        // Perform a non-destructive write access on each page.
+        volatile std::byte* const p = static_cast<volatile std::byte*>(addr);
+        const std::size_t page_size = align_to_page_size(1);
+        for (std::size_t i = 0; i < length; i += page_size)
+            p[i] = p[i];
+    }
 }
 
 XTR_FUNC
 xtr::detail::mirrored_memory_mapping::mirrored_memory_mapping(
-    std::size_t length, int fd, std::size_t offset, int flags, prefault_flags_t prefault_flags)
+    std::size_t length, int fd, std::size_t offset, int flags)
 {
     assert(!(flags & MAP_ANONYMOUS) || fd == -1);
     assert((flags & MAP_FIXED) == 0); // Not implemented (would be easy though)
@@ -148,12 +163,8 @@ xtr::detail::mirrored_memory_mapping::mirrored_memory_mapping(
         }
 
         reserve.release(); // mapping was destroyed by mremap
-
-        if (prefault_flags == prefault_flags_t::read_write)
-            prefault_rw(m_.get(), length * 2);
-
         mirror.release(); // mirror will be recreated in ~mirrored_memory_mapping
-
+        prefault_write(m_.get(), length * 2);
         return;
 #else
         if (!(temp_fd = shm_open_anon(O_RDWR, S_IRUSR | S_IWUSR)))
@@ -192,11 +203,8 @@ xtr::detail::mirrored_memory_mapping::mirrored_memory_mapping(
     m_ = memory_mapping(reserve.get(), length, prot, flags, fd, offset);
 
     reserve.release(); // mapping was destroyed when m_ was created
-
-    if (prefault_flags == prefault_flags_t::read_write)
-        prefault_rw(m_.get(), length * 2);
-
-    mirror.release(); // mirror will be recreated in ~mirrored_memory_mapping
+    mirror.release();  // mirror will be recreated in ~mirrored_memory_mapping
+    prefault_write(m_.get(), length * 2);
 }
 
 XTR_FUNC
