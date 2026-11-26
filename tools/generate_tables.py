@@ -175,6 +175,7 @@ LATENCY_SECTION_METADATA = {
         "loggers": {
             "Quill - Bounded",
             "Quill - Unbounded",
+            QUILL_MACRO_FREE_MODE,
             "fmtlog",
             "Ms binLog",
             "XTR",
