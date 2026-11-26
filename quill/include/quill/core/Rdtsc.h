@@ -7,9 +7,11 @@
 #pragma once
 
 #include "quill/core/Attributes.h"
-#include <cstdint>
+#ifndef QUILL_MODULE
+  #include <cstdint>
+#endif
 
-#if defined(__ARM_ARCH) || defined(_M_ARM) || defined(_M_ARM64) || defined(__PPC64__)
+#if defined(__ARM_ARCH) || defined(_M_ARM) || defined(_M_ARM64) || defined(__PPC64__) || defined(__PPC__)
   // ARM or PowerPC — use ChronoTimeUtils for timestamping
   #include "quill/core/ChronoTimeUtils.h"
 

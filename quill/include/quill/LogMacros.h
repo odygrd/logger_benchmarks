@@ -110,7 +110,7 @@
  * For example to only log warnings and above you can use:
  *   add_compile_definitions(-DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_WARNING)
  * or
- *   target_compile_definitions(${TARGET} PRIVATE  -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_WARNING)
+ *   target_compile_definitions(${TARGET} PRIVATE -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_WARNING)
  **/
 #define QUILL_COMPILE_ACTIVE_LOG_LEVEL_TRACE_L3 0
 #define QUILL_COMPILE_ACTIVE_LOG_LEVEL_TRACE_L2 1
@@ -124,11 +124,6 @@
 
 #if !defined(QUILL_COMPILE_ACTIVE_LOG_LEVEL)
   #define QUILL_COMPILE_ACTIVE_LOG_LEVEL -1
-#endif
-
-#if !defined(QUILL_ENABLE_IMMEDIATE_FLUSH)
-  // This is controlled by a runtime flag; we can have it always enabled by default in compile time
-  #define QUILL_ENABLE_IMMEDIATE_FLUSH 1
 #endif
 
 /** -- LOGV_ helpers begin -- **/
@@ -233,7 +228,10 @@
        ": {}, " #k ": {}, " #j ": {}, " #i ": {}, " #h ": {}, " #g ": {}, " #f ": {}, " #e         \
        ": {}, " #d ": {}, " #c ": {}, " #b ": {}, " #a ": {}]"
 
-// Main macro to generate format strings (up to 26 variables plus the text)
+// Main macro to generate format strings (up to 26 variables plus the text). The 0 that ends the
+// list keeps the variadic part of QUILL_GET_FORMAT_GENERATOR_MACRO from being empty for a
+// statement without variables, which is not valid before C++20 and which clang reports under
+// -Wpedantic where the statement is written
 #define QUILL_GENERATE_FORMAT_STRING(...)                                                              \
   QUILL_EXPAND(QUILL_GET_FORMAT_GENERATOR_MACRO(                                                       \
     __VA_ARGS__, QUILL_GENERATE_FORMAT_STRING_26, QUILL_GENERATE_FORMAT_STRING_25,                     \
@@ -245,7 +243,7 @@
     QUILL_GENERATE_FORMAT_STRING_10, QUILL_GENERATE_FORMAT_STRING_9, QUILL_GENERATE_FORMAT_STRING_8,   \
     QUILL_GENERATE_FORMAT_STRING_7, QUILL_GENERATE_FORMAT_STRING_6, QUILL_GENERATE_FORMAT_STRING_5,    \
     QUILL_GENERATE_FORMAT_STRING_4, QUILL_GENERATE_FORMAT_STRING_3, QUILL_GENERATE_FORMAT_STRING_2,    \
-    QUILL_GENERATE_FORMAT_STRING_1, QUILL_GENERATE_FORMAT_STRING_0)(__VA_ARGS__))
+    QUILL_GENERATE_FORMAT_STRING_1, QUILL_GENERATE_FORMAT_STRING_0, 0)(__VA_ARGS__))
 
 /** -- LOGV_ helpers end -- **/
 
@@ -335,7 +333,8 @@
        "}, {" #q "}, {" #p "}, {" #o "}, {" #n "}, {" #m "}, {" #l "}, {" #k "}, {" #j "}, {" #i   \
        "}, {" #h "}, {" #g "}, {" #f "}, {" #e "}, {" #d "}, {" #c "}, {" #b "}, {" #a "}"
 
-// Main macro to generate format strings (up to 26 variables plus the text)
+// Main macro to generate format strings (up to 26 variables plus the text). The list ends with a
+// 0 for the same reason as the one of QUILL_GENERATE_FORMAT_STRING
 #define QUILL_GENERATE_NAMED_FORMAT_STRING(...)                                                                       \
   QUILL_EXPAND(QUILL_GET_FORMAT_GENERATOR_MACRO(                                                                      \
     __VA_ARGS__, QUILL_GENERATE_NAMED_FORMAT_STRING_26, QUILL_GENERATE_NAMED_FORMAT_STRING_25,                        \
@@ -350,13 +349,13 @@
     QUILL_GENERATE_NAMED_FORMAT_STRING_8, QUILL_GENERATE_NAMED_FORMAT_STRING_7,                                       \
     QUILL_GENERATE_NAMED_FORMAT_STRING_6, QUILL_GENERATE_NAMED_FORMAT_STRING_5,                                       \
     QUILL_GENERATE_NAMED_FORMAT_STRING_4, QUILL_GENERATE_NAMED_FORMAT_STRING_3, QUILL_GENERATE_NAMED_FORMAT_STRING_2, \
-    QUILL_GENERATE_NAMED_FORMAT_STRING_1, QUILL_GENERATE_NAMED_FORMAT_STRING_0)(__VA_ARGS__))
+    QUILL_GENERATE_NAMED_FORMAT_STRING_1, QUILL_GENERATE_NAMED_FORMAT_STRING_0, 0)(__VA_ARGS__))
 
 /** Tags helpers **/
 // Helper macro to prepend "#" to an argument
 #define QUILL_ADD_HASH(x) "#" x
 
-// Define macros to handle up to five arguments and prepend "#" to each, with spaces in between
+// Define macros to handle up to six arguments and prepend "#" to each, with spaces in between
 #define QUILL_GENERATE_TAG_1(a) QUILL_ADD_HASH(a) " "
 #define QUILL_GENERATE_TAG_2(a, b) QUILL_ADD_HASH(a) " " QUILL_ADD_HASH(b) " "
 #define QUILL_GENERATE_TAG_3(a, b, c)                                                              \
@@ -376,11 +375,13 @@
   QUILL_EXPAND(QUILL_GET_TAG_GENERATOR_MACRO_IMPL(__VA_ARGS__))
 #define QUILL_GET_TAG_GENERATOR_MACRO_IMPL(_1, _2, _3, _4, _5, _6, NAME, ...) NAME
 
-// Main macro to generate tags, up to 5 tags
-#define QUILL_TAGS(...)                                                                               \
-  QUILL_EXPAND(QUILL_GET_TAG_GENERATOR_MACRO(__VA_ARGS__, QUILL_GENERATE_TAG_6, QUILL_GENERATE_TAG_5, \
-                                             QUILL_GENERATE_TAG_4, QUILL_GENERATE_TAG_3,              \
-                                             QUILL_GENERATE_TAG_2, QUILL_GENERATE_TAG_1)(__VA_ARGS__))
+// Main macro to generate tags, up to 6 tags. The 0 that ends the list keeps the variadic part of
+// QUILL_GET_TAG_GENERATOR_MACRO_IMPL from being empty for a single tag, which is not valid before
+// C++20 and which clang reports under -Wpedantic where the tag is written
+#define QUILL_TAGS(...)                                                                            \
+  QUILL_EXPAND(QUILL_GET_TAG_GENERATOR_MACRO(                                                      \
+    __VA_ARGS__, QUILL_GENERATE_TAG_6, QUILL_GENERATE_TAG_5, QUILL_GENERATE_TAG_4,                 \
+    QUILL_GENERATE_TAG_3, QUILL_GENERATE_TAG_2, QUILL_GENERATE_TAG_1, 0)(__VA_ARGS__))
 
 /** -- LOGJ_ helpers end -- **/
 
@@ -396,6 +397,16 @@
     QUILL_FILE_INFO, caller_function, fmt, tags, log_level, quill::MacroMetadata::Event::Log, true \
   }
 
+/**
+ * The macros from here to the end of the file pass their arguments on with `, ##__VA_ARGS__`,
+ * which every supported compiler implements. Clang reports each expansion of it under -Wpedantic,
+ * at the definition of the macro, so the warning is disabled for these definitions only.
+ */
+#if defined(__clang__)
+  #pragma clang diagnostic push
+  #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#endif
+
 // Public logger/level arguments may be stateful expressions, so capture them before reuse.
 #define QUILL_LOGGER_CALL(likelyhood, logger, tags, log_level, fmt, ...)                           \
   do                                                                                               \
@@ -404,8 +415,7 @@
     if (likelyhood(quill_macro_logger_->template should_log_statement<log_level>()))               \
     {                                                                                              \
       QUILL_DEFINE_MACRO_METADATA(QUILL_FUNCTION_NAME, fmt, tags, log_level);                      \
-      quill_macro_logger_->template log_statement<QUILL_ENABLE_IMMEDIATE_FLUSH>(                   \
-        &quill_macro_metadata_, ##__VA_ARGS__);                                                    \
+      quill_macro_logger_->log_statement(&quill_macro_metadata_, ##__VA_ARGS__);                   \
     }                                                                                              \
   } while (0)
 
@@ -426,8 +436,8 @@
       }                                                                                                    \
                                                                                                            \
       QUILL_DEFINE_RATE_LIMIT_MACRO_METADATA(QUILL_FUNCTION_NAME, fmt, tags, log_level);                   \
-      quill_macro_rate_limit_logger_->template log_statement<QUILL_ENABLE_IMMEDIATE_FLUSH>(                \
-        &quill_macro_metadata_, ##__VA_ARGS__, quill_suppressed_log_count_ + 1);                           \
+      quill_macro_rate_limit_logger_->log_statement(&quill_macro_metadata_, ##__VA_ARGS__,                 \
+                                                    quill_suppressed_log_count_ + 1);                      \
                                                                                                            \
       quill_next_log_time_ns_ = quill_now_ns_ +                                                            \
         static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(min_interval).count()); \
@@ -1037,7 +1047,7 @@
       static constexpr quill::MacroMetadata quill_macro_metadata_{                                              \
         "[placeholder]", "[placeholder]", "[placeholder]", nullptr, quill::LogLevel::None, event};              \
                                                                                                                 \
-      quill_macro_logger_->template log_statement_runtime_metadata<QUILL_ENABLE_IMMEDIATE_FLUSH>(               \
+      quill_macro_logger_->log_statement_runtime_metadata(                                                      \
         &quill_macro_metadata_, fmt, file, function, tags, line_number, quill_macro_log_level_, ##__VA_ARGS__); \
     }                                                                                                           \
   } while (0)
@@ -1061,11 +1071,33 @@
 #define QUILL_METRIC(logger, metric_metadata, value)                                               \
   do                                                                                               \
   {                                                                                                \
-    logger->publish_metric((metric_metadata), value);                                              \
+    (logger)->publish_metric((metric_metadata), (value));                                          \
+  } while (0)
+
+/** Publishes a metric with runtime names and labels; variadic arguments allow inline label lists. */
+#define QUILL_DYNAMIC_METRIC(logger, ...)                                                          \
+  do                                                                                               \
+  {                                                                                                \
+    (logger)->publish_dynamic_metric(__VA_ARGS__);                                                 \
+  } while (0)
+
+/**
+ * Writes `size` bytes of `data` to the sinks of the logger as they are, without formatting. The
+ * sinks also get the metadata of the call, e.g. its source location, as for a log statement.
+ */
+#define QUILL_LOG_BINARY(logger, data, size)                                                       \
+  do                                                                                               \
+  {                                                                                                \
+    static constexpr quill::MacroMetadata quill_macro_metadata_{                                   \
+      QUILL_FILE_INFO, QUILL_FUNCTION_NAME,   "",                                                  \
+      nullptr,         quill::LogLevel::None, quill::MacroMetadata::Event::Binary};                \
+    (logger)->log_binary(&quill_macro_metadata_, (data), (size));                                  \
   } while (0)
 
 #if !defined(QUILL_DISABLE_NON_PREFIXED_MACROS)
   #define METRIC(logger, metric_metadata, value) QUILL_METRIC(logger, metric_metadata, value)
+  #define DYNAMIC_METRIC(logger, ...) QUILL_DYNAMIC_METRIC(logger, __VA_ARGS__)
+  #define LOG_BINARY(logger, data, size) QUILL_LOG_BINARY(logger, data, size)
   #define TAGS(...) QUILL_TAGS(__VA_ARGS__)
   #define LOG_TRACE_L3(logger, fmt, ...) QUILL_LOG_TRACE_L3(logger, fmt, ##__VA_ARGS__)
   #define LOG_TRACE_L2(logger, fmt, ...) QUILL_LOG_TRACE_L2(logger, fmt, ##__VA_ARGS__)
@@ -1293,4 +1325,8 @@
   #define LOG_RUNTIME_METADATA_SHALLOW(logger, log_level, file, line_number, function, tags, fmt, ...) \
     QUILL_LOG_RUNTIME_METADATA_SHALLOW(logger, log_level, file, line_number, function, tags, fmt, ##__VA_ARGS__)
 
+#endif
+
+#if defined(__clang__)
+  #pragma clang diagnostic pop
 #endif

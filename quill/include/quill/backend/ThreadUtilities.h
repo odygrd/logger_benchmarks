@@ -9,10 +9,18 @@
 #include "quill/core/Attributes.h"
 #include "quill/core/QuillError.h"
 
-#include <atomic>
-#include <cstdint>
-#include <cstring>
-#include <string>
+// Defines the other frontend functions that quill/core leaves to the backend. A program that logs
+// links get_thread_name() from a file with this header, so it finds them there too
+#include "quill/backend/FrontendDefinitions.h"
+
+#ifndef QUILL_MODULE
+  #include <atomic>
+  #include <cstdint>
+  #include <cstring>
+  #include <memory>
+  #include <string>
+  #include <string_view>
+#endif
 
 #if defined(_WIN32)
   #if !defined(WIN32_LEAN_AND_MEAN)
@@ -35,14 +43,17 @@
   #include <pthread.h>
   #include <unistd.h>
 #elif defined(__FreeBSD__)
+  #include <pthread.h>
   #include <pthread_np.h>
   #include <sys/thr.h>
   #include <unistd.h>
 #elif defined(__DragonFly__)
+  #include <pthread.h>
   #include <pthread_np.h>
   #include <sys/lwp.h>
   #include <unistd.h>
 #elif defined(__OpenBSD__)
+  #include <pthread.h>
   #include <pthread_np.h>
   #include <unistd.h>
 #else
@@ -88,7 +99,7 @@ QUILL_NODISCARD inline std::wstring s2ws(std::string const& str)
  * @param wstr input wide string
  * @return the value of input wide string as string
  */
-QUILL_NODISCARD inline std::string ws2s(std::wstring const& wstr)
+QUILL_NODISCARD inline std::string ws2s(std::wstring_view wstr)
 {
   if (wstr.empty())
   {
@@ -182,16 +193,17 @@ QUILL_NODISCARD QUILL_EXPORT QUILL_ATTRIBUTE_USED inline std::string get_thread_
     return std::string{"ThreadNameDisabled"};
   }
 
-  std::wstring const wide_name{data, wcsnlen_s(data, 256)};
-  LocalFree(data);
-  return ws2s(wide_name);
+  std::unique_ptr<wchar_t, decltype(&::LocalFree)> const wide_name{data, &::LocalFree};
+  return ws2s(wide_name.get());
 #else
   // Apple, linux
-  char thread_name[16] = {'\0'};
+  // Linux limits thread names to 15 characters, but macOS keeps up to 63 bytes, so size the
+  // buffer for the longest name instead of truncating it
+  char thread_name[64] = {'\0'};
   #if defined(__OpenBSD__) || defined(__FreeBSD__)
-  pthread_get_name_np(pthread_self(), &thread_name[0], 16);
+  pthread_get_name_np(pthread_self(), &thread_name[0], sizeof(thread_name));
   #else
-  auto res = pthread_getname_np(pthread_self(), &thread_name[0], 16);
+  auto res = pthread_getname_np(pthread_self(), &thread_name[0], sizeof(thread_name));
   if (res != 0)
   {
     // This runs on each thread's first log statement, and glibc reads the name from procfs;

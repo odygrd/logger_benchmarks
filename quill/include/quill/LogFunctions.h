@@ -12,14 +12,10 @@
 #include "quill/core/MacroMetadata.h"
 #include "quill/core/SourceLocation.h"
 
-#include <string>
-#include <type_traits>
-#include <utility>
-
-#if !defined(QUILL_ENABLE_IMMEDIATE_FLUSH)
-  // Keep the macro-free API consistent with the macro API: immediate flush support is enabled
-  // unless it is explicitly disabled for the translation unit.
-  #define QUILL_ENABLE_IMMEDIATE_FLUSH 1
+#ifndef QUILL_MODULE
+  #include <string>
+  #include <string_view>
+  #include <utility>
 #endif
 
 QUILL_BEGIN_NAMESPACE
@@ -72,9 +68,9 @@ QUILL_ATTRIBUTE_HOT void log(TLogger* logger, char const* tags, LogLevel log_lev
 
   if (logger->should_log_statement(log_level))
   {
-    logger->template log_statement_runtime_metadata<QUILL_ENABLE_IMMEDIATE_FLUSH>(
-      &macro_metadata, fmt, location.file_name(), location.function_name(), tags, location.line(),
-      log_level, std::forward<Args>(args)...);
+    logger->log_statement_runtime_metadata(&macro_metadata, fmt, location.file_name(),
+                                           location.function_name(), tags, location.line(),
+                                           log_level, std::forward<Args>(args)...);
   }
 }
 } // namespace detail
@@ -87,29 +83,14 @@ struct Tags
   Tags() = default;
 
   /**
-   * Single tag constructor
-   * @param tag Tag to add to the log message
-   */
-  explicit Tags(char const* tag)
-  {
-    append_tag(tag);
-    _append_trailing_space_if_needed();
-  }
-
-  /**
-   * Constructor for multiple tags
+   * Constructor for one or more tags
    * @param first_tag Tag to add to the log message
-   * @param second_tag Tag to add to the log message
    * @param rest_tags Tag to add to the log message
    */
-  template <typename... RestTags>
-  Tags(char const* first_tag, char const* second_tag, RestTags... rest_tags)
+  template <typename FirstTag, typename... RestTags>
+  explicit Tags(FirstTag const& first_tag, RestTags const&... rest_tags)
   {
-    static_assert(std::conjunction_v<std::is_same<char const*, RestTags>...>,
-                  "All tag parameters must be of type 'char const*'");
-
     append_tag(first_tag);
-    append_tag(second_tag);
     (append_tag(rest_tags), ...);
     _append_trailing_space_if_needed();
   }
@@ -127,16 +108,18 @@ private:
       return;
     }
 
-    if (!_value.empty())
-    {
-      _value += " #";
-    }
-    else
-    {
-      _value += '#';
-    }
+    append_tag(std::string_view{tag});
+  }
 
-    _value += tag;
+  void append_tag(std::string const& tag) { append_tag(std::string_view{tag}); }
+
+  void append_tag(std::string_view tag)
+  {
+    _value += _value.empty() ? "#" : " #";
+    if (!tag.empty())
+    {
+      _value.append(tag.data(), tag.size());
+    }
   }
 
   void _append_trailing_space_if_needed()

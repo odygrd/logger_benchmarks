@@ -10,15 +10,17 @@
 #include "quill/core/ChronoTimeUtils.h"
 #include "quill/core/Common.h"
 #include "quill/core/Rdtsc.h"
+#include "quill/core/ThreadPrimitives.h"
 
-#include <algorithm>
-#include <array>
-#include <atomic>
-#include <chrono>
-#include <cstdint>
-#include <cstdio>
-#include <limits>
-#include <vector>
+#ifndef QUILL_MODULE
+  #include <array>
+  #include <atomic>
+  #include <chrono>
+  #include <cstdint>
+  #include <cstdio>
+  #include <limits>
+  #include <utility>
+#endif
 
 QUILL_BEGIN_NAMESPACE
 
@@ -42,7 +44,7 @@ public:
   class RdtscTicks
   {
   public:
-    QUILL_NODISCARD QUILL_EXPORT static RdtscTicks& instance()
+    QUILL_NODISCARD QUILL_EXPORT static inline RdtscTicks& instance()
     {
       static RdtscTicks inst;
       return inst;
@@ -64,59 +66,45 @@ public:
       // freq is typically exactly 24000000, 50000000, or 1000000000 depending on the SoC
       _ns_per_tick = 1e9 / static_cast<double>(freq);
 #else
-      // Convert rdtsc to wall time.
-      // 1. Get real time and rdtsc current count
-      // 2. Calculate how many rdtsc ticks can occur in one
-      // calculate _ticks_per_ns as the median over a number of observations
-      // we use always odd number of trials for easy median calc
-      constexpr uint64_t spin_duration_ns = 10ull * 1'000'000ull; // 10 ms
-      constexpr size_t max_trials = 15;
-      constexpr size_t min_trials = 3;
-      constexpr double convergence_threshold = 0.01; // 1% threshold
-
-      std::vector<double> rates;
-      rates.reserve(max_trials);
-
-      double previous_median = 0.0;
-
-      for (size_t i = 0; i < max_trials; ++i)
+      // Measure the tick rate against the steady clock between two points 10 ms apart. Each point
+      // takes the tightest of several rdtsc/clock/rdtsc reads, so preemption between the points
+      // does not affect the result; RdtscClock refines the rate at each resync.
+      auto const sample = []()
       {
-        uint64_t const beg_ts = detail::get_steady_time_ns();
-        uint64_t const beg_tsc = rdtsc();
-        uint64_t end_tsc;
-        uint64_t elapsed_ns;
+        constexpr uint32_t attempts{8};
+        uint64_t best_lag{(std::numeric_limits<uint64_t>::max)()};
+        std::pair<uint64_t, uint64_t> best_sample{};
 
-        do
+        for (uint32_t attempt = 0; attempt < attempts; ++attempt)
         {
-          uint64_t const end_ts = detail::get_steady_time_ns();
-          end_tsc = rdtsc();
-          elapsed_ns = end_ts - beg_ts;
-        } while (elapsed_ns < spin_duration_ns);
+          uint64_t const beg_tsc = rdtsc();
+          uint64_t const steady_ns = detail::get_steady_time_ns();
+          uint64_t const end_tsc = rdtsc();
 
-        rates.push_back(static_cast<double>(end_tsc - beg_tsc) / static_cast<double>(elapsed_ns));
-
-        // Check for convergence after minimum trials and only on an odd count of trials.
-        if (((i + 1) >= min_trials) && (((i + 1) % 2) != 0))
-        {
-          std::nth_element(rates.begin(), rates.begin() + static_cast<ptrdiff_t>((i + 1) / 2), rates.end());
-          double current_median = rates[(i + 1) / 2];
-
-          // If we've converged, break early
-          if (std::abs(current_median - previous_median) / current_median < convergence_threshold)
+          if ((end_tsc - beg_tsc) < best_lag)
           {
-            break;
+            best_lag = end_tsc - beg_tsc;
+            best_sample = {steady_ns, beg_tsc + ((end_tsc - beg_tsc) / 2u)};
           }
-
-          previous_median = current_median;
         }
+
+        return best_sample;
+      };
+
+      constexpr uint64_t calibration_interval_ns{10'000'000};
+
+      auto const begin = sample();
+      detail::sleep_for_ns(calibration_interval_ns);
+      auto end = sample();
+
+      while ((end.first - begin.first) < calibration_interval_ns)
+      {
+        // a sleep can wake up early on some platforms
+        end = sample();
       }
 
-      // Calculate final median.
-      std::nth_element(rates.begin(), rates.begin() + static_cast<ptrdiff_t>(rates.size() / 2),
-                       rates.end());
-
-      double const ticks_per_ns = rates[rates.size() / 2];
-      _ns_per_tick = 1 / ticks_per_ns;
+      _ns_per_tick =
+        static_cast<double>(end.first - begin.first) / static_cast<double>(end.second - begin.second);
 #endif
     }
 
@@ -151,10 +139,10 @@ public:
 
     _resync_interval_original = _resync_interval_ticks;
 
-    if (!resync(resync_lag_cycles))
+    if (!resync(_ticks_of(resync_lag_ns)))
     {
       // try to resync again with higher lag
-      if (!resync(resync_lag_cycles * 2u))
+      if (!resync(_ticks_of(resync_lag_ns * 2u)))
       {
         std::fprintf(stderr, "Failed to sync RdtscClock. Timestamps will be incorrect\n");
       }
@@ -167,27 +155,21 @@ public:
     // should only get called by the backend thread
 
     // get the current index, this is only safe to call from the thread that is doing the resync
-    auto const index = _version.load(std::memory_order_relaxed) & (_base.size() - 1);
-    uint64_t const base_tsc = _base[index].base_tsc.load(std::memory_order_relaxed);
-    int64_t const base_time = _base[index].base_time.load(std::memory_order_relaxed);
+    auto index = _version.load(std::memory_order_relaxed) & (_base.size() - 1);
 
     // Unsigned subtraction + int64_t cast: a stale rdtsc_value yields a small negative
     // diff, producing a wall time slightly in the past. This is intentional.
-    auto diff = static_cast<int64_t>(rdtsc_value - base_tsc);
+    auto const diff =
+      static_cast<int64_t>(rdtsc_value - _base[index].base_tsc.load(std::memory_order_relaxed));
 
     // we need to sync after we calculated otherwise base_tsc value will be ahead of passed tsc value
     if (diff > _resync_interval_ticks)
     {
-      resync(resync_lag_cycles);
-      auto const resynced_index = _version.load(std::memory_order_relaxed) & (_base.size() - 1);
-      uint64_t const resynced_base_tsc = _base[resynced_index].base_tsc.load(std::memory_order_relaxed);
-      int64_t const resynced_base_time = _base[resynced_index].base_time.load(std::memory_order_relaxed);
-      diff = static_cast<int64_t>(rdtsc_value - resynced_base_tsc);
-      return static_cast<uint64_t>(resynced_base_time +
-                                   static_cast<int64_t>(static_cast<double>(diff) * _ns_per_tick));
+      resync(_ticks_of(resync_lag_ns));
+      index = _version.load(std::memory_order_relaxed) & (_base.size() - 1);
     }
 
-    return static_cast<uint64_t>(base_time + static_cast<int64_t>(static_cast<double>(diff) * _ns_per_tick));
+    return _convert(_base[index], rdtsc_value);
   }
 
   /***/
@@ -202,17 +184,13 @@ public:
     {
       version = _version.load(std::memory_order_acquire);
       auto const index = version & (_base.size() - 1);
-      uint64_t const base_tsc = _base[index].base_tsc.load(std::memory_order_relaxed);
-      int64_t const base_time = _base[index].base_time.load(std::memory_order_relaxed);
-
-      if (QUILL_UNLIKELY((base_tsc == 0) && (base_time == 0)))
+      if (QUILL_UNLIKELY((_base[index].base_tsc.load(std::memory_order_relaxed) == 0) &&
+                         (_base[index].base_time.load(std::memory_order_relaxed) == 0)))
       {
         return 0;
       }
 
-      // get rdtsc current value and compare the diff then add it to base wall time
-      auto const diff = static_cast<int64_t>(rdtsc_value - base_tsc);
-      wall_ts = static_cast<uint64_t>(base_time + static_cast<int64_t>(static_cast<double>(diff) * _ns_per_tick));
+      wall_ts = _convert(_base[index], rdtsc_value);
 
       // The fence prevents the relaxed data loads above from being reordered after the version
       // re-check below on weakly-ordered architectures; an acquire load alone does not stop
@@ -223,8 +201,43 @@ public:
     return wall_ts;
   }
 
-  /***/
+  /**
+   * Resyncs from the logging path. On failure the resync interval is doubled so that
+   * time_since_epoch() does not retry on every call.
+   */
   bool resync(uint32_t lag) const noexcept
+  {
+    if (try_resync(lag))
+    {
+      _resync_interval_ticks = _resync_interval_original;
+      return true;
+    }
+
+    constexpr int64_t max_int64_half = (std::numeric_limits<int64_t>::max)() / 2;
+    if (_resync_interval_ticks <= max_int64_half)
+    {
+      _resync_interval_ticks = _resync_interval_ticks * 2;
+    }
+
+    return false;
+  }
+
+  /**
+   * Resyncs while the backend is idle. Prefers a tight lag for an accurate base, and falls back to
+   * the logging path's budget so a slow system clock cannot leave the clock unsynchronized. Unlike
+   * resync(), a failure here does not lengthen the logging path's resync interval.
+   */
+  bool resync_when_idle() const noexcept
+  {
+    constexpr uint32_t idle_resync_lag_ns{800};
+    return try_resync(_ticks_of(idle_resync_lag_ns)) || try_resync(_ticks_of(resync_lag_ns));
+  }
+
+  /**
+   * Publishes a new base if the system clock can be read within `lag` ticks.
+   * @return true on success. Leaves the resync interval unchanged.
+   */
+  bool try_resync(uint32_t lag) const noexcept
   {
     // Sometimes we might get an interrupt and might never resync, so we will try again up to max_attempts
     constexpr uint8_t max_attempts{4};
@@ -238,38 +251,90 @@ public:
 
       if (QUILL_LIKELY(end - beg <= lag))
       {
-        // update the next index
-        auto const index = (_version.load(std::memory_order_relaxed) + 1) & (_base.size() - 1);
-        _base[index].base_time.store(wall_time, std::memory_order_relaxed);
-        _base[index].base_tsc.store(_fast_average(beg, end), std::memory_order_relaxed);
-        _version.fetch_add(1, std::memory_order_release);
-
-        _resync_interval_ticks = _resync_interval_original;
+        uint64_t const tsc = _fast_average(beg, end);
+        BaseTimeTsc const& current = _base[_version.load(std::memory_order_relaxed) & (_base.size() - 1)];
+        _publish(wall_time, tsc, _refined_ns_per_tick(current, wall_time, tsc));
         return true;
       }
-    }
-
-    // we failed to return earlier and we never resynced, but we don't really want to keep retrying on each call
-    // to time_since_epoch() so we do non accurate resync we will increase the resync duration to resync later
-    constexpr int64_t max_int64_half = (std::numeric_limits<int64_t>::max)() / 2;
-    if (_resync_interval_ticks <= max_int64_half)
-    {
-      _resync_interval_ticks = _resync_interval_ticks * 2;
     }
 
     return false;
   }
 
-  /***/
+  /** The tick rate measured at startup, before any refinement */
   double nanoseconds_per_tick() const noexcept { return _ns_per_tick; }
 
 protected:
   struct BaseTimeTsc
   {
     BaseTimeTsc() = default;
-    std::atomic<int64_t> base_time{0}; /**< Get the initial base time in nanoseconds from epoch */
-    std::atomic<uint64_t> base_tsc{0}; /**< Get the initial base tsc time */
+    std::atomic<int64_t> base_time{0};  /**< Get the initial base time in nanoseconds from epoch */
+    std::atomic<uint64_t> base_tsc{0};  /**< Get the initial base tsc time */
+    std::atomic<double> ns_per_tick{0}; /**< Tick rate used from this base */
   };
+
+  /**
+   * Publishes a base for time_since_epoch_safe(), in the slot that the current version does not
+   * use. Called by the backend thread only.
+   */
+  void _publish(int64_t base_time, uint64_t base_tsc, double ns_per_tick) const noexcept
+  {
+    auto const index = (_version.load(std::memory_order_relaxed) + 1) & (_base.size() - 1);
+
+    // The slot was the one of the version before the current one, and a reader that loaded that
+    // version can still be reading it. The fence orders the stores below after the increment that
+    // ended that version: a reader that sees one of them then also finds the version changed, and
+    // reads again. Without it only the increment below is ordered, after these stores
+    std::atomic_thread_fence(std::memory_order_release);
+
+    _base[index].base_time.store(base_time, std::memory_order_relaxed);
+    _base[index].base_tsc.store(base_tsc, std::memory_order_relaxed);
+    _base[index].ns_per_tick.store(ns_per_tick, std::memory_order_relaxed);
+    _version.fetch_add(1, std::memory_order_release);
+  }
+
+  /** Converts a tick value using a published base; the caller ensures the base is consistent */
+  QUILL_NODISCARD static uint64_t _convert(BaseTimeTsc const& base, uint64_t rdtsc_value) noexcept
+  {
+    auto const diff = static_cast<int64_t>(rdtsc_value - base.base_tsc.load(std::memory_order_relaxed));
+    return static_cast<uint64_t>(
+      base.base_time.load(std::memory_order_relaxed) +
+      static_cast<int64_t>(static_cast<double>(diff) * base.ns_per_tick.load(std::memory_order_relaxed)));
+  }
+
+  /**
+   * The startup rate is measured over a few milliseconds and the wall clock is NTP-disciplined,
+   * so a fixed rate drifts from the wall clock and each resync steps the time, possibly backwards.
+   * Re-derive the rate from the previous base. Keep the previous rate when the interval is too
+   * short to be accurate, or when the result is implausible, e.g. after the wall clock was stepped.
+   * Without a previous base to measure from, use the startup rate.
+   */
+  QUILL_NODISCARD double _refined_ns_per_tick(BaseTimeTsc const& previous, int64_t wall_time, uint64_t tsc) const noexcept
+  {
+    double const previous_ns_per_tick = previous.ns_per_tick.load(std::memory_order_relaxed);
+    uint64_t const previous_tsc = previous.base_tsc.load(std::memory_order_relaxed);
+    int64_t const previous_time = previous.base_time.load(std::memory_order_relaxed);
+
+    if (!(previous_ns_per_tick > 0.0) || (tsc <= previous_tsc))
+    {
+      return _ns_per_tick;
+    }
+
+    constexpr double min_refinement_interval_ns{100'000'000}; // 100 ms
+    constexpr double max_deviation{500e-6};                   // 500 ppm from the startup rate
+
+    double const elapsed_ticks = static_cast<double>(tsc - previous_tsc);
+
+    if ((elapsed_ticks * _ns_per_tick) < min_refinement_interval_ns)
+    {
+      return previous_ns_per_tick;
+    }
+
+    double const measured = static_cast<double>(wall_time - previous_time) / elapsed_ticks;
+    double const deviation = (measured / _ns_per_tick) - 1.0;
+
+    return ((deviation > max_deviation) || (deviation < -max_deviation)) ? previous_ns_per_tick : measured;
+  }
 
   /***/
   QUILL_NODISCARD static uint64_t _fast_average(uint64_t x, uint64_t y) noexcept
@@ -277,8 +342,19 @@ protected:
     return (x & y) + ((x ^ y) >> 1);
   }
 
+  /**
+   * @return the ticks of the counter in `nanoseconds`. The time that reading the system clock
+   * may take is the same for every counter, while their ticks differ: a 24 MHz ARM generic timer
+   * has one in the time that an x86 TSC has over a hundred
+   */
+  QUILL_NODISCARD uint32_t _ticks_of(uint32_t nanoseconds) const noexcept
+  {
+    return static_cast<uint32_t>(static_cast<double>(nanoseconds) / _ns_per_tick);
+  }
+
 protected:
-  static constexpr uint32_t resync_lag_cycles{50'000};
+  /** The longest that reading the system clock may take for a resync from the logging path */
+  static constexpr uint32_t resync_lag_ns{16'000};
   mutable int64_t _resync_interval_ticks{0};
   int64_t _resync_interval_original{0}; /**< stores the initial interval value as as if we fail to resync we increase the timer */
   double _ns_per_tick{0};

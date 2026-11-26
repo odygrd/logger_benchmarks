@@ -15,17 +15,15 @@
 #include "quill/bundled/fmt/format.h"
 #include "quill/bundled/fmt/ranges.h"
 
-#include <cstddef>
-#include <cstdint>
-#include <map>
-#include <memory>
-#include <type_traits>
-#include <utility>
-#include <vector>
-
-#if defined(_WIN32)
-  #include <string>
-  #include <string_view>
+#ifndef QUILL_MODULE
+  #include <cstddef>
+  #include <cstdint>
+  #include <functional>
+  #include <map>
+  #include <memory>
+  #include <type_traits>
+  #include <utility>
+  #include <vector>
 #endif
 
 QUILL_BEGIN_NAMESPACE
@@ -37,7 +35,7 @@ struct Codec<MapType<Key, T, Compare, Allocator>,
              std::enable_if_t<std::disjunction_v<std::is_same<MapType<Key, T, Compare, Allocator>, std::map<Key, T, Compare, Allocator>>,
                                                  std::is_same<MapType<Key, T, Compare, Allocator>, std::multimap<Key, T, Compare, Allocator>>>>>
 {
-  static size_t compute_encoded_size(detail::SizeCacheVector& conditional_arg_size_cache,
+  static size_t compute_encoded_size(SizeCacheVector& conditional_arg_size_cache,
                                      MapType<Key, T, Compare, Allocator> const& arg)
   {
     // We need to store the size of the map in the buffer, so we reserve space for it.
@@ -46,7 +44,7 @@ struct Codec<MapType<Key, T, Compare, Allocator>,
 
     if constexpr (std::conjunction_v<std::is_arithmetic<Key>, std::is_arithmetic<T>>)
     {
-      // For built-in types, such as arithmetic or enum types, iteration is unnecessary
+      // For arithmetic types, iteration is unnecessary
       total_size += (sizeof(Key) + sizeof(T)) * arg.size();
     }
     else
@@ -67,7 +65,7 @@ struct Codec<MapType<Key, T, Compare, Allocator>,
   }
 
   template <typename Arg>
-  static void encode(std::byte*& buffer, detail::SizeCacheVector const& conditional_arg_size_cache,
+  static void encode(std::byte*& buffer, SizeCacheVector const& conditional_arg_size_cache,
                      uint32_t& conditional_arg_size_cache_index, Arg&& arg)
   {
     Codec<size_t>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, arg.size());
@@ -99,74 +97,36 @@ struct Codec<MapType<Key, T, Compare, Allocator>,
 
   static auto decode_arg(std::byte*& buffer)
   {
-#if defined(_WIN32)
-    // Wide string support
-    if constexpr (std::conjunction_v<
-                    std::disjunction<std::is_same<MapType<Key, T, Compare, Allocator>, std::map<Key, T, Compare, Allocator>>,
-                                     std::is_same<MapType<Key, T, Compare, Allocator>, std::multimap<Key, T, Compare, Allocator>>>,
-                    std::disjunction<std::is_same<Key, wchar_t*>, std::is_same<Key, wchar_t const*>, std::is_same<Key, std::wstring>,
-                                     std::is_same<Key, std::wstring_view>, std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
-                                     std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>>)
+    if constexpr (detail::is_wide_string_v<Key> || detail::is_wide_string_v<T>)
     {
-      // Read the size of the map
+      // Wide strings decode to UTF-8 std::string. Collect the entries in a vector to keep the
+      // frontend iteration order, which a container keyed by the converted strings could change.
+      using DecodedEntry =
+        std::pair<decltype(detail::decode_element<Key>(buffer)), decltype(detail::decode_element<T>(buffer))>;
+
       size_t const number_of_elements = Codec<size_t>::decode_arg(buffer);
+      std::vector<DecodedEntry> decoded;
+      decoded.reserve(number_of_elements);
 
-      constexpr bool wide_key_t = std::is_same_v<Key, wchar_t*> || std::is_same_v<Key, wchar_t const*> ||
-        std::is_same_v<Key, std::wstring> || std::is_same_v<Key, std::wstring_view>;
-
-      constexpr bool wide_value_t = std::is_same_v<T, wchar_t*> || std::is_same_v<T, wchar_t const*> ||
-        std::is_same_v<T, std::wstring> || std::is_same_v<T, std::wstring_view>;
-
-      if constexpr (wide_key_t && !wide_value_t)
+      for (size_t i = 0; i < number_of_elements; ++i)
       {
-        using ReturnValueType = decltype(Codec<T>::decode_arg(buffer));
-        std::vector<std::pair<std::string, ReturnValueType>> encoded_values;
-        encoded_values.reserve(number_of_elements);
-
-        for (size_t i = 0; i < number_of_elements; ++i)
-        {
-          encoded_values.emplace_back(std::pair<std::string, ReturnValueType>{
-            detail::utf8_encode(Codec<Key>::decode_arg(buffer)), Codec<T>::decode_arg(buffer)});
-        }
-
-        return encoded_values;
+        // Brace initialization preserves left-to-right evaluation of the decode calls.
+        decoded.push_back(DecodedEntry{detail::decode_element<Key>(buffer), detail::decode_element<T>(buffer)});
       }
-      else if constexpr (!wide_key_t && wide_value_t)
-      {
-        using ReturnKeyType = decltype(Codec<Key>::decode_arg(buffer));
-        std::vector<std::pair<ReturnKeyType, std::string>> encoded_values;
-        encoded_values.reserve(number_of_elements);
 
-        for (size_t i = 0; i < number_of_elements; ++i)
-        {
-          encoded_values.emplace_back(std::pair<ReturnKeyType, std::string>{
-            Codec<Key>::decode_arg(buffer), detail::utf8_encode(Codec<T>::decode_arg(buffer))});
-        }
-
-        return encoded_values;
-      }
-      else
-      {
-        std::vector<std::pair<std::string, std::string>> encoded_values;
-        encoded_values.reserve(number_of_elements);
-
-        for (size_t i = 0; i < number_of_elements; ++i)
-        {
-          encoded_values.emplace_back(
-            std::pair<std::string, std::string>{detail::utf8_encode(Codec<Key>::decode_arg(buffer)),
-                                                detail::utf8_encode(Codec<T>::decode_arg(buffer))});
-        }
-
-        return encoded_values;
-      }
+      return decoded;
     }
     else
     {
-#endif
       using ReturnKeyType = decltype(Codec<Key>::decode_arg(buffer));
       using ReturnValueType = decltype(Codec<T>::decode_arg(buffer));
+
+      // The keys can be decoded as another type, e.g. std::string_view for std::string, which
+      // the two standard comparators of the key type follow. Any other comparator is kept
       using ReboundCompare =
-        typename std::conditional<std::is_same<Compare, std::less<Key>>::value, std::less<ReturnKeyType>, Compare>::type;
+        std::conditional_t<std::is_same_v<Compare, std::less<Key>>, std::less<ReturnKeyType>,
+                           std::conditional_t<std::is_same_v<Compare, std::greater<Key>>, std::greater<ReturnKeyType>, Compare>>;
+
       using ReboundAllocator =
         typename std::allocator_traits<Allocator>::template rebind_alloc<std::pair<ReturnKeyType const, ReturnValueType>>;
       MapType<ReturnKeyType, ReturnValueType, ReboundCompare, ReboundAllocator> arg;
@@ -197,10 +157,7 @@ struct Codec<MapType<Key, T, Compare, Allocator>,
       }
 
       return arg;
-
-#if defined(_WIN32)
     }
-#endif
   }
 
   static void decode_and_store_arg(std::byte*& buffer, DynamicFormatArgStore* args_store)

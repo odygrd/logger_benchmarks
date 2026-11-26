@@ -14,16 +14,13 @@
 #include "quill/bundled/fmt/format.h"
 #include "quill/bundled/fmt/ranges.h"
 
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <type_traits>
-#include <utility>
-#include <vector>
-
-#if defined(_WIN32)
-  #include <string>
-  #include <string_view>
+#ifndef QUILL_MODULE
+  #include <cstddef>
+  #include <cstdint>
+  #include <memory>
+  #include <type_traits>
+  #include <utility>
+  #include <vector>
 #endif
 
 QUILL_BEGIN_NAMESPACE
@@ -37,7 +34,7 @@ private:
   static constexpr bool use_memcpy_fast_path = std::is_arithmetic_v<T> && !std::is_same_v<T, bool>;
 
 public:
-  static size_t compute_encoded_size(detail::SizeCacheVector& conditional_arg_size_cache,
+  static size_t compute_encoded_size(SizeCacheVector& conditional_arg_size_cache,
                                      std::vector<T, Allocator> const& arg)
   {
     // We need to store the size of the vector in the buffer, so we reserve space for it.
@@ -66,7 +63,7 @@ public:
   }
 
   template <typename Arg>
-  static void encode(std::byte*& buffer, detail::SizeCacheVector const& conditional_arg_size_cache,
+  static void encode(std::byte*& buffer, SizeCacheVector const& conditional_arg_size_cache,
                      uint32_t& conditional_arg_size_cache_index, Arg&& arg)
   {
     Codec<size_t>::encode(buffer, conditional_arg_size_cache, conditional_arg_size_cache_index, arg.size());
@@ -104,38 +101,37 @@ public:
 
   static auto decode_arg(std::byte*& buffer)
   {
-#if defined(_WIN32)
-    if constexpr (std::disjunction_v<std::is_same<T, wchar_t*>, std::is_same<T, wchar_t const*>,
-                                     std::is_same<T, std::wstring>, std::is_same<T, std::wstring_view>>)
-    {
-      // Read the size of the vector
-      size_t const number_of_elements = Codec<size_t>::decode_arg(buffer);
+    using ReturnType = decltype(detail::decode_element<T>(buffer));
+    using ReboundAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<ReturnType>;
+    std::vector<ReturnType, ReboundAllocator> arg;
 
-      std::vector<std::string> encoded_values;
-      encoded_values.reserve(number_of_elements);
+    // Read the size of the vector
+    size_t const number_of_elements = Codec<size_t>::decode_arg(buffer);
+
+    if constexpr (use_memcpy_fast_path && std::is_arithmetic_v<ReturnType>)
+    {
+      // Sized once and decoded in place: the loop has no capacity check, so the compiler can copy
+      // the elements of the built-in codec as a block. Each one is still decoded by Codec<T>,
+      // which an application can specialize
+      arg.resize(number_of_elements);
+
+      // Local copy improves generated code (avoids aliasing penalties)
+      std::byte* read_pos = buffer;
 
       for (size_t i = 0; i < number_of_elements; ++i)
       {
-        std::wstring_view v = Codec<T>::decode_arg(buffer);
-        encoded_values.emplace_back(detail::utf8_encode(v));
+        arg[i] = detail::decode_element<T>(read_pos);
       }
 
-      return encoded_values;
+      buffer = read_pos;
     }
     else
     {
-#endif
-      using ReturnType = decltype(Codec<T>::decode_arg(buffer));
-      using ReboundAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<ReturnType>;
-      std::vector<ReturnType, ReboundAllocator> arg;
-
-      // Read the size of the vector
-      size_t const number_of_elements = Codec<size_t>::decode_arg(buffer);
       arg.reserve(number_of_elements);
 
       for (size_t i = 0; i < number_of_elements; ++i)
       {
-        auto elem = Codec<T>::decode_arg(buffer);
+        auto elem = detail::decode_element<T>(buffer);
         if constexpr (std::is_move_constructible_v<ReturnType>)
         {
           arg.emplace_back(std::move(elem));
@@ -145,11 +141,9 @@ public:
           arg.emplace_back(elem);
         }
       }
-
-      return arg;
-#if defined(_WIN32)
     }
-#endif
+
+    return arg;
   }
 
   static void decode_and_store_arg(std::byte*& buffer, DynamicFormatArgStore* args_store)

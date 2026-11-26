@@ -12,22 +12,25 @@
 #include "quill/core/Attributes.h"
 #include "quill/core/MetricManager.h"
 #include "quill/core/QuillError.h"
+#include "quill/core/ThreadContextManager.h"
 
-#include <atomic>
-#include <csignal>
-#include <cstdint>
-#include <cstdlib>
-#include <mutex>
+#ifndef QUILL_MODULE
+  #include <atomic>
+  #include <csignal>
+  #include <cstdint>
+  #include <cstdlib>
+  #include <mutex>
+#endif
 
 QUILL_BEGIN_NAMESPACE
 
 QUILL_BEGIN_EXPORT
 
-/** Version Info - When updating VersionMajor please also update the namespace in Attributes.h **/
-inline constexpr uint32_t VersionMajor{13};
-inline constexpr uint32_t VersionMinor{0};
-inline constexpr uint32_t VersionPatch{0};
-inline constexpr uint32_t Version{VersionMajor * 10000 + VersionMinor * 100 + VersionPatch};
+/** Version Info, set by QUILL_VERSION_MAJOR, QUILL_VERSION_MINOR and QUILL_VERSION_PATCH in Attributes.h **/
+inline constexpr uint32_t VersionMajor{QUILL_VERSION_MAJOR};
+inline constexpr uint32_t VersionMinor{QUILL_VERSION_MINOR};
+inline constexpr uint32_t VersionPatch{QUILL_VERSION_PATCH};
+inline constexpr uint32_t Version{QUILL_VERSION};
 
 class Backend
 {
@@ -39,38 +42,36 @@ public:
    */
   QUILL_ATTRIBUTE_COLD static void start(BackendOptions const& options = BackendOptions{})
   {
-    // Keep deterministic validation outside call_once: TSan's pthread_once interceptor cannot
-    // recover its once state when the callable exits with an exception.
     detail::BackendWorker::validate_options(options);
 
-    std::call_once(detail::BackendManager::instance().get_start_once_flag(),
-                   [options]()
-                   {
-                     // Static-destruction ordering matters here because Backend::stop() runs via
-                     // std::atexit. Any singleton the backend may touch during shutdown must be
-                     // constructed before we register the atexit handler, otherwise it could be
-                     // destroyed first and the backend could dereference freed state while draining
-                     // queues.
-                     //
-                     // BackendManager construction already pins ThreadContextManager,
-                     // SinkManager, and LoggerManager because BackendWorker stores references to
-                     // them as members. SignalHandlerContext and MetricManager are not pinned that
-                     // way, so construct them explicitly before atexit registration.
-                     (void)detail::SignalHandlerContext::instance();
-                     (void)detail::MetricManager::instance();
+    detail::BackendManager::instance().start_once(
+      [options]()
+      {
+        // Static-destruction ordering matters here because Backend::stop() runs via
+        // std::atexit. Any singleton the backend may touch during shutdown must be
+        // constructed before we register the atexit handler, otherwise it could be
+        // destroyed first and the backend could dereference freed state while draining
+        // queues.
+        //
+        // BackendManager construction already pins ThreadContextManager,
+        // SinkManager, and LoggerManager because BackendWorker stores references to
+        // them as members. SignalHandlerContext and MetricManager are not pinned that
+        // way, so construct them explicitly before atexit registration.
+        (void)detail::SignalHandlerContext::instance();
+        (void)detail::MetricManager::instance();
 
-                     // Run the backend worker thread, we wait here until the thread enters the main loop
-                     detail::BackendManager::instance().start_backend_thread(options);
+        // Run the backend worker thread, we wait here until the thread enters the main loop
+        detail::BackendManager::instance().start_backend_thread(options);
 
-                     // Set up an exit handler to call stop when the main application exits.
-                     // always call stop on destruction to log everything. std::atexit seems to be
-                     // working better with dll on windows compared to using ~LogManagerSingleton().
-                     if (!detail::BackendManager::instance().is_atexit_registered())
-                     {
-                       detail::BackendManager::instance().set_atexit_registered();
-                       std::atexit([]() { Backend::stop(); });
-                     }
-                   });
+        // Set up an exit handler to call stop when the main application exits.
+        // always call stop on destruction to log everything. std::atexit seems to be
+        // working better with dll on windows compared to using ~LogManagerSingleton().
+        if (!detail::BackendManager::instance().is_atexit_registered())
+        {
+          detail::BackendManager::instance().set_atexit_registered();
+          std::atexit([]() { Backend::stop(); });
+        }
+      });
   }
 
   /**
@@ -78,6 +79,9 @@ public:
    *
    * @param backend_options Backend options to configure the backend behavior.
    * @param signal_handler_options SignalHandler options to configure the signal handler behavior.
+   *
+   * @throws QuillError if TFrontendOptions differ from the FrontendOptions the application's
+   *         loggers use. The signal handler logs with TFrontendOptions.
    *
    * @note Enabling the built-in signal handler overrides the listed process signal handlers.
    * @note Concurrent calls to start() and stop() from different threads are not supported.
@@ -105,8 +109,11 @@ public:
   {
     detail::BackendWorker::validate_options(backend_options);
 
-    std::call_once(
-      detail::BackendManager::instance().get_start_once_flag(),
+    // The signal handler logs through LoggerImpl<TFrontendOptions>, which must be the type of the
+    // application's loggers
+    detail::check_frontend_options(detail::FrontendOptionsValues::of<TFrontendOptions>());
+
+    detail::BackendManager::instance().start_once(
       [backend_options, signal_handler_options]()
       {
         // These flags are only read in the catch block; unused in no-exception builds.
@@ -124,6 +131,12 @@ public:
           // SinkManager, and LoggerManager through BackendWorker member references.
           (void)detail::MetricManager::instance();
 
+          // Set before installing the handlers, which read the timeout
+          auto& signal_handler_context = detail::SignalHandlerContext::instance();
+          signal_handler_context.logger_name = signal_handler_options.logger_name;
+          signal_handler_context.excluded_logger_substrings = signal_handler_options.excluded_logger_substrings;
+          signal_handler_context.signal_handler_timeout_seconds.store(signal_handler_options.timeout_seconds);
+
 #if defined(_WIN32)
           detail::init_exception_handler<TFrontendOptions>();
           exception_handler_initialized = true;
@@ -139,11 +152,6 @@ public:
           detail::init_signal_handler<TFrontendOptions>(signal_handler_options.catchable_signals);
           signal_handler_initialized = true;
 #endif
-
-          auto& signal_handler_context = detail::SignalHandlerContext::instance();
-          signal_handler_context.logger_name = signal_handler_options.logger_name;
-          signal_handler_context.excluded_logger_substrings = signal_handler_options.excluded_logger_substrings;
-          signal_handler_context.signal_handler_timeout_seconds.store(signal_handler_options.timeout_seconds);
 
           // Run the backend worker thread, we wait here until the thread enters the main loop
           detail::BackendManager::instance().start_backend_thread(backend_options);
@@ -200,9 +208,10 @@ public:
   /**
    * Stops the backend thread.
    *
-   * @note On POSIX systems, when the built-in signal handler is enabled, this restores the
-   * Quill-managed signals to their default dispositions. It does not restore any previously
-   * installed user handlers.
+   * @note When the built-in signal handler is enabled, this reinstalls the handlers the
+   * Quill-managed signals had before Backend::start(). On Windows the CRT keeps SIGSEGV, SIGILL
+   * and SIGFPE handlers per thread, while Quill saves the handlers found by the first thread that
+   * installed its own. This restores those saved handlers on the calling thread only.
    * @note Concurrent calls to start() and stop() from different threads are not supported.
    * @note This function must not be called from backend-thread callbacks because it joins the
    *       backend worker thread.
@@ -217,7 +226,7 @@ public:
       QUILL_THROW(QuillError{"Backend::stop() cannot be called from the backend worker thread"});
     }
 
-    detail::LockGuard const stop_lock{backend_manager._stop_spinlock};
+    std::lock_guard<std::mutex> const stop_lock{backend_manager._stop_mutex};
 
     detail::SignalHandlerContext::instance().backend_thread_id.store(0);
     backend_manager.stop_backend_thread();
@@ -227,7 +236,7 @@ public:
       fn();
     }
 #endif
-    detail::deinit_signal_handler();
+    detail::restore_signal_handlers();
   }
 
   /**
@@ -250,6 +259,8 @@ public:
 
   /**
    * Retrieves the ID of the backend thread.
+   * @note Returns zero when a `ManualBackendWorker` is initialized with thread migration enabled,
+   * because there is no persistent backend thread in that mode.
    * @return The ID of the backend thread.
    */
   QUILL_NODISCARD static uint32_t get_thread_id() noexcept
@@ -260,10 +271,10 @@ public:
   /**
    * Converts an rdtsc value to epoch time.
    * This function uses the same clock as the backend and can be called from any frontend thread.
-   * It is useful when using a logger with ClockSourceType::Tsc and you want to obtain a timestamp
-   * synchronized with the log files generated by the backend.
+   * It is useful with ClockSource::tsc() or a user clock returning TimestampType::TscTicks when
+   * you want a timestamp synchronized with the log files generated by the backend.
    *
-   * Alternatively you can use the Clock class from backend/Clock.h
+   * Alternatively, use BackendTscClock from quill/BackendTscClock.h.
    * @param rdtsc_value The RDTSC value to convert.
    * @return The epoch time corresponding to the RDTSC value.
    * @throws QuillError if the backend TSC configuration is invalid.
@@ -281,21 +292,28 @@ public:
    * in managing the backend worker outside the provided mechanisms.
    *
    * Important notes:
-   *   - Do not use this to run the library in a single threaded application. This will lead to inefficiencies.
-   *     The design of this logging library assumes that the backend worker operates in a separate thread from the frontend threads that issue log statements.
+   *   - It can drive the backend from a thread the application already has, even its only thread,
+   *     by calling `poll_one()`. The frontend queues are designed for a producer and a consumer on
+   *     different threads, so running both on one thread works but pays for synchronization it
+   *     does not need. Prefer `Backend::start()` when it fits the threading model.
    *   - The thread running the `ManualBackendWorker` can log, but it must not use backend-waiting
    *     flush paths from that same thread. See `ManualBackendWorker` for the manual-backend
    *     threading contract.
-   *   - The `ManualBackendWorker` should only be used by a single thread. It is not designed to handle
-   *     multiple threads calling `poll()` simultaneously.
-   *   - You must call `ManualBackendWorker::shutdown()` explicitly from the same thread that called
-   *     `init()` before that thread exits. Do not rely on the `ManualBackendWorker` destructor for
-   *     shutdown ordering.
+   *   - By default, one thread must own the `ManualBackendWorker`, perform all polling, and call
+   *     `shutdown()`. This is the usual and recommended mode.
+   *   - `ManualBackendWorker::init()` can opt into thread migration for externally managed executors
+   *     and task pools. In that mode, worker operations may run on different threads but must never
+   *     overlap, and the caller must provide a happens-before relationship between successive calls.
+   *     See `ManualBackendWorker` for the reduced backend-thread checks in that mode.
+   *   - Call `ManualBackendWorker::shutdown()` explicitly after polling has finished. It drains the
+   *     pending messages first unless `BackendOptions::wait_for_queues_to_empty_before_exit` is
+   *     false. Do not rely on the `ManualBackendWorker` destructor for shutdown ordering.
    *   - The built-in signal handler is not set up with `ManualBackendWorker`. If signal handling is
    *     required, you must manually set up the signal handler and block signals from reaching the `ManualBackendWorker` thread.
    *     See the `start<FrontendOptions>(BackendOptions, SignalHandlerOptions)` implementation for guidance on how to do this.
-   *   - The following options are not supported when using `ManualBackendWorker`: `cpu_affinity`,
-   *     `thread_name`, `sleep_duration`, and `enable_yield_when_idle`.
+   *     Signal-handler logging and flushing are not supported when thread migration is enabled.
+   *   - `cpu_affinity` and `thread_name` are ignored, and `init()` forces `sleep_duration = 0` and
+   *     `enable_yield_when_idle = false`, so polling never sleeps or yields the calling thread.
    *   - Avoid performing very heavy tasks in your custom thread. Significant delays in calling `poll()`
    *     can lead to the SPSC queues of the frontend threads becoming full. When this happens, the
    *     frontend threads may need to allocate additional memory on the hot path.
@@ -327,8 +345,8 @@ public:
     // for that fallback drain path.
     (void)detail::MetricManager::instance();
 
-    std::call_once(
-      detail::BackendManager::instance().get_start_once_flag(), [&manual_backend_worker]() mutable
+    detail::BackendManager::instance().start_once(
+      [&manual_backend_worker]() mutable
       { manual_backend_worker = detail::BackendManager::instance().get_manual_backend_worker(); });
 
     if (!manual_backend_worker)

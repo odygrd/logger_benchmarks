@@ -7,9 +7,12 @@
 #pragma once
 
 #include "quill/core/Attributes.h"
+#include "quill/core/ClockSource.h"
 #include "quill/core/Common.h"
 
-#include <cstdint>
+#ifndef QUILL_MODULE
+  #include <cstdint>
+#endif
 
 QUILL_BEGIN_NAMESPACE
 
@@ -18,14 +21,15 @@ QUILL_BEGIN_EXPORT
 /**
  * Frontend options are expressed as a traits type.
  *
- * To override only a subset of options, derive from FrontendOptions and redeclare only the
- * members that change. New members added to FrontendOptions will then be inherited automatically
- * unless the derived type explicitly overrides them.
+ * Custom options must derive from FrontendOptions and redeclare only the members that change.
+ * New members added to FrontendOptions are then inherited automatically unless the derived type
+ * explicitly overrides them.
  *
  * @note FrontendOptions are intended to be an application-wide choice. Mixing different
  *       FrontendImpl<TFrontendOptions> or LoggerImpl<TFrontendOptions> specializations is not a
  *       supported configuration. Use one frontend specialization consistently throughout the
- *       application.
+ *       application. Creating a logger whose FrontendOptions values differ from the existing
+ *       loggers throws QuillError.
  *
  * @code
  * struct CustomFrontendOptions : FrontendOptions
@@ -38,9 +42,25 @@ QUILL_BEGIN_EXPORT
 struct FrontendOptions
 {
   /**
+   * Select frontend clock dispatch. ClockSource preserves per-logger runtime clock selection.
+   * To call a UserClockSource implementation directly, set clock_type to that class and pass
+   * ClockSource::custom(clock) when creating a logger. The object must outlive its loggers and records.
+   * The class must not inherit UserClockSource virtually: the first log statement would not compile.
+   */
+  using clock_type = ClockSource;
+
+  /**
+   * Compile in support for Logger::set_immediate_flush(). Disable to remove its hot-path check.
+   * Explicit flush_log() calls and internal control events remain available.
+   */
+  static constexpr bool enable_immediate_flush = true;
+
+  /**
    * Each frontend thread has its own queue, which can be configured with various options:
    * - UnboundedBlocking: Starts with initial_queue_capacity and reallocates up to unbounded_queue_max_capacity, then blocks.
    * - UnboundedDropping: Starts with initial_queue_capacity and reallocates up to unbounded_queue_max_capacity, then drops log messages.
+   *   Both unbounded types also block or drop when a reallocation fails, e.g. when out of memory.
+   *   A record larger than the current queue, MDC updates included, is dropped and counted then.
    * - BoundedBlocking: Starts with initial_queue_capacity and never reallocates; blocks when the
    *   limit is reached. A single message larger than the fixed queue capacity cannot fit and fails
    *   instead of blocking forever.
@@ -58,6 +78,8 @@ struct FrontendOptions
   /**
    * Interval for retrying when using BoundedBlocking or UnboundedBlocking.
    * Applicable only when using BoundedBlocking or UnboundedBlocking.
+   * A sleep cannot be shorter than the OS timer granularity, so any non-zero value waits at least
+   * about 50 us on Linux and 1 ms or more on Windows. 0 retries without sleeping.
    */
   static constexpr uint32_t blocking_queue_retry_interval_ns = 800;
 

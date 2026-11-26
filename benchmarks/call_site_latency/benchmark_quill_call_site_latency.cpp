@@ -44,6 +44,9 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
                                    "LOG_%(log_level:<9) %(logger:<12) %(message)",
                                    "%H:%M:%S.%Qns", quill::Timezone::GmtTime, false});
 
+  // Measure enabled logging regardless of the application environment.
+  logger->set_log_level(quill::LogLevel::Info);
+
   // Define a logging lambda
 #ifdef BENCH_INT_INT_DOUBLE
   char const* benchmark_type = "[benchmark_type: int_int_double]";

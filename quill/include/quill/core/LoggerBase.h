@@ -13,10 +13,12 @@
 #include "quill/core/QuillError.h"
 #include "quill/core/ThreadContextManager.h"
 
-#include <atomic>
-#include <memory>
-#include <string>
-#include <vector>
+#ifndef QUILL_MODULE
+  #include <atomic>
+  #include <memory>
+  #include <string>
+  #include <vector>
+#endif
 
 QUILL_BEGIN_NAMESPACE
 
@@ -42,9 +44,9 @@ public:
   /***/
   LoggerBase(std::string logger_name, std::vector<std::shared_ptr<Sink>> sinks,
              PatternFormatterOptions pattern_formatter_options, ClockSourceType clock_source,
-             UserClockSource* user_clock)
+             UserClockSource* clock)
     : _logger_name(static_cast<std::string&&>(logger_name)),
-      _user_clock(user_clock),
+      _user_clock(clock),
       _clock_source(clock_source),
       _pattern_formatter_options(static_cast<PatternFormatterOptions&&>(pattern_formatter_options))
   {
@@ -79,8 +81,8 @@ public:
   QUILL_NODISCARD UserClockSource* get_user_clock_source() const noexcept { return _user_clock; }
 
   /**
-   * Returns the type of clock source being used.
-   * @return The ClockSourceType enum value representing the current clock source.
+   * Returns the configured clock source. Supplied clock objects report User; their
+   * timestamp_type() reports the timestamp representation to the backend.
    */
   QUILL_NODISCARD ClockSourceType get_clock_source_type() const noexcept { return _clock_source; }
 
@@ -102,11 +104,6 @@ public:
   {
     return _sinks;
   }
-
-  /**
-   * This function sets the logger's validity flag to false, indicating that the logger is no longer valid.
-   */
-  void mark_invalid() { _valid.store(false, std::memory_order_release); }
 
   /**
    * @brief Checks if the logger is valid.
@@ -191,28 +188,37 @@ public:
   /***/
   QUILL_NODISCARD static bool is_current_thread_backend_thread() noexcept
   {
-    return _is_backend_thread;
+    return _backend_thread_flag();
   }
 
 protected:
   friend class BackendWorker;
   friend class LoggerManager;
 
+  /** Marks the logger as removed. Called by LoggerManager when the logger is removed */
+  void mark_invalid() noexcept { _valid.store(false, std::memory_order_release); }
+
   /***/
   static void set_current_thread_is_backend_thread(bool value) noexcept
   {
-    _is_backend_thread = value;
+    _backend_thread_flag() = value;
+  }
+
+  // The exported accessor keeps its thread-local state shared with DLL consumers.
+  QUILL_EXPORT static inline bool& _backend_thread_flag() noexcept
+  {
+    static QUILL_THREAD_LOCAL bool is_backend_thread{false};
+    return is_backend_thread;
   }
 
   static inline QUILL_THREAD_LOCAL ThreadContext* _thread_context = nullptr; /* Set and accessed by the frontend */
-  static inline QUILL_THREAD_LOCAL bool _is_backend_thread{false}; /* Set and read by the current thread */
 
   // -- frontend access BEGIN --
   std::string _logger_name; /* Set by the frontend once, accessed by the frontend AND backend */
-  UserClockSource* _user_clock{nullptr}; /* A non-owned pointer to a custom timestamp clock, valid only when provided. used by frontend only */
+  UserClockSource* _user_clock{nullptr}; /* Non-owned; read by both frontend and backend. */
   std::atomic<uint32_t> _message_flush_threshold{0};   /* used by frontend only */
   std::atomic<uint32_t> _messages_since_last_flush{0}; /* used by frontend only */
-  ClockSourceType const _clock_source; /* Set once during construction and accessed by the frontend AND backend */
+  ClockSourceType const _clock_source; /* Built-in clock selection or User for a supplied clock object. */
   std::atomic<LogLevel> _log_level{LogLevel::Info}; /* used by frontend only */
   std::atomic<LogLevel> _backtrace_flush_level{LogLevel::None}; /** Updated by the frontend at any time, accessed by the backend */
   std::atomic<bool> _valid{true}; /* Updated by the frontend at any time, accessed by the backend */

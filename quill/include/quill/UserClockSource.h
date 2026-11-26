@@ -7,7 +7,10 @@
 #pragma once
 
 #include "quill/core/Attributes.h"
-#include <cstdint>
+#include "quill/core/Common.h"
+#ifndef QUILL_MODULE
+  #include <cstdint>
+#endif
 
 QUILL_BEGIN_NAMESPACE
 
@@ -17,10 +20,13 @@ QUILL_BEGIN_NAMESPACE
  * This base class can be derived from to pass a user-generated timestamp to a Logger.
  *
  * It is particularly useful for simulations or scenarios where time manipulation is necessary,
- * such as simulating time in the past and displaying past timestamps in logs.
+ * such as simulating time in the past and displaying past timestamps in logs. It can also supply
+ * raw TSC ticks, or the time of a clock that follows real time such as a PTP or NIC hardware clock,
+ * by reporting the corresponding TimestampType.
  *
- * @note The derived class must be thread-safe if the Logger object is used across multiple threads.
- * If a Logger is used within a single thread only, thread safety is not a concern.
+ * @note now() runs on logging threads; timestamp_type() runs on the backend and may overlap with
+ * now() or application clock updates. Keep the timestamp representation fixed while the logger
+ * exists, and synchronize shared mutable clock state as needed.
  */
 QUILL_BEGIN_EXPORT
 
@@ -34,16 +40,34 @@ public:
   UserClockSource& operator=(UserClockSource const&) = delete;
 
   /**
-   * Returns time since epoch in nanoseconds
+   * Returns a timestamp in the representation reported by timestamp_type().
+   *
+   * Quill calls now() after encoding a record and immediately before committing it to the
+   * calling thread's queue. It must return normally and must not log through Quill, even
+   * through a different logger. Loggers on one thread share that queue.
    *
    * @note Values returned by successive calls to now() should be monotonically non-decreasing.
-   *       The backend skips strict timestamp-ordering enforcement for logger objects using a
-   *       UserClockSource (the clock is assumed authoritative), so a clock that steps backwards
-   *       will produce log lines that appear out of timestamp order in the output.
+   *       For TimestampType::EpochNanoseconds, the backend bypasses strict ordering. A clock that
+   *       steps backwards can therefore produce log lines that appear out of timestamp order.
    *
-   * @return The current timestamp in nanoseconds
+   * @return The current timestamp as raw TSC ticks or epoch nanoseconds
    */
-  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT virtual uint64_t now() const = 0;
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT virtual uint64_t now() const noexcept = 0;
+
+  /**
+   * Reports what now() returns; keep it fixed for the logger and its queued records:
+   * - TimestampType::EpochNanoseconds, the default, for simulated or replayed time. The records
+   *   keep the clock's own timeline and do not wait for the grace period.
+   * - TimestampType::WallClockNanoseconds for a clock that follows real time, such as a PTP or NIC
+   *   hardware clock. The records wait for the grace period and are ordered with the other loggers,
+   *   like those of ClockSource::system(). Never use it for simulated or replayed time.
+   * - TimestampType::TscTicks for raw TSC ticks. The backend converts them and orders the records
+   *   like those of ClockSource::tsc().
+   */
+  QUILL_NODISCARD virtual TimestampType timestamp_type() const noexcept
+  {
+    return TimestampType::EpochNanoseconds;
+  }
 };
 
 QUILL_END_EXPORT

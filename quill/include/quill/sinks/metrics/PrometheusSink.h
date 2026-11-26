@@ -22,7 +22,9 @@
 #include <prometheus/summary.h>
 
 #include <chrono>
+#include <cmath>
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -60,13 +62,14 @@ public:
    * Example: linear_buckets(0.0, 5.0, 5) -> {0, 5, 10, 15, 20}
    *
    * `start` may be negative. `width` must be > 0 so the sequence is strictly increasing, as
-   * Prometheus requires.
+   * Prometheus requires. Both must be finite.
    */
   QUILL_NODISCARD static HistogramBuckets linear_buckets(double start, double width, size_t count)
   {
-    if (width <= 0.0)
+    if (!std::isfinite(start) || !std::isfinite(width) || !(width > 0.0))
     {
-      QUILL_THROW(QuillError{"PrometheusSink::linear_buckets() requires width > 0"});
+      QUILL_THROW(QuillError{
+        "PrometheusSink::linear_buckets() requires a finite start and a finite width > 0"});
     }
 
     HistogramBuckets buckets;
@@ -88,17 +91,18 @@ public:
    *
    * Use this for quantities that span several orders of magnitude (latencies, sizes). `start` must
    * be > 0 and `factor` must be > 1 so the sequence is strictly increasing, as Prometheus requires.
+   * Both must be finite.
    */
   QUILL_NODISCARD static HistogramBuckets exponential_buckets(double start, double factor, size_t count)
   {
-    if (start <= 0.0)
+    if (!std::isfinite(start) || !(start > 0.0))
     {
-      QUILL_THROW(QuillError{"PrometheusSink::exponential_buckets() requires start > 0"});
+      QUILL_THROW(QuillError{"PrometheusSink::exponential_buckets() requires a finite start > 0"});
     }
 
-    if (factor <= 1.0)
+    if (!std::isfinite(factor) || !(factor > 1.0))
     {
-      QUILL_THROW(QuillError{"PrometheusSink::exponential_buckets() requires factor > 1"});
+      QUILL_THROW(QuillError{"PrometheusSink::exponential_buckets() requires a finite factor > 1"});
     }
 
     HistogramBuckets buckets;
@@ -122,12 +126,6 @@ public:
     std::vector<std::string> server_options;
     std::string uri{"/metrics"};
     CivetCallbacks const* callbacks{nullptr};
-  };
-
-  struct Options
-  {
-    Registry::InsertBehavior insert_behavior{Registry::InsertBehavior::Merge};
-    std::optional<ExposerConfiguration> exposer;
   };
 
   /**
@@ -166,13 +164,13 @@ public:
   };
 
   explicit PrometheusSink(Registry::InsertBehavior insert_behavior = Registry::InsertBehavior::Merge)
-    : _registry(insert_behavior)
+    : _registry(insert_behavior), _insert_behavior(insert_behavior)
   {
   }
 
   explicit PrometheusSink(ExposerConfiguration const& exposer_config,
                           Registry::InsertBehavior insert_behavior = Registry::InsertBehavior::Merge)
-    : _registry(insert_behavior)
+    : _registry(insert_behavior), _insert_behavior(insert_behavior)
   {
     if (exposer_config.uri.empty())
     {
@@ -245,8 +243,9 @@ public:
   {
     _register_metric<counter_family_t>(
       metric_metadata, prometheus::MetricType::Counter, std::move(help), std::move(constant_labels),
-      [](counter_family_t* family, Labels const& metric_labels, FamilyKey const& family_key)
-      { return RegisteredCounter{family_key, &family->Add(metric_labels)}; });
+      [](counter_family_t* family, Labels const& metric_labels, FamilyKey const& family_key) {
+        return RegisteredCounter{family_key, &family->Add(metric_labels)};
+      });
   }
 
   void register_gauge(MetricMetadata const* metric_metadata, std::string help,
@@ -254,24 +253,32 @@ public:
   {
     _register_metric<gauge_family_t>(
       metric_metadata, prometheus::MetricType::Gauge, std::move(help), std::move(constant_labels),
-      [update_mode](gauge_family_t* family, Labels const& metric_labels, FamilyKey const& family_key)
-      { return RegisteredGauge{family_key, &family->Add(metric_labels), update_mode}; });
+      [update_mode](gauge_family_t* family, Labels const& metric_labels, FamilyKey const& family_key) {
+        return RegisteredGauge{family_key, &family->Add(metric_labels), update_mode};
+      });
   }
 
   void register_histogram(MetricMetadata const* metric_metadata, std::string help,
                           HistogramBuckets bucket_boundaries, Labels constant_labels = {})
   {
+    // Reject invalid buckets before any family exists. A family this call created would keep its
+    // help text after the failure, and one that already existed may belong to the application
+    _validate_histogram_buckets(bucket_boundaries);
+
     _register_metric<histogram_family_t>(
       metric_metadata, prometheus::MetricType::Histogram, std::move(help), std::move(constant_labels),
       [buckets = std::move(bucket_boundaries)](
-        histogram_family_t* family, Labels const& metric_labels, FamilyKey const& family_key) mutable
-      { return RegisteredHistogram{family_key, &family->Add(metric_labels, std::move(buckets))}; });
+        histogram_family_t* family, Labels const& metric_labels, FamilyKey const& family_key) {
+        return RegisteredHistogram{family_key, &family->Add(metric_labels, buckets)};
+      });
   }
 
   void register_summary(MetricMetadata const* metric_metadata, std::string help, SummaryQuantiles quantiles,
                         std::chrono::milliseconds max_age = std::chrono::seconds{60},
                         int age_buckets = 5, Labels constant_labels = {})
   {
+    _validate_summary_window(max_age, age_buckets);
+
     _register_metric<summary_family_t>(
       metric_metadata, prometheus::MetricType::Summary, std::move(help), std::move(constant_labels),
       [quantiles = _to_prometheus_quantiles(quantiles), max_age, age_buckets](
@@ -281,6 +288,66 @@ public:
       });
   }
 
+  /** Registers a family whose label combinations can be published through either metric API. */
+  void register_counter_family(std::string const& metric_name, std::string help, Labels constant_labels = {})
+  {
+    _register_metric_family<counter_family_t>(
+      metric_name, prometheus::MetricType::Counter, std::move(help), std::move(constant_labels),
+      [](counter_family_t* family, Labels const& labels, FamilyKey const& key) {
+        return RegisteredCounter{key, &family->Add(labels)};
+      });
+  }
+
+  /** Registers a gauge family, applying update_mode to every runtime label combination. */
+  void register_gauge_family(std::string const& metric_name, std::string help,
+                             GaugeUpdateMode update_mode = GaugeUpdateMode::Set, Labels constant_labels = {})
+  {
+    _register_metric_family<gauge_family_t>(
+      metric_name, prometheus::MetricType::Gauge, std::move(help), std::move(constant_labels),
+      [update_mode](gauge_family_t* family, Labels const& labels, FamilyKey const& key) {
+        return RegisteredGauge{key, &family->Add(labels), update_mode};
+      });
+  }
+
+  /** Registers a histogram family, reusing the bucket boundaries for every runtime series. */
+  void register_histogram_family(std::string const& metric_name, std::string help,
+                                 HistogramBuckets bucket_boundaries, Labels constant_labels = {})
+  {
+    // Every runtime series is created with these buckets, and a later registration of the family
+    // does not replace them, so reject invalid ones now rather than on each publish
+    _validate_histogram_buckets(bucket_boundaries);
+
+    _register_metric_family<histogram_family_t>(
+      metric_name, prometheus::MetricType::Histogram, std::move(help), std::move(constant_labels),
+      [buckets = std::move(bucket_boundaries)](histogram_family_t* family, Labels const& labels,
+                                               FamilyKey const& key) {
+        return RegisteredHistogram{key, &family->Add(labels, buckets)};
+      });
+  }
+
+  /** Registers a summary family, reusing its quantile and age settings for every runtime series. */
+  void register_summary_family(std::string const& metric_name, std::string help, SummaryQuantiles quantiles,
+                               std::chrono::milliseconds max_age = std::chrono::seconds{60},
+                               int age_buckets = 5, Labels constant_labels = {})
+  {
+    _validate_summary_window(max_age, age_buckets);
+
+    _register_metric_family<summary_family_t>(
+      metric_name, prometheus::MetricType::Summary, std::move(help), std::move(constant_labels),
+      [quantiles = _to_prometheus_quantiles(quantiles), max_age, age_buckets](
+        summary_family_t* family, Labels const& labels, FamilyKey const& key) {
+        return RegisteredSummary{key, &family->Add(labels, quantiles, max_age, age_buckets)};
+      });
+  }
+
+  /**
+   * Removes a series and all pointer aliases; samples are ignored until it is registered again.
+   *
+   * @note With Registry::InsertBehavior::Merge, the default, the family of the series stays in
+   * the registry after its last series is removed: the application can hold it. Its name stays
+   * reserved with its metric type and constant labels, so registering that name again with another
+   * type or other constant labels throws.
+   */
   bool unregister_metric(MetricMetadata const* metric_metadata)
   {
     MetricMetadata const& validated_metric = _validate_metric_metadata(metric_metadata);
@@ -303,13 +370,11 @@ public:
     QUILL_ASSERT(metric_it != _metrics.end(),
                  "PrometheusSink _metric_keys is out of sync with _metrics");
 
-    _erase_metric(metric_key_it, metric_it);
+    _erase_metric(metric_it);
     return true;
   }
 
-  void write_log(MacroMetadata const*, uint64_t, std::string_view, std::string_view,
-                 std::string const&, std::string_view, LogLevel, std::string_view, std::string_view,
-                 std::vector<std::pair<std::string, std::string>> const*, std::string_view, std::string_view) override
+  void write_log(LogRecord const& /* record */) override
   {
     // Intentionally ignore log events.
     //
@@ -318,27 +383,47 @@ public:
     // to flow to the regular log sinks without PrometheusSink asserting or throwing here.
   }
 
-  void write_metric(MetricMetadata const* metric_metadata, uint64_t, std::string_view,
-                    std::string_view, std::string const&, std::string_view, double value) override
+  void write_metric(MetricRecord const& record) override
   {
-    QUILL_ASSERT(metric_metadata,
+    QUILL_ASSERT(record.metric_metadata,
                  "PrometheusSink::write_metric received a null metric metadata pointer");
 
     detail::LockGuard const lock{_spinlock};
 
-    auto metric_it = _metrics.find(metric_metadata);
+    auto metric_it = _metrics.find(record.metric_metadata);
     if (metric_it == _metrics.end())
     {
-      // Metric registrations can race with queued backend events. Late samples for an
-      // unregistered metric are ignored.
-      return;
+      FamilyHandle* family = _find_family(record.metric_metadata->metric_name());
+      if (!family)
+      {
+        return;
+      }
+
+      Labels const labels = _make_metric_labels(*record.metric_metadata);
+      auto& series = _metric_series[record.metric_metadata->metric_name()];
+      auto series_it = series.find(labels);
+      if (series_it != series.end() && !series_it->second)
+      {
+        return;
+      }
+
+      _ensure_metric_not_registered(record.metric_metadata->metric_key());
+      if (series_it == series.end())
+      {
+        series_it = series.emplace(labels, family->create_series(labels)).first;
+        ++family->metric_count;
+      }
+
+      metric_it = _metrics.emplace(record.metric_metadata, &series_it->second).first;
+      _metric_keys.emplace(record.metric_metadata->metric_key(), record.metric_metadata);
     }
 
-    std::visit([value](auto& registered_metric) { _apply_sample(registered_metric, value); },
-               metric_it->second);
+    std::visit([value = record.value](auto& registered_metric)
+               { _apply_sample(registered_metric, value); },
+               **metric_it->second);
   }
 
-  void flush_sink() noexcept override {}
+  void flush_sink(SinkFlushReason) noexcept override {}
 
   void run_periodic_tasks() noexcept override {}
 
@@ -488,12 +573,16 @@ private:
 
   using metric_variant_t =
     std::variant<RegisteredCounter, RegisteredGauge, RegisteredHistogram, RegisteredSummary>;
+  using metric_series_t = std::optional<metric_variant_t>;
 
   struct FamilyHandle
   {
     std::string help;
+    // Configured once per family; called only for new label combinations.
+    std::function<metric_variant_t(Labels const&)> create_series;
     size_t metric_count{0};
     family_variant_t family;
+    bool keep_empty{false};
   };
 
 private:
@@ -505,38 +594,55 @@ private:
       return false;
     }
 
-    auto metric_key_it = _metric_keys.find(metric_metadata->metric_key());
-    QUILL_ASSERT(metric_key_it != _metric_keys.end(),
-                 "PrometheusSink _metrics is out of sync with _metric_keys");
-
-    _erase_metric(metric_key_it, metric_it);
+    _erase_metric(metric_it);
     return true;
   }
 
-  void _erase_metric(std::unordered_map<std::string, MetricMetadata const*>::iterator metric_key_it,
-                     std::unordered_map<MetricMetadata const*, metric_variant_t>::iterator metric_it)
+  void _erase_metric(std::unordered_map<MetricMetadata const*, metric_series_t*>::iterator metric_it)
   {
-    FamilyKey const family_key = std::visit(
-      [](auto const& registered_metric) { return registered_metric.family_key; }, metric_it->second);
+    auto* series = metric_it->second;
+    FamilyKey const family_key =
+      std::visit([](auto const& registered_metric) { return registered_metric.family_key; }, **series);
 
     auto family_it = _families.find(family_key);
     QUILL_ASSERT(family_it != _families.end(), "PrometheusSink family handle is missing");
 
     std::visit([&family_handle = family_it->second](auto const& registered_metric)
-               { _remove_metric_from_family(family_handle, registered_metric); }, metric_it->second);
+               { _remove_metric_from_family(family_handle, registered_metric); },
+               **series);
+    series->reset();
+
+    // Both publishing APIs may have cached pointers to the same Prometheus series.
+    for (auto it = _metrics.begin(); it != _metrics.end();)
+    {
+      if (it->second == series)
+      {
+        _metric_keys.erase(it->first->metric_key());
+        it = _metrics.erase(it);
+      }
+      else
+      {
+        ++it;
+      }
+    }
 
     if (family_it->second.metric_count > 0)
     {
       --family_it->second.metric_count;
     }
 
-    if (family_it->second.metric_count == 0)
+    if (family_it->second.metric_count == 0 && !family_it->second.keep_empty)
     {
+      // A registry that merges gives the family of a name to every caller that registers it, so
+      // the application can hold this one, with or without series of its own. It is then left in
+      // the registry, where a family without series is not exposed
+      if (_insert_behavior != Registry::InsertBehavior::Merge)
+      {
+        std::visit([this](auto* family) { _registry.Remove(*family); }, family_it->second.family);
+      }
+
       _families.erase(family_it);
     }
-
-    _metric_keys.erase(metric_key_it);
-    _metrics.erase(metric_it);
   }
 
   friend bool operator<(FamilyKey const& lhs, FamilyKey const& rhs) noexcept
@@ -569,6 +675,59 @@ private:
   }
 
   template <typename TFamily, typename TAdder>
+  void _register_metric_family(std::string const& metric_name, prometheus::MetricType metric_type,
+                               std::string help, Labels constant_labels, TAdder adder)
+  {
+    _validate_prometheus_metadata(metric_type, metric_name, constant_labels, {});
+
+    QUILL_TRY
+    {
+      detail::LockGuard const lock{_spinlock};
+
+      FamilyKey const key{metric_type, metric_name, std::move(constant_labels)};
+      FamilyHandle& handle = _get_or_create_family<TFamily>(key, std::move(help));
+      _configure_family<TFamily>(handle, key, std::move(adder));
+      handle.keep_empty = true;
+    }
+#if !defined(QUILL_NO_EXCEPTIONS)
+    QUILL_CATCH_ALL()
+    {
+      // Release the lock before an uncaught rethrow can invoke terminate(); write_metric() takes
+      // it for every sample.
+      throw;
+    }
+#endif
+  }
+
+  template <typename TFamily, typename TAdder>
+  void _configure_family(FamilyHandle& handle, FamilyKey const& key, TAdder adder)
+  {
+    if (handle.create_series)
+    {
+      return;
+    }
+
+    auto* family = std::get<TFamily*>(handle.family);
+    handle.create_series = [family, key, adder = std::move(adder)](Labels const& labels)
+    {
+      _validate_prometheus_metadata(key.type, key.metric_name, key.constant_labels, labels);
+      return adder(family, labels, key);
+    };
+  }
+
+  FamilyHandle* _find_family(std::string const& metric_name)
+  {
+    for (auto& entry : _families)
+    {
+      if (entry.second.create_series && entry.first.metric_name == metric_name)
+      {
+        return &entry.second;
+      }
+    }
+    return nullptr;
+  }
+
+  template <typename TFamily, typename TAdder>
   void _register_metric(MetricMetadata const* metric_metadata, prometheus::MetricType metric_type,
                         std::string help, Labels constant_labels, TAdder adder)
   {
@@ -576,31 +735,68 @@ private:
     Labels const metric_labels = _make_metric_labels(validated_metric);
     _validate_prometheus_metadata(metric_type, validated_metric.metric_name(), constant_labels, metric_labels);
 
-    detail::LockGuard const lock{_spinlock};
-    _ensure_metric_not_registered(validated_metric.metric_key());
-
-    FamilyKey const family_key{metric_type, validated_metric.metric_name(), std::move(constant_labels)};
-
-    // A brand-new family cannot alias an existing time series, so only validate against an
-    // already-registered family. Performing this check before _get_or_create_family() avoids
-    // leaving an empty, freshly-created family behind when the alias check fails.
-    if (auto const existing_family_it = _families.find(family_key); existing_family_it != _families.end())
+    QUILL_TRY
     {
-      auto* existing_family = std::get<TFamily*>(existing_family_it->second.family);
-      if (existing_family->Has(metric_labels))
+      detail::LockGuard const lock{_spinlock};
+      _ensure_metric_not_registered(validated_metric.metric_key());
+
+      FamilyKey const family_key{metric_type, validated_metric.metric_name(), std::move(constant_labels)};
+      FamilyHandle& family_handle = _get_or_create_family<TFamily>(family_key, std::move(help));
+      auto& label_series = _metric_series[validated_metric.metric_name()];
+      auto series_it = label_series.find(metric_labels);
+      if ((series_it == label_series.end()) || !series_it->second)
       {
-        QUILL_THROW(QuillError{"PrometheusSink metric \"" + validated_metric.metric_key() +
-                               "\" aliases an existing time series"});
+        // Add the series before inserting its entry. An empty entry marks unregistered labels, so
+        // one left behind by a throwing adder would drop every later sample for these labels
+        auto* family = std::get<TFamily*>(family_handle.family);
+        metric_series_t new_series{adder(family, metric_labels, family_key)};
+        series_it = label_series.insert_or_assign(metric_labels, std::move(new_series)).first;
+        ++family_handle.metric_count;
       }
+
+      auto& series = series_it->second;
+
+      _configure_family<TFamily>(family_handle, family_key, std::move(adder));
+      _metrics.emplace(metric_metadata, &series);
+      _metric_keys.emplace(validated_metric.metric_key(), metric_metadata);
     }
+#if !defined(QUILL_NO_EXCEPTIONS)
+    QUILL_CATCH_ALL()
+    {
+      // Release the lock before an uncaught rethrow can invoke terminate(); write_metric() takes
+      // it for every sample.
+      throw;
+    }
+#endif
+  }
 
-    FamilyHandle& family_handle = _get_or_create_family<TFamily>(family_key, std::move(help));
+  /** Throws for bucket boundaries prometheus::Histogram rejects, using its own check */
+  static void _validate_histogram_buckets(HistogramBuckets const& bucket_boundaries)
+  {
+    prometheus::Histogram const histogram{bucket_boundaries};
+    (void)histogram;
+  }
 
-    auto* family = std::get<TFamily*>(family_handle.family);
+  /**
+   * Throws for a window that prometheus::Summary does not check: it divides max_age by
+   * age_buckets, and rotates its buckets without end when the result is not positive
+   */
+  static void _validate_summary_window(std::chrono::milliseconds max_age, int age_buckets)
+  {
+    // The duration that prometheus::Summary keeps max_age in
+    using summary_duration_t = std::chrono::steady_clock::duration;
 
-    _metrics.emplace(metric_metadata, adder(family, metric_labels, family_key));
-    _metric_keys.emplace(validated_metric.metric_key(), metric_metadata);
-    ++family_handle.metric_count;
+    // Checked before max_age is converted, which overflows for a duration that it cannot hold
+    bool const is_valid = (age_buckets > 0) && (max_age > std::chrono::milliseconds::zero()) &&
+      (max_age <= std::chrono::duration_cast<std::chrono::milliseconds>((summary_duration_t::max)())) &&
+      (summary_duration_t{max_age}.count() >= age_buckets);
+
+    if (!is_valid)
+    {
+      QUILL_THROW(
+        QuillError{"PrometheusSink summaries require age_buckets > 0 and a max_age of at least "
+                   "age_buckets clock ticks that std::chrono::steady_clock::duration can hold"});
+    }
   }
 
   static Labels _make_metric_labels(MetricMetadata const& metric_metadata)
@@ -775,13 +971,16 @@ private:
 
 private:
   Registry _registry;
+  Registry::InsertBehavior _insert_behavior; /**< The one of _registry, which does not tell it */
   std::shared_ptr<prometheus::Collectable> _registry_collectable{
     &_registry, [](prometheus::Collectable*) noexcept {}};
   std::unique_ptr<Exposer> _exposer;
   std::string _exposer_scrape_endpoint;
   mutable detail::Spinlock _spinlock;
   std::map<FamilyKey, FamilyHandle> _families;
-  std::unordered_map<MetricMetadata const*, metric_variant_t> _metrics;
+  // Keep removed series as empty entries even after their registry family is released.
+  std::map<std::string, std::map<Labels, metric_series_t>> _metric_series;
+  std::unordered_map<MetricMetadata const*, metric_series_t*> _metrics;
   std::unordered_map<std::string, MetricMetadata const*> _metric_keys;
 };
 

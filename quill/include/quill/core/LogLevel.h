@@ -9,10 +9,12 @@
 #include "quill/core/Attributes.h"
 #include "quill/core/QuillError.h"
 
-#include <cctype>
-#include <cstdint>
-#include <string>
-#include <string_view>
+#ifndef QUILL_MODULE
+  #include <cstddef>
+  #include <cstdint>
+  #include <string>
+  #include <string_view>
+#endif
 
 QUILL_BEGIN_NAMESPACE
 
@@ -41,12 +43,19 @@ enum class LogLevel : uint8_t
   None
 };
 
-inline constexpr size_t LogLevelCount = 11;
+inline constexpr size_t LogLevelCount = static_cast<size_t>(LogLevel::None) + 1u;
 
 QUILL_END_EXPORT
 
 namespace detail
 {
+/** Out of line so that log_level_to_string() stays small enough to inline */
+[[noreturn]] QUILL_ATTRIBUTE_COLD QUILL_NOINLINE inline void throw_invalid_log_level(uint32_t log_level)
+{
+  std::string const error_msg = "Invalid log level value \"" + std::to_string(log_level) + "\"";
+  QUILL_THROW(QuillError{error_msg});
+}
+
 QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline std::string_view log_level_to_string(LogLevel log_level,
                                                                                 std::string const* log_levels_strings,
                                                                                 size_t log_levels_strings_size)
@@ -55,8 +64,7 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline std::string_view log_level_to_string(
 
   if (QUILL_UNLIKELY(log_lvl >= static_cast<uint32_t>(log_levels_strings_size)))
   {
-    std::string const error_msg = "Invalid get_log_level value \"" + std::to_string(log_lvl) + "\"";
-    QUILL_THROW(QuillError{error_msg});
+    throw_invalid_log_level(log_lvl);
   }
 
   return log_levels_strings[log_lvl];
@@ -73,12 +81,16 @@ QUILL_BEGIN_EXPORT
  * TraceL3 is the most detailed trace level, while TraceL1 is the least detailed trace level.
  * @return the corresponding LogLevel enum value
  */
-QUILL_NODISCARD LogLevel inline loglevel_from_string(std::string log_level)
+QUILL_NODISCARD inline LogLevel log_level_from_string(std::string log_level)
 {
-  // Convert to lowercase
+  // Convert to lowercase. Only ASCII letters: std::tolower() follows the locale, which in Turkish
+  // has no lowercase 'i' for 'I'
   for (char& c : log_level)
   {
-    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if ((c >= 'A') && (c <= 'Z'))
+    {
+      c = static_cast<char>(c - 'A' + 'a');
+    }
   }
 
   if (log_level == "tracel3" || log_level == "trace_l3")

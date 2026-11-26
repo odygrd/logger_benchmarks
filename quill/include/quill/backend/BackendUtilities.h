@@ -9,13 +9,20 @@
 #include "quill/core/Attributes.h"
 #include "quill/core/QuillError.h"
 
-#include <cstdint>
-#include <cstring>
-#include <string>
-#include <system_error>
-#include <vector>
+#ifndef QUILL_MODULE
+  #include <cerrno>
+  #include <cstdint>
+  #include <cstring>
+  #include <string>
+  #include <system_error>
+  #include <utility>
+  #include <vector>
+#endif
 
-#if defined(_WIN32)
+#if defined(__CYGWIN__)
+  #include <sched.h>
+  #include <unistd.h>
+#elif defined(_WIN32)
   #if !defined(WIN32_LEAN_AND_MEAN)
     #define WIN32_LEAN_AND_MEAN
   #endif
@@ -34,9 +41,6 @@
   #include <mach/thread_policy.h>
   #include <pthread.h>
   #include <unistd.h>
-#elif defined(__CYGWIN__)
-  #include <sched.h>
-  #include <unistd.h>
 #elif defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__)
   #include <pthread.h>
   #include <pthread_np.h>
@@ -49,10 +53,60 @@
   #include <unistd.h>
 #endif
 
+#if defined(_MSC_VER) && !defined(__clang__) && (defined(_M_X64) || defined(_M_IX86))
+  #include <intrin.h>
+#endif
+
 QUILL_BEGIN_NAMESPACE
 
 namespace detail
 {
+/**
+ * Asks the CPU to start loading the cache line of `address`. It is only a hint: it does not
+ * fault, and compiles to nothing where the compiler has no such instruction.
+ */
+inline void prefetch_cache_line(QUILL_MAYBE_UNUSED char const* address) noexcept
+{
+#if defined(__GNUC__) || defined(__clang__)
+  __builtin_prefetch(address);
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+  _mm_prefetch(address, _MM_HINT_T0);
+#endif
+}
+
+/**
+ * A record is normally ready when timestamp <= cutoff (wall time minus the grace period).
+ * Otherwise, its first deferred check starts a steady-clock deadline one grace period ahead.
+ * Either check can release it, so a backward clock change does not require waiting for wall
+ * time to catch up. The deadline is kept across polls and cleared when the head advances.
+ * @return {defer_timestamp, next_deadline}, with a zero deadline when the record can proceed.
+ */
+template <typename TSteadyNow>
+QUILL_NODISCARD inline std::pair<bool, uint64_t> should_defer_timestamp(uint64_t timestamp, uint64_t cutoff,
+                                                                        uint64_t grace_period_ns,
+                                                                        uint64_t deadline, uint64_t steady_cutoff,
+                                                                        TSteadyNow steady_now)
+{
+  if (timestamp <= cutoff)
+  {
+    // This record is already eligible. Clear any deadline from an earlier check.
+    return {false, 0};
+  }
+
+  // Only a new deadline reads the current steady time. Rechecks use the scan's shared cutoff
+  // so a pause between queues cannot release a newer head while an older one stays deferred.
+  uint64_t const now = (deadline == 0) ? steady_now() : steady_cutoff;
+  uint64_t const next_deadline = (deadline == 0) ? (now + grace_period_ns) : deadline;
+  if (now < next_deadline)
+  {
+    // Keep this record queued and preserve its deadline for the next check.
+    return {true, next_deadline};
+  }
+
+  // The grace window expired. Process this record and let the next queue head start a new window.
+  return {false, 0};
+}
+
 // These helpers are used during backend worker setup and run on the backend worker thread.
 // They are not part of the normal multi-threaded frontend logging hot path.
 /***/
@@ -195,8 +249,13 @@ QUILL_ATTRIBUTE_COLD inline void set_thread_name(char const* name)
     QUILL_THROW(QuillError{"Failed to set thread name"});
   }
 #elif defined(__APPLE__)
-  // Apple
-  auto const res = pthread_setname_np(name);
+  // macOS keeps 63 bytes of a thread name and rejects a longer one, where Linux and the BSDs are
+  // given the first 15 bytes below
+  char truncated_name[64];
+  std::strncpy(truncated_name, name, 63);
+  truncated_name[63] = '\0';
+
+  auto const res = pthread_setname_np(truncated_name);
   if (res != 0)
   {
     QUILL_THROW(QuillError{std::string{"Failed to set thread name - error: " + std::to_string(res) +
@@ -211,7 +270,8 @@ QUILL_ATTRIBUTE_COLD inline void set_thread_name(char const* name)
   #if defined(__OpenBSD__) || defined(__FreeBSD__)
   pthread_set_name_np(pthread_self(), truncated_name);
   #elif defined(__NetBSD__)
-  auto const res = pthread_setname_np(pthread_self(), truncated_name, nullptr);
+  // NetBSD takes a printf format and its argument
+  auto const res = pthread_setname_np(pthread_self(), "%s", truncated_name);
 
   if (res != 0)
   {
@@ -233,10 +293,7 @@ QUILL_ATTRIBUTE_COLD inline void set_thread_name(char const* name)
 /***/
 QUILL_NODISCARD QUILL_ATTRIBUTE_COLD inline uint32_t get_process_id() noexcept
 {
-#if defined(__CYGWIN__)
-  // get pid on cygwin not supported
-  return 0;
-#elif defined(_WIN32)
+#if defined(_WIN32) && !defined(__CYGWIN__)
   return static_cast<uint32_t>(GetCurrentProcessId());
 #else
   return static_cast<uint32_t>(getpid());

@@ -12,10 +12,13 @@
 #include "quill/core/MathUtilities.h"
 #include "quill/core/QuillError.h"
 
-#include <atomic>
-#include <cstddef>
-#include <cstdint>
-#include <string>
+#ifndef QUILL_MODULE
+  #include <atomic>
+  #include <cstddef>
+  #include <cstdint>
+  #include <new>
+  #include <string>
+#endif
 
 QUILL_BEGIN_NAMESPACE
 
@@ -37,7 +40,7 @@ namespace detail
  * When the internal circular buffer becomes full a new one will be created and the production
  * will continue in the new buffer.
  *
- * Consumption is wait free. If not data is available a special value is returned. If a new
+ * Consumption is wait free. If no data is available a special value is returned. If a new
  * buffer is created from the producer the consumer first consumes everything in the old
  * buffer and then moves to the new buffer.
  */
@@ -56,6 +59,12 @@ private:
      */
     explicit Node(size_t bounded_queue_capacity, HugePagesPolicy huge_pages_policy)
       : bounded_queue(bounded_queue_capacity, huge_pages_policy)
+    {
+    }
+
+    /** Constructs without throwing; check bounded_queue.has_storage() before using the node */
+    Node(std::nothrow_t, size_t bounded_queue_capacity, HugePagesPolicy huge_pages_policy) noexcept
+      : bounded_queue(std::nothrow, bounded_queue_capacity, huge_pages_policy)
     {
     }
 
@@ -205,7 +214,8 @@ public:
 
   /**
    * Prepare to read from the buffer
-   * @return first: pointer to buffer or nullptr, second: a pair of new_capacity, previous_capacity if an allocation
+   * @return the read position or nullptr, and the previous and new capacity when the reader moved
+   * to a newly allocated node
    */
   QUILL_NODISCARD QUILL_ATTRIBUTE_HOT ReadResult prepare_read()
   {
@@ -248,6 +258,31 @@ public:
    * @return capacity
    */
   QUILL_NODISCARD size_t capacity() const noexcept { return _consumer->bounded_queue.capacity(); }
+
+  /**
+   * @note consumer only
+   * @return how many bytes were read from the queue, a count that wraps around
+   */
+  QUILL_NODISCARD size_t bytes_read() const noexcept
+  {
+    return _bytes_read_from_previous_nodes + _consumer->bounded_queue.bytes_read();
+  }
+
+  /**
+   * @note consumer only
+   * @return how many bytes were written to the queue, a count that wraps around
+   */
+  QUILL_NODISCARD size_t bytes_written() const noexcept
+  {
+    size_t bytes{_bytes_read_from_previous_nodes};
+
+    for (Node const* node = _consumer; node != nullptr; node = node->next.load(std::memory_order_acquire))
+    {
+      bytes += node->bounded_queue.bytes_written();
+    }
+
+    return bytes;
+  }
 
   /**
    * checks if the queue is empty
@@ -303,11 +338,21 @@ private:
       return nullptr;
     }
 
+    // We failed to reserve because the queue was full, create a new node with a new queue.
+    // Growing must not throw from the log call: on failure (out of memory, huge pages
+    // unavailable) keep using the current node and block or drop as at the maximum capacity.
+    // The std::nothrow node is also not pre-faulted, which would stall this log call.
+    Node* const next_node =
+      new (std::nothrow) Node{std::nothrow, capacity, _producer->bounded_queue.huge_pages_policy()};
+
+    if (QUILL_UNLIKELY(!next_node || !next_node->bounded_queue.has_storage()))
+    {
+      delete next_node;
+      return nullptr;
+    }
+
     // commit previous write to the old queue before switching
     _producer->bounded_queue.commit_write();
-
-    // We failed to reserve because the queue was full, create a new node with a new queue
-    auto const next_node = new Node{capacity, _producer->bounded_queue.huge_pages_policy()};
 
     // store the new node pointer as next in the current node
     _producer->next.store(next_node, std::memory_order_release);
@@ -315,7 +360,7 @@ private:
     // producer is now using the next node
     _producer = next_node;
 
-    // reserve again, this time we know we will always succeed, cast to void* to ignore
+    // reserve again, this time we know we will always succeed
     std::byte* const write_pos = _producer->bounded_queue.prepare_write(nbytes);
 
     QUILL_ASSERT(
@@ -344,6 +389,7 @@ private:
 
     // switch to the new buffer, existing one is deleted
     auto const previous_capacity = _consumer->bounded_queue.capacity();
+    _bytes_read_from_previous_nodes += _consumer->bounded_queue.bytes_read();
     delete _consumer;
 
     _consumer = next_node;
@@ -363,6 +409,7 @@ private:
   /** Modified by either the producer or consumer but never both */
   alignas(QUILL_CACHE_LINE_ALIGNED) Node* _producer{nullptr};
   alignas(QUILL_CACHE_LINE_ALIGNED) Node* _consumer{nullptr};
+  size_t _bytes_read_from_previous_nodes{0}; /**< consumer only */
 };
 
 #if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)

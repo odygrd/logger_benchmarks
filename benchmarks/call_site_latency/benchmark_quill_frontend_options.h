@@ -4,6 +4,8 @@
 
 struct CustomFrontendOptions : quill::FrontendOptions
 {
+  static constexpr bool enable_immediate_flush = false;
+
 #ifdef QUILL_USE_BOUNDED_DROPPING_QUEUE
   static constexpr quill::QueueType queue_type = quill::QueueType::BoundedDropping;
   static constexpr size_t initial_queue_capacity = 262'144;

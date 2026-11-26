@@ -9,63 +9,11 @@
 #include "quill/core/Attributes.h"
 #include "quill/core/QuillError.h"
 
-#if !defined(QUILL_HAS_FILESYSTEM) && !defined(QUILL_HAS_EXPERIMENTAL_FILESYSTEM)
-  #if defined(__cpp_lib_filesystem)
-    #define QUILL_HAS_FILESYSTEM 1
-  #elif defined(__cpp_lib_experimental_filesystem)
-    #define QUILL_HAS_EXPERIMENTAL_FILESYSTEM 1
-  #elif !defined(__has_include)
-    #define QUILL_HAS_EXPERIMENTAL_FILESYSTEM 1
-  #elif __has_include(<filesystem>)
-    #define QUILL_HAS_FILESYSTEM 1
-  #elif __has_include(<experimental/filesystem>)
-    #define QUILL_HAS_EXPERIMENTAL_FILESYSTEM 1
-  #endif
-
-  // std::filesystem does not work on MinGW GCC 8: https://sourceforge.net/p/mingw-w64/bugs/737/
-  #if defined(__MINGW32__) && defined(__GNUC__) && __GNUC__ == 8
-    #undef QUILL_HAS_FILESYSTEM
-    #undef QUILL_HAS_EXPERIMENTAL_FILESYSTEM
-  #endif
-
-  // no filesystem support before GCC 8: https://en.cppreference.com/w/cpp/compiler_support
-  #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ < 8
-    #undef QUILL_HAS_FILESYSTEM
-  // #undef QUILL_HAS_EXPERIMENTAL_FILESYSTEM
-  #endif
-
-  // no filesystem support before Clang 7: https://en.cppreference.com/w/cpp/compiler_support
-  #if defined(__clang_major__) && __clang_major__ < 7
-    #undef QUILL_HAS_FILESYSTEM
-    #undef QUILL_HAS_EXPERIMENTAL_FILESYSTEM
-  #endif
-#endif
-
-#ifndef QUILL_HAS_EXPERIMENTAL_FILESYSTEM
-  #define QUILL_HAS_EXPERIMENTAL_FILESYSTEM 0
-#endif
-
-#ifndef QUILL_HAS_FILESYSTEM
-  #define QUILL_HAS_FILESYSTEM 0
-#endif
-
-#if QUILL_HAS_EXPERIMENTAL_FILESYSTEM
-  #include <experimental/filesystem>
-  #include <system_error>
-
-QUILL_BEGIN_NAMESPACE
-
-QUILL_BEGIN_EXPORT
-
-namespace fs = std::experimental::filesystem;
-
-QUILL_END_EXPORT
-
-QUILL_END_NAMESPACE
-
-#elif QUILL_HAS_FILESYSTEM
+#ifndef QUILL_MODULE
   #include <filesystem>
+  #include <string>
   #include <system_error>
+#endif
 
 QUILL_BEGIN_NAMESPACE
 
@@ -75,20 +23,97 @@ namespace fs = std::filesystem;
 
 QUILL_END_EXPORT
 
-QUILL_END_NAMESPACE
-#endif
-
-QUILL_BEGIN_NAMESPACE
-
 namespace detail
 {
-QUILL_NODISCARD inline fs::path normalize_file_sink_path(fs::path filename, bool create_directories = true)
+#if defined(_WIN32)
+/** True for an extended-length path ("\\?\..."), which Win32 passes to the filesystem as is. */
+QUILL_NODISCARD inline bool is_extended_windows_path(fs::path const& path) noexcept
+{
+  return path.native().compare(0, 4, L"\\\\?\\") == 0;
+}
+
+/** Spells an absolute drive or UNC path in extended-length form. */
+QUILL_NODISCARD inline fs::path to_extended_windows_path(fs::path const& path)
+{
+  std::wstring const& native = path.native();
+  return fs::path{(native.compare(0, 2, L"\\\\") == 0) ? L"\\\\?\\UNC\\" + native.substr(2) : L"\\\\?\\" + native};
+}
+
+/** Spells an extended-length drive or UNC path in ordinary form. Other paths are unchanged. */
+QUILL_NODISCARD inline fs::path to_ordinary_windows_path(fs::path const& path)
+{
+  std::wstring const& native = path.native();
+  if (native.compare(0, 8, L"\\\\?\\UNC\\") == 0)
+  {
+    return fs::path{L"\\\\" + native.substr(8)};
+  }
+
+  bool const is_extended_drive_path = is_extended_windows_path(path) && (native.size() > 6) &&
+    (native[5] == L':') && (native[6] == L'\\');
+  return is_extended_drive_path ? fs::path{native.substr(4)} : path;
+}
+#endif
+
+/**
+ * The final component of a file sink path as the OS opens it. Ordinary Win32 paths ignore
+ * trailing periods and spaces on it, while extended-length paths address those names literally.
+ */
+QUILL_NODISCARD inline fs::path file_sink_leaf(fs::path const& filename)
+{
+#if defined(_WIN32)
+  if (!is_extended_windows_path(filename))
+  {
+    std::wstring const name = filename.filename().native();
+    size_t const last = name.find_last_not_of(L". ");
+    if ((last != std::wstring::npos) && ((last + 1) < name.size()))
+    {
+      return fs::path{name.substr(0, last + 1)};
+    }
+  }
+#endif
+
+  return filename.filename();
+}
+
+/** Converts a path to text without narrowing through the Windows ANSI code page. */
+QUILL_NODISCARD inline std::string file_sink_path_string(fs::path const& path)
+{
+#if defined(_WIN32)
+  auto const utf8 = path.u8string();
+  return std::string{reinterpret_cast<char const*>(utf8.data()), utf8.size()};
+#else
+  return path.string();
+#endif
+}
+
+/**
+ * The name of a file as text, for a logger name or an error message: a name that is a string is
+ * kept as it is, and a path is spelled as file_sink_path_string() does.
+ */
+QUILL_NODISCARD inline std::string const& file_sink_name_string(std::string const& filename) noexcept
+{
+  return filename;
+}
+
+/***/
+QUILL_NODISCARD inline std::string file_sink_name_string(fs::path const& filename)
+{
+  return file_sink_path_string(filename);
+}
+
+/**
+ * Resolves a file sink path to an absolute path with a canonical parent directory.
+ * On failure returns an empty path and stores the reason in `error` instead of throwing.
+ */
+QUILL_NODISCARD QUILL_ATTRIBUTE_COLD QUILL_NOINLINE inline fs::path try_normalize_file_sink_path(
+  fs::path const& filename, bool create_directories, std::string& error)
 {
   if ((filename == "stdout") || (filename == "stderr") || (filename == "/dev/null"))
   {
     return filename;
   }
 
+  fs::path const leaf = file_sink_leaf(filename);
   std::error_code ec;
   fs::path parent_path;
 
@@ -107,29 +132,31 @@ QUILL_NODISCARD inline fs::path normalize_file_sink_path(fs::path filename, bool
     {
       if (!create_directories)
       {
-        QUILL_THROW(QuillError{std::string{"cannot create canonical path for path "} +
-                               parent_path.string() + std::string{" - error: directory does not exist"}});
+        error = "cannot create canonical path for path " + file_sink_path_string(parent_path) +
+          " - error: directory does not exist";
+        return fs::path{};
       }
 
       fs::create_directories(parent_path, ec);
       if (ec)
       {
-        QUILL_THROW(QuillError{std::string{"cannot create directories for path "} +
-                               parent_path.string() + std::string{" - error: "} + ec.message()});
+        error = "cannot create directories for path " + file_sink_path_string(parent_path) +
+          " - error: " + ec.message();
+        return fs::path{};
       }
     }
   }
   else
   {
-    // Use the non-throwing overload: when the working directory has been deleted or is
-    // inaccessible, the throwing overload raises fs::filesystem_error, which callers that treat
-    // normalization as best-effort (e.g. SinkManager::get_sink) only guard against as QuillError.
+    // Use the non-throwing overload: the throwing one raises fs::filesystem_error when the
+    // working directory has been deleted or is inaccessible.
     parent_path = fs::current_path(ec);
 
     if (ec)
     {
-      QUILL_THROW(QuillError{std::string{"cannot resolve the current working directory for path "} +
-                             filename.string() + std::string{" - error: "} + ec.message()});
+      error = "cannot resolve the current working directory for path " +
+        file_sink_path_string(filename) + " - error: " + ec.message();
+      return fs::path{};
     }
   }
 
@@ -137,6 +164,15 @@ QUILL_NODISCARD inline fs::path normalize_file_sink_path(fs::path filename, bool
 
   if (ec)
   {
+#if defined(_WIN32)
+    // Some Windows standard libraries treat the extended prefix as a relative path.
+    // A valid extended input is already absolute and must keep its spelling.
+    if (is_extended_windows_path(filename))
+    {
+      return filename;
+    }
+#endif
+
     // fs::canonical can fail on certain filesystems (e.g. Windows RAM disks) where
     // GetFinalPathNameByHandleW is not supported. Fall back to fs::absolute with
     // lexically_normal to resolve . and .. portably (fs::absolute alone does not
@@ -146,14 +182,40 @@ QUILL_NODISCARD inline fs::path normalize_file_sink_path(fs::path filename, bool
 
     if (ec)
     {
-      QUILL_THROW(QuillError{std::string{"cannot resolve path "} + parent_path.string() +
-                             std::string{" - error: "} + ec.message()});
+      error = "cannot resolve path " + file_sink_path_string(parent_path) + " - error: " + ec.message();
+      return fs::path{};
     }
 
-    return absolute_path.lexically_normal() / filename.filename();
+    return absolute_path.lexically_normal() / leaf;
   }
 
-  return canonical_path / filename.filename();
+#if defined(_WIN32)
+  // canonical() may remove the extended prefix even when native I/O still requires it.
+  if (is_extended_windows_path(filename) && !is_extended_windows_path(canonical_path))
+  {
+    return to_extended_windows_path(canonical_path) / leaf;
+  }
+#endif
+
+  return canonical_path / leaf;
+}
+
+/**
+ * Resolves a file sink path to an absolute path with a canonical parent directory.
+ * @throws QuillError if the path cannot be resolved
+ */
+QUILL_NODISCARD QUILL_ATTRIBUTE_COLD inline fs::path normalize_file_sink_path(fs::path const& filename,
+                                                                              bool create_directories = true)
+{
+  std::string error;
+  fs::path normalized = try_normalize_file_sink_path(filename, create_directories, error);
+
+  if (QUILL_UNLIKELY(!error.empty()))
+  {
+    QUILL_THROW(QuillError{error});
+  }
+
+  return normalized;
 }
 } // namespace detail
 

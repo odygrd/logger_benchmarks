@@ -6,10 +6,12 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstring>
-#include <string>
-#include <string_view>
+#ifndef QUILL_MODULE
+  #include <cstddef>
+  #include <cstring>
+  #include <string>
+  #include <string_view>
+#endif
 
 #include "quill/core/Attributes.h"
 #include "quill/core/Codec.h"
@@ -53,13 +55,12 @@ private:
 template <>
 struct Codec<utility::StringRef>
 {
-  static size_t compute_encoded_size(detail::SizeCacheVector&, utility::StringRef const&) noexcept
+  static size_t compute_encoded_size(SizeCacheVector&, utility::StringRef const&) noexcept
   {
     return sizeof(size_t) + sizeof(uintptr_t);
   }
 
-  static void encode(std::byte*& buffer, detail::SizeCacheVector const&, uint32_t&,
-                     utility::StringRef const& no_copy) noexcept
+  static void encode(std::byte*& buffer, SizeCacheVector const&, uint32_t&, utility::StringRef const& no_copy) noexcept
   {
     char const* data = no_copy.get_string_view().data();
     std::memcpy(buffer, &data, sizeof(uintptr_t));

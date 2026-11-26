@@ -8,13 +8,17 @@
 
 #include "quill/core/Attributes.h"
 
-#include <cstddef>
-#include <cstdint>
+#ifndef QUILL_MODULE
+  #include <cstddef>
+  #include <cstdint>
+#endif
 
 #if defined(QUILL_ENABLE_ASSERTIONS) || !defined(NDEBUG)
 
-  #include <cstdio>
-  #include <cstdlib>
+  #ifndef QUILL_MODULE
+    #include <cstdio>
+    #include <cstdlib>
+  #endif
 
 #endif
 
@@ -66,15 +70,6 @@ namespace detail
  */
 inline constexpr size_t QUILL_CACHE_LINE_SIZE{64u};
 inline constexpr size_t QUILL_CACHE_LINE_ALIGNED{2 * QUILL_CACHE_LINE_SIZE};
-
-// define our own PATH_PREFERRED_SEPARATOR to not include <filesystem>
-#if defined(_WIN32) && defined(_MSC_VER) && !defined(__GNUC__)
-// MSVC on Windows: use backslashes
-inline constexpr char PATH_PREFERRED_SEPARATOR = '\\';
-#else
-// Non-Windows OR Clang on Windows: use forward slashes
-inline constexpr char PATH_PREFERRED_SEPARATOR = '/';
-#endif
 } // namespace detail
 
 QUILL_BEGIN_EXPORT
@@ -109,14 +104,28 @@ enum class SinkFlushReason : uint8_t
   Final     /**< Final flush requested during backend shutdown. */
 };
 
-/**
- * Enum for the used clock type
- */
+/** Runtime clock selection for a logger. */
 enum class ClockSourceType : uint8_t
 {
   Tsc,
   System,
   User
+};
+
+/** Representation returned by a clock's now() function. */
+enum class TimestampType : uint8_t
+{
+  /** Raw TSC ticks. The backend converts them and orders the records like ClockSource::tsc() */
+  TscTicks,
+
+  /** Nanoseconds since the Unix epoch on the clock's own timeline, for simulated or replayed time */
+  EpochNanoseconds,
+
+  /**
+   * Nanoseconds since the Unix epoch from a clock that follows real time, such as a PTP clock. The
+   * backend orders the records like ClockSource::system()
+   */
+  WallClockNanoseconds
 };
 
 /**

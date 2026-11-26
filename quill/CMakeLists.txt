@@ -25,6 +25,8 @@ option(QUILL_BUILD_EXAMPLES "Enable this option to build and install the example
 
 option(QUILL_BUILD_MODULE "Enable this option to build the experimental C++20 named module target." OFF)
 
+option(QUILL_IMPORT_STD "Use import std in the experimental named module instead of standard C++ headers." OFF)
+
 option(QUILL_BUILD_EXAMPLE_PROMETHEUS "Build the prometheus-cpp metric publishing example. Requires prometheus-cpp to be installed and findable via CMAKE_PREFIX_PATH." OFF)
 
 option(QUILL_BUILD_TESTS "Enable this option to build the test suite." OFF)
@@ -106,8 +108,8 @@ if (QUILL_BUILD_TESTS)
             message(WARNING "Valgrind not found")
         endif ()
 
-        # set valgrind params
-        set(MEMORYCHECK_COMMAND_OPTIONS "--tool=memcheck --leak-check=full --leak-resolution=med --show-leak-kinds=all --track-origins=yes --vgdb=no --fair-sched=yes")
+        # Keep test executables' replacement new/delete active for allocation-failure injection.
+        set(MEMORYCHECK_COMMAND_OPTIONS "--tool=memcheck --soname-synonyms=somalloc=nouserintercepts --leak-check=full --leak-resolution=med --show-leak-kinds=all --track-origins=yes --vgdb=no --fair-sched=yes")
 
         # add memcheck test action to ctest
         include(CTest)
@@ -138,6 +140,7 @@ message(STATUS "QUILL_DISABLE_FILE_INFO: " ${QUILL_DISABLE_FILE_INFO})
 message(STATUS "QUILL_ENABLE_ASSERTIONS: " ${QUILL_ENABLE_ASSERTIONS})
 message(STATUS "QUILL_ENABLE_INSTALL: " ${QUILL_ENABLE_INSTALL})
 message(STATUS "QUILL_BUILD_MODULE: " ${QUILL_BUILD_MODULE})
+message(STATUS "QUILL_IMPORT_STD: " ${QUILL_IMPORT_STD})
 
 #---------------------------------------------------------------------------------------
 # Verbose make file option
@@ -153,9 +156,10 @@ if (QUILL_NO_EXCEPTIONS AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     string(REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif ()
 
-# address sanitizer flags
+# address and undefined behaviour sanitizer flags. A finding of either ends the program with an
+# error: the undefined behaviour sanitizer reports and carries on by default, which a test passes
 if (QUILL_SANITIZE_ADDRESS)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address,undefined -fno-omit-frame-pointer -g")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -g")
 endif ()
 
 # thread sanitizer flags
@@ -205,7 +209,12 @@ set(HEADER_FILES
         include/quill/backend/BackendWorker.h
         include/quill/backend/BackendWorkerLock.h
         include/quill/backend/BacktraceStorage.h
+        include/quill/backend/FrontendDefinitions.h
         include/quill/backend/ManualBackendWorker.h
+        include/quill/backend/MessageArena.h
+        include/quill/backend/NamedArgsFormat.h
+        include/quill/backend/NamedArgsTemplate.h
+        include/quill/backend/NamedArgsTemplateCache.h
         include/quill/backend/PatternFormatter.h
         include/quill/backend/RdtscClock.h
         include/quill/backend/SignalHandler.h
@@ -232,7 +241,9 @@ set(HEADER_FILES
 
         include/quill/core/Attributes.h
         include/quill/core/BoundedSPSCQueue.h
+        include/quill/core/BufferUtilities.h
         include/quill/core/ChronoTimeUtils.h
+        include/quill/core/ClockSource.h
         include/quill/core/Common.h
         include/quill/core/DynamicFormatArgStore.h
         include/quill/core/Codec.h
@@ -261,9 +272,12 @@ set(HEADER_FILES
         include/quill/filters/Filter.h
 
         include/quill/sinks/AndroidSink.h
+        include/quill/sinks/BinaryRecord.h
         include/quill/sinks/ConsoleSink.h
         include/quill/sinks/FileSink.h
         include/quill/sinks/JsonSink.h
+        include/quill/sinks/LogRecord.h
+        include/quill/sinks/MetricRecord.h
         include/quill/sinks/NullSink.h
         include/quill/sinks/metrics/PrometheusSink.h
         include/quill/sinks/RotatingFileSink.h
@@ -275,6 +289,7 @@ set(HEADER_FILES
         include/quill/sinks/SystemdSink.h
 
         include/quill/std/Array.h
+        include/quill/std/Atomic.h
         include/quill/std/Bitset.h
         include/quill/std/Chrono.h
         include/quill/std/Complex.h
@@ -297,6 +312,7 @@ set(HEADER_FILES
         include/quill/Backend.h
         include/quill/BackendTscClock.h
         include/quill/BinaryDataDeferredFormatCodec.h
+        include/quill/BinaryWriter.h
         include/quill/CsvWriter.h
         include/quill/DeferredFormatCodec.h
         include/quill/DirectFormatCodec.h
@@ -305,6 +321,8 @@ set(HEADER_FILES
         include/quill/LogFunctions.h
         include/quill/Logger.h
         include/quill/LogMacros.h
+        include/quill/MemberwiseCodec.h
+        include/quill/PcapWriter.h
         include/quill/SimpleSetup.h
         include/quill/StopWatch.h
         include/quill/StringRef.h
@@ -354,12 +372,8 @@ if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.19)
 endif ()
 
 # Link dependencies
+# Let the toolchain select the C runtime; mixing MinGW's MSVCRT and UCRT is unsafe.
 target_link_libraries(${TARGET_NAME} INTERFACE Threads::Threads)
-
-if (MINGW)
-    # strftime requires this when using MinGw to correctly format the time ..
-    target_link_libraries(${TARGET_NAME} INTERFACE ucrtbase)
-endif ()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
     target_link_libraries(${TARGET_NAME} INTERFACE stdc++fs)
@@ -368,6 +382,13 @@ endif ()
 # Add include directories for this library
 target_include_directories(${TARGET_NAME}
         INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+
+# Expose the bundled formatter independently of Quill's logging dependencies and options.
+add_library(fmtquill INTERFACE)
+add_library(quill::fmtquill ALIAS fmtquill)
+target_include_directories(fmtquill INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
 
@@ -395,7 +416,23 @@ if (QUILL_BUILD_MODULE)
 
     target_link_libraries(quill_module PUBLIC ${TARGET_NAME})
     target_compile_features(quill_module PUBLIC cxx_std_20)
+    target_compile_definitions(quill_module INTERFACE QUILL_USE_MODULE=)
     set_target_properties(quill_module PROPERTIES CXX_SCAN_FOR_MODULES ON)
+
+    if (QUILL_IMPORT_STD)
+        if (CMAKE_VERSION VERSION_LESS 4.5)
+            message(FATAL_ERROR "QUILL_IMPORT_STD requires CMake 4.5 or newer.")
+        endif ()
+
+        target_compile_definitions(quill_module PRIVATE QUILL_IMPORT_STD)
+    endif ()
+
+    if (QUILL_NO_EXCEPTIONS)
+        # The module and its importers must agree on exception and RTTI support.
+        target_compile_options(quill_module PUBLIC
+                $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-fno-exceptions;-fno-rtti>
+                $<$<CXX_COMPILER_ID:MSVC>:/GR-;/EHs-c-;/D_HAS_EXCEPTIONS=0>)
+    endif ()
 endif ()
 
 if (QUILL_BUILD_EXAMPLES)
@@ -462,7 +499,7 @@ if (QUILL_MASTER_PROJECT OR QUILL_ENABLE_INSTALL)
     install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/include/quill DESTINATION ${QUILL_INC_DIR})
 
     # Install the library
-    install(TARGETS ${TARGET_NAME} EXPORT ${targets_export_name}
+    install(TARGETS ${TARGET_NAME} fmtquill EXPORT ${targets_export_name}
             LIBRARY DESTINATION ${QUILL_LIB_DIR}
             ARCHIVE DESTINATION ${QUILL_LIB_DIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

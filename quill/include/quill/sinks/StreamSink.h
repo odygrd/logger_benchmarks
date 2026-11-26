@@ -12,17 +12,20 @@
 #include "quill/core/QuillError.h"
 #include "quill/sinks/Sink.h"
 
-#include <cerrno>
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
-#include <functional>
-#include <optional>
-#include <string>
-#include <string_view>
-#include <system_error>
-#include <utility>
-#include <vector>
+#ifndef QUILL_MODULE
+  #include <algorithm>
+  #include <cerrno>
+  #include <cstdint>
+  #include <cstdio>
+  #include <cstring>
+  #include <functional>
+  #include <optional>
+  #include <string>
+  #include <string_view>
+  #include <system_error>
+  #include <utility>
+  #include <vector>
+#endif
 
 #if defined(_WIN32)
   #if !defined(WIN32_LEAN_AND_MEAN)
@@ -47,9 +50,6 @@ QUILL_BEGIN_NAMESPACE
 
 QUILL_BEGIN_EXPORT
 
-/** Forward Declaration **/
-class MacroMetadata;
-
 #if defined(_WIN32)
 using FileEventNotifierHandle = HANDLE;
 #else
@@ -64,6 +64,23 @@ using FileEventNotifierHandle = FILE*;
  *       performing the file open/close operation. Different callbacks, and different invocations
  *       of the same callback, may therefore run on different threads over the sink lifetime.
  *       Callbacks must be thread-safe and must not assume a single calling thread.
+ *       On Windows, append-mode regular files are positioned at the end before `after_open`.
+ *
+ * @note `after_open` is called with the file as it was opened, before the sink writes to it, e.g.
+ *       the header of FileSinkConfig::set_file_header(). An exception from the callback leaves
+ *       the sink without an open file, so it can reject a file that the sink must not append to.
+ *
+ * @note FileSink keeps the records in a write buffer of its own and writes it to the file past
+ *       the handle of `after_open` and `before_close`. What a callback writes through the handle
+ *       stays in order with the records: the buffer is written to the file before `before_close`.
+ *       The records do not follow how a callback configures the handle, e.g. with `setvbuf`, and
+ *       the handle is not to be used outside the callback, unless
+ *       FileSinkConfig::set_write_buffer_size() disables the buffer with a size of 0, which makes
+ *       the sink write every record through the handle.
+ *
+ * @note `before_write` transforms everything that the sink writes: each log statement, each
+ *       binary record and the header of a file. The frame of a binary record, see
+ *       FileSinkConfig::set_binary_record_framing(), has the size of the transformed bytes.
  *
  * @warning File-event callbacks must not call `Frontend::create_sink()` or
  *          `Frontend::create_or_get_sink()` with the name of the sink currently being constructed.
@@ -94,17 +111,32 @@ public:
    * @brief Constructor for StreamSink
    * @param stream The stream type (stdout, stderr, or file)
    * @param override_pattern_formatter_options override the logger pattern formatter
-   * @param file File pointer for file-based stream
+   * @param file Already-open FILE* owned by the caller; this sink does not open or close it
    * @param file_event_notifier Notifies on file events
+   * @param stream_is_unbuffered Opt-in EINTR retries for a caller-owned, unbuffered stream.
+   *        Leave false for buffered streams. This flag does not change the buffering mode.
+   *
+   * @note For this opt-in path, open the FILE* yourself with fopen() or POSIX fdopen(), then
+   *       successfully call `setvbuf(file, nullptr, _IONBF, 0)` before any I/O and before
+   *       constructing the sink. Pass that FILE* as `file` and true as `stream_is_unbuffered`.
+   *       Keep buffering disabled and the FILE* alive until all backend use has finished.
+   *       See docs/snippets/quill_docs_example_unbuffered_stream.cpp for a complete example.
+   *
+   * @note This option applies to direct StreamSink construction. FileSink and ConsoleSink
+   *       leave it false; configuring a FileSink stream in FileEventNotifier::after_open
+   *       does not enable it. Buffered short writes still report errors; this option does
+   *       not recover data discarded by an interrupted stdio buffer flush.
    * @throws QuillError if an invalid parameter is provided
    */
-  explicit StreamSink(fs::path stream, FILE* file = nullptr,
-                      std::optional<PatternFormatterOptions> const& override_pattern_formatter_options = std::nullopt,
-                      FileEventNotifier file_event_notifier = FileEventNotifier{})
+  QUILL_ATTRIBUTE_COLD explicit StreamSink(
+    fs::path stream, FILE* file = nullptr,
+    std::optional<PatternFormatterOptions> const& override_pattern_formatter_options = std::nullopt,
+    FileEventNotifier file_event_notifier = FileEventNotifier{}, bool stream_is_unbuffered = false)
     : Sink(override_pattern_formatter_options),
       _filename(std::move(stream)),
       _file(file),
-      _file_event_notifier(std::move(file_event_notifier))
+      _file_event_notifier(std::move(file_event_notifier)),
+      _stream_is_unbuffered(stream_is_unbuffered)
   {
     // reserve stdout and stderr as filenames
     if (_filename == std::string{"stdout"})
@@ -130,36 +162,26 @@ public:
   /**
    * @brief Writes a formatted log message to the stream
    */
-  QUILL_ATTRIBUTE_HOT void write_log(MacroMetadata const* /* log_metadata */,
-                                     uint64_t /* log_timestamp */, std::string_view /* thread_id */,
-                                     std::string_view /* thread_name */, std::string const& /* process_id */,
-                                     std::string_view /* logger_name */, LogLevel /* log_level */,
-                                     std::string_view /* log_level_description */,
-                                     std::string_view /* log_level_short_code */,
-                                     std::vector<std::pair<std::string, std::string>> const* /* named_args */,
-                                     std::string_view /* log_message */, std::string_view log_statement) override
+  QUILL_ATTRIBUTE_HOT void write_log(LogRecord const& record) override
   {
-    if (QUILL_UNLIKELY(!_file))
-    {
-      // FileSink::flush() tries to re-open a deleted file and if it fails _file can be null
-      return;
-    }
+    _write_bytes(record.log_statement);
+  }
 
-    if (_file_event_notifier.before_write)
-    {
-      std::string const user_log_statement = _file_event_notifier.before_write(log_statement);
-      _write_statement(user_log_statement);
-    }
-    else
-    {
-      _write_statement(log_statement);
-    }
+  /**
+   * @brief Writes the bytes of a binary record to the stream as they are. Nothing is added before
+   * or after them. FileEventNotifier::before_write transforms them first, as it does a log
+   * statement.
+   * @note A caller-owned FILE* must be opened in binary mode on Windows.
+   */
+  QUILL_ATTRIBUTE_HOT void write_binary(BinaryRecord const& record) override
+  {
+    _write_bytes(std::string_view{reinterpret_cast<char const*>(record.data), record.size});
   }
 
   /**
    * Flushes the stream
    */
-  QUILL_ATTRIBUTE_HOT void flush_sink() override
+  QUILL_ATTRIBUTE_HOT void flush_sink(SinkFlushReason /* flush_reason */) override
   {
     if (!_write_occurred || !_file)
     {
@@ -190,8 +212,68 @@ public:
    */
   QUILL_ATTRIBUTE_HOT static void safe_fwrite(void const* ptr, size_t size, size_t count, FILE* stream)
   {
+    _safe_fwrite(ptr, size, count, stream, false);
+  }
+
+  /**
+   * @brief Writes data to an unbuffered stream, retrying interrupted writes.
+   * @param ptr Pointer to the data to be written
+   * @param size Size of each element to be written
+   * @param count Number of elements to write
+   * @param stream Stream configured with `_IONBF` before any I/O, with buffering still disabled
+   * @note The caller opens and owns the FILE*. Configure it immediately after fopen() or
+   *       POSIX fdopen(); see the StreamSink constructor documentation for the setup sequence.
+   */
+  QUILL_ATTRIBUTE_HOT static void safe_fwrite_unbuffered(void const* ptr, size_t size, size_t count, FILE* stream)
+  {
+    _safe_fwrite(ptr, size, count, stream, true);
+  }
+
+protected:
+#if defined(_WIN32)
+  /**
+   * @return the handle of the stream, nullptr if it has none. In a process without a console,
+   * e.g. a GUI application or a service, a standard stream has no file descriptor, or one
+   * without a handle. A negative descriptor must not be passed on: the C runtime can end the
+   * process for an invalid parameter
+   */
+  QUILL_NODISCARD static HANDLE _get_stream_handle(FILE* stream) noexcept
+  {
+    int const fd = ::_fileno(stream);
+
+    if (fd < 0)
+    {
+      return nullptr;
+    }
+
+    HANDLE const handle = reinterpret_cast<HANDLE>(::_get_osfhandle(fd));
+
+    // -2 is what the C runtime gives for a descriptor that is not associated with a stream
+    bool const has_handle = (handle != INVALID_HANDLE_VALUE) &&
+      (handle != reinterpret_cast<HANDLE>(static_cast<intptr_t>(-2)));
+
+    return has_handle ? handle : nullptr;
+  }
+#endif
+
+  /** @return false if the write failed, which is only returned without exceptions */
+  QUILL_ATTRIBUTE_HOT static bool _safe_fwrite(void const* ptr, size_t size, size_t count,
+                                               FILE* stream, bool stream_is_unbuffered)
+  {
+    size_t bytes_written{0};
+    return _safe_fwrite(ptr, size, count, stream, stream_is_unbuffered, bytes_written);
+  }
+
+  /**
+   * @param bytes_written 0 when called. It counts the bytes that the stream takes, also when the
+   * write fails: an unbuffered stream has written them, while a buffered one can have discarded
+   * some of them when its flush failed
+   * @return false if the write failed, which is only returned without exceptions
+   */
+  QUILL_ATTRIBUTE_HOT static bool _safe_fwrite(void const* ptr, size_t size, size_t count, FILE* stream,
+                                               bool stream_is_unbuffered, size_t& bytes_written)
+  {
     size_t const total_bytes = size * count;
-    size_t bytes_written = 0;
 
     while (bytes_written < total_bytes)
     {
@@ -203,31 +285,33 @@ public:
       // Instead, use WriteFile for console streams
       if ((stream == stdout) || (stream == stderr))
       {
-        HANDLE const handle = reinterpret_cast<HANDLE>(::_get_osfhandle(::_fileno(stream)));
+        HANDLE const handle = _get_stream_handle(stream);
 
-        if (QUILL_LIKELY(handle != INVALID_HANDLE_VALUE))
+        if (QUILL_UNLIKELY(handle == nullptr))
         {
-          constexpr size_t max_dword = static_cast<size_t>(~DWORD{0});
-          auto const total_bytes_remaining = static_cast<DWORD>(std::min<size_t>(remaining, max_dword));
-          DWORD bytes_written_this_call = 0;
-
-          if (QUILL_UNLIKELY(::WriteFile(handle, current_ptr, total_bytes_remaining,
-                                         &bytes_written_this_call, nullptr) == 0))
-          {
-            QUILL_THROW(QuillError{std::string{"WriteFile failed. GetLastError: "} +
-                                   std::to_string(::GetLastError())});
-          }
-
-          if (QUILL_UNLIKELY(bytes_written_this_call == 0))
-          {
-            QUILL_THROW(QuillError{"WriteFile returned 0 bytes written without error"});
-          }
-
-          bytes_written += bytes_written_this_call;
-          continue;
+          // There is nothing to write to
+          return true;
         }
 
-        // Fall through to fwrite if the handle is invalid (e.g., no console attached)
+        constexpr size_t max_dword = static_cast<size_t>(~DWORD{0});
+        auto const total_bytes_remaining = static_cast<DWORD>(std::min<size_t>(remaining, max_dword));
+        DWORD bytes_written_this_call = 0;
+
+        if (QUILL_UNLIKELY(::WriteFile(handle, current_ptr, total_bytes_remaining,
+                                       &bytes_written_this_call, nullptr) == 0))
+        {
+          QUILL_THROW_OR_RETURN_VALUE(
+            QuillError{std::string{"WriteFile failed. GetLastError: "} + std::to_string(::GetLastError())}, false);
+        }
+
+        if (QUILL_UNLIKELY(bytes_written_this_call == 0))
+        {
+          QUILL_THROW_OR_RETURN_VALUE(
+            QuillError{"WriteFile returned 0 bytes written without error"}, false);
+        }
+
+        bytes_written += bytes_written_this_call;
+        continue;
       }
 #endif
 
@@ -240,16 +324,25 @@ public:
         {
           int const saved_errno = errno;
           std::clearerr(stream); // Reset error state
-          QUILL_THROW(QuillError{std::string{"fwrite failed errno: "} + std::to_string(saved_errno) +
-                                 " error: " + std::strerror(saved_errno)});
+          bytes_written += written;
+
+          // Buffered fwrite can count bytes that were discarded by a failed flush.
+          if (saved_errno == EINTR && stream_is_unbuffered)
+          {
+            continue;
+          }
+          QUILL_THROW_OR_RETURN_VALUE(QuillError{std::string{"fwrite failed errno: "} + std::to_string(saved_errno) +
+                                                 " error: " + std::strerror(saved_errno)},
+                                      false);
         }
 
         if (written == 0)
         {
           // Zero bytes written without error is unusual - treat as fatal to avoid infinite loop
-          QUILL_THROW(
+          QUILL_THROW_OR_RETURN_VALUE(
             QuillError{std::string{"fwrite returned 0 bytes written without error - stream may be "
-                                   "at EOF or in invalid state"}});
+                                   "at EOF or in invalid state"}},
+            false);
         }
 
         // Partial write succeeded - continue with remaining bytes
@@ -257,18 +350,13 @@ public:
 
       bytes_written += written;
     }
+
+    return true;
   }
 
-protected:
-  QUILL_NODISCARD virtual size_t estimate_write_size(
-    MacroMetadata const* /* log_metadata */, uint64_t /* log_timestamp */,
-    std::string_view /* thread_id */, std::string_view /* thread_name */,
-    std::string const& /* process_id */, std::string_view /* logger_name */, LogLevel /* log_level */,
-    std::string_view /* log_level_description */, std::string_view /* log_level_short_code */,
-    std::vector<std::pair<std::string, std::string>> const* /* named_args */,
-    std::string_view /* log_message */, std::string_view log_statement)
+  QUILL_NODISCARD virtual size_t estimate_write_size(LogRecord const& record)
   {
-    return log_statement.size();
+    return record.log_statement.size();
   }
 
   /**
@@ -279,19 +367,43 @@ protected:
   void discard_write_estimate() noexcept {}
 
   /**
+   * Writes a log statement or the bytes of a binary record, after before_write has transformed
+   * them.
+   */
+  QUILL_ATTRIBUTE_HOT void _write_bytes(std::string_view bytes)
+  {
+    if (QUILL_UNLIKELY(!_file))
+    {
+      // FileSink::flush() tries to re-open a deleted file and if it fails _file can be null
+      return;
+    }
+
+    if (_file_event_notifier.before_write)
+    {
+      std::string const user_bytes = _file_event_notifier.before_write(bytes);
+      _write_statement(user_bytes);
+    }
+    else
+    {
+      _write_statement(bytes);
+    }
+  }
+
+  /**
    * Writes an already transformed statement without invoking before_write again.
    */
   QUILL_ATTRIBUTE_HOT void _write_statement(std::string_view statement)
   {
-    safe_fwrite(statement.data(), sizeof(char), statement.size(), _file);
+    _safe_fwrite(statement.data(), sizeof(char), statement.size(), _file, _stream_is_unbuffered);
     _file_size += statement.size();
     _write_occurred = true;
   }
 
   /**
    * Flushes the stream
+   * @return false if the flush failed, which is only returned without exceptions
    */
-  QUILL_ATTRIBUTE_HOT void flush()
+  QUILL_ATTRIBUTE_HOT bool flush()
   {
     // Retry on EINTR — a signal delivered during fflush() causes it to fail transiently.
     int result{0};
@@ -300,26 +412,27 @@ protected:
       result = std::fflush(_file);
     } while (result != 0 && errno == EINTR);
 
-    if (QUILL_LIKELY(result == 0))
-    {
-      _write_occurred = false;
-    }
-    else
+    if (QUILL_UNLIKELY(result != 0))
     {
       int const saved_errno = errno;
       std::clearerr(_file); // Reset error state
-      QUILL_THROW(QuillError{std::string{"fflush failed errno: "} + std::to_string(saved_errno) +
-                             " error: " + std::strerror(saved_errno)});
+      QUILL_THROW_OR_RETURN_VALUE(QuillError{std::string{"fflush failed errno: "} + std::to_string(saved_errno) +
+                                             " error: " + std::strerror(saved_errno)},
+                                  false);
     }
+
+    _write_occurred = false;
+    return true;
   }
 
 protected:
   fs::path _filename;
   FILE* _file{nullptr};
-  size_t _file_size{0}; /**< The current file size */
+  uint64_t _file_size{0}; /**< The current file size */
   FileEventNotifier _file_event_notifier;
   bool _is_null{false};
   bool _write_occurred{false};
+  bool const _stream_is_unbuffered{false};
 };
 
 QUILL_END_EXPORT

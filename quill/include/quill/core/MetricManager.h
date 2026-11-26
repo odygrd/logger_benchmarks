@@ -11,15 +11,21 @@
 #include "quill/core/QuillError.h"
 #include "quill/core/Spinlock.h"
 
-#include <algorithm>
-#include <memory>
-#include <string>
-#include <vector>
+#ifndef QUILL_MODULE
+  #include <algorithm>
+  #include <memory>
+  #include <string>
+  #include <string_view>
+  #include <unordered_map>
+  #include <vector>
+#endif
 
 QUILL_BEGIN_NAMESPACE
 
 namespace detail
 {
+class BackendWorker;
+
 class MetricManager
 {
 public:
@@ -27,7 +33,7 @@ public:
   MetricManager& operator=(MetricManager const&) = delete;
 
   /***/
-  QUILL_EXPORT static MetricManager& instance() noexcept
+  QUILL_EXPORT static inline MetricManager& instance() noexcept
   {
     static MetricManager instance;
     return instance;
@@ -39,21 +45,40 @@ public:
    * `metric_key` must be unique. `metric_name` must be non-empty but does not need to be unique.
    * Throws if a metric with the same key already exists.
    */
-  QUILL_NODISCARD MetricMetadata const* create_metric(std::string const& metric_key, std::string const& metric_name,
-                                                      std::vector<MetricLabel> const& labels)
+  QUILL_NODISCARD QUILL_ATTRIBUTE_COLD MetricMetadata const* create_metric(std::string const& metric_key,
+                                                                           std::string const& metric_name,
+                                                                           std::vector<MetricLabel> const& labels)
   {
     _validate_key_and_name(metric_key, metric_name);
 
-    LockGuard const lock{_spinlock};
+    MetricMetadata const* metric_metadata{nullptr};
 
-    if (_find_metric(metric_key))
+    QUILL_TRY
+    {
+      LockGuard const lock{_spinlock};
+
+      if (!_find_metric(metric_key))
+      {
+        metric_metadata = _insert_metric(metric_key, metric_name, labels);
+      }
+    }
+#if !defined(QUILL_NO_EXCEPTIONS)
+    QUILL_CATCH_ALL()
+    {
+      // Release the lock before an uncaught rethrow can invoke terminate().
+      throw;
+    }
+#endif
+
+    // Throw after releasing the lock, an uncaught exception terminates without unwinding
+    if (QUILL_UNLIKELY(!metric_metadata))
     {
       QUILL_THROW(QuillError{"Metric with key \"" + metric_key +
                              "\" already exists. Use create_or_get_metric() if you want "
                              "to retrieve the existing metric metadata pointer."});
     }
 
-    return _insert_metric(metric_key, metric_name, labels);
+    return metric_metadata;
   }
 
   /**
@@ -67,34 +92,46 @@ public:
    * and `metric_name` and `labels` are ignored. Callers that need strict matching should use
    * `create_metric()` and handle the throw themselves.
    */
-  QUILL_NODISCARD MetricMetadata const* create_or_get_metric(std::string const& metric_key,
-                                                             std::string const& metric_name,
-                                                             std::vector<MetricLabel> const& labels)
+  QUILL_NODISCARD QUILL_ATTRIBUTE_COLD MetricMetadata const* create_or_get_metric(
+    std::string const& metric_key, std::string const& metric_name, std::vector<MetricLabel> const& labels)
   {
     _validate_key_and_name(metric_key, metric_name);
 
-    LockGuard const lock{_spinlock};
-
-    MetricMetadata const* metric_metadata = _find_metric(metric_key);
-
-    if (!metric_metadata)
+    QUILL_TRY
     {
-      metric_metadata = _insert_metric(metric_key, metric_name, labels);
-    }
+      LockGuard const lock{_spinlock};
 
-    return metric_metadata;
+      MetricMetadata const* metric_metadata = _find_metric(metric_key);
+
+      if (!metric_metadata)
+      {
+        metric_metadata = _insert_metric(metric_key, metric_name, labels);
+      }
+
+      return metric_metadata;
+    }
+#if !defined(QUILL_NO_EXCEPTIONS)
+    QUILL_CATCH_ALL()
+    {
+      // Release the lock before an uncaught rethrow can invoke terminate().
+      throw;
+    }
+#endif
   }
 
   /**
    * Returns the metric with `metric_key`. Throws if no such metric exists.
    */
-  QUILL_NODISCARD MetricMetadata const* get_metric(std::string const& metric_key)
+  QUILL_NODISCARD QUILL_ATTRIBUTE_COLD MetricMetadata const* get_metric(std::string const& metric_key)
   {
-    LockGuard const lock{_spinlock};
+    MetricMetadata const* metric_metadata{nullptr};
+    {
+      LockGuard const lock{_spinlock};
+      metric_metadata = _find_metric(metric_key);
+    }
 
-    MetricMetadata const* metric_metadata = _find_metric(metric_key);
-
-    if (!metric_metadata)
+    // Throw after releasing the lock, an uncaught exception terminates without unwinding
+    if (QUILL_UNLIKELY(!metric_metadata))
     {
       QUILL_THROW(QuillError{"Metric with key \"" + metric_key + "\" does not exist"});
     }
@@ -103,6 +140,51 @@ public:
   }
 
 private:
+  friend class BackendWorker;
+
+  /** Backend-only; sorts scratch labels and retains metadata across backend restarts. */
+  QUILL_NODISCARD MetricMetadata const* create_or_get_dynamic_metric(std::string_view metric_name,
+                                                                     std::vector<MetricLabel>& labels,
+                                                                     size_t label_count)
+  {
+    MetricLabel* const labels_begin = labels.data();
+    MetricLabel* const labels_end = labels_begin + label_count;
+
+    std::sort(labels_begin, labels_end,
+              [](MetricLabel const& lhs, MetricLabel const& rhs)
+              { return lhs.key < rhs.key || (lhs.key == rhs.key && lhs.value < rhs.value); });
+
+    // Reuse the lookup buffer; length prefixes keep names/labels unambiguous.
+    _dynamic_metric_key.assign("dynamic:");
+
+    auto append_key = [this](std::string_view part)
+    {
+      _dynamic_metric_key.append(std::to_string(part.size()));
+      _dynamic_metric_key.push_back(':');
+      _dynamic_metric_key.append(part);
+    };
+
+    append_key(metric_name);
+
+    for (MetricLabel const* it = labels_begin; it != labels_end; ++it)
+    {
+      append_key(it->key);
+      append_key(it->value);
+    }
+
+    auto const existing = _dynamic_metrics.find(_dynamic_metric_key);
+
+    if (existing != _dynamic_metrics.end())
+    {
+      return existing->second.get();
+    }
+
+    auto metadata = std::make_unique<MetricMetadata>(_dynamic_metric_key, std::string{metric_name},
+                                                     std::vector<MetricLabel>{labels_begin, labels_end});
+
+    return _dynamic_metrics.emplace(_dynamic_metric_key, std::move(metadata)).first->second.get();
+  }
+
   MetricManager() = default;
   ~MetricManager() = default;
 
@@ -150,6 +232,8 @@ private:
 
 private:
   std::vector<std::unique_ptr<MetricMetadata>> _metrics;
+  std::unordered_map<std::string, std::unique_ptr<MetricMetadata>> _dynamic_metrics;
+  std::string _dynamic_metric_key;
   mutable Spinlock _spinlock;
 };
 } // namespace detail

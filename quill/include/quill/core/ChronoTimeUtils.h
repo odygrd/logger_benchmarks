@@ -7,7 +7,9 @@
 #pragma once
 
 #include "quill/core/Attributes.h"
-#include <cstdint>
+#ifndef QUILL_MODULE
+  #include <cstdint>
+#endif
 
 /**
  * This header exists so that code reachable from the lightweight
@@ -29,7 +31,9 @@
   #if defined(_MSVC_STL_VERSION)
     #include <xtimec.h>
   #else
-    #include <chrono>
+    #ifndef QUILL_MODULE
+      #include <chrono>
+    #endif
   #endif
 #else
   #include <time.h>
@@ -86,8 +90,9 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t get_system_time_ns() noexcep
  * Windows: QueryPerformanceCounter() + QueryPerformanceFrequency() — same
  * as MSVC STL _Query_perf_counter() / _Query_perf_frequency(). The frequency
  * is fixed after system boot, so we cache it in a function-local static.
- * Conversion to nanoseconds uses the same (ticks / freq) * 1e9 scaling the
- * STL applies, split into whole-second and remainder parts to avoid overflow.
+ * Like the STL, a 10 MHz counter (the common frequency on x64) converts with a
+ * multiplication. Other frequencies use the STL's (ticks / freq) * 1e9 scaling,
+ * split into whole-second and remainder parts to avoid overflow.
  */
 QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t get_steady_time_ns() noexcept
 {
@@ -96,6 +101,11 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_HOT inline uint64_t get_steady_time_ns() noexcep
   static int64_t const qpc_freq = []() noexcept { return ::_Query_perf_frequency(); }();
 
   int64_t const ticks = ::_Query_perf_counter();
+  if (qpc_freq == 10'000'000)
+  {
+    return static_cast<uint64_t>(ticks) * 100u;
+  }
+
   int64_t const whole = (ticks / qpc_freq) * 1'000'000'000ll;
   int64_t const part = (ticks % qpc_freq) * 1'000'000'000ll / qpc_freq;
   return static_cast<uint64_t>(whole + part);

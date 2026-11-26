@@ -9,16 +9,20 @@
 #include "quill/core/Attributes.h"
 #include "quill/core/LogLevel.h"
 
-#include <array>
-#include <chrono>
-#include <cstdint>
-#include <cstdio>
-#include <functional>
-#include <string>
-#include <vector>
+#ifndef QUILL_MODULE
+  #include <array>
+  #include <chrono>
+  #include <cstdint>
+  #include <cstdio>
+  #include <functional>
+  #include <string>
+  #include <vector>
+#endif
 
 #if defined(__MINGW32__)
-  #include <iostream>
+  #ifndef QUILL_MODULE
+    #include <iostream>
+  #endif
 #endif
 
 QUILL_BEGIN_NAMESPACE
@@ -46,30 +50,43 @@ QUILL_BEGIN_EXPORT
 /**
  * @brief Configuration options for the backend.
  *
- * This struct defines settings for the backend thread
+ * This struct defines settings for the backend thread. It is an aggregate, so in C++20 it can be
+ * initialised with designated initializers, e.g. `BackendOptions{.thread_name = "backend"}`.
  */
 struct BackendOptions
 {
-  BackendOptions() = default;
-
   /**
    * The name assigned to the backend, visible during thread naming queries (e.g.,
-   * pthread_getname_np) or in the debugger.
+   * pthread_getname_np) or in the debugger. A name that is longer than the operating system
+   * keeps is truncated: to 15 bytes on Linux and the BSDs, and to 63 bytes on macOS.
    */
   std::string thread_name = "QuillBackend";
 
   /**
-   * The backend employs "busy-waiting" by spinning around each frontend thread's queue.
-   * If enabled, the backend will yield when there is no remaining work, potentially
-   * reducing the OS scheduler priority for the backend.
+   * With a sleep_duration of 0 the backend busy-waits, polling each frontend thread's queue
+   * without a pause. If enabled, the backend will yield when there is no remaining work,
+   * potentially reducing the OS scheduler priority for the backend.
    * This option is effective only when sleep_duration is set to 0.
    */
   bool enable_yield_when_idle = false;
 
   /**
-   * Specifies the duration the backend sleeps if there is no remaining work to process in the queues.
+   * Specifies the duration the backend sleeps if there is no remaining work to process in the
+   * queues. Durations above 24 hours are treated as 24 hours. To sleep until woken, use a long
+   * duration and call Backend::notify().
+   *
+   * The default is 500 us, and 10 ms on Android, where each wake-up of an idle device costs
+   * battery. A record logged while the backend sleeps reaches the sinks when it wakes up.
+   *
+   * On Linux each sleep also lasts up to the timer slack of the backend thread, 50 us by default.
+   * The backend thread inherits the timer slack of the thread that calls Backend::start(), which
+   * prctl(PR_SET_TIMERSLACK) can lower beforehand.
    */
-  std::chrono::nanoseconds sleep_duration = std::chrono::microseconds{100};
+#if defined(__ANDROID__)
+  std::chrono::nanoseconds sleep_duration = std::chrono::milliseconds{10};
+#else
+  std::chrono::nanoseconds sleep_duration = std::chrono::microseconds{500};
+#endif
 
   /**
    * The backend pops all log messages from the frontend queues and buffers them in a
@@ -132,22 +149,35 @@ struct BackendOptions
    * period, reducing the chance of processing events out of timestamp order.
    *
    * Messages that fail the above check remain in the lock-free queue. They are checked again in the
-   * next iteration. The timestamp check is performed with microsecond precision.
+   * next iteration. The timestamp check is performed with microsecond precision. If a queue head
+   * stays ahead of the cutoff (for example after a backward wall-clock correction), the check
+   * stops deferring it once one grace period of steady time has elapsed since its first observation.
    *
-   * Example scenario:
-   * 1. Frontend thread takes a timestamp at the very start of logging, then becomes delayed
-   *    (preempted, blocked, processing slowly, etc.) before pushing to the queue.
-   * 2. Backend thread takes timestamp `now()` and subtracts the grace period, reads queues up to
-   *    the adjusted `now()`, and writes the logs.
-   * 3. Frontend thread wakes up and pushes the message with its already-recorded timestamp to the queue.
-   * 4. Backend thread reads and writes the delayed timestamp, resulting in an out-of-order log.
+   * When a poll finds nothing to write because the records in the queues wait for the grace
+   * period, the backend thread sleeps for the grace period, or for `sleep_duration` if that is
+   * shorter, before it checks the queues again. With a `sleep_duration` of 0 it checks them again
+   * without a pause. A poll that finds older records writes them instead, so a record can wait in
+   * one queue while the backend writes a backlog from another.
+   *
+   * The grace period is not applied while `Backend::stop()` drains the queues, nor to the records
+   * of user clocks that return `TimestampType::EpochNanoseconds`, which keep their own timeline.
+   *
+   * The frontend timestamps a record after reserving queue space and encoding its arguments.
+   * If the frontend thread is preempted between that clock read and the queue commit, the
+   * backend may have already written newer records by the time the delayed record arrives.
    *
    * Setting this option to a non-zero value causes a minor delay in reading messages from the
    * lock-free queues and protects timestamp ordering within the configured grace window. It does
-   * not guarantee ordering if a frontend thread records a timestamp and is delayed longer than the
-   * grace period before publishing the event to its queue.
+   * not guarantee ordering if a frontend thread is delayed longer than the grace period between
+   * reading the clock and committing the record.
    *
-   * Setting `log_timestamp_ordering_grace_period` to zero disables this grace-period delay.
+   * If regular output records arrive out of timestamp order, `error_notifier` suggests a larger
+   * grace period based on the observed difference. Another message is emitted only when the
+   * suggestion increases. User clocks that return `TimestampType::EpochNanoseconds` are excluded
+   * from the comparison.
+   *
+   * A grace period of zero disables both the delay and the notification. The notification is
+   * also suppressed when `ensure_monotonic_output_timestamps` corrects the output.
    *
    * - 0μs: Fastest processing, may process messages out of timestamp order
    * - 1-5μs: Good default - minimal delay, occasional reordering possible
@@ -168,9 +198,10 @@ struct BackendOptions
   std::chrono::microseconds log_timestamp_ordering_grace_period{5};
 
   /**
-   * Ensures sink-visible timestamps for regular log and metric records do not move backwards.
+   * Ensures sink-visible timestamps for regular log, metric and binary records do not move
+   * backwards.
    *
-   * If a regular log or metric record selected for output has a timestamp lower than the last
+   * If such a record selected for output has a timestamp lower than the last
    * corrected output timestamp, the backend adjusts it to `last_timestamp + 1` nanosecond before
    * formatting, filtering, and writing it to sinks. This is useful when a delayed frontend event
    * escapes the configured grace period or when a clock source moves backwards.
@@ -179,6 +210,10 @@ struct BackendOptions
    * backtrace log was captured, even though they are emitted later. Control events such as flush,
    * logger removal, backtrace setup/flush, and MDC changes are also excluded because they are not
    * written as output records.
+   *
+   * The records of loggers whose user clock returns `TimestampType::EpochNanoseconds` are kept in
+   * order among themselves and are not compared with those of the other loggers, so that e.g. a
+   * simulation keeps its own timeline next to loggers that use wall time.
    *
    * This option changes the timestamp displayed in the output for corrected records. It does not
    * affect frontend timestamp capture or the timestamp used to select the next cached event for
@@ -201,9 +236,9 @@ struct BackendOptions
    * in a loop from another thread, can prevent the backend from exiting because the queues may
    * never become empty.
    *
-   * When this option is disabled, the backend flushes the sinks and exits without reading the
-   * queues again. Log messages still in the queues, as well as messages that were already read
-   * from the queues but not yet processed, are discarded.
+   * When this option is disabled, the backend flushes the sinks and exits without draining the
+   * remaining queued and cached records. They remain pending and can be processed after a later
+   * Backend::start(); they are lost if the process exits first.
    */
   bool wait_for_queues_to_empty_before_exit = true;
 
@@ -222,7 +257,7 @@ struct BackendOptions
    *       because this option uses SetThreadAffinityMask. Leave this empty and use a custom
    *       backend-thread hook if your application needs group-aware affinity.
    */
-  std::vector<uint16_t> cpu_affinity;
+  std::vector<uint16_t> cpu_affinity{};
 
   /**
    * The backend may encounter exceptions that cannot be caught within user threads.
@@ -231,8 +266,8 @@ struct BackendOptions
    * This function sets up a user error notifier to handle backend errors and notifications,
    * such as when the unbounded queue reallocates or when the bounded queue becomes full.
    *
-   * To disable callback notifications, simply leave the function undefined:
-   *   std::function<void(std::string const&)> backend_error_notifier = {};
+   * To disable callback notifications, leave the function empty:
+   *   backend_options.error_notifier = {};
    *
    * Disabling this callback does not suppress Quill's fallback formatting-error entries written
    * to sinks. It only disables the callback notifications themselves.
@@ -244,6 +279,9 @@ struct BackendOptions
    * backend thread throws QuillError because the backend cannot wait on itself. If the logger has
    * immediate flush enabled, the implicit flush is silently skipped for backend-thread log calls so
    * generic logging code reused on the backend remains safe.
+   * During shutdown, diagnostics logged by the final flush and logger-removal close callbacks are drained when
+   * wait_for_queues_to_empty_before_exit is enabled. Errors during that additional drain and flush
+   * are reported directly to stderr instead of this callback, preventing recursive diagnostics.
    */
   std::function<void(std::string const&)> error_notifier{detail::backend_options_default_error_notifier};
 
@@ -264,10 +302,8 @@ struct BackendOptions
   std::function<void()> backend_worker_on_poll_end = {};
 
   /**
-   * This option is only applicable if at least one frontend is using a Logger with
-   * ClockSourceType::Tsc
-   *
-   * When the system clock is used, this option can be ignored.
+   * Applies to ClockSource::tsc() and user clocks returning TimestampType::TscTicks.
+   * Clocks returning epoch nanoseconds do not use this option.
    *
    * Controls the frequency at which the backend recalculates and syncs the internal RdtscClock
    * with the system time from the system wall clock.
@@ -304,6 +340,9 @@ struct BackendOptions
    * The check applies only when at least one argument in a log statement is of type string.
    *
    * You can customize this callback to define your own range of printable characters if needed.
+   * The backend calls it once for each of the 256 byte values when it starts and uses the results
+   * as a lookup table, so it must depend only on its argument. A byte for which it throws is
+   * treated as non-printable.
    *
    * To disable this check, you can provide:
    *   std::function<bool(char c)> check_printable_char = {}
@@ -343,6 +382,7 @@ struct BackendOptions
    * When no MDC is set, %(mdc) expands to an empty string.
    *
    * Invalid patterns are rejected with QuillError during backend initialization.
+   * Restarting the backend applies the supplied pattern to existing MDC fields as well.
    */
   std::string mdc_format_pattern = " [{}: {}, ]";
 
