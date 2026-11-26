@@ -1,9 +1,9 @@
 #!/bin/sh
 #
 # Usage (all parameters optional; missing ones will be prompted):
-#   dont_execute_this.sh all [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both]
-#   dont_execute_this.sh build [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both]
-#   dont_execute_this.sh gen-vsproj [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both]
+#   dont_execute_this.sh all [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both] [go]
+#   dont_execute_this.sh build [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both] [go]
+#   dont_execute_this.sh gen-vsproj [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both] [go]
 #   dont_execute_this.sh pack [arch]
 #
 # Normalized values:
@@ -27,12 +27,14 @@ ARG3="${4:-}"
 ARG4="${5:-}"
 ARG5="${6:-}"
 ARG6="${7:-}"
+ARG7="${8:-}"
 
 ARCH_PARAM=""
 COMPILER_TYPE=""
 JAVA_SUPPORT=""
 NODE_API_SUPPORT=""
 PYTHON_SUPPORT=""
+GO_SUPPORT=""
 BUILD_LIB_TYPE=""
 
 to_lower() { printf "%s" "$1" | tr '[:upper:]' '[:lower:]'; }
@@ -166,6 +168,9 @@ ensure_common_params() {
   [ -z "$JAVA_SUPPORT" ] && JAVA_SUPPORT=$(ask_yes_no "Enable Java/JNI support?")
   [ -z "$NODE_API_SUPPORT" ] && NODE_API_SUPPORT=$(ask_yes_no "Enable Node-API (Node.js) support?")
   [ -z "$PYTHON_SUPPORT" ] && PYTHON_SUPPORT=$(ask_yes_no "Enable Python (CPython C Extension) support?")
+  if [ -z "$GO_SUPPORT" ] && [ -t 0 ]; then
+    GO_SUPPORT=$(ask_yes_no "Enable Go (cgo) support?")
+  fi
   echo
   echo "Parameters:"
   echo "  ARCH             : $ARCH_PARAM"
@@ -173,6 +178,7 @@ ensure_common_params() {
   echo "  JAVA_SUPPORT     : $JAVA_SUPPORT"
   echo "  NODE_API_SUPPORT : $NODE_API_SUPPORT"
   echo "  PYTHON_SUPPORT   : $PYTHON_SUPPORT"
+  echo "  GO_SUPPORT       : $GO_SUPPORT"
   echo
 }
 ensure_arch_only() {
@@ -190,6 +196,8 @@ COMPILER_TYPE="$(normalize_compiler "$ARG2")"
 JAVA_SUPPORT="$(normalize_onoff "$ARG3")"
 NODE_API_SUPPORT="$(normalize_onoff "$ARG4")"
 PYTHON_SUPPORT="$(normalize_onoff "$ARG5")"
+GO_SUPPORT="$(normalize_onoff "$ARG7")"
+[ -z "$GO_SUPPORT" ] && [ ! -t 0 ] && GO_SUPPORT="OFF"
 BUILD_LIB_TYPE="$(normalize_build_lib_type "$ARG6")"
 
 build_one() {
@@ -199,6 +207,7 @@ build_one() {
   [ "$COMPILER_TYPE" = "clang" ] && CC="clang" CXX="clang++"
   SHARED="OFF"; [ "$BUILD_LIB_TYPE_ARG" = "dynamic_lib" ] && SHARED="ON"
   SRC_DIR="$(cd "$(dirname "$0")/../../../src" && pwd)"
+  INSTALL_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)/install"
   OUT_DIR="build_${ARCH_PARAM}_${COMPILER_TYPE}_${BUILD_LIB_TYPE_ARG}"
   rm -rf "$OUT_DIR"; mkdir "$OUT_DIR"; cd "$OUT_DIR" || exit 1
   echo
@@ -215,16 +224,22 @@ build_one() {
     echo "  BUILD FOR CONFIG $BUILD_LIB_TYPE_ARG : $cfg"
     CFG_DIR="build_${cfg}"
     rm -rf "$CFG_DIR"; mkdir "$CFG_DIR"; cd "$CFG_DIR" || exit 1
+    # CMAKE_INSTALL_* reproduces the prebuilt tarball shape, install/<libtype>/lib/<config>;
+    # the CMakeLists itself only supplies the standard GNUInstallDirs defaults.
     cmake "$SRC_DIR" -G "Unix Makefiles" \
       -DTARGET_PLATFORM:STRING=unix \
       -DBUILD_LIB_TYPE="$BUILD_LIB_TYPE_ARG" \
       -DJAVA_SUPPORT:BOOL="$JAVA_SUPPORT" \
       -DNODE_API_SUPPORT:BOOL="$NODE_API_SUPPORT" \
       -DPYTHON_SUPPORT:BOOL="$PYTHON_SUPPORT" \
+      -DGO_SUPPORT:BOOL="$GO_SUPPORT" \
       -DCMAKE_BUILD_TYPE="$cfg" \
       -DBUILD_SHARED_LIBS="$SHARED" \
       -DCMAKE_C_COMPILER="$CC" \
-      -DCMAKE_CXX_COMPILER="$CXX"
+      -DCMAKE_CXX_COMPILER="$CXX" \
+      -DCMAKE_INSTALL_PREFIX="$INSTALL_ROOT/$BUILD_LIB_TYPE_ARG" \
+      -DCMAKE_INSTALL_LIBDIR="lib/$cfg" \
+      -DCMAKE_INSTALL_DOCDIR=..
     cmake --build . -- -j 4 || exit 1
     cmake --install . || exit 1
     cd ..
@@ -237,6 +252,7 @@ gen_vsproj() {
   [ "$COMPILER_TYPE" = "clang" ] && CC="clang" CXX="clang++"
   SHARED="OFF"; [ "$BUILD_LIB_TYPE" = "dynamic_lib" ] && SHARED="ON"
   SRC_DIR="$(cd "$(dirname "$0")/../../../src" && pwd)"
+  INSTALL_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)/install"
   OUT_DIR="vsproj_${ARCH_PARAM}_${COMPILER_TYPE}_${BUILD_LIB_TYPE}"
   rm -rf "$OUT_DIR"; mkdir "$OUT_DIR"; cd "$OUT_DIR" || exit 1
   echo
@@ -254,10 +270,14 @@ gen_vsproj() {
     -DBUILD_LIB_TYPE="$BUILD_LIB_TYPE" \
     -DJAVA_SUPPORT:BOOL="$JAVA_SUPPORT" \
     -DNODE_API_SUPPORT:BOOL="$NODE_API_SUPPORT" \
+    -DGO_SUPPORT:BOOL="$GO_SUPPORT" \
     -DCMAKE_BUILD_TYPE=Debug \
     -DBUILD_SHARED_LIBS="$SHARED" \
     -DCMAKE_C_COMPILER="$CC" \
-    -DCMAKE_CXX_COMPILER="$CXX"
+    -DCMAKE_CXX_COMPILER="$CXX" \
+    -DCMAKE_INSTALL_PREFIX="$INSTALL_ROOT/$BUILD_LIB_TYPE" \
+    -DCMAKE_INSTALL_LIBDIR="lib/Debug" \
+    -DCMAKE_INSTALL_DOCDIR=..
   cd ..
 }
 

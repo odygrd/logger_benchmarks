@@ -3,13 +3,11 @@
 
 #pragma once
 
-#include <spdlog/namespace.h>
-
 #include <atomic>
 #include <utility>
 // null, no cost dummy "mutex" and dummy "atomic" int
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace details {
 struct null_mutex {
     void lock() const {}
@@ -17,7 +15,7 @@ struct null_mutex {
 };
 
 struct null_atomic_int {
-    int value{0};
+    int value;
     null_atomic_int() = default;
 
     explicit null_atomic_int(int new_value)
@@ -34,4 +32,4 @@ struct null_atomic_int {
 };
 
 }  // namespace details
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog

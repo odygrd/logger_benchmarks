@@ -61,7 +61,7 @@ void printTwoDigits(binlog::detail::OstreamBuffer& out, int i)
 void printNineDigits(binlog::detail::OstreamBuffer& out, int i)
 {
   char buf[16];
-  (void)snprintf(buf, sizeof(buf), "%.9d", i);
+  snprintf(buf, sizeof(buf), "%.9d", i);
   out.write(buf, 9);
 }
 
@@ -144,33 +144,6 @@ bool PrettyPrinter::printStruct(detail::OstreamBuffer& out, mserialize::Visitor:
       printTime(out, bdt, 0, "UTC");
     }
     return true;
-  }
-
-  if (sb.name.starts_with("std::chrono::duration<Rep,"))
-  {
-    const char* suffix =
-      sb.name.ends_with("std::nano>") ? "ns" :
-      sb.name.ends_with("std::micro>") ? "us" :
-      sb.name.ends_with("std::milli>") ? "ms" :
-      sb.name.ends_with("std::ratio<1>>") ? "s" :
-      sb.name.ends_with("std::ratio<60>>") ? "m" :
-      sb.name.ends_with("std::ratio<3600>>") ? "h" :
-      nullptr;
-    if (suffix != nullptr)
-    {
-      if (sb.tag == "`count'l")
-      {
-        const std::int64_t count = input.read<std::int64_t>();
-        out << count << suffix;
-        return true;
-      }
-      if (sb.tag == "`count'i") // on MSVC, for minutes and hours
-      {
-        const std::int32_t count = input.read<std::int32_t>();
-        out << count << suffix;
-        return true;
-      }
-    }
   }
 
   if ((sb.name == "std::filesystem::path" && sb.tag == "`str'[c")

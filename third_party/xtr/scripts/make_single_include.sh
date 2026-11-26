@@ -19,7 +19,6 @@ for file in \
     include/xtr/detail/cpuid.hpp \
     include/xtr/detail/is_c_string.hpp \
     include/xtr/detail/file_descriptor.hpp \
-    include/xtr/detail/prefault.hpp \
     include/xtr/detail/memory_mapping.hpp \
     include/xtr/detail/mirrored_memory_mapping.hpp \
     include/xtr/detail/pause.hpp \
@@ -89,7 +88,6 @@ grep -hEv '^ *//|^#include "' \
     src/open.cpp \
     src/pagesize.cpp \
     src/posix_fd_storage.cpp \
-    src/prefault.cpp \
     src/regex_matcher.cpp \
     src/sink.cpp \
     src/throw.cpp \

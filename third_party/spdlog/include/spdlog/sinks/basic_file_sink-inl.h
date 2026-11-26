@@ -10,7 +10,7 @@
 #include <spdlog/common.h>
 #include <spdlog/details/os.h>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace sinks {
 
 template <typename Mutex>
@@ -45,4 +45,4 @@ SPDLOG_INLINE void basic_file_sink<Mutex>::flush_() {
 }
 
 }  // namespace sinks
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog

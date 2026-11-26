@@ -12,13 +12,12 @@
 #include "bq_log/bq_log.h"
 #include "bq_log/global//log_vars.h"
 #include "bq_log/log/log_manager.h"
-#ifdef BQ_POSIX
-#ifndef BQ_PS
+#if BQ_HAS_CRASH_HANDLER
 #include <signal.h>
-#endif
 #endif
 namespace bq {
     static bq::platform::atomic<int32_t> log_worker_name_seq = 0;
+    static constexpr uint64_t default_process_interval_ms = 66;
     BQ_TLS_NON_POD(log_worker_watch_dog, tls_log_worker_watch_dog_)
 
     log_worker::log_worker()
@@ -28,6 +27,7 @@ namespace bq {
         , mutex_(true)
         , wait_flag_(false)
         , awake_flag_(false)
+        , process_interval_ms_(default_process_interval_ms)
     {
     }
 
@@ -78,7 +78,7 @@ namespace bq {
         assert(thread_mode_ != log_thread_mode::sync && "log_worker started without init");
         tls_log_worker_watch_dog_.get().thread_id_ = bq::platform::thread::get_current_thread_id();
         tls_log_worker_watch_dog_.get().worker_ptr_ = this;
-#ifdef BQ_POSIX
+#if BQ_HAS_CRASH_HANDLER
         // we need flush ring_buffer in signal handler.
         // but handler can not be called in worker thread.(the flush operation is not re-entrant)
         // so we have to block signals for this thread.
@@ -99,14 +99,24 @@ namespace bq {
             }
             // normal process
             else {
-                manager_->process_by_worker((thread_mode_ == log_thread_mode::async) ? nullptr : log_target_, false);
+                bool did_work = manager_->process_by_worker((thread_mode_ == log_thread_mode::async) ? nullptr : log_target_, false);
+                if (did_work) {
+                    if (is_cancelled()) {
+                        break;
+                    }
+                    continue;
+                }
             }
             if (is_cancelled()) {
                 break;
             }
+            const uint64_t interval_ms = process_interval_ms_.load_relaxed();
+            if (interval_ms == 0) {
+                continue;
+            }
             mutex_.lock();
             awake_flag_.store_relaxed(true);
-            trigger_.wait_for(mutex_, process_interval_ms);
+            trigger_.wait_for(mutex_, interval_ms);
             awake_flag_.store_relaxed(false);
             mutex_.unlock();
         }

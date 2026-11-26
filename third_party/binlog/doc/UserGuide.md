@@ -152,11 +152,6 @@ For scoped enums, the enumerators must be prefixed with the enum name, as usual:
 
 The maximum number of enumerators is limited to 100.
 
-To adapt enum types shadowed by non-type declarations (e.g: a field),
-the following workaround is required:
-
-    [catchfile test/integration/LoggingEnums.cpp shadowed]
-
 ## Logging User Defined Structures
 
 User defined types outside the categories above can be still logged,
@@ -186,23 +181,8 @@ The member list does not have to be exhaustive, e.g: mutex members can be omitte
 The member list can be empty. The maximum number of members is limited to 100.
 `BINLOG_ADAPT_STRUCT` must be called in global scope, outside of any namespace.
 The type must not be recursive, e.g: `Foo` can't have a to be logged `Foo*` typed member.
-
-User defined types that derive from base classes already adapted for logging
-can be adapted, without enumerating the base members again:
-
-    [catchfile test/integration/LoggingAdaptedStructs.cpp derived]
-
-The second argument of `BINLOG_ADAPT_DERIVED` must be a list of adapted base classes, multiple inheritance is supported.
-
-User defined templates can be adapted for logging in a similar way:
-
-    [catchfile test/integration/LoggingAdaptedStructs.cpp adapt_template]
-
-As of C++20, concepts can be also adapted for logging (namespaced concepts are also supported):
-
-    [catchfile test/integration/LoggingAdaptedConcepts.cpp concept]
-
-For more information see the Mserialize documentation on [Adapting custom types][mserialize-act] and
+For more information and to make templates or recursive types loggable,
+see the Mserialize documentation on [Adapting custom types][mserialize-act] and
 [Adapting user defined recursive types for visitation][mserialize-rec].
 
 [mserialize-act]: Mserialize.html#adapting-custom-types
@@ -220,10 +200,6 @@ The object is serialized as a single number (nanoseconds since epoch), and prett
 The pretty printed text format is affected by the `-d` flag when using [bread](#bread).
 If `%d` (localtime) appears first in the `-f` (format) parameter, the time point is converted to producer-local timezone
 (this is the default). If `%u` (UTC) appears first, the time point is shown in UTC.
-
-Certain helper types of `std::chrono::duration` can be logged after adoption by including a header file:
-
-    [catchfile test/integration/LoggingDuration.cpp duration]
 
 ### error_code
 
@@ -289,7 +265,7 @@ compressed logfiles:
 With piping, a live logfile that is being written by the application can be read,
 even if log rotation is configured:
 
-    $ tail -c +0 -F logfile.blog | bread
+    $ tail -c0 -F logfile.blog | bread
 
 To customize the output and for further options, see the builtin help:
 

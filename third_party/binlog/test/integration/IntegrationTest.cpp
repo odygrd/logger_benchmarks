@@ -25,7 +25,7 @@ std::string extension()
 
 std::string executePipeline(std::string cmd)
 {
-  #ifdef _MSC_VER
+  #ifdef _WIN32
     #define popen(command, mode) _popen(command, mode)
     #define pclose(stream) _pclose(stream)
 
@@ -112,7 +112,6 @@ TEST_CASE("LoggingTuples")         { runReadDiff("LoggingTuples", "%m"); }
 TEST_CASE("LoggingEnums")          { runReadDiff("LoggingEnums", "%m"); }
 TEST_CASE("LoggingAdaptedStructs") { runReadDiff("LoggingAdaptedStructs", "%m"); }
 TEST_CASE("LoggingTimePoint")      { runReadDiff("LoggingTimePoint", "%m"); }
-TEST_CASE("LoggingDuration")       { runReadDiff("LoggingDuration", "%m"); }
 TEST_CASE("LoggingErrorCode")      { runReadDiff("LoggingErrorCode", "%m"); }
 TEST_CASE("NamedWriters")          { runReadDiff("NamedWriters", "%n %m"); }
 TEST_CASE("SeverityControl")       { runReadDiff("SeverityControl", "%S %m"); }
@@ -123,12 +122,6 @@ TEST_CASE("Categories")            { runReadDiff("Categories", "%C %n %m"); }
 TEST_CASE("LoggingOptionals")      { runReadDiff("LoggingOptionals", "%m"); }
 TEST_CASE("LoggingFilesystem")     { runReadDiff("LoggingFilesystem", "%m"); }
 TEST_CASE("LoggingVariants")       { runReadDiff("LoggingVariants", "%m"); }
-
-#endif
-
-#if __cplusplus >= 202002L
-
-TEST_CASE("LoggingAdaptedConcepts") { runReadDiff("LoggingAdaptedConcepts", "%m"); }
 
 #endif
 

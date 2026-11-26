@@ -15,6 +15,9 @@ using System;
 
 namespace bq.def
 {
+    /// <summary>
+    /// Result codes the log buffer returns.
+    /// </summary>
     public enum enum_buffer_result_code
     {
         success = 0,
@@ -27,6 +30,9 @@ namespace bq.def
         result_code_count
     };
 
+    /// <summary>
+    /// Log levels, in the order the library defines them.
+    /// </summary>
     public enum log_level
     {
         verbose,
@@ -37,6 +43,33 @@ namespace bq.def
         fatal,
 
         log_level_max = 32,        //上限
+    }
+
+    /// <summary>
+    /// What this platform offers for crash recovery, and what is missing when it is not available.
+    /// </summary>
+    public enum recovery_capability
+    {
+        ready = 0,          // recovery can be enabled
+        no_memory_map,      // nothing survives a crash without a memory map
+        no_instance_lock,   // no cross-process file lock to keep a second process out
+    }
+
+    /// <summary>
+    /// Bits of log.get_platform_capabilities(): what the linked library was built with.
+    /// </summary>
+    [Flags]
+    public enum platform_capability : uint
+    {
+        memory_map = 1u << 0,           // files can be mapped; crash recovery needs this
+        multi_process = 1u << 1,        // several processes may share one storage directory
+        cross_process_file_lock = 1u << 2, // a second process can be kept out of an instance
+        crash_handler = 1u << 3,        // buffers can be flushed from a crash handler
+        backtrace = 1u << 4,            // stack traces can be collected
+        dirent = 1u << 5,               // directories can be enumerated (expire_time, capacity)
+        thread_name = 1u << 6,          // threads can be named
+        default_base_dir = 1u << 7,     // a writable default directory exists; consoles reset it
+        user_counter = 1u << 8,         // a user mode hardware counter is available
     }
 
     internal enum log_arg_type_enum
@@ -70,6 +103,10 @@ namespace bq.def
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    /// <summary>
+    /// One reserved buffer chunk: write the entry at format_data_addr and report the result in
+    /// result_code.
+    /// </summary>
     public unsafe struct _api_log_buffer_chunk_write_handle
     {
         public byte* format_data_addr;
@@ -91,6 +128,9 @@ namespace bq.def
 
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    /// <summary>
+    /// A string the native side owns: str points at it and len is its length in bytes.
+    /// </summary>
     public unsafe struct _api_string_def
     {
         public sbyte* str;
@@ -98,9 +138,16 @@ namespace bq.def
     }
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+    /// <summary>
+    /// Console callback the native side invokes for every console entry.
+    /// </summary>
     public unsafe delegate void type_func_ptr_console_callback(ulong log_id, int category_idx, bq.def.log_level log_level,sbyte* content, int length);
     
     [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+    /// <summary>
+    /// Console callback used while draining the console buffer; pass_through_param is what the
+    /// caller passed to the fetch call.
+    /// </summary>
     public unsafe delegate void type_func_ptr_console_buffer_fetch_callback(IntPtr pass_through_param, ulong log_id, int category_idx, bq.def.log_level log_level, sbyte* content, int length);
     
 }

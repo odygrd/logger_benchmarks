@@ -1,7 +1,5 @@
 #include "test_enums.hpp"
-#include "test_structs.hpp"
 
-#include <mserialize/make_derived_struct_tag.hpp>
 #include <mserialize/make_enum_tag.hpp>
 #include <mserialize/make_struct_tag.hpp>
 #include <mserialize/make_template_tag.hpp>
@@ -111,12 +109,6 @@ static_assert(mserialize::tag<test::LargeEnumClass>() == "/l`test::LargeEnumClas
 MSERIALIZE_MAKE_ENUM_TAG(test::UnsignedLargeEnumClass, Lima, Mike, November, Oscar)
 static_assert(mserialize::tag<test::UnsignedLargeEnumClass>() == "/L`test::UnsignedLargeEnumClass'0`Lima'400`Mike'4000`November'FFFFFFFFFFFFFFFF`Oscar'\\", "");
 
-MSERIALIZE_MAKE_ENUM_TAG(test::UnnamedEnumTypedef, Papa)
-static_assert(mserialize::tag<test::UnnamedEnumTypedef>() == "/i`test::UnnamedEnumTypedef'0`Papa'\\", "");
-
-MSERIALIZE_MAKE_ENUM_TAG(UnscopedEnum, Quebec)
-static_assert(mserialize::tag<UnscopedEnum>() == "/i`UnscopedEnum'0`Quebec'\\", "");
-
 // test MSERIALIZE_MAKE_STRUCT_TAG
 
 struct Empty {};
@@ -166,45 +158,3 @@ struct Pair
 MSERIALIZE_MAKE_TEMPLATE_TAG((typename A, typename B), (Pair<A,B>), a, b)
 
 static_assert(mserialize::tag<Pair<std::tuple<int,bool>, std::vector<char>>>() == "{Pair<A,B>`a'(iy)`b'[c}", "");
-
-// test MSERIALIZE_MAKE_DERIVED_STRUCT_TAG
-
-#ifndef _WIN32
-
-// Disable this test on MSVC.
-// MSERIALIZE_MAKE_DERIVED_STRUCT_TAG Derived1 fails with
-// not enough arguments for function-like macro invocation 'MSERIALIZE_FOREACH_3'.
-// I suspect that (Base2, Base3) does not expand properly, because
-// of the nonstandard msvc preprocessor - but I no capacity to fix it. PR is welcome.
-// The actual user-facing functionality (BINLOG_ADAPT_DERIVED) works.
-// (MSERIALIZE_EXPAND does the trick there for some reason)
-
-MSERIALIZE_MAKE_STRUCT_TAG(Base1, a)
-MSERIALIZE_MAKE_DERIVED_STRUCT_TAG(Base2, (Base1), b)
-MSERIALIZE_MAKE_STRUCT_TAG(Base3, c)
-MSERIALIZE_MAKE_DERIVED_STRUCT_TAG(Derived1, (Base2, Base3), d, e)
-MSERIALIZE_MAKE_DERIVED_STRUCT_TAG(Derived2, (Derived1))
-
-static_assert(mserialize::tag<Derived2>() == "{Derived2`'{Derived1`'{Base2`'{Base1`a'i}`b'i}`'{Base3`c'[c}`d'i`e'i}}", "");
-
-#endif // _WIN32
-
-// test has_tag
-
-// This is a private method, but still useful sometimes,
-// e.g: user wants to check if a template with a random member is loggable or not.
-
-struct Adapted{};
-MSERIALIZE_MAKE_STRUCT_TAG(Adapted)
-
-struct NotAdapted{};
-
-template <typename Nested>
-struct Nest
-{
-  Nested n;
-};
-MSERIALIZE_MAKE_TEMPLATE_TAG((typename Nested), (Nest<Nested>), n)
-
-static_assert(mserialize::detail::has_tag<Nest<Adapted>>::value, "");
-static_assert(!mserialize::detail::has_tag<Nest<NotAdapted>>::value, "");

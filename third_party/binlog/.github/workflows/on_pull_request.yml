@@ -7,7 +7,7 @@ jobs:
     name: Build on Linux with GCC
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v2
       - name: Install Dependencies
         run: |
           # enable optional tests of interacting with boost types
@@ -43,7 +43,7 @@ jobs:
     name: Build on Linux with GCC, C++17
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v2
       - name: Configure
         run: |
           set -x
@@ -63,7 +63,7 @@ jobs:
     name: Build on Linux with GCC+ASAN+UBSAN
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v2
       - name: Configure
         run: |
           set -x
@@ -83,7 +83,7 @@ jobs:
     name: Build on Linux with GCC+TSAN
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v2
       - name: Configure
         run: |
           set -x
@@ -99,39 +99,16 @@ jobs:
           cd ThreadSanitized
           ctest -VV
 
-  build_linux_clang_cpp17:
-    name: Build on Linux with Clang, C++17
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - name: Install Dependencies
-        run: |
-          sudo apt install -y clang lld
-      - name: Configure
-        run: |
-          set -x
-          mkdir Clang
-          cd Clang
-          export CC=$(which clang)
-          export CXX=$(which clang++)
-          cmake -DCMAKE_CXX_STANDARD=17 ..
-      - name: Build
-        run: |
-          cd Clang
-          make -j2 VERBOSE=1
-      - name: Test
-        run: |
-          cd Clang
-          ctest -VV
-
   build_linux_clang_tidy:
     name: Build on Linux with Clang+Tidy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v2
       - name: Install Dependencies
         run: |
-          sudo apt install -y clang clang-tidy lld
+          # remove broken packages installed by default
+          sudo apt remove -y clang-6.0 libclang-common-6.0-dev libclang1-6.0 libllvm6.0
+          sudo apt install -y clang clang-tidy
       - name: Configure
         run: |
           set -x
@@ -154,7 +131,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v2.3.1
         with:
           persist-credentials: false
 
@@ -176,12 +153,12 @@ jobs:
     name: Build on macOS with Clang
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v2
       - name: Build
         run: |
           mkdir Release
           cd Release
-          cmake -DCMAKE_CXX_STANDARD=20 ..
+          cmake -DCMAKE_CXX_STANDARD=17 ..
           make -j2 VERBOSE=1
       - name: Test
         run: |
@@ -192,7 +169,7 @@ jobs:
     name: Build on Windows with MSVC
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v2
       - name: Configure
         run: |
           mkdir Release
@@ -205,17 +182,3 @@ jobs:
         run: |
           cd Release
           ctest -VV -C Release
-
-  compile_win_mingw:
-    name: Build on Windows with MinGW
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - name: Configure
-        run: |
-          mkdir Release
-          cd Release
-          cmake -DCMAKE_CXX_STANDARD=17 -G "MinGW Makefiles" ..
-      - name: Build
-        run: |
-          cmake --build Release --config Release -j2

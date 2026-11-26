@@ -9,7 +9,7 @@
 #include <mutex>
 #include <ostream>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace sinks {
 template <typename Mutex>
 class ostream_sink final : public base_sink<Mutex> {
@@ -40,4 +40,4 @@ using ostream_sink_mt = ostream_sink<std::mutex>;
 using ostream_sink_st = ostream_sink<details::null_mutex>;
 
 }  // namespace sinks
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog

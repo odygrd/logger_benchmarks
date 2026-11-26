@@ -2,11 +2,7 @@
 #include "includes.h"
 
 using spdlog::memory_buf_t;
-
-SPDLOG_CONSTEXPR_FUNC spdlog::string_view_t to_string_view(const memory_buf_t &buf)
-    SPDLOG_NOEXCEPT {
-    return spdlog::string_view_t{buf.data(), buf.size()};
-}
+using spdlog::details::to_string_view;
 
 void test_pad2(int n, const char *expected) {
     memory_buf_t buf;

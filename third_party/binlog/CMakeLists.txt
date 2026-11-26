@@ -114,13 +114,6 @@ if(POLICY CMP0069)
   check_ipo_supported(RESULT BINLOG_HAS_IPO)
   if(BINLOG_HAS_IPO)
     message(STATUS "Use interprocedural optimization")
-
-    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-      # avoid error when mixing clang 10 lto and ld:
-      # /usr/bin/ld: libbinlog.a: error adding symbols: file format not recognized
-      message(STATUS "Use lld")
-      add_link_options("-fuse-ld=lld")
-    endif()
   endif()
 endif()
 
@@ -186,41 +179,27 @@ if(NOT BINLOG_IS_TOPLEVEL_PROJECT)
   add_library(binlog::binlog  ALIAS binlog)
 endif()
 
-list(APPEND BINLOG_INSTALL_TARGETS "headers" "binlog")
-
 #---------------------------
 # bread
 #---------------------------
 
-option(BINLOG_BUILD_BREAD "Build the bread binary" ON)
-
-if (BINLOG_BUILD_BREAD)
-  add_executable(bread
-    bin/bread.cpp
-    bin/printers.cpp
-    $<$<PLATFORM_ID:Windows>:bin/getopt.cpp bin/binaryio.cpp>
-  )
+add_executable(bread
+  bin/bread.cpp
+  bin/printers.cpp
+  $<$<CXX_COMPILER_ID:MSVC>:bin/getopt.cpp bin/binaryio.cpp>
+)
   target_link_libraries(bread PRIVATE binlog)
   set_property(TARGET bread  PROPERTY INTERPROCEDURAL_OPTIMIZATION ${BINLOG_HAS_IPO})
-
-  list(APPEND BINLOG_INSTALL_TARGETS "bread")
-endif()
 
 #---------------------------
 # brecovery
 #---------------------------
 
-option(BINLOG_BUILD_BRECOVERY "Build the brecovery binary" ON)
-
-if (BINLOG_BUILD_BRECOVERY)
-  add_executable(brecovery
-    bin/brecovery.cpp
-    $<$<PLATFORM_ID:Windows>:bin/binaryio.cpp>
-  )
+add_executable(brecovery
+  bin/brecovery.cpp
+  $<$<CXX_COMPILER_ID:MSVC>:bin/binaryio.cpp>
+)
   target_link_libraries(brecovery PRIVATE binlog)
-
-  list(APPEND BINLOG_INSTALL_TARGETS "brecovery")
-endif()
 
 #---------------------------
 # Documentation
@@ -232,32 +211,25 @@ markdown_to_html_group(Documentation UserGuide Internals Mserialize)
 # Examples
 #---------------------------
 
-option(BINLOG_BUILD_EXAMPLES "Build the examples" ON)
+function(add_example name)
+  add_executable(${name} example/${name}.cpp)
+  target_link_libraries(${name} headers)
+endfunction()
 
-if (BINLOG_BUILD_EXAMPLES)
-  function(add_example name)
-    add_executable(${name} example/${name}.cpp)
-    target_link_libraries(${name} headers)
-  endfunction()
-
-  add_example(HelloWorld)
-  add_example(DetailedHelloWorld)
-  add_example(ConsumeLoop)
-  add_example(LogRotation)
-  add_example(TextOutput)
-    target_link_libraries(TextOutput binlog)
-  add_example(MultiOutput)
-    target_link_libraries(MultiOutput binlog)
-  add_example(TscClock)
-endif()
+add_example(HelloWorld)
+add_example(DetailedHelloWorld)
+add_example(ConsumeLoop)
+add_example(LogRotation)
+add_example(TextOutput)
+  target_link_libraries(TextOutput binlog)
+add_example(MultiOutput)
+  target_link_libraries(MultiOutput binlog)
+add_example(TscClock)
 
 #---------------------------
 # Unit Test
 #---------------------------
 
-option(BINLOG_BUILD_UNIT_TESTS "Build the unit tests" ON)
-
-if (BINLOG_BUILD_UNIT_TESTS)
   message(STATUS "Build unit tests")
 
   add_executable(UnitTest
@@ -289,7 +261,6 @@ if (BINLOG_BUILD_UNIT_TESTS)
     test/unit/binlog/TestTextOutputStream.cpp
     test/unit/binlog/TestEventFilter.cpp
     test/unit/binlog/detail/TestOstreamBuffer.cpp
-    test/unit/binlog/detail/TestSegmentedMap.cpp
 
     bin/printers.cpp
     test/unit/binlog/TestPrinters.cpp
@@ -308,15 +279,11 @@ if (BINLOG_BUILD_UNIT_TESTS)
 
   add_test(NAME UnitTest COMMAND UnitTest -s --force-colors)
   set_property(TEST UnitTest PROPERTY ENVIRONMENT ASAN_OPTIONS=detect_leaks=1)
-endif()
 
 #---------------------------
 # Integration Test
 #---------------------------
 
-option(BINLOG_BUILD_INTEGRATION_TESTS "Build the integration tests" ON)
-
-if (BINLOG_BUILD_INTEGRATION_TESTS)
   message(STATUS "Build integration tests")
 
   add_executable(IntegrationTest test/integration/IntegrationTest.cpp)
@@ -333,7 +300,7 @@ if (BINLOG_BUILD_INTEGRATION_TESTS)
   set_property(TEST IntegrationTest PROPERTY ENVIRONMENT ASAN_OPTIONS=detect_leaks=1:allocator_may_return_null=1)
 
   function(add_inttest name)
-    add_executable(${name} test/integration/${name}.cpp $<$<PLATFORM_ID:Windows>:bin/binaryio.cpp>)
+    add_executable(${name} test/integration/${name}.cpp $<$<CXX_COMPILER_ID:MSVC>:bin/binaryio.cpp>)
     target_link_libraries(${name} headers)
   endfunction()
 
@@ -345,7 +312,6 @@ if (BINLOG_BUILD_INTEGRATION_TESTS)
   add_inttest(LoggingPointers)
   add_inttest(LoggingTuples)
   add_inttest(LoggingTimePoint)
-  add_inttest(LoggingDuration)
   add_inttest(LoggingEnums)
   add_inttest(LoggingAdaptedStructs)
   add_inttest(LoggingErrorCode)
@@ -368,17 +334,12 @@ if (BINLOG_BUILD_INTEGRATION_TESTS)
     add_inttest(LoggingVariants)
   endif()
 
-  if(${CMAKE_CXX_STANDARD} GREATER_EQUAL 20)
-    add_inttest(LoggingAdaptedConcepts)
-  endif()
-
   if(Boost_FOUND)
     target_compile_definitions(IntegrationTest PRIVATE BINLOG_HAS_BOOST)
 
     add_inttest(LoggingBoostTypes)
       optional_include_boost(LoggingBoostTypes)
   endif()
-endif()
 
 #---------------------------
 # Performance Test
@@ -433,7 +394,7 @@ install(
 )
 
 install(
-  TARGETS ${BINLOG_INSTALL_TARGETS}
+  TARGETS bread brecovery headers binlog
   EXPORT binlogTargets
   RUNTIME DESTINATION bin
   ARCHIVE DESTINATION lib

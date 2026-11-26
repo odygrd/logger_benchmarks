@@ -24,8 +24,11 @@ namespace bq {
         seq_generator = 0;
 #if !defined(NDEBUG)
         bq::util::log_device_console(log_level::info, "file_manager is constructed");
-        bq::util::log_device_console(log_level::info, "base dir type 0: %s", get_base_dir(0).c_str());
-        bq::util::log_device_console(log_level::info, "base dir type 1: %s", get_base_dir(1).c_str());
+        bq::string base_dir;
+        bq::util::log_device_console(log_level::info, "base dir type 0: %s",
+            bq::platform::try_get_base_dir(0, base_dir) ? base_dir.c_str() : "<unset>");
+        bq::util::log_device_console(log_level::info, "base dir type 1: %s",
+            bq::platform::try_get_base_dir(1, base_dir) ? base_dir.c_str() : "<unset>");
 #endif
     }
 
@@ -174,6 +177,10 @@ namespace bq {
 
     bool file_manager::remove_file_or_dir(const bq::string& path)
     {
+        // An empty path would resolve to the working directory.
+        if (path.is_empty()) {
+            return false;
+        }
         bq::string real_path = get_lexically_path(path);
         if (!(is_file(real_path) || is_dir(real_path))) {
             return false;
@@ -219,7 +226,7 @@ namespace bq {
         return bq::platform::get_file_last_modified_epoch_ms(path.c_str());
     }
 
-    size_t file_manager::get_file_size(const bq::string& path)
+    uint64_t file_manager::get_file_size(const bq::string& path)
     {
         if (is_file(path) == false) {
             return 0;
@@ -367,13 +374,13 @@ namespace bq {
             return false;
         }
         file_manager::instance().truncate_file(file_w, 0);
-        size_t write_size = 0;
+        uint64_t write_size = 0;
         bq::array<uint8_t> cache_read_;
         size_t temp_size = 10 * 1024 * 1024;
         cache_read_.fill_uninitialized(temp_size);
         while (write_size < fill_size) {
-            if (fill_size - write_size < temp_size)
-                temp_size = fill_size - write_size;
+            if (fill_size - write_size < static_cast<uint64_t>(temp_size))
+                temp_size = static_cast<size_t>(fill_size - write_size);
             if (file_manager::instance().read_file(file_r, cache_read_.begin(), temp_size) >= temp_size) {
                 write_size += temp_size;
                 file_manager::instance().write_file(file_w, cache_read_.begin(), temp_size);
@@ -384,7 +391,7 @@ namespace bq {
         return true;
     }
 
-    bool file_manager::truncate_file(const file_handle& handle, size_t offset)
+    bool file_manager::truncate_file(const file_handle& handle, uint64_t offset)
     {
         auto truncate_errno = platform::truncate_file(handle.platform_handle(), offset);
         if (truncate_errno != 0) {
@@ -393,7 +400,7 @@ namespace bq {
             return false;
         }
 
-        size_t current_file_size = 0;
+        uint64_t current_file_size = 0;
         int32_t get_file_size_errno = platform::get_file_size(handle.platform_handle(), current_file_size);
         if (get_file_size_errno != 0) {
             file_manager_file_error_no_ = get_file_size_errno;
@@ -460,17 +467,13 @@ namespace bq {
         return true;
     }
 
-    bool file_manager::lock_file(const file_handle& handle)
-    {
-        return bq::platform::lock_file(handle.platform_handle());
-    }
-
     bq::string file_manager::read_text(const file_handle& handle)
     {
-        size_t size = get_file_size(handle);
-        if (size == 0) {
+        const uint64_t file_size = get_file_size(handle);
+        if (file_size == 0 || file_size > static_cast<uint64_t>(BQ_SIZE_MAX)) {
             return "";
         }
+        const size_t size = static_cast<size_t>(file_size);
         seek(handle, seek_option::begin, 0);
         bq::string content(size);
         content.fill_uninitialized(size);
@@ -533,10 +536,10 @@ namespace bq {
         return true;
     }
 
-    size_t file_manager::get_file_size(const file_handle& handle) const
+    uint64_t file_manager::get_file_size(const file_handle& handle) const
     {
         bq::platform::flush_file(handle.platform_handle());
-        size_t current_file_size;
+        uint64_t current_file_size;
         int32_t err_code = bq::platform::get_file_size(handle.platform_handle(), current_file_size);
         if (err_code == 0) {
             return current_file_size;

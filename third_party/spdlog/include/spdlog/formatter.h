@@ -6,7 +6,7 @@
 #include <spdlog/details/log_msg.h>
 #include <spdlog/fmt/fmt.h>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 
 class formatter {
 public:
@@ -14,4 +14,4 @@ public:
     virtual void format(const details::log_msg &msg, memory_buf_t &dest) = 0;
     virtual std::unique_ptr<formatter> clone() const = 0;
 };
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog

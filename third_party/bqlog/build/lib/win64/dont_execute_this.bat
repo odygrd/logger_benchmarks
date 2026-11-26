@@ -5,9 +5,9 @@ rem ------------------------------------------------------------
 rem Unified build/generate/pack driver for Windows
 rem
 rem Usage patterns (all parameters optional; missing ones will be prompted):
-rem   Dont_Execute_This.bat all [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both]
-rem   Dont_Execute_This.bat build [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both]
-rem   Dont_Execute_This.bat gen-vsproj [arch] [msvc|clang] [java] [node] [python] [dynamic_lib|static_lib|both]
+rem   Dont_Execute_This.bat all [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both] [go]
+rem   Dont_Execute_This.bat build [arch] [compiler] [java] [node] [python] [dynamic_lib|static_lib|both] [go]
+rem   Dont_Execute_This.bat gen-vsproj [arch] [msvc|clang] [java] [node] [python] [dynamic_lib|static_lib|both] [go]
 rem   Dont_Execute_This.bat pack [arch]
 rem
 rem Legacy compatibility:
@@ -18,6 +18,7 @@ rem Normalized values:
 rem   arch         : x86_64 | x86 | arm64 | native
 rem   compiler     : msvc | clang | mingw
 rem   java,node,python : ON | OFF
+rem   go           : ON | OFF (optional 8th param, default OFF)
 rem   lib type     : static_lib | dynamic_lib
 rem   all lib type : dynamic_lib | static_lib | both  (default: both)
 rem ------------------------------------------------------------
@@ -31,6 +32,7 @@ set "ARG3=%~4"
 set "ARG4=%~5"
 set "ARG5=%~6"
 set "ARG6=%~7"
+set "ARG7=%~8"
 
 if /I "%ACTION%"=="dynamic_lib" (
   set "BUILD_LIB_TYPE=dynamic_lib"
@@ -48,6 +50,8 @@ call :normalize_compiler "%ARG2%" COMPILER_TYPE
 call :normalize_onoff "%ARG3%" JAVA_SUPPORT
 call :normalize_onoff "%ARG4%" NODE_API_SUPPORT
 call :normalize_onoff "%ARG5%" PYTHON_SUPPORT
+call :normalize_onoff "%ARG7%" GO_SUPPORT
+if not defined GO_SUPPORT if not "%ARG7%"=="" set "GO_SUPPORT=OFF"
 call :normalize_build_lib_type "%ARG6%" BUILD_LIB_TYPE
 
 if exist "..\..\..\artifacts" rmdir /s /q "..\..\..\artifacts"
@@ -96,11 +100,35 @@ exit /b 0
 rem ================= helpers: prompts and normalization =================
 
 :ensure_common_params
-if not defined ARCH_PARAM call :ask_arch ARCH_PARAM
-if not defined COMPILER_TYPE call :ask_compiler COMPILER_TYPE
-if not defined JAVA_SUPPORT call :ask_yes_no "Enable Java/JNI support?" JAVA_SUPPORT
-if not defined NODE_API_SUPPORT call :ask_yes_no "Enable Node-API (Node.js) support?" NODE_API_SUPPORT
-if not defined PYTHON_SUPPORT call :ask_yes_no "Enable Python (CPython C Extension) support?" PYTHON_SUPPORT
+rem Non-interactive (CI) runs cannot answer prompts: default the optional features to OFF and
+rem the required ones to native/msvc, instead of blocking on `choice` forever.
+set "BQ_INTERACTIVE=1"
+if not "%CI%"=="" set "BQ_INTERACTIVE=0"
+if not "%GITHUB_ACTIONS%"=="" set "BQ_INTERACTIVE=0"
+if not defined ARCH_PARAM call :ask_or_default_arch ARCH_PARAM
+if not defined COMPILER_TYPE call :ask_or_default_compiler COMPILER_TYPE
+if not defined JAVA_SUPPORT call :ask_yes_no_or_off "Enable Java/JNI support?" JAVA_SUPPORT
+if not defined NODE_API_SUPPORT call :ask_yes_no_or_off "Enable Node-API (Node.js) support?" NODE_API_SUPPORT
+if not defined PYTHON_SUPPORT call :ask_yes_no_or_off "Enable Python (CPython C Extension) support?" PYTHON_SUPPORT
+if not defined GO_SUPPORT call :ask_yes_no_or_off "Enable Go (cgo) support?" GO_SUPPORT
+goto :eof
+
+:ask_or_default_arch
+set "OUTVAR=%~1"
+if "%BQ_INTERACTIVE%"=="0" ( set "%OUTVAR%=native" & goto :eof )
+call :ask_arch %1
+goto :eof
+
+:ask_or_default_compiler
+set "OUTVAR=%~1"
+if "%BQ_INTERACTIVE%"=="0" ( set "%OUTVAR%=msvc" & goto :eof )
+call :ask_compiler %1
+goto :eof
+
+:ask_yes_no_or_off
+set "OUTVAR=%~2"
+if "%BQ_INTERACTIVE%"=="0" ( set "%OUTVAR%=OFF" & goto :eof )
+call :ask_yes_no %1 %2
 goto :eof
 
 :ensure_arch_only
@@ -228,6 +256,7 @@ echo   COMPILER            : %COMPILER_TYPE%
 echo   JAVA_SUPPORT        : %JAVA_SUPPORT%
 echo   NODE_API_SUPPORT    : %NODE_API_SUPPORT%
 echo   PYTHON_SUPPORT      : %PYTHON_SUPPORT%
+echo   GO_SUPPORT          : %GO_SUPPORT%
 echo   CMake -A            : %VS_GEN_PLATFORM_ARG%
 echo   USER_DEF_ARCH       : %USER_DEF_ARCH%
 echo =================================
@@ -258,15 +287,21 @@ if /I "%COMPILER_TYPE%"=="mingw" (
       set "MINGW_TARGET_ARGS="
     )
 
+    REM CMAKE_INSTALL_* reproduces the prebuilt tarball shape, install/<libtype>/lib/<config>.
     cmake "!SRC_DIR!" -G "Ninja" ^
       -DTARGET_PLATFORM:STRING=win64 ^
       -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE_ARG% ^
       -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% ^
       -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% ^
       -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% ^
+      -DGO_SUPPORT:BOOL=%GO_SUPPORT% ^
       -DCMAKE_BUILD_TYPE=!CUR_CFG! ^
       -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_RC_COMPILER=llvm-rc ^
       -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld ^
+      -DCMAKE_INSTALL_PREFIX=..\..\..\..\install\%BUILD_LIB_TYPE_ARG% ^
+      -DCMAKE_INSTALL_LIBDIR=lib/!CUR_CFG! ^
+      -DCMAKE_INSTALL_BINDIR=lib/!CUR_CFG! ^
+      -DCMAKE_INSTALL_DOCDIR=.. ^
       !MINGW_TARGET_ARGS! || exit /b 1
 
     if not exist build.ninja exit /b 1
@@ -275,9 +310,9 @@ if /I "%COMPILER_TYPE%"=="mingw" (
   )
 ) else (
   if /I "%COMPILER_TYPE%"=="clang" (
-    cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE_ARG% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% -T ClangCl || exit /b 1
+    cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE_ARG% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% -DGO_SUPPORT:BOOL=%GO_SUPPORT% -DCMAKE_INSTALL_PREFIX=..\..\..\..\install\%BUILD_LIB_TYPE_ARG% "-DCMAKE_INSTALL_LIBDIR=lib/$<CONFIG>" "-DCMAKE_INSTALL_BINDIR=lib/$<CONFIG>" -DCMAKE_INSTALL_DOCDIR=.. -T ClangCl || exit /b 1
   ) else (
-    cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE_ARG% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% || exit /b 1
+    cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE_ARG% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% -DGO_SUPPORT:BOOL=%GO_SUPPORT% -DCMAKE_INSTALL_PREFIX=..\..\..\..\install\%BUILD_LIB_TYPE_ARG% "-DCMAKE_INSTALL_LIBDIR=lib/$<CONFIG>" "-DCMAKE_INSTALL_BINDIR=lib/$<CONFIG>" -DCMAKE_INSTALL_DOCDIR=.. || exit /b 1
   )
 
   for %%c in (%CONFIGS%) do (
@@ -328,9 +363,9 @@ cd "VSProj" || exit /b 1
 
 set "SRC_DIR=..\..\..\..\src"
 if /I "%COMPILER_TYPE%"=="clang" (
-  cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% -T ClangCl || exit /b 1
+  cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% -DGO_SUPPORT:BOOL=%GO_SUPPORT% -T ClangCl || exit /b 1
 ) else (
-  cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% || exit /b 1
+  cmake "!SRC_DIR!" -DTARGET_PLATFORM:STRING=win64 %VS_GEN_PLATFORM_ARG% -DBUILD_LIB_TYPE=%BUILD_LIB_TYPE% -DJAVA_SUPPORT:BOOL=%JAVA_SUPPORT% -DNODE_API_SUPPORT:BOOL=%NODE_API_SUPPORT% -DPYTHON_SUPPORT:BOOL=%PYTHON_SUPPORT% -DGO_SUPPORT:BOOL=%GO_SUPPORT% || exit /b 1
 )
 
 cd ..

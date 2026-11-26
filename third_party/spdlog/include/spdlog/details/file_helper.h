@@ -6,7 +6,7 @@
 #include <spdlog/common.h>
 #include <tuple>
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace details {
 
 // Helper class for file sinks.
@@ -54,7 +54,7 @@ private:
     file_event_handlers event_handlers_;
 };
 }  // namespace details
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog
 
 #ifdef SPDLOG_HEADER_ONLY
 #include "file_helper-inl.h"

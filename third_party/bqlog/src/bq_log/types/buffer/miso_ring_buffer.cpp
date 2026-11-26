@@ -10,6 +10,7 @@
  */
 
 #include "bq_log/types/buffer/miso_ring_buffer.h"
+#include "bq_log/types/storage/log_storage.h"
 #include "bq_log/global/log_vars.h"
 
 namespace bq {
@@ -64,15 +65,16 @@ namespace bq {
      *
      * @param config
      */
-    miso_ring_buffer::miso_ring_buffer(const log_buffer_config& config)
+    miso_ring_buffer::miso_ring_buffer(const log_buffer_config& config, const bq::string& mmap_path_override)
         : config_(config)
         , head_(nullptr)
         , aligned_blocks_(nullptr)
         , aligned_blocks_count_(0)
+        , mmap_path_override_(mmap_path_override)
     {
         assert((BQ_POD_RUNTIME_OFFSET_OF(block::chunk_head_def, data) % 8 == 0) && "invalid chunk_head size, it must be a multiple of 8 to ensure the `data` is 8 bytes aligned");
 
-        const_cast<log_buffer_config&>(config_).default_buffer_size = bq::max_value((uint32_t)(16 * bq::BQ_CACHE_LINE_SIZE), bq::roundup_pow_of_two(config_.default_buffer_size));
+        const_cast<log_buffer_config&>(config_).default_buffer_size = bq::max_value((uint32_t)(16 * BQ_CACHE_LINE_SIZE), bq::roundup_pow_of_two(config_.default_buffer_size));
 
         assert((uintptr_t)&cursors_.write_cursor_ % (uintptr_t)BQ_CACHE_LINE_SIZE == 0);
         assert((uintptr_t)&cursors_.read_cursor_ % (uintptr_t)BQ_CACHE_LINE_SIZE == 0);
@@ -88,6 +90,10 @@ namespace bq {
             break;
         case bq::create_memory_map_result::use_existed:
             if (!try_recover_from_exist_memory_map()) {
+                // a checksum mismatch only means the config changed; anything else is damaged data
+                if (head_->log_checksum_ == config_.calculate_check_sum()) {
+                    bq::util::log_device_console(bq::log_level::error, "lp buffer recovery failed, its unread logs are lost, log_name:%s", config_.log_name.c_str());
+                }
                 init_with_memory_map();
             }
             break;
@@ -211,12 +217,16 @@ namespace bq {
             handle.data_addr = new_block.chunk_head.data;
             used_blocks_count += need_block_count;
             handle.low_space_flag = ((used_blocks_count << 1) >= aligned_blocks_count_);
+            if (handle.low_space_flag) {
+                read_cursor_ref = cursors_.read_cursor_.load_acquire();
+                used_blocks_count = static_cast<uint32_t>(current_write_cursor + need_block_count - read_cursor_ref);
+                handle.low_space_flag = ((used_blocks_count << 1) >= aligned_blocks_count_);
+            }
 #if defined(BQ_LOG_BUFFER_DEBUG)
             ++result_code_statistics_[(int32_t)enum_buffer_result_code::success];
 #endif
             return handle;
         }
-        return handle;
     }
 
     void miso_ring_buffer::commit_write_chunk(const log_buffer_write_handle& handle)
@@ -258,7 +268,6 @@ namespace bq {
                 block_ref.chunk_head.status = block_status::unused;
                 head_->read_cursor_cache_ += block_count;
                 continue;
-                break;
             case block_status::unused:
                 handle.result = enum_buffer_result_code::err_empty_log_buffer;
                 break;
@@ -406,7 +415,9 @@ namespace bq {
 
     create_memory_map_result miso_ring_buffer::create_memory_map()
     {
-        bq::string path = TO_ABSOLUTE_PATH("bqlog_mmap/mmap_" + config_.log_name + "/lp/" + config_.log_name + ".mmap", 0);
+        bq::string path = mmap_path_override_.is_empty()
+            ? (config_.storage ? config_.storage->lp_path() : "")
+            : mmap_path_override_;
         size_t head_size = sizeof(head);
         size_t map_size = (uint32_t)(config_.default_buffer_size + head_size);
         buffer_entity_ = bq::make_unique<normal_buffer>(map_size, config_.need_recovery ? path : "", true);
@@ -466,7 +477,6 @@ namespace bq {
                 break;
             default:
                 return false;
-                break;
             }
             uint32_t total_size_parsed = static_cast<uint32_t>(current_cursor - head_->read_cursor_cache_);
             if (total_size_parsed == aligned_blocks_count_) {

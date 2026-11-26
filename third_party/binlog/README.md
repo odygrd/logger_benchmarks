@@ -1,7 +1,5 @@
 # Binlog
 
-![Lifecycle Active](https://img.shields.io/badge/Lifecycle-Active-brightgreen)  
-
 A high performance C++ log library to produce structured binary logs.
 
     BINLOG_INFO("Log anything! {}, {} or even {}", 1.2f, std::vector{3,4,5}, AdaptedStruct{1, "Foo"});

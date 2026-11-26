@@ -61,6 +61,22 @@ snapshot.categories_mask=[ModuleA.SystemA.ClassA,ModuleB]
 
 ---
 
+## Escaping and line continuation
+
+A value is everything after the first `=` (or `:` if there is no `=`), trimmed.
+
+| Written         | Result                                |
+|-----------------|---------------------------------------|
+| `\` at line end | The value continues on the next line |
+| `\n`            | A line break                         |
+| `\=`, `\:`      | A literal `=` / `:`                  |
+
+A trailing `\` therefore joins the next line onto the value. To end a value with a real backslash (a Windows directory such as `D:\logs\`), put that line last in the config, or use `/`.
+
+An empty value (`key=`) is ignored.
+
+---
+
 ## Detailed explanation
 
 ### `appenders_config`
@@ -70,7 +86,7 @@ snapshot.categories_mask=[ModuleA.SystemA.ClassA,ModuleB]
 
 | Name                         | Mandatory | Configurable Values                                | Default Value             | ConsoleAppender | TextFileAppender | CompressedFileAppender |
 |------------------------------|---------|-----------------------------------------|--------------------|-----------------|------------------|------------------------|
-| `type`                       | Yes       | `console` / `text_file` / `compressed_file` / `raw_file` | -                  | Yes               | Yes                | Yes      |
+| `type`                       | Yes       | `console` / `text_file` / `compressed_file` | -                  | Yes               | Yes                | Yes      |
 | `enable`                     | No       | `true` / `false`                        | `true`             | Yes               | Yes                | Yes                      |
 | `levels`                     | No       | Log level array (`[verbose,...]` or `[all]`) | `[all]`            | Yes               | Yes                | Yes                      |
 | `time_zone`                  | No       | `gmt` / `localtime` / `Z` / `UTC` / `utc+8` / `utc-2` / `utc+11:30` etc. | `localtime` | Yes               | Yes                | Yes (Affects rolling date)      |
@@ -87,6 +103,8 @@ snapshot.categories_mask=[ModuleA.SystemA.ClassA,ModuleB]
 | `always_create_new_file`    | No       | `true` / `false`                        | `false`            | No               | Yes                | Yes                      |
 | `enable_rolling_log_file`    | No       | `true` / `false`                        | `true`            | No               | Yes                | Yes                      |
 | `pub_key`                   | No       | RSA2048 Public Key (OpenSSH `ssh-rsa` text)  | Empty (No encryption)        | No               | No                | Yes (Enable hybrid encryption)      |
+
+A mandatory field that is missing or empty is a config error, not a warning: `create_log` and `reset_config` report failure, and a log that already exists keeps its previous configuration and appenders. An appender whose `type` this version does not know (`raw_file` was removed) is skipped with a warning, so a config written for another version still creates the log.
 
 #### `appenders_config.xxx.type`
 
@@ -116,7 +134,7 @@ Specify timezone used for timestamp formatting, also affects "date boundary" for
 
 Effect:
 - ConsoleAppender / TextFileAppender: Determine display of time field in log text;
-- TextFileAppender / CompressedFileAppender / RawFileAppender: Determine cut-off point for file rolling by date (0 o'clock every day).
+- TextFileAppender / CompressedFileAppender: Determine cut-off point for file rolling by date (0 o'clock every day).
 
 #### `appenders_config.xxx.base_dir_type`
 
@@ -176,6 +194,7 @@ If it is relative path, it is based on directory corresponding to `base_dir_type
 | `log.print_stack_levels`                  | No       | Log level array                           | Empty (No call stack printing)                                             | Yes                              |
 | `log.buffer_policy_when_full`             | No       | `discard` / `block` / `expand`         | `block`                                                        | No                              |
 | `log.high_perform_mode_freq_threshold_per_second` | No | 64-bit Positive Integer                            | `1000`                                                         | No                              |
+| `log.worker_interval_ms`                  | No       | 64-bit Non-negative Integer (ms)       | `66`                                                           | No                              |
 
 #### `log.thread_mode`
 
@@ -194,6 +213,8 @@ Larger buffer can withstand larger burst write peaks, but memory usage will also
 
 - `true`: When asynchronous log encounters abnormal program exit, data in buffer that has not been flushed to disk will be rewritten to log file after next startup.
 - `false`: Log data in buffer will be lost when process exits abnormally and `force_flush()` is not called.
+
+Not supported on a few platforms such as Solaris, where it prints a warning and is ignored; see [`get_recovery_capability()`](./API_REFERENCE.md#recovery-capability).
 
 Detailed behavior see [Advanced Usage — Data protection on abnormal exit](./ADVANCED_USAGE.md#3-data-protection-on-abnormal-exit).
 
@@ -224,6 +245,22 @@ Behavior when buffer is full:
 - `block` (Recommended Default): Thread writing logs will block waiting for space in buffer;
 - `expand` (Not Recommended): Buffer will dynamically expand to twice original size until writable.
   May significantly increase memory usage, although BqLog reduces expansion frequency through good thread scheduling, it is still recommended to use with caution.
+
+#### `log.worker_interval_ms`
+
+The longest the consumer thread sleeps when it has nothing to do, in milliseconds. It is woken early when a buffer runs low on space. Default `66`.
+
+> ⚠️ **In `async` mode (the default) this is a global setting.** Every `async` log object shares one public worker thread, and this setting changes that thread, so it **affects every other `async` log object in the process as well**:
+> - once one `async` log sets it, the consumer of every `async` log runs at that interval;
+> - when several `async` logs set different values, the log **created last** wins;
+> - a log that does not set it does not put the public worker back to the default.
+>
+> To change the consumer interval of one log without touching the others, set that log to `log.thread_mode=independent`: it gets a worker thread of its own, and the setting applies to that worker only.
+
+- `independent` mode: applies only to the log's own worker thread, other logs are not affected.
+- `sync` mode: there is no worker thread, the setting has no effect.
+- `0` means the consumer never sleeps and keeps polling. That takes a whole CPU core; in `async` mode it means the public worker polls for every `async` log. Only use it when latency matters above all and a core is free.
+- Read only by `create_log`; it cannot be changed with `reset_config`.
 
 #### `log.high_perform_mode_freq_threshold_per_second`
 

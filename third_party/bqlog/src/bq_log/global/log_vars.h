@@ -21,6 +21,8 @@
 #include "bq_log/log/appender/appender_console.h"
 #include "bq_log/log/decoder/appender_decoder_manager.h"
 #include "bq_log/types/buffer/miso_ring_buffer.h"
+#include "bq_log/types/meta/meta_registry.h"
+#include "bq_log/types/storage/instance_storage.h"
 
 namespace bq {
 
@@ -30,7 +32,6 @@ namespace bq {
         const char* log_appender_type_names_[static_cast<int32_t>(appender_base::appender_type::type_count)] = {
             "console",
             "text_file",
-            "raw_file",
             "compressed_file"
         };
         const char log_level_str_[6][3] = {
@@ -41,7 +42,6 @@ namespace bq {
             { '[', 'E', ']' }, // ERROR
             { '[', 'F', ']' } // FATAL
         };
-        const char digit3_array[3000 + 16] = {};
         const char* log_recover_start_str_ = "/************************************* BQLOG RECOVER START *************************************/";
         const char* log_recover_end_str_ = "/************************************* BQLOG RECOVER END *************************************/";
 #if defined(BQ_JAVA)
@@ -56,6 +56,14 @@ namespace bq {
 #endif
         appender_console::console_static_misc console_static_misc_;
         appender_decoder_manager appender_decoder_manager_inst_;
+        // Members reverse-destruct: log_manager (and all its log_buffers' mmaps) goes first,
+        // then meta_registry (meta record files are closed before the instance lock goes), and the
+        // instance_storage below last, whose destructor releases the lock file handle. These
+        // globals are never destroyed in practice (the process exits first), so the lock is
+        // normally released by the OS; the ordering matters for unit tests that do tear down.
+        bq::unique_ptr<instance_storage> instance_storage_;
+        bq::platform::spin_lock instance_storage_lock_;
+        meta_registry meta_registry_inst_;
         log_manager log_manager_inst_;
 
     private:
@@ -67,7 +75,6 @@ namespace bq {
 #if defined(BQ_JAVA)
         static void jni_onload_callback();
 #endif
-        void init_layout_values() const;
 
     protected:
         virtual void partial_destruct() override;

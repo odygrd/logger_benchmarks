@@ -57,6 +57,16 @@ log_obj = log.create_log("my_log", config)
 ```
 </details>
 
+<details>
+<summary><b>Go</b></summary>
+
+```go
+import bq "github.com/Tencent/BqLog/go/v2"
+// the third argument is the category names, nil for a plain log
+logObj := bq.Create_log("my_log", config, nil)
+```
+</details>
+
 Key points:
 
 1. The return value will **never be null** in any language. If creation fails, check via `is_valid()`.
@@ -110,6 +120,14 @@ log_obj = log.get_log_by_name("my_log")
 ```
 </details>
 
+<details>
+<summary><b>Go</b></summary>
+
+```go
+logObj := bq.Get_log_by_name("my_log")
+```
+</details>
+
 > Note: Ensure the Log has been created via `create_log` first, otherwise `is_valid()` returns false.
 
 ---
@@ -130,6 +148,52 @@ log_obj.error("Error code: {}", err_code);
 ```
 
 Supported `STR` types: `char*`, `char16_t*`, `char32_t*`, `wchar_t*`, `std::string`, `std::u16string`, `std::wstring`, Unreal `FString` / `FName` / `FText`, etc.
+
+<a id="fast-mode"></a>
+
+#### C++ only fast mode
+
+Besides the normal mode (`log_obj.info(...)` and the other level functions), C++ has a fast mode: six macros that write exactly the same log entry while costing the calling thread much less.
+
+```cpp
+BQ_LOG_FAST_INFO(log_obj, "Hello {}, count={}", "world", 42);
+BQ_LOG_FAST_ERROR(log_obj, "Error code: {}", err_code);
+// BQ_LOG_FAST_VERBOSE, BQ_LOG_FAST_DEBUG, BQ_LOG_FAST_INFO, BQ_LOG_FAST_WARNING, BQ_LOG_FAST_ERROR, BQ_LOG_FAST_FATAL
+
+// A generated category log: the same macro, with the category before the format string, as in info(cat, ...)
+BQ_LOG_FAST_INFO(my_category_log, my_category_log.cat.Shop.Seller, "order {} paid", order_id);
+```
+
+The first call at each call site registers its format string once; after that, the thread only checks the level, stores the timestamp and the raw arguments into its own buffer, and returns. The format string is not copied or hashed again, and nothing goes through a library function call.
+
+Use it on hot paths. For everything else, the normal mode is the better default, because fast mode has a price:
+
+- **Fixed log object, category and format string per call site.** A call site binds the log object and format string of its first call (the category is a compile-time type, so it is fixed anyway). Passing a different log object or a different format string to the same call site later (for example through a helper function that forwards its arguments into one `BQ_LOG_FAST_*` line) is not supported: the entry still goes to the first log object with the first format string. Configuration changes (`reset_config`, levels, category masks) do apply.
+- **Slightly more memory.** Each registered format string is kept once in the log's metadata area for its lifetime, and every thread that uses fast mode keeps one 128-byte thread local slot.
+- **Weaker IDE hints.** These are macros, so code completion and parameter hints are not as helpful as with the member functions of the normal mode. Argument types are still checked at compile time.
+
+[Categories](./ADVANCED_USAGE.md#2-log-objects-with-category-support) are supported: when the second argument is `log.cat.xxx` the entry goes to that category, when it is the format string the default category is used. Which one is decided at compile time, so a call with a category is as fast as one without. Supported arguments are the same as in the normal mode. When a level is configured to print a stack trace (`log.print_stack_levels`) or the log runs in sync mode, a fast mode call quietly falls back to the normal mode, so the output stays correct; it is just not faster in that case.
+
+<a id="fast-info"></a>
+
+##### Macro-free fast log (C++20)
+
+From C++20 the fast path is also available as a member function template, with the format string as a template argument:
+
+```cpp
+log_obj.fast_info<"Hello {}, count={}">("world", 42);
+log_obj.fast_error<"Error code: {}">(err_code);
+// fast_verbose, fast_debug, fast_info, fast_warning, fast_error, fast_fatal
+
+// With a category: the category first, then the format string
+my_category_log.fast_info<my_category_log.cat.Shop.Seller, "order {} paid">(order_id);
+```
+
+It writes the same entries as `BQ_LOG_FAST_*` at the same cost. Unlike the macros, a call site is not bound to one log object, and IDE completion and compiler diagnostics work normally. This is also the fast log available through `import bq.log;`, since modules do not export macros.
+
+The format string may be `""`, `u8""`, `u""`, `U""` or `L""`. With MSVC, compile narrow non-ASCII literals with `/utf-8`.
+
+Each distinct format string becomes part of a symbol name, so unstripped binaries grow faster than with the macros; strip release builds as usual.
 </details>
 
 <details>
@@ -180,6 +244,23 @@ log_obj.error("Error code: {}", err_code)
 ```
 </details>
 
+<details>
+<summary><b>Go</b></summary>
+
+```go
+logObj.Info("Hello {}, count={}", "world", 42)
+logObj.Error("Error code: {}", errCode)
+// All levels: Verbose, Debug, Info, Warning, Error, Fatal
+
+// A log created with category names (Create_category_log) takes the category index first
+catLog := bq.Create_category_log("my_cat_log", config, []string{"", "Gameplay"})
+catLog.Info_c(1, "score={}", 42)
+// Verbose_c, Debug_c, Info_c, Warning_c, Error_c, Fatal_c
+```
+
+> Any number of arguments. Built-in numbers, `bool` and `string` (including named types such as enums) keep their native types, so formatting still happens asynchronously on the worker thread. Values implementing `fmt.Stringer` / `error` are logged through `String()` / `Error()`, any other value through `fmt.Sprint`, and `nil` as `null`. Arguments are only converted after the level and category check passes. Every level function returns `bool`: whether the entry was written.
+</details>
+
 ### Supported parameter types
 
 - Null pointer → `null`
@@ -189,6 +270,7 @@ log_obj.error("Error code: {}", err_code)
 - 32-bit and 64-bit floating point numbers
 - All string types in each language
 - C# / Java: any object (via `ToString()`)
+- Go: any value (via `String()` / `Error()`, otherwise `fmt.Sprint`)
 - C++: POD types (1/2/4/8 bytes), custom types (see [Advanced Usage — Custom parameter types](./ADVANCED_USAGE.md#4-custom-parameter-types))
 
 ![Log Level](img/log_level.png)
@@ -244,6 +326,15 @@ log_obj.force_flush()
 ```
 </details>
 
+<details>
+<summary><b>Go</b></summary>
+
+```go
+bq.Force_flush_all_logs()
+logObj.Force_flush()
+```
+</details>
+
 ---
 
 ## 5. Crash protection
@@ -290,7 +381,160 @@ log.enable_auto_crash_handle()
 ```
 </details>
 
+<details>
+<summary><b>Go</b></summary>
+
+```go
+bq.Enable_auto_crash_handle()
+```
+</details>
+
 See also: [Advanced Usage — Data protection on abnormal exit](./ADVANCED_USAGE.md#3-data-protection-on-abnormal-exit) and [`log.recovery` config](./CONFIGURATION.md).
+
+### Recovery capability
+
+Whether `log.recovery=true` is supported on the current platform:
+
+<details open>
+<summary><b>C++</b></summary>
+
+```cpp
+bq::recovery_capability capability = bq::log::get_recovery_capability();
+```
+</details>
+
+<details>
+<summary><b>Native C ABI</b></summary>
+
+```c
+bq_recovery_capability __api_get_recovery_capability(void);
+```
+</details>
+
+<details>
+<summary><b>Java / Kotlin</b></summary>
+
+```java
+bq.def.recovery_capability capability = bq.log.get_recovery_capability();
+```
+</details>
+
+<details>
+<summary><b>C#</b></summary>
+
+```csharp
+bq.def.recovery_capability capability = bq.log.get_recovery_capability();
+```
+</details>
+
+<details>
+<summary><b>TypeScript</b></summary>
+
+```typescript
+const capability = bq.log.get_recovery_capability();
+```
+</details>
+
+<details>
+<summary><b>Python</b></summary>
+
+```python
+capability = log.get_recovery_capability()
+```
+</details>
+
+<details>
+<summary><b>Go</b></summary>
+
+```go
+capability := bq.Get_recovery_capability()
+```
+</details>
+
+`ready` means recovery is available; any other value names what is missing.
+
+### Platform capabilities
+
+What the linked library was actually built with, as bits — the same values it prints once at startup,
+so a bug report describes the binary instead of the caller's headers.
+
+<details open>
+<summary><b>C++</b></summary>
+
+```cpp
+uint32_t capabilities = bq::log::get_platform_capabilities();
+if ((capabilities & bq::platform_capability::memory_map) == 0) {
+    // crash recovery is unavailable on this build
+}
+```
+</details>
+
+<details>
+<summary><b>Native C ABI</b></summary>
+
+```c
+uint32_t __api_get_platform_capabilities(void);
+```
+</details>
+
+<details>
+<summary><b>Java / Kotlin</b></summary>
+
+```java
+int capabilities = bq.log.get_platform_capabilities();
+boolean memory_map = (capabilities & bq.def.platform_capability.memory_map) != 0;
+```
+</details>
+
+<details>
+<summary><b>C#</b></summary>
+
+```csharp
+bq.def.platform_capability capabilities = bq.log.get_platform_capabilities();
+bool memory_map = capabilities.HasFlag(bq.def.platform_capability.memory_map);
+```
+</details>
+
+<details>
+<summary><b>TypeScript</b></summary>
+
+```typescript
+const capabilities = bq.log.get_platform_capabilities();
+const memory_map = (capabilities & bq.platform_capability.memory_map) !== 0;
+```
+</details>
+
+<details>
+<summary><b>Python</b></summary>
+
+```python
+capabilities = log.get_platform_capabilities()
+memory_map = bool(capabilities & bq.defs.platform_capability.memory_map)
+```
+</details>
+
+<details>
+<summary><b>Go</b></summary>
+
+```go
+capabilities := bq.Get_platform_capabilities()
+memory_map := capabilities&def.Platform_capability_memory_map != 0   // def = the bq/def package
+```
+</details>
+
+| Bit | Present means |
+|---|---|
+| `memory_map` | buffers are file-backed; crash recovery needs it |
+| `multi_process` | several processes may share one log directory |
+| `cross_process_file_lock` | a second process can be kept out of an instance |
+| `crash_handler` | `enable_auto_crash_handle()` installs a handler |
+| `backtrace` | the stack field of an entry carries a backtrace |
+| `dirent` | `expire_time_*` and `capacity_limit` work |
+| `thread_name` | threads report a name instead of `thread_<id>` |
+| `default_base_dir` | a writable working directory was found; without it `reset_base_dir` is mandatory |
+| `user_counter` | timestamps come from a platform counter instead of the system clock |
+
+A console clears most of these on purpose; see [Integration Guide — console platforms](./INTEGRATION_GUIDE.md#console-platforms).
 
 ---
 
@@ -343,13 +587,24 @@ log.unregister_console_callback(callback)
 ```
 </details>
 
+<details>
+<summary><b>Go</b></summary>
+
+```go
+// callback: func(log_id uint64, category_idx int32, level def.Log_level, content string)
+// (def is "github.com/Tencent/BqLog/go/v2/def")
+bq.Register_console_callback(callback)
+bq.Unregister_console_callback(callback)
+```
+</details>
+
 **Note:**
 1. Do **not** call any synchronous BqLog flush functions inside the callback — this will deadlock.
 2. Unity / Tuanjie / Unreal plugins already redirect ConsoleAppender to the editor log window automatically.
 
 ### Actively fetch (for VM environments)
 
-When direct native-thread callbacks are not suitable (C#, Java, IL2CPP, Node.js), use buffered fetch mode:
+When direct native-thread callbacks are not suitable (C#, Java, IL2CPP, Node.js, Go), use buffered fetch mode:
 
 ```cpp
 // Enable buffering (disables register_console_callback and default console output)
@@ -360,6 +615,19 @@ bq::log::fetch_and_remove_console_buffer(on_console_callback);
 ```
 
 > **IL2CPP:** Ensure callback is `static unsafe` with `[MonoPInvokeCallback(typeof(type_console_callback))]`.
+
+Go:
+
+```go
+bq.Set_console_buffer_enable(true)
+
+// fetches one entry per call, returns false when the buffer is empty;
+// keep fetching from one goroutine pinned with runtime.LockOSThread
+for bq.Fetch_and_remove_console_buffer(func(log_id uint64, category_idx int32, level def.Log_level, content string) {
+    // ...
+}) {
+}
+```
 
 ---
 
@@ -402,6 +670,14 @@ const success = logObj.reset_config(newConfig);
 
 ```python
 success = log_obj.reset_config(new_config)
+```
+</details>
+
+<details>
+<summary><b>Go</b></summary>
+
+```go
+success := logObj.Reset_config(newConfig)
 ```
 </details>
 
@@ -456,6 +732,15 @@ log_obj.set_appender_enable("appender_name", True)
 ```
 </details>
 
+<details>
+<summary><b>Go</b></summary>
+
+```go
+logObj.Set_appender_enable("appender_name", false)  // disable
+logObj.Set_appender_enable("appender_name", true)   // re-enable
+```
+</details>
+
 ---
 
 ## 9. Snapshot
@@ -503,14 +788,26 @@ snapshot = log_obj.take_snapshot("UTC+8")
 ```
 </details>
 
+<details>
+<summary><b>Go</b></summary>
+
+```go
+snapshot := logObj.Take_snapshot("UTC+8")
+```
+</details>
+
 ---
 
 ## 10. Decode binary log files
 
-For decoding CompressedFileAppender logs at runtime:
+For decoding CompressedFileAppender logs at runtime. This reads the format version the library
+writes and nothing else; every language wrapper below exposes the same decoder and inherits that
+limit:
+
+The private key argument is the **PEM text itself**, not a path: read the key file and pass its
+contents. The command-line tool below is the only place that takes a file path, through `-k`.
 
 ```cpp
-// C++ only — other languages use the offline command-line tool
 bq::tools::log_decoder decoder("path/to/file.logcompr", "optional_private_key");
 while (decoder.decode() == bq::appender_decode_result::success) {
     auto& text = decoder.get_last_decoded_log_entry();
@@ -520,16 +817,69 @@ while (decoder.decode() == bq::appender_decode_result::success) {
 bq::tools::log_decoder::decode_file("input.logcompr", "output.txt", "optional_key");
 ```
 
+Go:
+
+```go
+decoder := bq.Decoder_create("path/to/file.logcompr", "optional_private_key")
+if decoder.Is_valid() {
+    defer decoder.Destroy()
+    for text, ok := decoder.Decode(); ok; text, ok = decoder.Decode() {
+        // process text...
+    }
+}
+// Or decode entire file at once:
+bq.Decode_file("input.logcompr", "output.txt", "optional_key")
+```
+
 ### Offline command-line decoder
 
-Download `{os}_{arch}_tools_{version}` from Releases:
+Download `{os}_{arch}_tools_{version}` from Releases, or install it with a package manager: `brew install bqlog` puts it on the `PATH`; vcpkg needs `vcpkg install "bqlog[tools]"` and installs it under `installed/<triplet>/tools/bqlog/`.
 
 ```bash
 ./BqLog_LogDecoder FileToDecode [-o OutputFile] [-k PrivateKeyFile]
 ```
 
-> **Note:** Binary format may be incompatible between BqLog versions. Use the matching decoder version.
+> **Note:** This tool decodes the compressed files of every 2.x release, so a file written by an
+> older release does not need the older tool. The in-library decoder above reads only files the current release writes.
 > See also: [Advanced Usage — Log encryption and decryption](./ADVANCED_USAGE.md#6-log-encryption-and-decryption)
+
+---
+
+## 11. Secure random source for encrypted logs
+
+Encrypted appenders take their segment keys from the operating system CSPRNG. Console platforms
+(PS4, PS5, Switch) have none that BqLog can call, and their SDK's is under NDA, so the application
+supplies one before creating a log. **Without a source an encrypted appender still works**, but the
+segment keys then come from a software mix of clocks, thread ids and addresses, and one warning says
+so when the appender is created. Inject a source there: key material that does not come from a
+CSPRNG can be searched offline by anyone who reads the log file. Plaintext loggers are unaffected.
+
+Hosts with an OS CSPRNG (Windows, macOS, iOS, Linux, Android, HarmonyOS) use the system one and ignore an injected source.
+
+The same source supplies the per-segment KEM seed (256 bytes per segment), so an
+injected callback must be a real CSPRNG and not a seeded PRNG — see
+[Advanced Usage — Log encryption and decryption](./ADVANCED_USAGE.md#6-log-encryption-and-decryption).
+
+<details open>
+<summary><b>C++</b></summary>
+
+```cpp
+// Fills buf with size bytes of cryptographically secure random data; return false when it cannot.
+static bool my_random(void* buf, size_t size);
+
+// Call once at startup, before creating any encrypted log.
+bq::log::set_secure_random_source(&my_random);
+
+// Optional: true when the platform or an injected callback can supply key material.
+bool ok = bq::log::has_secure_random_source();
+
+// Passing nullptr removes the injected source again.
+bq::log::set_secure_random_source(nullptr);
+```
+</details>
+
+> This API is C++ only: consoles have no language wrapper. See also:
+> [Advanced Usage — Log encryption and decryption](./ADVANCED_USAGE.md#6-log-encryption-and-decryption)
 
 ---
 

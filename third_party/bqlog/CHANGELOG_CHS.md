@@ -1,0 +1,185 @@
+# 更新日志
+
+[English](CHANGELOG.md)
+
+## [v2.8.3] - 2026-11-23
+- **问题修复**：加密日志：2.8.0 与 2.8.1 中哈希存在两处错误导致跨平台 RSA 公钥指纹不一致——软件 CRC32C 查表有两项错误（影响 Android、HarmonyOS、iOS/tvOS 真机、ARM Linux/Windows 及无 SSE4.2 的 x86）以及 ARM 硬件路径误用了 IEEE 802.3 CRC32 多项式（影响 Apple Silicon Mac、Apple 模拟器、watchOS `arm64_32`、visionOS），跨平台解码会报 `private key does not match the public key this file was encrypted with`。现在所有平台统一算出标准 CRC32C 指纹，同时解码与崩溃恢复兼容 2.8.0/2.8.1 的两种旧指纹，已有加密日志在任何平台上都能正常解开（[#96](https://github.com/Tencent/BqLog/issues/96)、[#101](https://github.com/Tencent/BqLog/issues/101)）。
+- **问题修复**：`capacity_limit` 与 `expire_time_*` 会把同目录下另一个 appender 的文件也算进额度并删掉，只要那个 appender 的 `file_name` 是本 appender 的 `file_name` 加 `_` 开头（`logs/app` 会删 `logs/app_error` 的文件）。现在每个 appender 只清理自己写出的文件。感谢 [@0z5a](https://github.com/0z5a) 的报告与修复（[#97](https://github.com/Tencent/BqLog/issues/97)、[#98](https://github.com/Tencent/BqLog/pull/98)）。
+- **问题修复**：C++20 模块：Windows 上用 Clang 以 Debug 构建、`import bq.log` 的程序，链接库时报重复符号（`bq::fast_format_meta::arg_types` 等）。`import bq.log;` 导出的内容不变，旧版 `BqLog_CategoryLogGenerator` 生成的分类日志模块无需改动、照常可用。
+
+## [v2.8.1] - 2026-11-16
+- **Node.js 包**：`moduleResolution` 为 `node16`、`node18`、`node20`、`nodenext` 时类型可以正常使用。之前在这些模式下会报错，打开 `skipLibCheck` 后类型还会悄悄变成 `any`；`main` 也指向了不存在的文件（[#95](https://github.com/Tencent/BqLog/issues/95)）。
+- **CI**：按使用者的方式检查打包产物——入口、模块解析、加载原生库、在 TypeScript 4.0～7.0 和 tsgo 下做类型检查，以及 `arethetypeswrong`。
+
+## [v2.8.0] - 2026-11-05
+- **加密日志格式 v11**：加密层重做，可以防已知明文攻击和 AI 分析；解码端的私钥运算也做了加固，不按私钥取值分支或寻址，每个结果都用公钥回验。
+- **BqLog_LogDecoder**：可以解码 2.x 以来所有版本的压缩日志，解码加密文件的速度也明显提升（小的加密文件快约 6 倍）。
+- **Unreal Engine 6 — Verse**：实验性引入 Verse 支持，由 `ue6` 包中的可选插件 `BqLogVerse` 提供。详见[引擎集成 — Verse](docs/ENGINE_INTEGRATION_CHS.md#4在-verse-中使用-bqlogue6)。
+- **代码尺寸**：`log.fast_info<"...">()` 的慢路径改为按参数类型共享，生成的代码明显变小（GCC/Clang 实测减少 50%~65%，MSVC 约 25%），调用点指令与运行时开销不变。
+- **行为变更**：主机平台（PS4、PS5、Switch）上，未通过 `bq::log::set_secure_random_source()` 注入随机源时，加密 appender 仍然工作，但段密钥来自时钟、线程 id 与地址的软件混合，创建时打一条 warning 说明这一点。建议在这些平台注入随机源：不是来自 CSPRNG 的密钥材料，任何拿到日志文件的人都能离线搜索。明文 log 不受影响。
+- **行为变更**：创建加密 appender 前会校验公钥：模数必须恰好 2048 bit，指数必须是奇数且不小于 65537；以前配 1024 bit 或 4096 bit 的公钥能写出文件但解不开。
+- **行为变更**：Android 上，BqLog 写的文件改为同组可写（`0660`，原来是 `0640`）；旧版本留下的窄权限文件，再次以写方式打开时也会补上。部分 ROM（vivo、Android 16 上发现）的系统文件管理器不显示应用专属外部存储里同组不可写的文件；应用沙盒仍然挡住其他应用。其他平台不变（[#93](https://github.com/Tencent/BqLog/issues/93)）。
+- **问题修复**：
+  - Java、Node.js、Python：回到 wrapper 的日志文本（snapshot、`log_decoder`、console buffer，以及 Java 和 Python 的 console 回调）在第一个 `\0` 处被截断。在桌面 JVM（HotSpot）上，Java 还会把 emoji 等 BMP 以外的字符变成 4 个错误字符，而且每出现一个，文本末尾就丢掉 3 个字符。
+  - console 回调：BqLog 自己输出的提示信息可能带着之前某条日志的长度，读到文本末尾之外。
+  - Unreal Engine：`FName` 参数丢了数字后缀（`Actor_12` 输出成 `Actor`）；UE 4.x–5.1 上 ANSI `FName` 读的是已经释放的缓冲区。
+  - iOS：Unity 工程没有把 `BqLog.framework` 放进 Embedded Binaries，用动态库版本的应用启动即崩溃；dSYM 的打包位置也一并修正。
+
+## [v2.7.3] - 2026-10-29
+- **问题修复**：去掉对 `fork()` 的错误处理。BqLog 是多线程的，只支持 `fork()` 之后立即 `exec()` 出新进程的用法；子进程不能继续使用从父进程继承的日志对象。
+
+## [v2.7.2] - 2026-10-23
+- **主机平台**：支持 PlayStation 4、PlayStation 5 与 Nintendo Switch（实验性）。
+- **Unreal Engine**：插件可通过源码包在主机平台编译；预编译包不再声明没有二进制的平台。
+
+## [v2.7.1] - 2026-10-21
+- **问题修复**：（快速模式吞吐）性能对比2.6.0下降的问题
+- **代码规范性**: 一些include顺序修复
+
+## [v2.7.0] - 2026-10-11
+- **C++20 模块**：`import bq.log;` 可替代 `#include "bq_log/bq_log.h"`，写日志的代码无需改动。`BqLog_CategoryLogGenerator` 也会为每个类别日志类生成 `.cppm`（`import bq.business_log;`）。见[集成指南](docs/INTEGRATION_GUIDE_CHS.md#c20-模块import)。
+- **无宏的快速模式（C++20）**：模块不导出宏，`import bq.log;` 时快速模式写作 `log.fast_info<"...">(args...)`（以及 `fast_verbose` … `fast_fatal`），Category 可作为第一个模板参数。开销与 `BQ_LOG_FAST_*` 相同，IDE 支持完整，调用点不绑定日志对象。见 [API 参考：快速模式](docs/API_REFERENCE_CHS.md#fast-info)。
+- **包管理器**：Homebrew（`brew install bqlog`，含库和工具）、vcpkg（`tools` feature 提供工具）、NuGet（C# 绑定加六个平台的原生库）。CMake 安装提供 `find_package(BqLog)` 与 pkg-config。
+- **多进程**：多个进程可以写同一个目录，各自拥有独立的恢复数据；`log.recovery=false` 的日志不再访问磁盘。
+- **恢复**：恢复窗口从最近 2 次运行扩大到 16 次；新增 `bq::log::get_recovery_capability()`（所有 wrapper 都有），查询平台是否支持恢复。
+- **兼容性**：ABI 有变化，头文件、wrapper 与库需要一起升级。旧版 `BqLog_CategoryLogGenerator` 生成的类别日志不再能编译（它用的空基类宏现在是 `BQ_EBCO`），需要重新生成。Windows 上 `cmake --install` 现在把 `BqLog.dll` 装到 `bin/`；发布包的目录结构不变。
+- **问题修复**：
+  - 快速模式：多线程同时首次调用时调用点可能初始化两次；格式注册表没有上限。
+  - 恢复：批处理中途崩溃会重放整批；续写段里的快速日志 meta 重启后可能丢失；文本文件恢复后没有写 `RECOVER END` 标记（[#90](https://github.com/Tencent/BqLog/pull/90)）。
+  - 格式化：浮点数的符号、舍入与范围（[#82](https://github.com/Tencent/BqLog/pull/82)）；超过 10 个字符的格式说明（[#83](https://github.com/Tencent/BqLog/pull/83)）；整数的符号、`0x`/`0b`/八进制前缀、补零与居中填充（[#89](https://github.com/Tencent/BqLog/pull/89)、[#91](https://github.com/Tencent/BqLog/pull/91)）。
+  - 时区：`UTC-0:30` 丢失负号，越界的偏移被接受（[#84](https://github.com/Tencent/BqLog/pull/84)）。
+  - 配置：续行在最后一行会卡死，遇到空行会中止（[#86](https://github.com/Tencent/BqLog/pull/86)）。
+  - 解码器：格式错误的文件、短写和断开的段链现在直接报错，而不是输出部分内容（[#81](https://github.com/Tencent/BqLog/pull/81)、[#85](https://github.com/Tencent/BqLog/issues/85)）。
+  - 宽字符串：读取 UTF-16/UTF-32 参数时可能越过内存页末尾。
+  - 预编译桌面库缺少 Go bridge。
+- **感谢 [@mvanslobbe](https://github.com/mvanslobbe)** 贡献的 [#81](https://github.com/Tencent/BqLog/pull/81)、[#82](https://github.com/Tencent/BqLog/pull/82)、[#83](https://github.com/Tencent/BqLog/pull/83)、[#84](https://github.com/Tencent/BqLog/pull/84)、[#86](https://github.com/Tencent/BqLog/pull/86)、[#89](https://github.com/Tencent/BqLog/pull/89)、[#90](https://github.com/Tencent/BqLog/pull/90)、[#91](https://github.com/Tencent/BqLog/pull/91)。
+
+## [v2.6.0] - 2026-10-05
+- **C++ 专属的快速模式**：新增 `BQ_LOG_FAST_VERBOSE` … `BQ_LOG_FAST_FATAL`。写出的日志和 `log.info` 等普通模式完全一样，但调用线程上的工作直接内联在调用点：判断级别、写时间戳和原始参数。同一个宏也支持 Category：`BQ_LOG_FAST_INFO(log, log.cat.xxx, "...", ...)`，带不带 Category 由编译期决定，开销相同。代价：内存稍多一点；它是宏，IDE 代码提示体验差一点；每个调用点的日志对象和格式串固定。详见 [API 参考：快速模式](docs/API_REFERENCE_CHS.md#fast-mode)。
+- **性能提升：普通模式的日志线程**：`log.info` 等级别函数在调用线程上执行的指令减少约 16%；被关闭的级别现在只需一次内存读取和一次位测试。
+- **性能提升：整条流水线**：在同一个 benchmark 上和 2.5.0 对比（macOS，Apple M4 Pro），文本输出快 14%～30%，压缩输出最多快约 40%；压缩输出在 4 线程、4 个参数时持平。
+- **性能提升：时钟**：在可靠的平台上，时间戳直接取自 CPU 硬件计数器（并持续与系统时钟校对），不可靠时自动退回系统时钟。
+- **新增配置 `log.worker_interval_ms`**：消费线程空闲时最长休眠多久，单位毫秒（默认 `66`）。`async` 模式下作用于所有 `async` 日志共用的工作线程。详见 [配置说明：log.worker_interval_ms](docs/CONFIGURATION_CHS.md#logworker_interval_ms)。
+
+## [v2.5.0] - 2026-09-23
+- **性能提升**：优化日志写入，减少无效的工作线程唤醒和 Java 参数分配。
+- **Go 语言支持**：新增 Go wrapper，支持自动参数转换、category 和源码模块分发。
+
+## [v2.4.1] - 2026-07-26
+- **兼容性**：[Python wheel 要求 glibc 2.38+（#72）](https://github.com/Tencent/BqLog/issues/72)——发布产物统一改为在 Ubuntu 22.04（glibc 2.35）、Windows Server 2022 及最低支持的 BSD 版本上构建，包括 FreeBSD 13.2/13.5、OpenBSD 7.7、NetBSD 10.1、DragonFlyBSD 6.4.2、OmniOS r151054，兼容较旧的 Linux 和 BSD 系统。
+- **构建/CI**：BSD 构建依赖改为自托管的不可变快照，避免上游软件源删除已停止支持系统的软件包，使发布流程可复现。
+
+## [v2.4.0] - 2026-07-21
+- **性能提升——百尺竿头，更进一步**：常规场景性能提升约 **10%～20%**，实际收益随线程数、日志格式、参数类型和输出模式而变化。
+- **Bug 修复**：[轻微内存泄漏（#70）](https://github.com/Tencent/BqLog/issues/70)——为压缩文件 Appender 的内部缓存设置严格上限，解决部分场景下内存持续增长的问题。
+- **Bug 修复**：修复 `log.buffer_policy_when_full` 解析错误，正确应用 `discard`、`block` 或 `expand`，不再错误回退到默认 `block`。
+- **配置**：文件 Appender 新增 `write_cache_size`，可单独设置 64 KiB～4 MiB 的写缓存。
+- **配置**：压缩文件 Appender 新增 `format_template_cache_max_entries` 和 `thread_info_cache_max_entries`，默认值分别为 `100000` 和 `2048`。超出缓存上限后内存仍受控，但可能重复写入模板，使压缩日志文件变大。
+- **健壮性**：简化压缩 Appender 查找缓存，移除冗余的热点子表，并使用 murmur3 风格的哈希混合，避免特定结构的键集中落入同一探测链。
+
+## [v2.3.2] - 2026-07-12
+- **Bug 修复**：[解码结果丢失嵌入的空字节（#69）](https://github.com/Tencent/BqLog/issues/69)——日志解码器现在完整保留空字节。
+- **Bug 修复**：修复同一日志文件反复切换不同加密模式时，多段混合加密内容的解码和恢复问题。
+- **健壮性**：加强损坏日志文件的解析校验，避免异常尺寸导致的内存分配；完善文件截断与 mmap 分配校验，在建立映射前报告磁盘错误。
+- **文档**：补全 Java wrapper 的 Javadoc。
+
+## [v2.3.1] - 2026-06-16
+- **Bug 修复**：[磁盘写满时崩溃（SIGBUS）或卡死（#67）](https://github.com/Tencent/BqLog/issues/67)。
+- **Bug 修复**：[C# / Unity Editor 调用 fetch_and_remove_console_buffer 偶发崩溃（#66）](https://github.com/Tencent/BqLog/issues/66)——修复 native 调用期间 delegate 被 GC 回收的问题。
+- **Unreal Engine**：新增 UE 5.8 支持，Fab、Prebuilt 和 Source 分发覆盖 UE 5.0～5.8。
+- **Unreal Engine 6**：为当前 UE6 开发版本新增 Source 和 Prebuilt 插件包，仅通过 GitHub Releases 分发；Fab 支持等待 Epic 正式开放 UE6。
+
+## [v2.3.0] - 2026-06-03
+- **OpenHarmony 兼容性**：TypeScript wrapper 将 ES2020 的 `0n` 字面量替换为 `BigInt(0)`，同一份 ohpm `bqlog` 包同时支持 OpenHarmony 4.1+（API 11+）与 HarmonyOS NEXT。
+- **恢复能力**：加强恢复过程中的数据校验，更早识别损坏数据，避免消费损坏的 ring buffer 时发生崩溃。
+
+## [v2.2.9] - 2026-05-06
+- **兼容性**：改善较旧 Clang 工具链及 MFC 等框架的兼容性。
+- **兼容性**：改善所有受支持 Unreal Engine 版本的代码兼容性。
+
+## [v2.2.8] - 2026-04-10
+- **代码质量**：统一重构 SFINAE，将 `enable_if` 从返回值移到模板参数，提高可读性和兼容性。
+- **Bug 修复**：[C++ 开启调用栈时崩溃（#62）](https://github.com/Tencent/BqLog/issues/62)。
+
+## [v2.2.7] - 2026-04-01
+- **Python 支持**：通过 CPython C Extension wrapper（Stable ABI）支持 Python 3.7+。
+- **npm 发布**：Node.js wrapper 发布为 [`@pippocao/bqlog`](https://www.npmjs.com/package/@pippocao/bqlog)，可通过 `npm install @pippocao/bqlog` 安装。
+- **PyPI 发布**：Python wrapper 发布为 [`bqlog`](https://pypi.org/project/bqlog/)，可通过 `pip install bqlog` 安装。
+- **Python category 生成器**：`BqLog_CategoryLogGenerator` 新增 Python category wrapper（`.py`）输出。
+- **TypeScript 双目标生成**：分别生成 Node.js 的 `_nodejs.ts`（导入 `@pippocao/bqlog`）和 HarmonyOS 的 `_ohos.ts`（导入 `bqlog`）。
+- **Category 测试覆盖**：Python、Java、C# 和 TypeScript 新增 category 测试，覆盖输出、层级、格式参数和 mask 过滤。
+- **包分发**：支持 npm（@pippocao/bqlog）、PyPI（bqlog）、Maven Central（com.tencent.bqlog）和 OHPM（bqlog），可分别通过 npm、pip、Gradle/Maven 和 ohpm 安装。
+
+## [v2.1.2] - 2026-03-17
+- **Bug 修复**：[GBox 沙箱中 Android 初始化后的 base_dir 不正确（#61）](https://github.com/Tencent/BqLog/issues/61)。
+
+## [v2.1.1] - 2026-02-25
+- **Bug 修复**：修复 MSVC 下 unsigned long 的处理错误。[无符号数输出为负数（#60）](https://github.com/Tencent/BqLog/issues/60)。
+
+## [v2.1.0] - 2026-02-08
+
+**BqLog 2.x 从底层重新构建，提供更好的性能、更广的平台支持和更完善的功能。**
+
+### 从 1.x 到 2.x 的主要变化
+- **鸿蒙支持**：新增原生 HarmonyOS 支持，包含 ArkTS 和 C++。
+- **Node.js 支持**：支持 CJS 和 ESM。
+- **跨平台改进**：改善兼容性、稳定性和通用性，支持更多 Unix 系统。
+- **性能提升**：UTF-8 场景平均提升约 80%，UTF-16 场景（C#、Unreal、Unity）提升超过 500%。
+- **Android 独立 C++**：Android 不再必须与 Java 配合使用。
+- **配置变化**：移除 `is_in_sandbox`，改用 `base_dir_type`；新增 snapshot 过滤和每次启动创建新日志文件的支持。
+- **混合非对称加密**：支持高性能混合加密，几乎没有额外开销。
+- **游戏引擎插件**：提供 Unity、团结引擎和 Unreal Engine 插件，支持控制台输出重定向到引擎编辑器，以及 Unreal 蓝图。
+- **二进制分发**：仓库不再包含二进制产物，从 2.x 起通过 [Releases 页面](https://github.com/Tencent/BqLog/releases) 获取对应平台和语言的包。
+- **单条日志大小**：不再受 `log.buffer_size` 限制。
+- **手动时区**：可手动指定时区。
+- **废弃 raw_file**：`raw_file` Appender 在 2.x 中废弃并停止维护，请使用 `compressed_file`。
+- **恢复能力转正**：提高恢复功能可靠性，从实验性功能转为正式功能。
+
+---
+
+## [v1.5.0] - 2025-09-22
+- 开源许可证的公司主体从 THL A29 Limited 改为 Tencent。
+- Android 二进制产物支持 16 KB 内存页。
+- 修复写入大尺寸日志时可能出现的死循环。
+- **Bug 修复**：[Android 按文档初始化后 is_valid 为 false，但仍可正常写日志（#43）](https://github.com/Tencent/BqLog/issues/43)。
+- **Bug 修复**：[程序退出时崩溃（#46）](https://github.com/Tencent/BqLog/issues/46)——临时修复，计划在全新 2.x 版本中彻底解决。
+- **Pull Request**：[在 jar 中保留局部变量等信息，方便直接阅读源码（#52）](https://github.com/Tencent/BqLog/pull/52)。
+  **v1.5.0 是 1.x 系列的最后一个稳定版本。**
+
+## [v1.4.9] - 2025-05-29
+- **Bug 修复**：[libsystem_kernel.dylib 的 __pthread_kill 崩溃（#43）](https://github.com/Tencent/BqLog/issues/43)——修复数组越界导致的崩溃。
+
+## [v1.4.7] - 2024-11-15
+- **Bug 修复**：[Android 开启 mmap 可能冻结或崩溃（#34）](https://github.com/Tencent/BqLog/issues/34)——重新开放 mmap 恢复功能。
+
+## [v1.4.6] - 2024-11-15
+- **Bug 修复**：[Linux 下 mmap 不工作（#25）](https://github.com/Tencent/BqLog/issues/25)。
+- **Bug 修复**：[静态初始化顺序问题（#26）](https://github.com/Tencent/BqLog/issues/26)。
+- **Bug 修复**：[Android 上 mmap 导致卡死（#32）](https://github.com/Tencent/BqLog/issues/32)。
+- **Bug 修复**：[Android 开启 mmap 可能冻结或崩溃（#34）](https://github.com/Tencent/BqLog/issues/34)。
+在稳定性问题解决前，暂时关闭 mmap 恢复功能。
+
+## [v1.4.5] - 2024-10-10
+- **改进**：snapshot 参数从 API 移至配置文件，支持缓存大小、category mask 和日志等级。详见 [Snapshot 配置](./README_CHS.md#snapshot)。
+- **改进**：Linux 和 Unix 二进制根据硬件架构自动放入 32 位或 64 位目录。
+- **Bug 修复**：修复高并发调用 `reset_config` 时的线程安全问题，并增加对应自动化测试。
+
+## [v1.4.4] - 2024-09-06
+- **改进**：docs 目录新增两篇技术文章。
+- **Bug 修复**：修复 C++20 格式化相关问题，感谢 [问题报告 #13](https://github.com/Tencent/BqLog/issues/13) 的提交者 [sdaereew](https://github.com/sdaereew)，以及 [fkxingkong](https://github.com/fkxingkong) 的 [PR #17](https://github.com/Tencent/BqLog/pull/17)。
+
+## [v1.4.3] - 2024-09-06
+- **改进**：新增 Unix 类系统支持，已通过 FreeBSD 测试。感谢 [bedwardly-down](https://github.com/bedwardly-down) 的 [提交](https://github.com/Tencent/BqLog/commit/77cfbc68fc38cceeb25ef75b6ccce3798e9c12e1)。
+- **Bug 修复**：修复 C++20 格式说明符使用后布局数据残留，导致后续日志格式不正确的问题。感谢 [fkxingkong](https://github.com/fkxingkong) 的 [PR #11](https://github.com/Tencent/BqLog/pull/11)。
+- **Bug 修复**：修复 include 文件中 assert 的副作用。
+
+## [v1.4.2] - 2024-09-04
+- **改进**：新增 `uninit()` API，用于程序退出前释放资源，解决部分情况下无法正常退出的问题。
+
+## [v1.4.1] - 2024-08-30
+- **改进**：除通过控制台回调被动获取日志外，新增 console buffer 缓存和主动提取接口。
+- **Bug 修复**：修复 C++20 编译问题。
+- **Bug 修复**：修复部分情况下 JNI_Onload 未被调用的问题。
+
+## [v1.4.0] - 2024-08-03
+- **首次发布**。

@@ -24,9 +24,6 @@ namespace mserialize { namespace detail {
 }}
 //]
 
-// The boost container constructors throw, and clang tidy does not like this
-// NOLINTBEGIN(bugprone-exception-escape)
-
 int main()
 {
   // Boost containers - no specific adoption is required
@@ -77,5 +74,3 @@ int main()
   binlog::consume(std::cout);
   return 0;
 }
-
-// NOLINTEND(bugprone-exception-escape)

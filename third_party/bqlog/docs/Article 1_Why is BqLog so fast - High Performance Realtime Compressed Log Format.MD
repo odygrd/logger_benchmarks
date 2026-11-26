@@ -1,224 +1,372 @@
-## 1. Why Use a Compressed Format
+# Why is BqLog so fast? Part 1: Deriving a compressed log format from a line of text
 
-Many logging systems, such as [Log4j2](https://github.com/apache/logging-log4j2), offer compressed logs, but their approach is to compress the logs after writing them using traditional compression algorithms. This method is very unfriendly to performance. BqLog introduces a compressed logging algorithm that compresses the logs in real-time, without any post-processing. Not only does this provide much better performance than text format logs, but the storage space required is also very similar to traditional compression algorithms. This format has already been patented.
+[简体中文](<文章1_为何BqLog如此快 - 高性能实时压缩日志格式.MD>) · [Series](PERFORMANCE_DESIGN.md) · [Next: the data bus](<Article 2_Why is BqLog so fast - From Ring Buffer to Adaptive Data Bus.MD>)
 
-### 2. What’s Wrong with the Text Log Format?
+Production logs need enough detail to diagnose failures without slowing the application or filling its storage. Mobile devices make these constraints particularly visible.
 
-Most existing logging systems save logs as text files. Each log entry typically consists of the following:
+One common approach writes text first and compresses the closed file later. That saves archive space, but the writer still pays for formatting, copying and the initial file write. BqLog uses the structure of a log call to reduce that work before writing the file.
 
-```c
-    Time | LogLevel | ExtraData | LogContent
+We will start with an ordinary log line, identify its repeated content, and use that to build the file format. The same reasoning leads to the layout for appending, recovery and encryption.
+
+This article describes BqLog 2.5.0.
+
+## 1. The cost of producing a text log
+
+Consider an order system:
+
+```cpp
+log.info("New order, order ID:{}, price:{}, username:{}",
+         32422144, 324.42, "张三");
 ```
 
-In real-world applications, a large number of logs contain parameterized information. For example, an order log may include the order ID, order price, and the customer's name, like this:
+The resulting text might be:
 
-```c
-2024-05-29 13:23:56.932 [Info] [Shop.Order] [Tid-2025 Thread Worker25] New order, order ID:32422144, price:324.42, username: John
-
-2024-05-29 13:23:56.972 [Info] [Shop.Order] [Tid-2027 Thread Worker27] New order, order ID:32422145, price:174.45, username: Mike
+```text
+2026-09-25 12:00:00.001 [Info] [Shop.Order] [Tid-2025 Worker25]
+New order, order ID:32422144, price:324.42, username:张三
 ```
 
-In the above two log entries from an order system, `Info` is the log level (LogLevel), usually ranging from `Verbose`, `Debug`, `Info`, `Warning`, `Error`, to `Fatal`, representing the importance of the log. `Shop.Order` is extra information (ExtraData), indicating the type of log. `Tid-2027 Thread Worker27` represents thread information, while the log content provides the order information, including the order ID, price, and customer name.
+In the sample line, the bracketed fields [Info], [Shop.Order] and [Tid-2025 Worker25] are the level, the category and the thread identifier in that order, and the body is assembled from a format string and arguments. Producing this line requires converting the timestamp, integer and floating-point value to text, joining them with the fixed strings, and writing the result. Different string encodings may also require conversion. Moving formatting to a background thread still leaves that work to be done.
 
-As you can see, most of the content in these two log entries is the same, except for the time, order ID, price, and customer name.
+The next order arrives:
 
-This presents two issues:
-
-1. **Performance Issue**: Each log entry involves string concatenation or formatting. Concatenation refers to combining strings like "New order, order ID:", the order ID, ", price:", the price, ", username:", and the customer's name into one. Formatting is when a string like "New order, order ID:{}, price:{}, username:{}" has the placeholders `{}` replaced with actual values. This process can consume system resources and impact performance.
-   
-2. **Storage Issue**: Each log entry stores the entire string, resulting in a lot of repeated text such as "Shop.Order New order, order ID". This wastes storage space.
-
-### 3. Detailed Analysis of the BqLog Compression Scheme
-
-#### 3.1 Data Item
-
-The log file in this compressed format consists of compactly packed data items (Data Items), as shown below:
-
-![Diagram 1](img/compress_1.png)
-
-_**Figure 1: Structure of the Compressed Log File Format**_  
-
-As shown in Figure 1, each Data Item is tightly packed. The newlines in the diagram are only for illustration; there are no actual newlines or spaces between the items.
-
-The structure of each data item is shown in Figure 2:
-
-![Diagram 2](img/compress_2.png)
-
-_**Figure 2: Structure of a Data Item**_
-
-The first 2-9 bytes represent the header section (Data Section) of the Data Item, which records the type of the data section and its actual length (in bytes). This uses a special data compression technique invented by BqLog.
-
-The data type (Type) uses the first bit. A `0` indicates that it is a Log Template data item, while a `1` indicates that it is a Log Entry data item. The two types are explained in detail later, and a simple illustration is provided in Figure 3:
-
-![Diagram 3](img/compress_3.png)
-
-_**Figure 3: Two Types of Data Items**_
-
-In the header section, apart from the Type bit, the remaining bits store the actual length of the data section. BqLog uses a specific encoding method based on the VLQ algorithm for encoding positive integers. The encoding is as follows:
-
-1 byte: 1XXXXXXX represents a value in the range [0, 2^7^)
-
-2 bytes: 01XXXXXX XXXXXXXX represents a value in the range [2^7^, 2^7^ + 2^14^)
-
-3 bytes: 001XXXXX XXXXXXXX XXXXXXXX represents a value in the range [2^7^ + 2^14^, 2^7^ + 2^14^ + 2^21^)
-
-When the actual data length is less than 128 (within [0, 2^7^]), the first bit of the VLQ-encoded data is 1, which conflicts with using the first bit for the data type. Therefore, we set the first byte (except for the Type bit) to 0, and store the number in the second byte.
-
-For larger lengths (greater than or equal to 2^7^), we use the extra bits in the first byte to store the Type bit, thus saving space.
-
-The decoding process is as follows (pseudocode):
-
-```c
-If (the last 7 bits of the first byte are 0) {
-    The value is in the range [0, 2^7^], and the length is stored in the second byte.
-} else {
-    Data Type = first bit of the first byte.
-    Set the first bit of the first byte to 0.
-    Decode the length using VLQ starting from the first byte.
-}
+```text
+2026-09-25 12:00:00.002 [Info] [Shop.Order] [Tid-2025 Worker25]
+New order, order ID:32422145, price:174.45, username:李四
 ```
 
-This approach saves 1 byte when encoding lengths greater than or equal to 2^7^.
+Only the time and three arguments changed, yet the fixed text was assembled and written again. At ten million records per day, repeating 50 bytes per record accounts for roughly 500 MB. Those bytes also pass through copies and I/O.
 
-Once the header section (Data Section) is encoded, the rest of the data is stored sequentially.
+The call already supplies a useful boundary: **the format string is fixed; the arguments vary.** The file can preserve that boundary instead of storing the complete sentence each time.
 
-When reading the logs, after decoding the header section, the following data section is read according to the decoded length.
+## 2. Store templates and arguments
 
-#### 3.2 Log Template
+When a format first appears, store it and assign an index. Later records can refer to that index:
 
-When the first bit of the Data Item is 0, its data section is called a Log Template. A log template extracts commonly occurring, unchanging parts of the logs to save space. For example, in the logs shown earlier:
+```text
+Template 0: New order, order ID:{}, price:{}, username:{}
 
-```c
-2024-05-29 13:23:56.932 [Info] [Shop.Order] [Tid-2025 Thread Worker25] New order, order ID:32422144, price:324.42, username: John
-
-2024-05-29 13:23:56.972 [Info] [Shop.Order] [Tid-2027 Thread Worker27] New order, order ID:32422145, price:174.45, username: Mike
+Record A: template 0, 32422144, 324.42, 张三
+Record B: template 0, 32422145, 174.45, 李四
 ```
 
-The format template for these logs is:
+Formatting moves to the reader. Many diagnostic logs are never opened, so their text never needs to be produced at all. When someone does read them, the decoder combines the template and arguments. That work can run on a developer's machine or in an analysis service, reducing the load on the application device.
 
-_**Info New order, order ID:{}, price:{}, username:{}**_
+Level, category, thread ID and thread name also repeat. However, the same format may be used by many threads. Putting every field in one template would duplicate the format string whenever the thread changed.
 
-Where `Info` is the log level (Log Level), `Shop.Order` is the extra information (Extra Data), and the rest is the format string (Format String).
+BqLog therefore keeps two template types:
 
-The log template is divided into two types: Format Template and Thread Info Template, as shown in Figures 4 and 5.
+- **Format template:** level, category index and format string.
+- **Thread template:** thread ID and thread name.
 
-![Diagram 4](img/compress_4.png)
+Each record references both. Changing the thread can reuse the format template, and changing the format can reuse the thread template.
 
-_**Figure 4: Format Template**_
+Categories are known when the Log object (a logger instance) is created, so the file header area can store the category list. Format templates only need a category index. Categories, formats, threads and individual records are thus stored at the frequencies at which they change.
 
-![Diagram 5](img/compress_5.png)
+## 3. Distinguishing templates from records
 
-_**Figure 5: Thread Info Template**_
+New formats and threads can appear at any time, so format templates, thread templates and log records are interleaved in the file.
 
-The first byte of the data section indicates the template type (Template Type). A value of 0 represents a Format Template, while a value of 1 represents a Thread Info Template.
+Separate files would require keeping their relationships consistent. Within one file, how does the reader know where one item ends? Format strings and argument lists have variable sizes. A terminator would require scanning and escaping, since binary arguments can contain any byte. With a length, the decoder knows where the item ends and the next one begins.
 
-A Format Template stores repeated log information, such as:
+BqLog stores a sequence of **data items**, each with a type, a length and a body.
 
-_**Info New order, order ID:{}, price:{}, username:{}**_
+![Data item type bit and variable-length length field](img/performance/compressed-item-bits.png)
 
-The log level (LogLevel) is stored in 1 byte, with the following possible values:
+<p align="center"><em>Figure 1: an item header and body, with the bit layouts for two length cases. Adjacent fields are adjacent in the file.</em></p>
 
-1. `Verbose` (Lowest log level, typically lots of unnecessary output)
-2. `Debug` (Debugging information)
-3. `Info` (General log information)
-4. `Warning` (Warning log information, needs attention)
-5. `Error` (Error log information, cannot be ignored)
-6. `Fatal` (Critical error log information)
+A fixed four-byte length would be simple, but most records are short. Variable-length integer encoding reduces this overhead.
 
-Extra data (Extra Data) is stored in two parts: the VLQ-encoded length of the extra data, followed by the actual extra data. The format string (Format String) occupies the remaining space in the data section.
+### 3.1 Small integers use fewer bytes
 
-In typical usage, these three pieces of information often appear together, so storing them together makes it easier to reuse the information later without duplicating it. Each log template is assigned an index, which is its order of appearance in the log file. The first template has an index of 0, and subsequent templates are indexed as 1, 2, 3, etc. Later log entries (Log Entry) can reference these templates using the index.
+BqLog uses a prefix-based VLQ encoding. For unsigned integers, its shape is:
 
-The Thread Info Template stores the thread information, such as `Tid-2025 Thread Worker25`. This template is divided into three parts: Thread Info Index, Thread ID, and Thread Name. Both the Thread ID and Thread Info Index are numbers stored using VLQ encoding to save space.
-
-The Thread Info Index is a self-incrementing number starting from 0. If a process restarts but continues logging to the same file, the index resets to 0 for each restart. For example, the first time thread A logs, its index is 0. The first time thread B logs, its index is 1. Unlike Format Templates, Thread Info Index resets after each process restart, so previously recorded thread information becomes irrelevant to subsequent logs
-
-. Later Log Entries reference the Thread Info Index to retrieve specific thread information.
-
-#### 3.3 Log Entry
-
-A Log Entry records the actual log data, along with references to a Format Template and a Thread Info Template. For example, the log entry:
-
-```c
-2024-05-29 13:23:56.932 [Info] [Shop.Order] [Tid-2025 Thread Worker25] New order, order ID:32422144, price:324.42, username: John
+```text
+1 byte:  1xxxxxxx
+2 bytes: 01xxxxxx xxxxxxxx
+3 bytes: 001xxxxx xxxxxxxx xxxxxxxx
+...
+9 bytes: 00000000 + 8 data bytes
 ```
 
-Its Log Entry includes a timestamp, references to the Format Template and Thread Info Template, and three parameters: `32422144`, `324.42`, and `John`.
+The position of the first 1 in the prefix identifies the encoded width. Longer encodings start counting from the first value that shorter encodings cannot represent:
 
-![Diagram 6](img/compress_6.png)
+| Bytes | Starting value | Range |
+|---|---:|---|
+| 1 | 0 | 0–127 |
+| 2 | 128 | 128–16511 |
+| 3 | 16512 | 16512–2113663 |
 
-_**Figure 6: Log Entry Structure**_
+For example, 128 is the first value in the two-byte range, so it is encoded as `40 00`. Similarly, 16512 becomes `20 00 00`.
 
-As shown in Figure 6, the first field is the time. Traditional methods store epoch time in milliseconds (64-bit integer, 8 bytes) or seconds (32-bit integer, 4 bytes). BqLog stores epoch time offsets using VLQ encoding. For example, the first log entry stores the raw epoch time as `T`. The second log entry stores the offset `(T1 - T)`, the third log stores `(T2 - T1)`, and so on. This takes advantage of the fact that log timestamps are sequential and often very close together, resulting in smaller values and less storage space (often just 1 byte).
+This VLQ is not the common LEB128, which stores seven bits per byte with the top bit as a continuation flag. BqLog's prefix layout keeps the first bit of any multi-byte encoding at 0; [section 3.2](#32-reuse-a-length-prefix-bit-for-the-item-type) puts that spare bit to use. The range offsets, prefix and byte order are defined in [log_utils.h](../src/bq_log/utils/log_utils.h).
 
-The second and third fields are the indices for the Format Template and Thread Info Template, encoded using VLQ. Since both indices start at 0, they typically require very little storage space.
+### 3.2 Reuse a length-prefix bit for the item type
 
-The fourth field contains the log’s parameters. If there are no parameters, this field is absent. The structure of each parameter is shown in Figure 7:
+At the top level, an item is either a template or a log record. The template body distinguishes format templates from thread templates. The top-level type therefore needs one bit: 0 for a template, 1 for a record.
 
-![Diagram 7](img/compress_7.png)
+A separate type byte adds noticeable overhead to short records. A multi-byte VLQ starts with a zero bit, which can hold the type instead.
 
-_**Figure 7: Log Entry Parameter Structure**_
+The length 128 is encoded as `40 00`. For a log record, setting its first bit produces `C0 00`; type and length still occupy two bytes.
 
-Different parameter types have different data formats and sizes (examples, customizable based on actual needs):
+The one-byte length 5 is `85`, whose first bit is already needed by the length prefix. Here the type gets a separate byte: `80` for the record type followed by `85`, giving `80 85`.
 
-| **Param Type** | **Description** | **Storage Method** | **Param Data Size (Bytes)** |
-|---------------|-----------------|--------------------|----------------------------|
-| **1**         | Null pointer    | No data            | 0                          |
-| **2**         | Pointer address | 8-byte storage     | 8                          |
-| **3**         | Boolean         | 1 byte (0 or 1)    | 1                          |
-| **4**         | Character       | 1 byte             | 1                          |
-| **5**         | Wide character  | 2 bytes            | 2                          |
-| **6**         | Integer         | VLQ encoding       | 1-9 bytes                  |
-| **7**         | Single-precision float | Direct storage | 4 bytes              |
-| **8**         | Double-precision float | Direct storage | 8 bytes              |
-| **9**         | Utf8 string     | VLQ length + content | Content + VLQ storage |
-| **10**        | Utf16 string    | VLQ length + content | Content + VLQ storage |
+The decoder reads the type from the first bit, then checks the lower seven bits. If they are all zero, the length starts in the next byte. Otherwise it clears the type bit and decodes the length from the current byte. Bodies of at least 128 bytes can share the first byte with the type; shorter bodies use an explicit type byte.
 
-#### 3.4 Log Writing Process
+The current body length is a uint32, so the item header occupies 2–5 bytes. The length excludes the header itself, both during backfilling and decoding.
 
-Before writing logs, we define the following variables:
+## 4. Inside the templates
 
-- `FormatTemplateHashMap<HashCode, FormatTemplateIndex>`: A hash map for Format Templates. The key is the hash of the template content, and the value is the index.
-- `ThreadInfoTemplateHashMap<ThreadId, ThreadInfoTemplateIndex>`: A hash map for Thread Info Templates. The key is the thread ID, and the value is the index of the Thread Info Template.
-- `LastLogEntryEpoch`: The epoch time of the last log entry.
+![Contiguous layouts of templates, records and arguments](img/performance/compressed-templates.png)
 
-Before writing new logs, we may be appending to an existing log file, so we need to parse the previous content to gather key information:
+<p align="center"><em>Figure 2: the layout expands from templates to individual arguments. Colors identify field roles; byte counts describe their encodings.</em></p>
 
-- Which thread info templates (Thread Info Template) have already been recorded for reuse.
-- The epoch time of the last log entry (Log Entry) to ensure that subsequent logs use the correct time offset.
+A format template body contains:
 
-The specific process is shown in Figure 8:
+```text
+subtype (1 B) | level (1 B) | category_index (VLQ) | format bytes
+```
 
-![Diagram 8](img/compress_8_EN.png)
+Subtype 0 identifies a UTF-8 format; subtype 2 identifies a UTF-16 format stored as UTF-Mixed, discussed in [section 6](#6-utf-16-balancing-encoding-work-and-output-size). The format occupies the rest of the body, so it needs neither a separate string length nor a terminating zero.
 
-_**Figure 8: Parsing the Existing Log File Before Writing**_
+Format template indices are implicit: the first definition is index 0, the second is index 1, and so on. Writer and decoder assign indices in the same order. The decoder can then access templates by array index.
 
-Figure 9 shows the process for writing a new log entry:
+A thread template has a different layout:
 
-![Diagram 9](img/compress_9_EN.png)
+```text
+subtype=1 (1 B) | thread_template_index (VLQ) | thread_id (VLQ) | thread_name
+```
 
-_**Figure 9: Writing a New Log Entry**_
+Its index is explicit because a later run may redefine thread information. An unencrypted file can be reopened and appended to, but the previous run's thread IDs and names cannot simply be reused. A new thread template can replace the definition at an index; the decoder updates its mapping as it reads, and subsequent records use that definition.
 
-The resulting log file might look like Figure 10, showing the structure of the Data Items:
+**A file template index and a slot in the writer's cache are different things.** The cache may evict a mapping. If that format appears again, the writer can emit another template with a new file index. Existing records keep referring to the old index. Eviction affects future reuse and file size.
 
-![Diagram 10](img/compress_10.png)
+The format hash serves the writer's lookup. The decoder uses file indices, so the hash is not stored in the file.
 
-_**Figure 10: Log File Structure**_
+## 5. Compress the fields that change
 
-#### 3.5 Log Reading Solution
+After extracting the templates, a record body contains:
 
-Before decoding the logs, we define the following variables:
+```text
+time delta | format template index | thread template index | arg0 | arg1 | ...
+```
 
-- `FormatTemplateHashMap<Index, FormatTemplateContent>`: A hash map for Format Templates. The key is the index of the Format Template, and the value is the actual content.
-- `ThreadInfoTemplateHashMap<Index, ThreadInfoTemplateContent>`: A hash map for Thread Info Templates. The key is the index of the Thread Info Template, and the value is the actual content.
-- `LastLogEntryEpoch`: The epoch time of the last log entry.
+Template indices usually begin small, making them suitable for VLQ. Timestamps and arguments have their own encodings.
 
-![Diagram 11](img/compress_11_EN.png)
+### 5.1 Large timestamps, small deltas
 
-_**Figure 11: Log File Parsing Process**_
+An epoch timestamp in milliseconds needs a 64-bit representation, or eight bytes per record. Consecutive records are often only a few milliseconds apart, and several may share the same millisecond. Once the previous timestamp is known, the next record can store the difference.
 
-### 4. Conclusion
+For timestamps 1000, 1002 and 1001 ms, the deltas are 1000, 2 and -1. The first record uses zero as its baseline; subsequent records use the preceding record.
 
-In theory, this section should include an evaluation of the compression ratio. However, after understanding how this format works, you can see that the compression ratio varies significantly depending on the log content. In scenarios with highly repetitive logs, such as server or network logs, the file size is usually around 10% of the original text log size. Based on HOK's external network experience, game client logs are typically around 20% of the size of the original text logs.
+How does the third record come to precede the second? When threads interleave, the order in which records are consumed can differ from the order in which their timestamps were taken; that is part 2's subject. Before encoding, the consumer clamps timestamps to be non-decreasing, which blocks such regressions at the cost of rewriting an out-of-order record's time to the previous value. Within one run, the deltas in the file do not go negative. Clamping cannot help in one case: when an unencrypted file is appended to, the time baseline is recovered from the old file, and a record from the new run that meets a system-clock rollback would precede that baseline. The format must allow negative deltas without letting them take up space.
 
-For write performance, you can refer to the benchmarks on GitHub. Its performance is about 3-4 times better than text log formats.
+ZigZag maps small signed values to small unsigned values:
+
+```text
+signed:    0  -1   1  -2   2  -3   3
+unsigned:  0   1   2   3   4   5   6
+```
+
+VLQ then encodes the result. Both +1 and -1 remain small, avoiding the many high bits set in a negative two's-complement value.
+
+### 5.2 Preserve numeric values without formatting them
+
+Each argument starts with a type byte that tells the decoder how to read its value:
+
+| Argument | Content after the type byte |
+|---|---|
+| null | No content |
+| pointer | 8 bytes |
+| bool, char, int8, uint8 | 1 byte |
+| char16, char32, uint16, uint32, uint64 | Unsigned VLQ |
+| int16, int32, int64 | ZigZag + VLQ |
+| float / double | Original 4 / 8 bytes |
+| UTF-8 string | Byte length as VLQ + content |
+| UTF-16 string | Length and content after conversion to UTF-Mixed |
+
+Floating-point values retain their four- or eight-byte binary representation. Their bit patterns behave differently from integers, and producing decimal text also involves formatting precision. That conversion can wait until reading.
+
+Types such as bool and int8 already occupy one byte; variable-length encoding would not make them smaller.
+
+Records also omit the argument count. After reading each typed argument, the decoder checks whether it has reached the end of the item.
+
+## 6. UTF-16: balancing encoding work and output size
+
+C#, Java and Unreal often use UTF-16. An ASCII character has a zero high byte, so storing an English letter in two bytes wastes space. Converting every UTF-16 string to UTF-8, however, requires more decisions for Chinese characters, surrogate pairs and mixed text. Some characters even take more bytes in UTF-8.
+
+UTF-Mixed narrows the initial ASCII portion to one byte per character. When the fast conversion stops, it writes an `FF` marker and copies the remaining UTF-16 code units as a suffix.
+
+![Original and encoded bytes of UTF-Mixed](img/performance/compressed-utf-mixed.png)
+
+<p align="center"><em>Figure 3: with the scalar split shown here, abc中x shrinks from 10 UTF-16 bytes to 8 bytes. The final x stays in the UTF-16 suffix.</em></p>
+
+That suffix includes any later ASCII characters. The writer does not keep switching back to save individual bytes. A SIMD (single-instruction-multiple-data) implementation may stop before a whole block containing a non-ASCII character, so valid split positions can differ.
+
+The example would occupy only seven bytes in UTF-8, compared with eight in UTF-Mixed. BqLog accepts that extra byte to reduce conversion work: the suffix can be copied in bulk without converting each character.
+
+Within the known string length, the decoder finds `FF`, copies the prefix and converts the suffix to UTF-8. The marker switches encodings; it does not terminate the string. Part 3 explains the SIMD implementation of the ASCII conversion.
+
+## 7. Why the same record has different memory and file layouts
+
+So far we have looked only at the file format. Now put it back into the full pipeline: BqLog is an asynchronous log. Business threads (producers) do not write files directly; they put records into an in-memory queue, the bus. A background thread (the consumer) takes them out and hands them to an Appender, the component that owns a particular output, for encoding and writing. That channel is part 2's subject.
+
+With such a compact file format, why does the producer not generate it directly?
+
+The Appender assigns file template indices, and different outputs may have different template sets. Encoding file records on producers would require access to those shared dictionaries. Variable-length fields would also make locating arguments in memory more expensive.
+
+BqLog therefore keeps a fixed header and suitable alignment in bus records, then lets the consumer produce the compact file representation. Consider:
+
+```cpp
+log.info("hp={}", int32_t(42));
+```
+
+![The same record in memory and in a seven-byte file item](img/performance/compressed-record-example.png)
+
+<p align="center"><em>Figure 4: format hp={}, thread name Main. The file representation assumes existing templates and a zero time delta.</em></p>
+
+The memory header is 40 bytes, holding the full timestamp, category, thread ID, format hash and lengths. The five format bytes occupy eight bytes after four-byte alignment. The int32 argument has a type area and a value area, followed by thread extension information. This internal record totals 61 bytes. The LP path adds a context and a ring chunk header — LP is the low-frequency path introduced in part 2, where they are the main subject.
+
+The file item can be:
+
+```text
+80 85 | 80 | 80 | 80 | 0B D4
+type/len5  Δt=0 fmt0 thread0 int32(42)
+```
+
+`0B` identifies int32. ZigZag maps 42 to 84, encoded as `D4`. The whole item occupies seven bytes. File headers and templates are shared across records. The memory layout supports efficient production and consumption; the file layout reduces stored bytes.
+
+## 8. Why the file needs segments
+
+A restart loses the template tables and encryption state that live in memory. Without append support, one crash of an encrypted log would lose its unfinished data, or reopening would mean decrypting and rewriting the whole old file; both cost far more than the segment structure.
+
+**Appending compressed records requires the existing template indices and time baseline.** Seeking to the end of the file is only part of the operation.
+
+### 8.1 Restore the state needed for appending
+
+Suppose an old file defines format templates 0, 1 and 2. Reusing one requires finding its existing index; a new format must start at index 3. Since records store time deltas, the writer also needs the last timestamp.
+
+Restarting numbering at zero without reading the file would make the decoder interpret new indices using old definitions, potentially selecting the wrong format.
+
+For an unencrypted compressed file, the writer scans the existing items on open, restores format mappings, the next format index and the last timestamp, then appends. Thread information is rebuilt for the current run. UTF-16 formats are stored as UTF-Mixed, so scanning must also recover their original representation to reconstruct the lookup hash.
+
+### 8.2 An encrypted writer has no private key
+
+In encrypted mode, the client is configured with a public key. The private key is neither distributed with the client nor stored in the log file. The public key protects new encryption material but cannot decrypt old content.
+
+The writer therefore cannot scan old templates, recover the last timestamp or retrieve old encryption material as it does for an unencrypted file.
+
+It starts a fresh compressed stream with new templates, a new time baseline and new encryption material. This requires no private key on the writer and no decryption and rewriting of the old file.
+
+Segments describe data ranges with their own headers and optional encryption material. The segment header tells the decoder how to decrypt that range; template indices belong to the compressed stream. For example, a later segment can still reference template 7 defined earlier, while using new encryption material.
+
+Segments within one file can reuse the templates written before them; the encrypted-restart flow is a different scenario. In the encrypted restart path of 2.5.0, the new compressed stream goes into a newly numbered file. The template table and timestamp reset with it. Segments within an existing file connect recovered data to that file's stream.
+
+![File, segment and header byte layouts](img/performance/compressed-file-v10.png)
+
+<p align="center"><em>Figure 5: the three bars form one continuous file. S0, S1 and S2 are absolute file offsets.</em></p>
+
+The file header occupies eight bytes: four for version, one for format and three for padding. The compressed format currently uses version=10 and format=2.
+
+Each segment begins with a 12-byte header:
+
+```text
+next_seg_pos: 8 B | seg_type: 1 B | enc_type: 1 B | padding: 2 B
+```
+
+`next_seg_pos` is the absolute offset of the next segment, or UINT64_MAX for the last one. The decoder can determine the range without scanning every item. Restricting reads to that range also prevents crossing a segment header with the wrong encryption state.
+
+`seg_type` distinguishes normal data, Appender cache recovery and data bus recovery. A whole range gets its source designation once. The first segment's payload also stores 52 bytes of metadata and the category definitions; later segments reuse that file-level information.
+
+A segment header does not automatically clear the template dictionary. Recovery can thus give a batch fresh encryption material while retaining its references to earlier templates.
+
+### 8.3 Append a segment, then link it
+
+The writer checks the segment chain, writes the new segment header and encryption material at the end, then updates the previous last segment's `next_seg_pos`. The existing payload stays in place.
+
+This resembles appending to a singly linked list, with file offsets taking the place of memory pointers. The offsets remain meaningful after reopening the file, regardless of virtual addresses.
+
+Chain checks, header writes and the associated I/O happen at file creation, recovery or state transitions. Subsequent records share that setup cost.
+
+### 8.4 Recover each representation where it belongs
+
+At a crash, some logs may still be raw records in the bus. Others may already be compressed items in the Appender's write cache, waiting to finish reaching the file. This cache is backed by a memory-mapped file (mmap), so its contents can still be inspected after a crash; [section 7.3](<Article 2_Why is BqLog so fast - From Ring Buffer to Adaptive Data Bus.MD#73-recovery-after-a-crash>) of part 2 builds on this property.
+
+Suppose the old file defines format template 7, and a cached record references it. That record's time delta also uses the preceding record as its baseline. These bytes belong to the old stream and must retain those meanings.
+
+Recovery appends a segment to the verified original file, prepares new encryption material and writes the complete cached items. The decoder has the private key and learns template 7 and the time baseline from the old segments. At the new segment, it switches encryption material and continues. The writer does not need to decrypt the old file or re-encode the cached records.
+
+A bus record still contains the original format and arguments. The same order log here has no dependency on file template 7 yet. On an encrypted restart, it can enter a new file and receive a new template index starting at zero. The consumer processes recovered records before records from the current run.
+
+![Preserving old template indices or building a new stream during recovery](img/performance/recovery-streams.png)
+
+<p align="center"><em>Figure 6: cached items referencing template 7 return to the old file; raw bus records can be re-encoded with template 0 in a new file.</em></p>
+
+Segments preserve encoding work already completed. The template state to use depends on whether the log stopped in the bus or in the Appender cache.
+
+## 9. Pay encryption setup costs per segment
+
+Running a public-key operation for every log would multiply its fixed cost by the record count. Copying an entire buffer before encrypting it would add another read and write of the payload.
+
+The current implementation (format version 11) separates preparation from payload processing:
+
+1. At segment creation, draw a 256-byte seed from the platform CSPRNG and wrap it with RSA-2048: `c = seed^e mod n`, stored as a fixed 256-byte field.
+2. Derive the segment key and nonce with HKDF-SHA256 from the shared secret, the format version, the encryption type, the round count, the public-key fingerprint and the KEM ciphertext.
+3. During writing, XOR the payload in the Appender's batch buffer with the ChaCha8 keystream addressed by the offset inside the segment payload.
+
+![Per-segment preparation and per-batch payload processing](img/performance/encryption-segments.png)
+
+<p align="center"><em>Figure 7: the upper section runs once per segment; the lower section transforms each payload batch in place.</em></p>
+
+Encryption metadata occupies 268 bytes: an eight-byte public-key fingerprint, the ChaCha round count, three reserved bytes and 256 bytes of KEM ciphertext. It is written once per segment, so a segment that holds megabytes of logs pays for it once.
+
+The payload is addressed by its offset inside the segment:
+
+```text
+keystream = ChaCha8(key, nonce)
+data[payload_offset + i] ^= keystream[payload_offset + i]
+```
+
+Because the keystream is a function of the offset rather than of the preceding bytes, a decoder can start at any payload offset, and a damaged region stays where it is instead of corrupting everything after it. The same property lets a batch be transformed again after a short write: re-running the transform on the unwritten tail at the same absolute offsets returns those bytes to plaintext, so the pending write can be retried without keeping a copy.
+
+The cost is one ChaCha8 pass over the payload. At 8 rounds and 7.55 GB/s on an ARM core with NEON, a 23-byte record pays about 3 ns, roughly a fifth of what the same record costs to compress.
+
+The protection level is deliberate about what it is not. There is no AEAD tag: anyone who can write the file can flip bits, and the result is wrong plaintext in that region, undetected. What the format does provide is that a keystream is never reused — every segment derives a new key from a new seed — so ciphertext positions carry no reuse structure to exploit. Applications that need tamper detection must add a mechanism on top.
+
+## 10. Where writing and reading do their work
+
+A record reaching the compressed Appender follows this path:
+
+```text
+format hash, level, category
+  → look up format template; emit a definition on a miss
+  → look up thread template; emit a definition on a miss
+  → encode time delta with ZigZag / VLQ
+  → encode template indices and arguments
+  → backfill item length
+  → mark the record complete in the write cache
+```
+
+UTF-Mixed and variable-length integers get their final sizes during encoding. Reserving space, writing the body and backfilling the length avoids a separate exact-measurement pass. Part 3 examines this step.
+
+Reading reverses the process: open the container, restore segment state and load categories; append format definitions to an array and update thread mappings; reconstruct record times and arguments, then use the common layout code to produce text. The frequent write path no longer builds a complete text line for every call.
+
+The reader takes on the corresponding costs. Binary files require a decoder, and starting in the middle may leave the dictionary or time baseline unavailable. The writer's cache can evict entries, but the file's template history keeps growing; the decoder needs that history. File rotation affects both disk use and the cost of opening and decoding logs.
+
+Looking back, the format keeps doing one thing: it finds the repeated work that no log record can avoid and moves it to where it happens rarely. Formatting moved to read time, encryption preparation to segment creation, and state reconstruction to opening the file.
+
+## 11. Measure the complete file and write path
+
+In the public README's four-million-record size test, BqLog text output is 283 MB and compressed output is 45 MB, less than one sixth of the text size. The ratio depends on the data. Unique formats or large, high-entropy arguments reduce template reuse.
+
+Write benchmarks also need their context: thread count, final flush, segment initialization, and whether the output is text or compressed. The design removes identifiable work; measurements show how much that matters for a particular workload. The benchmark table at the start of part 2 gives one set of measurements of the time saved on the write path.
+
+Part 2 returns to memory: how multiple producers deliver these records to the consumer.
+
+## Continue with the source
+
+- [appender_file_compressed.cpp](../src/bq_log/log/appender/appender_file_compressed.cpp): templates, time deltas, argument encoding and item backfill.
+- [appender_file_binary.h](../src/bq_log/log/appender/appender_file_binary.h), [appender_file_binary.cpp](../src/bq_log/log/appender/appender_file_binary.cpp): file header, segments, encryption material and recovery.
+- [appender_decoder_compressed.cpp](../src/bq_log/log/decoder/appender_decoder_compressed.cpp), [appender_decoder_base.cpp](../src/bq_log/log/decoder/appender_decoder_base.cpp): the corresponding decode process.
+- [log_utils.h](../src/bq_log/utils/log_utils.h), [util.cpp](../src/bq_common/utils/util.cpp): VLQ, ZigZag and UTF-Mixed.
+- [test_log_appender.h](../test/cpp/test_log_appender.h), [test_compressed_cache.h](../test/cpp/test_compressed_cache.h): tests for segmentation, recovery and template cache.

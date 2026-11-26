@@ -88,6 +88,12 @@ my_category_log.info(my_category_log.cat.Factory.People, "Log5"); // Category = 
 [CategoryDemoLog]   UTC+08 2024-07-04 17:35:14.144[tid-54912 ] [I] [Factory.People] Log5
 ```
 
+C++ 的[快速模式](./API_REFERENCE_CHS.md#fast-mode)也支持 Category，用法相同，Category 放在格式串前面：
+
+```cpp
+BQ_LOG_FAST_INFO(my_category_log, my_category_log.cat.Shop.Seller, "Log2"); // Category = Shop.Seller
+```
+
 配合[配置说明](./CONFIGURATION_CHS.md)中的 `categories_mask`，可以在输出侧进行灵活过滤。
 结合 [API 参考](./API_REFERENCE_CHS.md) 中的 Console 回调，您可以通过 `category_idx` + 下述 API 获取 Category 名称列表：
 
@@ -137,13 +143,20 @@ const bq::array<bq::string>& get_categories_name_array() const;
    ./BqLog_CategoryLogGenerator business_log /path/to/BussinessCategories.txt ./
    ```
 
-   将在当前目录下生成 5 个文件：
+   将在当前目录下生成多个文件：
 
   - `business_log.h`（C++ header wrapper）
+  - `business_log.cppm`（C++20 模块单元，用 `import bq.business_log;` 代替 include 头文件）
   - `business_log.java`（Java wrapper）
   - `business_log.cs`（C# wrapper）
-  - `business_log.ts`（TypeScript wrapper）
+  - `business_log_nodejs.ts`（Node.js 的 TypeScript wrapper，ESM 和 CommonJS 都支持）
+  - `business_log_ohos.ts`（鸿蒙 HarmonyOS 的 ArkTS wrapper）
+  - `business_log.py`（Python wrapper）
+  - `business_log.go`（Go wrapper）
   - `business_log_for_UE.h`（配合 UE 工程，可在蓝图中引用 Category）
+  - `business_log.verse`（Verse 模块，用于装了 BqLogVerse 插件的 UE6，见[在 Verse 中使用 BqLog](ENGINE_INTEGRATION_CHS.md#4在-verse-中使用-bqlogue6)）
+
+  C++20 模块名就是类名加 `bq.` 前缀：`bq::business_log` 对应 `import bq.business_log;`。
 
 4. 在工程中引入这些文件，即可使用带 Category 的日志类。
    例如 C++：
@@ -160,6 +173,21 @@ const bq::array<bq::string>& get_categories_name_array() const;
 
    对 `my_log.cat` 使用 `.` 补全，即可获得事先定义好的 Category 列表。
    如不传递 Category 参数，则默认使用 `*default`。
+
+### C++20 模块方式
+
+`.cppm` 与 `.h` 是同一个类，只是改为 import：
+
+```cpp
+import bq.log;
+import bq.business_log;
+
+bq::business_log my_log = bq::business_log::create_log("MyLog", config);
+my_log.info(my_log.cat.Shop.Seller, "Log2");
+my_log.fast_info<my_log.cat.Shop, "fast {}">(1);
+```
+
+把 `business_log.cppm` 按 `bq.log.cppm` 的方式加入构建即可。同一个工程里头文件和模块二选一。
 
 ---
 
@@ -192,6 +220,12 @@ static void enable_auto_crash_handle();
 当该项为 `true` 时，BqLog 在部分平台上会尝试使用平台特性，尽量保证异步缓冲区中的内容在磁盘上有临时存根；下一次启动时，可以进行「复盘」，尽量恢复未完全落盘的日志。
 
 具体实现细节依赖操作系统能力，会在未来版本中持续增强。
+
+少数平台（例如 Solaris）不支持恢复（可用 [`get_recovery_capability()`](./API_REFERENCE_CHS.md#恢复能力查询) 查询），此时日志照常工作、不启用恢复，并打印：
+
+```
+[Bq]log <name>: recovery needs a cross-process file lock and this platform has none, so recovery stays off
+```
 
 ---
 
@@ -413,22 +447,20 @@ void CallThisOnYourGameStart()
 
 对于外发客户端（尤其是互联网游戏和 App），日志加密是重要需求。
 在 1.x 版本中，BqLog 的二进制日志中仍有大量明文。自 2.x 起，引入了完整的日志加密方案。
-该方案性能极高，几乎无感知开销，且安全性良好。
+自 2.8.0 起，段格式为 `rsa_kem_chacha`；旧的 `rsa_aes_xor` 方案不再使用。
 
 ### 1）加密算法说明
 
-BqLog 使用 **RSA2048 + AES256** 的混合加密：
-
 - 仅适用于 `CompressedFileAppender`；
-- 使用 `ssh-keygen` 生成的 RSA2048 密钥对：
-  - 公钥：OpenSSH `ssh-rsa ...` 文本（本质为 PKCS#8 公钥的 OpenSSH 表达形式）；
-  - 私钥：PEM 格式，`-----BEGIN RSA PRIVATE KEY-----` 或 `-----BEGIN OPENSSH PRIVATE KEY-----` 块（兼容 PKCS#1/PKCS#8 私钥表示）；
-- 日志写入时：
-  - 使用公钥对随机生成的 AES256 对称密钥加密；
-  - 实际日志内容通过 AES256 加密；
-  - 整体编码为 BqLog 自定义的加密压缩格式。
+- 使用 `ssh-keygen` 生成的 2048 bit RSA 密钥对；其他长度或指数的密钥会在创建 appender 时被拒绝。
 
-### 2）配置加密
+### 2）这套方案提供什么、不提供什么
+
+- **更强的安全性。** 从 2.8.0 开始，可以抵抗已知明文攻击。
+- **恢复缓存里是明文。** 两次刷盘之间，恢复映射文件（`<日志目录>/appenders/<名字>.mmap`）里是未加密的待写记录，在文件系统上它就是一个磁盘文件，不过明文存在时间也就100ms左右。如果要求明文完全不落盘，请对该 appender 关掉 recovery。
+- **主机平台需要注入随机源。** PS4/PS5/Switch 没有 BqLog 能调用的 CSPRNG，需先调用 `bq::log::set_secure_random_source()`（见 [API 参考 — 加密日志的随机源](./API_REFERENCE_CHS.md#11-加密日志的随机源)）。没有随机源时 appender 仍然加密，只是密钥来自软件混合而非 CSPRNG，安全性较低，创建时会打一条 warning。
+
+### 3）配置加密
 
 在终端执行：
 
@@ -447,11 +479,13 @@ ssh-keygen -t rsa -b 2048 -m PEM -N "" -f "你的密钥文件路径"
 appenders_config.{AppenderName}.pub_key=ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCwv3QtDXB/fQN+Fo........rest of your rsa2048 public key...... user@hostname
 ```
 
-### 3）解密日志
+这会让该 appender 使用上面描述的 `rsa_kem_chacha` 段格式。
+
+### 4）解密日志
 
 解密加密日志时，需要私钥文件。推荐使用 BqLog 自带命令行工具 `BqLog_LogDecoder`：
 
-- 使用方法参见 [API 参考 — 离线解码](./API_REFERENCE_CHS.md#离线解码二进制格式的-appender)。
+- 使用方法参见 [API 参考 — 离线命令行解码器](./API_REFERENCE_CHS.md#离线命令行解码器)。
 
 示例：
 
@@ -463,4 +497,14 @@ appenders_config.{AppenderName}.pub_key=ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCw
 
 - `要解码的文件`：压缩加密日志文件路径；
 - `-o 输出文件`：可选，指定解码后的文本保存路径，不填则输出到标准输出；
-- `-k "./你的私钥文件路径"`：指向 `ssh-keygen` 生成的私钥文件（PEM），支持常见 PKCS#1 / PKCS#8 形式。
+- `-k "./你的私钥文件路径"`：指向 `ssh-keygen` 生成的私钥文件。只接受未加密的 PKCS#1 PEM（以 `-----BEGIN RSA PRIVATE KEY-----` 开头）；OpenSSH 新格式（`-----BEGIN OPENSSH PRIVATE KEY-----`）和 PKCS#8（`-----BEGIN PRIVATE KEY-----`）都会被拒绝，先转换：`ssh-keygen -p -m PEM -N "" -f <私钥文件>`。
+
+### 5）从老版本迁移
+
+库本身只解自己写出的文件。`BqLog_LogDecoder` 能解 2.x 以来所有版本的压缩日志，2.8.0 之前写的文件不需要再装一份旧工具。
+
+## 7. 多进程与 fork
+
+多个进程可以写同一个目录：每个进程认领自己的实例。
+
+BqLog 是多线程运行时，不支持 `fork()`：`fork` 之后的子进程必须马上 `exec` 一个干净的新进程，才能再使用 BqLog。

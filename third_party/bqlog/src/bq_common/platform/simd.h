@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include "bq_common/platform/macros.h"
+#include "bq_common/bq_common_public_include.h"
 
 #if defined(BQ_X86)
 #ifdef BQ_MSVC
@@ -103,6 +103,12 @@ namespace bq {
         m = vpmax_u16(m, m);
         return vget_lane_u16(m, 0);
 #endif
+    }
+
+    // 4 bits per byte of a 0x00/0xFF comparison result, byte i at bits [4i, 4i + 4)
+    bq_forceinline uint64_t bq_neon_byte_mask(uint8x16_t v)
+    {
+        return vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16(vreinterpretq_u16_u8(v), 4)), 0);
     }
 
     bq_forceinline uint8_t bq_vmaxvq_u8(uint8x16_t v)

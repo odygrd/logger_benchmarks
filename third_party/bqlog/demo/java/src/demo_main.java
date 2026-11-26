@@ -1,4 +1,4 @@
-﻿import bq.*;
+import bq.*;
 import static bq.utils.param.no_boxing;;
 /**
  * @author pippocao
@@ -40,7 +40,6 @@ public class demo_main {
 				appenders_config.appender_3409.capacity_limit=8000000000
 
 			    log.buffer_size=65535
-			    log.reliable_level=normal
 			""";
 		
 
@@ -73,7 +72,6 @@ public class demo_main {
 				appenders_config.appender_3409.capacity_limit=8000000000
 
 			    log.buffer_size=65535
-			    log.reliable_level=normal
 			""";
 		
 		log base_log = log.create_log("MyLog", log_config);

@@ -43,6 +43,26 @@ JNIEXPORT void JNICALL Java_bq_impl_log_1invoker__1_1api_1enable_1auto_1crash_1h
 
 /*
  * Class:     bq_impl_log_invoker
+ * Method:    __api_get_recovery_capability
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL Java_bq_impl_log_1invoker__1_1api_1get_1recovery_1capability(JNIEnv*, jclass)
+{
+    return (jint)bq::api::__api_get_recovery_capability();
+}
+
+/*
+ * Class:     bq_impl_log_invoker
+ * Method:    __api_get_platform_capabilities
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL Java_bq_impl_log_1invoker__1_1api_1get_1platform_1capabilities(JNIEnv*, jclass)
+{
+    return (jint)bq::api::__api_get_platform_capabilities();
+}
+
+/*
+ * Class:     bq_impl_log_invoker
  * Method:    __api_create_log
  * Signature: (Ljava/lang/String;Ljava/lang/String;J[Ljava/lang/String;)J
  */
@@ -231,6 +251,22 @@ JNIEXPORT jobject JNICALL Java_bq_impl_log_1invoker__1_1api_1get_1log_1category_
 
 /*
  * Class:     bq_impl_log_invoker
+ * Method:    __api_get_log_category_level_words_by_log_id
+ * Signature: (J)Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL Java_bq_impl_log_1invoker__1_1api_1get_1log_1category_1level_1words_1by_1log_1id(JNIEnv* env, jclass, jlong log_id)
+{
+    uint32_t count = bq::api::__api_get_log_categories_count((uint64_t)log_id);
+    const uint32_t* words = bq::api::__api_get_log_category_level_words_by_log_id((uint64_t)log_id);
+    if (!words) {
+        return nullptr;
+    }
+    jobject buffer = bq::platform::create_new_direct_byte_buffer(env, const_cast<uint32_t*>(words), count * sizeof(uint32_t), false);
+    return buffer;
+}
+
+/*
+ * Class:     bq_impl_log_invoker
  * Method:    __api_get_log_print_stack_level_bitmap_by_log_id
  * Signature: (J)Ljava/nio/ByteBuffer;
  */
@@ -308,7 +344,8 @@ JNIEXPORT jint JNICALL Java_bq_impl_log_1invoker__1_1api_1log_1decoder_1decode(J
     jclass holder_cls = env->GetObjectClass(out_decoded_text_holder);
     jfieldID holder_value_filed_id = env->GetFieldID(holder_cls, "value", "Ljava/lang/String;");
     if (result == bq::appender_decode_result::success) {
-        jstring log_text = env->NewStringUTF(text.str);
+        bq::array<char> modified_utf8_buffer;
+        jstring log_text = env->NewStringUTF(bq::platform::utf8_to_modified_utf8(text.str, text.len, modified_utf8_buffer));
         env->SetObjectField(out_decoded_text_holder, holder_value_filed_id, log_text);
     } else {
         jstring log_text = env->NewStringUTF("");
@@ -355,19 +392,18 @@ JNIEXPORT jboolean JNICALL Java_bq_impl_log_1invoker__1_1api_1log_1decode(JNIEnv
  */
 JNIEXPORT jstring JNICALL Java_bq_impl_log_1invoker__1_1api_1take_1snapshot_1string(JNIEnv* env, jclass, jlong log_id, jstring time_zone_config)
 {
-    bq::_api_string_def snapshot_str_def;
+    bq::_api_string_def snapshot_str_def = { nullptr, 0 };
     const char* time_zone_config_str = env->GetStringUTFChars(time_zone_config, NULL);
     bq::api::__api_take_snapshot_string((uint64_t)log_id, time_zone_config_str, &snapshot_str_def);
     env->ReleaseStringUTFChars(time_zone_config, time_zone_config_str);
-    jstring snapshot_str = env->NewStringUTF(snapshot_str_def.str);
+    bq::array<char> modified_utf8_buffer;
+    jstring snapshot_str = env->NewStringUTF(bq::platform::utf8_to_modified_utf8(snapshot_str_def.str, snapshot_str_def.len, modified_utf8_buffer));
     bq::api::__api_release_snapshot_string((uint64_t)log_id, &snapshot_str_def);
     return snapshot_str;
 }
 
 static void BQ_STDCALL jni_console_callback(uint64_t log_id, int32_t category_idx, bq::log_level log_level, const char* content, int32_t length)
 {
-    (void)length;
-
     bq::platform::jni_env env_holder;
     JNIEnv* env = env_holder.env;
     if (!env) {
@@ -384,7 +420,8 @@ static void BQ_STDCALL jni_console_callback(uint64_t log_id, int32_t category_id
         bq::util::log_device_console(bq::log_level::error, "bq.log.native_console_callback method is not find in JVM");
         return;
     }
-    jstring message = env->NewStringUTF(content);
+    bq::array<char> modified_utf8_buffer;
+    jstring message = env->NewStringUTF(bq::platform::utf8_to_modified_utf8(content, static_cast<size_t>(length > 0 ? length : 0), modified_utf8_buffer));
     env->CallStaticVoidMethod(cls, mid, log_id, category_idx, (int32_t)log_level, message);
     if (env->ExceptionCheck()) {
         env->ExceptionDescribe();
@@ -431,7 +468,6 @@ JNIEXPORT void JNICALL Java_bq_impl_log_1invoker__1_1api_1reset_1base_1dir(JNIEn
 static void BQ_STDCALL jni_console_buffer_fetch_callback(void* pass_through_param, uint64_t log_id, int32_t category_idx, bq::log_level log_level, const char* content, int32_t length)
 {
     jobject callback_obj = (jobject)pass_through_param;
-    (void)length;
     bq::platform::jni_env env_holder;
     JNIEnv* env = env_holder.env;
     if (!env) {
@@ -447,7 +483,8 @@ static void BQ_STDCALL jni_console_buffer_fetch_callback(void* pass_through_para
         bq::util::log_device_console(bq::log_level::error, "bq.log.native_console_buffer_fetch_and_remove_callback method is not find in JVM");
         return;
     }
-    jstring message = env->NewStringUTF(content);
+    bq::array<char> modified_utf8_buffer;
+    jstring message = env->NewStringUTF(bq::platform::utf8_to_modified_utf8(content, static_cast<size_t>(length > 0 ? length : 0), modified_utf8_buffer));
     env->CallStaticVoidMethod(cls, mid, callback_obj, log_id, category_idx, static_cast<int32_t>(log_level), message);
     if (env->ExceptionCheck()) {
         env->ExceptionDescribe();

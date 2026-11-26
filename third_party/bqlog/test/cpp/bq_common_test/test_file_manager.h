@@ -2,10 +2,103 @@
 #include <string.h>
 #include "test_base.h"
 #include "bq_common/bq_common.h"
+#if BQ_HAS_FORK
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 namespace bq {
     namespace test {
         const int32_t base_dir_type = 1;
+
+#if BQ_HAS_FORK
+        // Whether another process still sees the file locked.
+        inline bool is_locked_for_other_process(const bq::string& path)
+        {
+            const pid_t child = fork();
+            if (child == 0) {
+                // Another parent thread may have held the console mutex at fork time.
+                bq::util::set_log_device_console_min_level(bq::log_level::log_level_max);
+                bq::platform::platform_file_handle handle = bq::platform::invalid_platform_file_handle;
+                const auto lock_result = bq::platform::try_lock_instance_file(path.c_str(), handle);
+                bq::platform::unlock_instance_file(handle);
+                _exit(lock_result == bq::platform::file_lock_result::held_by_other ? 0 : 1);
+            }
+            int32_t status = 0;
+            return child > 0 && waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+        }
+
+        // An exclusive open keeps other processes out until that handle closes, whatever this
+        // process does with other handles of the same file.
+        inline void test_exclusive_lock_scope(test_result& result, bq::file_manager& file_manager)
+        {
+            if (!bq::platform::is_cross_process_file_lock_supported()) {
+                result.add_result(true, "exclusive lock scope needs a cross-process file lock");
+                return;
+            }
+            const bq::string path = TO_ABSOLUTE_PATH("cc/exclusive_scope.txt", base_dir_type);
+            auto holder = file_manager.open_file(path, file_open_mode_enum::auto_create | file_open_mode_enum::read_write | file_open_mode_enum::exclusive);
+            result.add_result(holder.is_valid(), "exclusive lock scope: holder opened");
+            result.add_result(is_locked_for_other_process(path), "exclusive lock scope: locked for another process");
+
+            bq::util::set_log_device_console_min_level(bq::log_level::fatal);
+            auto refused = file_manager.open_file(path, file_open_mode_enum::read_write | file_open_mode_enum::exclusive);
+            bq::util::set_log_device_console_min_level(bq::log_level::warning);
+            result.add_result(!refused.is_valid(), "exclusive lock scope: second exclusive open refused");
+            result.add_result(is_locked_for_other_process(path), "exclusive lock scope: still locked after a refused exclusive open");
+
+            auto reader = file_manager.open_file(path, file_open_mode_enum::read);
+            result.add_result(reader.is_valid(), "exclusive lock scope: reader opened");
+            file_manager.close_file(reader);
+            result.add_result(is_locked_for_other_process(path), "exclusive lock scope: still locked after closing a reader");
+            bq::util::set_log_device_console_min_level(bq::log_level::fatal);
+            refused = file_manager.open_file(path, file_open_mode_enum::read_write | file_open_mode_enum::exclusive);
+            bq::util::set_log_device_console_min_level(bq::log_level::warning);
+            result.add_result(!refused.is_valid(), "exclusive lock scope: exclusive open still refused after closing a reader");
+
+            file_manager.close_file(holder);
+            result.add_result(!is_locked_for_other_process(path), "exclusive lock scope: released when the holder closes");
+            file_manager.remove_file_or_dir(path);
+        }
+#endif
+
+#if defined(BQ_POSIX) && !defined(BQ_PS) && !defined(BQ_SWITCH)
+        inline mode_t get_permission_bits(const bq::string& path)
+        {
+            struct stat file_info;
+            return stat(path.c_str(), &file_info) == 0 ? (file_info.st_mode & 0777) : static_cast<mode_t>(0);
+        }
+
+        // Android leaves a written file group writable, even one created narrower before; everywhere
+        // else the group can only read it.
+        inline void test_file_permission(test_result& result, bq::file_manager& file_manager)
+        {
+            const bq::string path = TO_ABSOLUTE_PATH("cc/bb/ff/permission/p.log", base_dir_type);
+            file_manager.remove_file_or_dir(path);
+            auto handle = file_manager.open_file(path, file_open_mode_enum::auto_create | file_open_mode_enum::read_write);
+            result.add_result(handle.is_valid(), "file permission: create");
+            file_manager.close_file(handle);
+            const mode_t created = get_permission_bits(path);
+            result.add_result((created & (S_IRUSR | S_IWUSR)) == (S_IRUSR | S_IWUSR), "file permission: owner can read and write, mode:%o", static_cast<uint32_t>(created));
+#if defined(BQ_ANDROID)
+            result.add_result((created & (S_IRGRP | S_IWGRP)) == (S_IRGRP | S_IWGRP), "file permission: group can read and write a new file, mode:%o", static_cast<uint32_t>(created));
+
+            chmod(path.c_str(), S_IRUSR | S_IWUSR);
+            handle = file_manager.open_file(path, file_open_mode_enum::read);
+            file_manager.close_file(handle);
+            result.add_result(get_permission_bits(path) == (S_IRUSR | S_IWUSR), "file permission: a read-only open leaves the mode alone");
+
+            handle = file_manager.open_file(path, file_open_mode_enum::read_write);
+            file_manager.close_file(handle);
+            const mode_t reopened = get_permission_bits(path);
+            result.add_result(reopened == (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP), "file permission: an existing file is widened when opened for write, mode:%o", static_cast<uint32_t>(reopened));
+#else
+            result.add_result((created & (S_IWGRP | S_IWOTH)) == 0, "file permission: group and others cannot write, mode:%o", static_cast<uint32_t>(created));
+#endif
+            file_manager.remove_file_or_dir(path);
+        }
+#endif
 
         template <bool>
         struct test_file_manager_large_file_truncate {
@@ -50,11 +143,13 @@ namespace bq {
                 result.add_result(file_manager.create_directory(TO_ABSOLUTE_PATH("cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/测试中文%##@aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/cc/bb/aa/dd/", base_dir_type)), "super long path and Chinese characters: create_directory_in_base_path cc/bb/aa/dd/*");
                 result.add_result(file_manager.is_dir(TO_ABSOLUTE_PATH("cc/bb/aa/dd", base_dir_type)), "check create_directory_in_base_path cc/bb/aa/dd");
                 result.add_result(file_manager.create_directory(TO_ABSOLUTE_PATH("cc/bb/aa/ee", base_dir_type)), "create_directory_in_base_path cc/bb/aa/ee");
+#if BQ_HAS_DIRENT
                 bq::array<bq::string> sub_dirs = file_manager.get_sub_dirs_and_files_name(TO_ABSOLUTE_PATH("cc/bb/aa/", base_dir_type));
                 result.add_result(sub_dirs.size() == 2, "get_sub_dirs_and_files_name test 0");
                 result.add_result((sub_dirs[0] == "dd" && sub_dirs[1] == "ee")
                         || (sub_dirs[1] == "dd" && sub_dirs[0] == "ee"),
                     "get_sub_dirs_and_files_name test 1");
+#endif
 
                 {
                     auto handle1 = file_manager.open_file(TO_ABSOLUTE_PATH("cc/bb/ff/real/v.txt", base_dir_type), file_open_mode_enum::auto_create | file_open_mode_enum::read_write);
@@ -195,6 +290,12 @@ namespace bq {
                     bq::util::set_log_device_console_min_level(bq::log_level::warning);
                     result.add_result(group_handle_A_3 && !group_handle_A_4, "exclusive test 3");
                 }
+#if BQ_HAS_FORK
+                test_exclusive_lock_scope(result, file_manager);
+#endif
+#if defined(BQ_POSIX) && !defined(BQ_PS) && !defined(BQ_SWITCH)
+                test_file_permission(result, file_manager);
+#endif
 
                 if (bq::memory_map::is_platform_support()) {
                     // memory map test

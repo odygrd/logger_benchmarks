@@ -19,7 +19,7 @@
 #pragma comment(lib, "Mswsock.lib")
 #pragma comment(lib, "AdvApi32.lib")
 
-SPDLOG_NAMESPACE_BEGIN
+namespace spdlog {
 namespace details {
 class tcp_client {
     SOCKET socket_ = INVALID_SOCKET;
@@ -52,10 +52,8 @@ public:
     bool is_connected() const { return socket_ != INVALID_SOCKET; }
 
     void close() {
-        if (socket_ != INVALID_SOCKET) {
-            ::closesocket(socket_);
-            socket_ = INVALID_SOCKET;
-        }
+        ::closesocket(socket_);
+        socket_ = INVALID_SOCKET;
     }
 
     SOCKET fd() const { return socket_; }
@@ -156,6 +154,7 @@ public:
         int last_error = 0;
         if (rv != 0) {
             last_error = ::WSAGetLastError();
+            WSACleanup();
             throw_winsock_error_("getaddrinfo failed", last_error);
         }
 
@@ -164,6 +163,7 @@ public:
             socket_ = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
             if (socket_ == INVALID_SOCKET) {
                 last_error = ::WSAGetLastError();
+                WSACleanup();
                 continue;
             }
             if (connect_socket_with_timeout(socket_, rp->ai_addr, (int)rp->ai_addrlen, tv) == 0) {
@@ -176,6 +176,7 @@ public:
         }
         ::freeaddrinfo(addrinfo_result);
         if (socket_ == INVALID_SOCKET) {
+            WSACleanup();
             throw_winsock_error_("connect failed", last_error);
         }
         if (timeout_ms > 0) {
@@ -213,4 +214,4 @@ public:
     }
 };
 }  // namespace details
-SPDLOG_NAMESPACE_END
+}  // namespace spdlog

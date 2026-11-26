@@ -18,11 +18,12 @@
  * \date 2024/12/06
  */
 #include "bq_common/bq_common.h"
-#include "bq_log/misc/bq_log_api.h"
+#include "bq_log/api/bq_log_api.h"
 #include "bq_log/types/buffer/log_buffer_defs.h"
 #include "bq_log/types/buffer/siso_ring_buffer.h"
 
 namespace bq {
+    BQ_SUPPRESS_MAYBE_UNINITIALIZED_BEGIN()
     BQ_PACK_BEGIN
     class alignas(8) block_node_head {
     public:
@@ -44,7 +45,7 @@ namespace bq {
             bq_forceinline bool is_empty() const { return is_empty_index(index()); }
         } BQ_PACK_END
 
-            static_assert(sizeof(pointer_type) == sizeof(uint32_t), "invalid size of pointer_type");
+        static_assert(sizeof(pointer_type) == sizeof(uint32_t), "invalid size of pointer_type");
 
     private:
         // These members are modified in different threads which will leads to "False Share".
@@ -84,6 +85,10 @@ namespace bq {
 
         bq_forceinline void renew() { get_buffer().renew(); }
 
+        static uint32_t get_buffer_offset() { return static_cast<uint32_t>(BQ_POD_RUNTIME_OFFSET_OF(block_node_head, buffer_)); }
+
+        static uint32_t get_misc_data_offset() { return static_cast<uint32_t>(BQ_POD_RUNTIME_OFFSET_OF(block_node_head, misc_data_)); }
+
         static constexpr ptrdiff_t get_buffer_data_offset()
         {
             return (ptrdiff_t)((sizeof(block_node_head) + BQ_CACHE_LINE_SIZE - 1) - ((sizeof(block_node_head) + BQ_CACHE_LINE_SIZE - 1) % BQ_CACHE_LINE_SIZE));
@@ -94,7 +99,8 @@ namespace bq {
         bq_forceinline void set_type(block_list_type type) { type_ = type; }
     } BQ_PACK_END
 
-        BQ_PACK_BEGIN class alignas(BQ_CACHE_LINE_SIZE) block_list {
+    BQ_PACK_BEGIN
+    class alignas(BQ_CACHE_LINE_SIZE) block_list {
         friend struct group_data_head;
 
     private:
@@ -325,5 +331,7 @@ namespace bq {
             }
             return true;
         }
-    } BQ_PACK_END static_assert(sizeof(block_list) == BQ_CACHE_LINE_SIZE, "invalid block_list size");
+    } BQ_PACK_END
+    static_assert(sizeof(block_list) == BQ_CACHE_LINE_SIZE, "invalid block_list size");
+    BQ_SUPPRESS_MAYBE_UNINITIALIZED_END()
 }

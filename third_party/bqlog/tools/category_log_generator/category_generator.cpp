@@ -17,7 +17,9 @@
 #include "template/category_log_template_java.h"
 #include "template/category_log_template_typescript.h"
 #include "template/category_log_template_python.h"
+#include "template/category_log_template_go.h"
 #include "template/category_log_template_unreal.h"
+#include "template/category_log_template_verse.h"
 
 namespace bq {
     bool category_generator::parse_config_file(const bq::string& file_path, category_node& category_root)
@@ -93,6 +95,13 @@ namespace bq {
         bq::file_manager::instance().write_all_text(bq::file_manager::combine_path(abs_dir, class_name + ".h"), code);
         bq::util::log_device_console(log_level::info, "code generated:%s", bq::file_manager::combine_path(abs_dir, class_name + ".h").c_str());
 
+        // The C++20 module entry beside the header: same class, importable.
+        bq::string module_code = cpp.generate_module(root_node);
+        if (!module_code.is_empty()) {
+            bq::file_manager::instance().write_all_text(bq::file_manager::combine_path(abs_dir, class_name + ".cppm"), module_code);
+            bq::util::log_device_console(log_level::info, "code generated:%s", bq::file_manager::combine_path(abs_dir, class_name + ".cppm").c_str());
+        }
+
         category_log_template_csharp csharp(class_name);
         code = csharp.generate(root_node);
         bq::file_manager::instance().write_all_text(bq::file_manager::combine_path(abs_dir, class_name + ".cs"), code);
@@ -118,10 +127,20 @@ namespace bq {
         bq::file_manager::instance().write_all_text(bq::file_manager::combine_path(abs_dir, class_name + ".py"), code);
         bq::util::log_device_console(log_level::info, "code generated:%s", bq::file_manager::combine_path(abs_dir, class_name + ".py").c_str());
 
+        category_log_template_go go(class_name);
+        code = go.generate(root_node);
+        bq::file_manager::instance().write_all_text(bq::file_manager::combine_path(abs_dir, class_name + ".go"), code);
+        bq::util::log_device_console(log_level::info, "code generated:%s", bq::file_manager::combine_path(abs_dir, class_name + ".go").c_str());
+
         category_log_template_unreal unreal(class_name);
         code = unreal.generate(root_node);
         bq::file_manager::instance().write_all_text(bq::file_manager::combine_path(abs_dir, class_name + "_for_UE.h"), code);
-        bq::util::log_device_console(log_level::info, "code generated:%s", bq::file_manager::combine_path(abs_dir, class_name + ".cpp").c_str());
+        bq::util::log_device_console(log_level::info, "code generated:%s", bq::file_manager::combine_path(abs_dir, class_name + "_for_UE.h").c_str());
+
+        category_log_template_verse verse(class_name);
+        code = verse.generate(root_node);
+        bq::file_manager::instance().write_all_text(bq::file_manager::combine_path(abs_dir, class_name + ".verse"), code);
+        bq::util::log_device_console(log_level::info, "code generated:%s", bq::file_manager::combine_path(abs_dir, class_name + ".verse").c_str());
 
         return true;
     }

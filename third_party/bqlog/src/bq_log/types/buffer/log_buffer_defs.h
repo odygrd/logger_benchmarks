@@ -18,7 +18,7 @@
  */
 #include <stddef.h>
 #include "bq_common/bq_common.h"
-#include "bq_log/misc/bq_log_api.h"
+#include "bq_log/api/bq_log_api.h"
 #if defined(BQ_JAVA)
 #include <jni.h>
 #endif
@@ -34,14 +34,21 @@
 #endif
 
 namespace bq {
+    class log_storage;
+
 #define BUFFER_ATOMIC_CAST_IGNORE_ALIGNMENT(X, TYPE) BQ_PACK_ACCESS_BY_TYPE(X, bq::platform::atomic<TYPE>)
 
 #define BQ_POD_RUNTIME_OFFSET_OF(Type, Field) static_cast<size_t>((reinterpret_cast<uintptr_t>(&(((Type*)0x10000)->Field))) - static_cast<uintptr_t>(0x10000))
+
+    // how many past runs' data can still be recovered: versions
+    // current - MAX_RECOVERY_VERSION_RANGE + 1 .. current - 1 stay visible
+    constexpr uint16_t MAX_RECOVERY_VERSION_RANGE = 16;
 
     struct log_buffer_write_handle {
         uint8_t* data_addr;
         enum_buffer_result_code result = enum_buffer_result_code::err_empty_log_buffer;
         bool low_space_flag = false; // just approximate because of multi-thread
+        bool ext_info_reserved = true; // false when the chunk is in an HP block, whose owner thread is recorded once in the block
     };
 
     struct log_buffer_read_handle {
@@ -106,13 +113,19 @@ namespace bq {
         /// <returns></returns>
         uint64_t calculate_check_sum() const
         {
-            bq::string verify_str = log_name + "/";
+            // the prefix makes mmap data written by 2.6.x (same path, different
+            // layout) never verify as recoverable data
+            bq::string verify_str = "bqlog_mmap_v3/" + log_name + "/";
             for (const auto& category_name : log_categories_name) {
                 verify_str += category_name + "/";
             }
             uint64_t check_sum = verify_str.hash_code();
             return check_sum;
         }
+
+        /// <summary>Instance-scoped storage for mmap paths; null when recovery is off or no
+        /// instance could be claimed (buffers then fall back to heap memory).</summary>
+        const log_storage* storage = nullptr;
     };
 
     template <typename BUFFER_TYPE>

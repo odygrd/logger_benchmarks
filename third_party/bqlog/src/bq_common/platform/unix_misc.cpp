@@ -31,7 +31,7 @@ namespace bq {
         // According to test result, benifit from VDSO.
         //"CLOCK_REALTIME_COARSE clock_gettime"  has higher performance
         //  than "gettimeofday" and event "TSC" on Android and Linux.
-        uint64_t high_performance_epoch_ms()
+        uint64_t system_epoch_ms()
         {
             struct timespec ts;
             clock_gettime(BQ_CLOCK_REALTIME_FAST, &ts);
@@ -39,6 +39,7 @@ namespace bq {
             return epoch_milliseconds;
         }
 
+#if BQ_HAS_DEFAULT_BASE_DIR
         base_dir_initializer::base_dir_initializer()
         {
             bq::array<char> tmp;
@@ -49,6 +50,7 @@ namespace bq {
             set_base_dir_0(&tmp[0]);
             set_base_dir_1(&tmp[0]);
         }
+#endif
     }
 }
 #endif

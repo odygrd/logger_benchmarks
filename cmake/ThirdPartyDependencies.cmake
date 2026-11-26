@@ -176,6 +176,7 @@ function(logger_benchmarks_add_binlog)
   add_subdirectory(
     "${CMAKE_SOURCE_DIR}/third_party/binlog"
     "${CMAKE_BINARY_DIR}/vendor/binlog"
+    EXCLUDE_FROM_ALL
   )
 endfunction()
 
@@ -217,7 +218,6 @@ function(logger_benchmarks_add_xtr)
     "${CMAKE_SOURCE_DIR}/third_party/xtr/src/open.cpp"
     "${CMAKE_SOURCE_DIR}/third_party/xtr/src/pagesize.cpp"
     "${CMAKE_SOURCE_DIR}/third_party/xtr/src/posix_fd_storage.cpp"
-    "${CMAKE_SOURCE_DIR}/third_party/xtr/src/prefault.cpp"
     "${CMAKE_SOURCE_DIR}/third_party/xtr/src/regex_matcher.cpp"
     "${CMAKE_SOURCE_DIR}/third_party/xtr/src/sink.cpp"
     "${CMAKE_SOURCE_DIR}/third_party/xtr/src/throw.cpp"
@@ -247,12 +247,6 @@ function(logger_benchmarks_add_bqlog)
     "${CMAKE_SOURCE_DIR}/third_party/bqlog/src"
     "${CMAKE_BINARY_DIR}/vendor/bqlog"
   )
-
-  if(TARGET BqLog)
-    target_include_directories(BqLog
-      PUBLIC "${CMAKE_SOURCE_DIR}/third_party/bqlog/include"
-    )
-  endif()
 
   if(TARGET BqLog AND NOT TARGET bqlog)
     add_library(bqlog ALIAS BqLog)

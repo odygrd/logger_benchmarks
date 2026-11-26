@@ -13,38 +13,90 @@
 namespace bq {
     namespace platform {
         static bq::platform::spin_lock_zero_init lock_;
+        BQ_TLS fast_clock_thread_cache epoch_ms_cache_;
+
+        void prefault_pages(void* addr, size_t size)
+        {
+            const uintptr_t page_size = static_cast<uintptr_t>(common_global_vars::get().page_size_);
+            if (!addr || size == 0 || page_size == 0) {
+                return;
+            }
+            const uintptr_t begin = reinterpret_cast<uintptr_t>(addr);
+            const uintptr_t end = begin + size;
+            for (uintptr_t page = begin - (begin % page_size); page < end; page += page_size) {
+                volatile uint8_t* p = reinterpret_cast<volatile uint8_t*>(page < begin ? begin : page);
+                *p = *p;
+            }
+        }
+
+        static void terminate_for_unset_base_dir(int32_t base_dir_type)
+        {
+            bq::util::log_device_console(bq::log_level::fatal, "base dir %" PRId32 " is not set: mount the storage, then call bq::log::reset_base_dir() before creating any log", base_dir_type);
+            abort();
+        }
 
         bq::string get_base_dir(int32_t base_dir_type)
         {
             bq::platform::scoped_spin_lock lock(lock_);
-            if (base_dir_type == 0) {
-                return common_global_vars::get().base_dir_init_inst_.get_base_dir_0();
-            } else if (base_dir_type == 1) {
-                return common_global_vars::get().base_dir_init_inst_.get_base_dir_1();
-            } else {
+            const auto& init_inst = common_global_vars::get().base_dir_init_inst_;
+            const int32_t type = (base_dir_type == 0) ? 0 : 1;
+            if (base_dir_type != 0 && base_dir_type != 1) {
                 bq::util::log_device_console(bq::log_level::warning, "[get_base_dir] unknown base dir type:%" PRId32, base_dir_type);
-                return common_global_vars::get().base_dir_init_inst_.get_base_dir_1();
             }
+            if (!init_inst.is_set(type)) {
+                terminate_for_unset_base_dir(type);
+            }
+            return (type == 0) ? init_inst.get_base_dir_0() : init_inst.get_base_dir_1();
         }
+
+        bool try_get_base_dir(int32_t base_dir_type, bq::string& out_dir)
+        {
+            bq::platform::scoped_spin_lock lock(lock_);
+            const auto& init_inst = common_global_vars::get().base_dir_init_inst_;
+            const int32_t type = (base_dir_type == 0) ? 0 : 1;
+            if (!init_inst.is_set(type)) {
+                out_dir.clear();
+                return false;
+            }
+            out_dir = (type == 0) ? init_inst.get_base_dir_0() : init_inst.get_base_dir_1();
+            return true;
+        }
+
+        bool base_dir_initializer::is_set(int32_t base_dir_type) const
+        {
+            return (base_dir_type == 0) ? base_dir_0_set_ : base_dir_1_set_;
+        }
+
+#if !BQ_HAS_DEFAULT_BASE_DIR
+        base_dir_initializer::base_dir_initializer()
+        {
+        }
+#endif
 
         void base_dir_initializer::set_base_dir_0(const bq::string& dir)
         {
             bq::platform::scoped_spin_lock lock(lock_);
             base_dir_0_ = dir;
-#if !defined(NDEBUG)
-            bq::util::log_device_console(log_level::info, "set base dir type 0: %s", dir.c_str());
-#endif
+            base_dir_0_set_ = true;
         }
         void base_dir_initializer::set_base_dir_1(const bq::string& dir)
         {
             bq::platform::scoped_spin_lock lock(lock_);
             base_dir_1_ = dir;
-#if !defined(NDEBUG)
-            bq::util::log_device_console(log_level::info, "set base dir type 1: %s", dir.c_str());
-#endif
+            base_dir_1_set_ = true;
         }
 
 #if defined(BQ_UNIT_TEST)
+        void base_dir_initializer::test_clear_set_flag(int32_t base_dir_type)
+        {
+            bq::platform::scoped_spin_lock lock(lock_);
+            if (base_dir_type == 0) {
+                base_dir_0_set_ = false;
+            } else {
+                base_dir_1_set_ = false;
+            }
+        }
+
         namespace test_inject {
             // All state is process-global. Tests are sequential; if a future test
             // wants to be parallel-safe across log objects, the path filter scopes
@@ -53,6 +105,7 @@ namespace bq {
             static bq::platform::spin_lock_zero_init s_filter_lock;
             static bq::string s_path_filter;
             static bq::platform::atomic<int32_t> s_normal_buffer_alloc_fail(0);
+            static bq::platform::atomic<uint64_t> s_short_write_limit(static_cast<uint64_t>(-1));
 
             void set_fault(fault_kind kind)
             {
@@ -85,6 +138,34 @@ namespace bq {
             bool get_normal_buffer_alloc_fail()
             {
                 return s_normal_buffer_alloc_fail.load(bq::platform::memory_order::acquire) != 0;
+            }
+            void set_short_write_limit(size_t bytes)
+            {
+                s_short_write_limit.store(static_cast<uint64_t>(bytes), bq::platform::memory_order::seq_cst);
+            }
+            bool get_short_write_limit(size_t& out_bytes)
+            {
+                const uint64_t limit = s_short_write_limit.load(bq::platform::memory_order::acquire);
+                out_bytes = static_cast<size_t>(limit);
+                return limit != static_cast<uint64_t>(-1);
+            }
+            static bq::platform::atomic<int32_t> s_disable_secure_random(0);
+            void set_disable_secure_random(bool disable)
+            {
+                s_disable_secure_random.store(disable ? 1 : 0, bq::platform::memory_order::seq_cst);
+            }
+            bool get_disable_secure_random()
+            {
+                return s_disable_secure_random.load(bq::platform::memory_order::acquire) != 0;
+            }
+            void set_base_dir_unset(bool unset)
+            {
+                if (!unset) {
+                    return;
+                }
+                auto& init_inst = common_global_vars::get().base_dir_init_inst_;
+                init_inst.test_clear_set_flag(0);
+                init_inst.test_clear_set_flag(1);
             }
         }
 #endif

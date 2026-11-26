@@ -1,9 +1,9 @@
 #!/bin/zsh
 #
 # Usage (all parameters optional; missing ones will be prompted):
-#   dont_execute_this.sh all  [java] [node] [python] [dynamic_lib|static_lib|both]
-#   dont_execute_this.sh build [java] [node] [python] [dynamic_lib|static_lib|both] [framework|dylib|a]
-#   dont_execute_this.sh gen-vsproj [java] [node] [python] [dynamic_lib|static_lib|both] [framework|dylib|a]
+#   dont_execute_this.sh all  [java] [node] [python] [dynamic_lib|static_lib|both] [go]
+#   dont_execute_this.sh build [java] [node] [python] [dynamic_lib|static_lib|both] [framework|dylib|a] [go]
+#   dont_execute_this.sh gen-vsproj [java] [node] [python] [dynamic_lib|static_lib|both] [framework|dylib|a] [go]
 #   dont_execute_this.sh pack
 #
 # Normalized values:
@@ -33,10 +33,12 @@ ARG2="${3:-}"  # node
 ARG3="${4:-}"  # python
 ARG4="${5:-}"  # build_lib_type
 ARG5="${6:-}"  # format (framework|dylib|a)
+ARG6="${7:-}"  # go
 
 JAVA_SUPPORT=""
 NODE_API_SUPPORT=""
 PYTHON_SUPPORT=""
+GO_SUPPORT=""
 BUILD_LIB_TYPE=""
 APPLE_LIB_FORMAT=""
 
@@ -83,6 +85,14 @@ ask_yes_no() {
     esac
   done
 }
+# Non-interactive (CI) runs must not block on a prompt: default the optional feature to OFF.
+ask_yes_no_or_off() {
+  if [ -t 0 ] && [ -z "${CI:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ]; then
+    ask_yes_no "$1"
+  else
+    echo "OFF"
+  fi
+}
 ask_build_lib_type() {
   echo
   echo "Select library type:"
@@ -123,13 +133,16 @@ ask_format() {
 
 ensure_common_params() {
   if [[ -z "${JAVA_SUPPORT:-}" ]]; then
-    JAVA_SUPPORT="$(ask_yes_no "Enable Java/JNI support?")"
+    JAVA_SUPPORT="$(ask_yes_no_or_off "Enable Java/JNI support?")"
   fi
   if [[ -z "${NODE_API_SUPPORT:-}" ]]; then
-    NODE_API_SUPPORT="$(ask_yes_no "Enable Node-API (Node.js) support?")"
+    NODE_API_SUPPORT="$(ask_yes_no_or_off "Enable Node-API (Node.js) support?")"
   fi
   if [[ -z "${PYTHON_SUPPORT:-}" ]]; then
-    PYTHON_SUPPORT="$(ask_yes_no "Enable Python (CPython C Extension) support?")"
+    PYTHON_SUPPORT="$(ask_yes_no_or_off "Enable Python (CPython C Extension) support?")"
+  fi
+  if [[ -z "${GO_SUPPORT:-}" ]]; then
+    GO_SUPPORT="$(ask_yes_no_or_off "Enable Go (cgo) support?")"
   fi
 }
 
@@ -147,8 +160,18 @@ determine_generator() {
 JAVA_SUPPORT="$(normalize_onoff "$ARG1")"
 NODE_API_SUPPORT="$(normalize_onoff "$ARG2")"
 PYTHON_SUPPORT="$(normalize_onoff "$ARG3")"
-BUILD_LIB_TYPE="$(normalize_build_lib_type "$ARG4")"
-APPLE_LIB_FORMAT="$(normalize_format "$ARG5")"
+if [[ "$ACTION" == "all" ]]; then
+  # all [java] [node] [python] [lib_type] [go]: no format position
+  GO_SUPPORT="$(normalize_onoff "$ARG5")"
+  BUILD_LIB_TYPE="$(normalize_build_lib_type "$ARG4")"
+  # old 7-position calls passed go as the 7th (after format); only trust it when it parses as on/off
+  [[ -z "$GO_SUPPORT" ]] && GO_SUPPORT="$(normalize_onoff "$ARG6")"
+else
+  BUILD_LIB_TYPE="$(normalize_build_lib_type "$ARG4")"
+  APPLE_LIB_FORMAT="$(normalize_format "$ARG5")"
+  GO_SUPPORT="$(normalize_onoff "$ARG6")"
+fi
+# GO_SUPPORT stays unset when the arguments did not carry it: the caller prompts for it below.
 
 echo "Parsed params:"
 echo "  ACTION:            ${ACTION:-}"
@@ -157,11 +180,12 @@ echo "  NODE_API_SUPPORT:  ${NODE_API_SUPPORT:-<unset>}"
 echo "  PYTHON_SUPPORT:   ${PYTHON_SUPPORT:-<unset>}"
 echo "  BUILD_LIB_TYPE:    ${BUILD_LIB_TYPE:-<unset>}"
 echo "  APPLE_LIB_FORMAT:  ${APPLE_LIB_FORMAT:-<unset>}"
+echo "  GO_SUPPORT:        ${GO_SUPPORT:-<unset>}"
 echo "  GENERATOR:         $(determine_generator)"
 
 # Always build universal binaries (arm64 + x86_64)
 typeset -a ARCH_ARGS
-ARCH_ARGS=("-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64")
+ARCH_ARGS=("-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64" "-DCMAKE_OSX_DEPLOYMENT_TARGET=${BQ_MACOS_DEPLOYMENT_TARGET:-12.0}")
 
 # Build one (libtype, format) across all configs
 build_one_pair() {
@@ -188,14 +212,18 @@ build_one_pair() {
   echo
 
   if [[ "$gen" == "Xcode" ]]; then
+    # CMAKE_INSTALL_* reproduces the prebuilt tarball shape, install/<libtype>/lib/<config>;
+    # the CMakeLists itself only supplies the standard GNUInstallDirs defaults.
     cmake "${SRC_DIR}" -G "Xcode" \
       -DTARGET_PLATFORM:STRING=mac \
       -DBUILD_LIB_TYPE="${build_lib_type}" \
       -DJAVA_SUPPORT:BOOL="${JAVA_SUPPORT}" \
       -DNODE_API_SUPPORT:BOOL="${NODE_API_SUPPORT}" \
-      -DPYTHON_SUPPORT:BOOL="${PYTHON_SUPPORT}" \
+      -DPYTHON_SUPPORT:BOOL="${PYTHON_SUPPORT}" -DGO_SUPPORT:BOOL="${GO_SUPPORT}" \
       -DAPPLE_LIB_FORMAT:STRING="${apple_format}" \
-      -DCMAKE_INSTALL_PREFIX="${REPO_ROOT}/install" \
+      -DCMAKE_INSTALL_PREFIX="${REPO_ROOT}/install/${build_lib_type}" \
+      -DCMAKE_INSTALL_LIBDIR='lib/$<CONFIG>' \
+      -DCMAKE_INSTALL_DOCDIR=.. \
       "${ARCH_ARGS[@]}"
 
     for cfg in "${BuildConfigs[@]}"; do
@@ -213,10 +241,12 @@ build_one_pair() {
         -DBUILD_LIB_TYPE="${build_lib_type}" \
         -DJAVA_SUPPORT:BOOL="${JAVA_SUPPORT}" \
         -DNODE_API_SUPPORT:BOOL="${NODE_API_SUPPORT}" \
-      -DPYTHON_SUPPORT:BOOL="${PYTHON_SUPPORT}" \
+      -DPYTHON_SUPPORT:BOOL="${PYTHON_SUPPORT}" -DGO_SUPPORT:BOOL="${GO_SUPPORT}" \
         -DCMAKE_BUILD_TYPE="${cfg}" \
         -DAPPLE_LIB_FORMAT:STRING="${apple_format}" \
-        -DCMAKE_INSTALL_PREFIX="${REPO_ROOT}/install" \
+        -DCMAKE_INSTALL_PREFIX="${REPO_ROOT}/install/${build_lib_type}" \
+        -DCMAKE_INSTALL_LIBDIR="lib/${cfg}" \
+        -DCMAKE_INSTALL_DOCDIR=.. \
         "${ARCH_ARGS[@]}"
       cmake --build . -- -j "${BUILD_JOBS}"
       cmake --install .
@@ -257,7 +287,7 @@ gen_project_one() {
       -DBUILD_LIB_TYPE="${build_lib_type}" \
       -DJAVA_SUPPORT:BOOL="${JAVA_SUPPORT}" \
       -DNODE_API_SUPPORT:BOOL="${NODE_API_SUPPORT}" \
-      -DPYTHON_SUPPORT:BOOL="${PYTHON_SUPPORT}" \
+      -DPYTHON_SUPPORT:BOOL="${PYTHON_SUPPORT}" -DGO_SUPPORT:BOOL="${GO_SUPPORT}" \
       -DAPPLE_LIB_FORMAT:STRING="${apple_format}" \
       "${ARCH_ARGS[@]}"
   else
@@ -266,7 +296,7 @@ gen_project_one() {
       -DBUILD_LIB_TYPE="${build_lib_type}" \
       -DJAVA_SUPPORT:BOOL="${JAVA_SUPPORT}" \
       -DNODE_API_SUPPORT:BOOL="${NODE_API_SUPPORT}" \
-      -DPYTHON_SUPPORT:BOOL="${PYTHON_SUPPORT}" \
+      -DPYTHON_SUPPORT:BOOL="${PYTHON_SUPPORT}" -DGO_SUPPORT:BOOL="${GO_SUPPORT}" \
       -DCMAKE_BUILD_TYPE=Debug \
       -DAPPLE_LIB_FORMAT:STRING="${apple_format}" \
       "${ARCH_ARGS[@]}"
@@ -336,10 +366,12 @@ rm -rf "../../../install"
 # Dispatch
 case "$ACTION" in
   all)
-    # If CLI provided ON/OFF, use it; otherwise prompt
-    [[ -z "${JAVA_SUPPORT:-}"     ]] && JAVA_SUPPORT="$(ask_yes_no "Enable Java/JNI support?")"
-    [[ -z "${NODE_API_SUPPORT:-}" ]] && NODE_API_SUPPORT="$(ask_yes_no "Enable Node-API (Node.js) support?")"
-    [[ -z "${PYTHON_SUPPORT:-}" ]] && PYTHON_SUPPORT="$(ask_yes_no "Enable Python (CPython C Extension) support?")"
+    # If CLI provided ON/OFF, use it; otherwise prompt (or default OFF when non-interactive,
+    # e.g. CI, where a prompt would block the build)
+    [[ -z "${JAVA_SUPPORT:-}"     ]] && JAVA_SUPPORT="$(ask_yes_no_or_off "Enable Java/JNI support?")"
+    [[ -z "${NODE_API_SUPPORT:-}" ]] && NODE_API_SUPPORT="$(ask_yes_no_or_off "Enable Node-API (Node.js) support?")"
+    [[ -z "${PYTHON_SUPPORT:-}" ]] && PYTHON_SUPPORT="$(ask_yes_no_or_off "Enable Python (CPython C Extension) support?")"
+    [[ -z "${GO_SUPPORT:-}" ]] && GO_SUPPORT="$(ask_yes_no_or_off "Enable Go (cgo) support?")"
     BUILD_LIB_TYPE_ALL="${BUILD_LIB_TYPE:-both}"
     if [[ "$BUILD_LIB_TYPE_ALL" == "dynamic_lib" ]]; then
       # dynamic only: respect NODE_API rule (same logic as build_all_combos)

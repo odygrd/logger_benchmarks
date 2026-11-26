@@ -15,8 +15,7 @@
  * \
  *
  * Appender for compressed log file.
- * This appender might consume slightly more CPU than the appender_file_raw,
- * but in most cases, it can significantly reduce the size of log files.
+ * In most cases, it can significantly reduce the size of log files.
  *
  * Most of the time, the same combination of log format, level, and category appears multiple times in a single log file,
  * with the only difference between different log entries being the parameters that follow.
@@ -66,7 +65,7 @@ namespace bq {
         };
 
     public:
-        static constexpr uint32_t format_version = 10;
+        static constexpr uint32_t format_version = appender_file_binary::format_version;
         static constexpr uint32_t DEFAULT_FORMAT_TEMPLATE_CACHE_MAX_ENTRIES = 100000;
         static constexpr uint32_t DEFAULT_THREAD_INFO_CACHE_MAX_ENTRIES = 2048;
 

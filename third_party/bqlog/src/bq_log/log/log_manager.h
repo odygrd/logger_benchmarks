@@ -15,6 +15,16 @@
 #include "bq_log/log/log_worker.h"
 
 namespace bq {
+    // One row per platform capability: the single place where the list and its BQ_HAS_* source live.
+    struct platform_capability_row {
+        const char* name_;
+        uint32_t bit_;
+        int32_t supported_;
+    };
+
+    // rows of what this build has, in report order; out_count receives the row count
+    const platform_capability_row* platform_capability_rows(uint32_t& out_count);
+
     class log_manager {
     private:
         enum class phase {
@@ -36,7 +46,7 @@ namespace bq {
 
         bool reset_config(const bq::string& log_name, const bq::string& config_content);
 
-        void process_by_worker(log_imp* target_log, bool is_force_flush);
+        bool process_by_worker(log_imp* target_log, bool is_force_flush);
 
         uint32_t get_logs_count() const;
 
@@ -56,6 +66,17 @@ namespace bq {
         bool try_flush_all();
 
         void force_flush(uint64_t log_id);
+
+#if defined(BQ_UNIT_TEST)
+        // Destroys the log without consuming its buffer, leaving the memory maps as a crash would.
+        void test_crash_log(uint64_t log_id);
+
+        // Destroys the log's appenders without flushing them first, as instance teardown does.
+        void test_teardown_appenders(uint64_t log_id);
+
+        // force_flush skips sync logs; a test that needs one flushed at a known instant calls this.
+        void test_force_flush(uint64_t log_id);
+#endif
 
         bq_forceinline log_worker& get_public_worker()
         {

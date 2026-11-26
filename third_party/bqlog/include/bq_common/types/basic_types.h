@@ -16,7 +16,13 @@
  * \date 2022/07/14
  *
  */
+#if !defined(BQ_MODULE_SYSTEM_HEADERS_PREINCLUDED)
+#include <stdint.h>
+#endif
+
+#if defined(__cplusplus)
 namespace bq {
+    BQ_MODULE_EXPORT_BEGIN
     enum class log_level : int32_t {
         verbose,
         debug,
@@ -27,4 +33,18 @@ namespace bq {
 
         log_level_max = 32,
     };
+    BQ_MODULE_EXPORT_END
 }
+#else
+// Keep the ABI fixed at 32 bits, even with -fshort-enums.
+typedef int32_t bq_log_level;
+enum bq_log_level_value {
+    bq_log_level_verbose = 0,
+    bq_log_level_debug,
+    bq_log_level_info,
+    bq_log_level_warning,
+    bq_log_level_error,
+    bq_log_level_fatal,
+    bq_log_level_max = 32
+};
+#endif

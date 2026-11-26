@@ -2,44 +2,37 @@
   <img src="banner.jpg" alt="BqLog Banner" width="100%">
 </p>
 
-# BqLog (BianQue Log) V 2.4.1
+# BqLog (BianQue Log) V 2.8.3
 
 **English** | [简体中文](./README_CHS.md)
 
 [![license](https://img.shields.io/badge/license-APACHE2.0-brightgreen.svg?style=flat)](LICENSE.txt)
-[![Release Version](https://img.shields.io/badge/release-2.4.1-red.svg)](https://github.com/Tencent/BqLog/releases)
-[![ChangeLog](https://img.shields.io/badge/📋_ChangeLog-v2.4.1-orange.svg?style=flat)](CHANGELOG.md)
+[![Release Version](https://img.shields.io/badge/release-2.8.3-red.svg)](https://github.com/Tencent/BqLog/releases)
+[![ChangeLog](https://img.shields.io/badge/📋_ChangeLog-v2.8.3-orange.svg?style=flat)](CHANGELOG.md)
 [![GitHub Stars](https://img.shields.io/github/stars/Tencent/BqLog?style=flat&logo=github)](https://github.com/Tencent/BqLog/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/Tencent/BqLog?style=flat&logo=github)](https://github.com/Tencent/BqLog/network/members)
 [![GitHub Issues](https://img.shields.io/github/issues/Tencent/BqLog?style=flat&logo=github)](https://github.com/Tencent/BqLog/issues)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20iOS%20%7C%20Android%20%7C%20HarmonyOS%20%7C%20OpenHarmony%20%7C%20Unix-lightgrey.svg?style=flat)]()
-[![Language](https://img.shields.io/badge/language-C%2B%2B%20%7C%20Java%20%7C%20C%23%20%7C%20Kotlin%20%7C%20TypeScript%20%7C%20Python-blue.svg?style=flat)]()
+
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20iOS%20%7C%20Android%20%7C%20HarmonyOS%20%7C%20OpenHarmony%20%7C%20Unix%20%7C%20PS4%2F5%20%7C%20Switch-lightgrey.svg?style=flat)]()
+[![PlayStation 4/5](https://img.shields.io/badge/PlayStation_4%2F5-experimental-lightgrey?logo=playstation&style=flat)]()
+[![Nintendo Switch](https://img.shields.io/badge/Switch-experimental-lightgrey?logo=nintendoswitch&style=flat)]()
+[![Language](https://img.shields.io/badge/language-C%2B%2B%20%7C%20Java%20%7C%20C%23%20%7C%20Kotlin%20%7C%20TypeScript%20%7C%20Python%20%7C%20Go-blue.svg?style=flat)]()
+
+[![Homebrew](https://img.shields.io/badge/Homebrew-bqlog-orange?logo=homebrew&logoColor=white&style=flat)](https://formulae.brew.sh/formula/bqlog)
+[![NuGet](https://img.shields.io/nuget/v/BqLog?logo=nuget&label=nuget&style=flat)](https://www.nuget.org/packages/BqLog)
+[![Maven Central](https://img.shields.io/maven-central/v/com.tencent.bqlog/java?label=maven%20java&style=flat)](https://central.sonatype.com/artifact/com.tencent.bqlog/java)
+[![Maven Central](https://img.shields.io/maven-central/v/com.tencent.bqlog/android?label=maven%20android&style=flat)](https://central.sonatype.com/artifact/com.tencent.bqlog/android)
+[![PyPI](https://img.shields.io/pypi/v/bqlog?logo=pypi&label=pypi&style=flat)](https://pypi.org/project/bqlog/)
+[![npm](https://img.shields.io/npm/v/@pippocao/bqlog?logo=npm&label=npm&style=flat)](https://www.npmjs.com/package/@pippocao/bqlog)
+[![ohpm](https://img.shields.io/badge/ohpm-bqlog-blue?style=flat)](https://ohpm.openharmony.cn/#/cn/detail/bqlog)
+[![Go](https://img.shields.io/badge/Go-go%2Fv2-00ADD8?logo=go&logoColor=white&style=flat)](https://pkg.go.dev/github.com/Tencent/BqLog/go/v2)
+[![vcpkg](https://img.shields.io/vcpkg/v/bqlog?logo=vcpkg&style=flat)](https://vcpkg.io/en/package/bqlog.html)
+[![Unity](https://img.shields.io/badge/Unity-package-black?logo=unity&style=flat)](https://github.com/Tencent/BqLog/releases)
+[![Unreal](https://img.shields.io/badge/Unreal-Fab-0E1128?logo=unrealengine&style=flat)](https://www.fab.com/listings/386d1c78-e164-4e97-8b3e-e88cbf9b6acf)
 
 > BqLog is a lightweight, high-performance, industrial-grade logging system that has been widely used in online projects such as "Honor of Kings".
-> **BqLog 2.x is officially released!** With native `HarmonyOS NEXT`, `Python` and `Node.js` support, and asymmetric hybrid encryption.
->
-> 🚀 In [Benchmarks](#-benchmark-results), BqLog's compressed log mode is **2–3x faster than fmtlog**, **3–6x faster than quill**, **3–16x faster than spdlog**, **10–12x faster than Log4j2**, and **25–60x faster than glog**; plain text mode also outperforms all of them.
 
 ---
-
-[![Download](https://img.shields.io/badge/⬇_Download-Release_2.4.1-blue.svg?style=for-the-badge)](https://github.com/Tencent/BqLog/releases/tag/Release_2.4.1)
-
-## 📋 What's New in v2.4.1
-
-- **Performance — Raising the bar once again** — Typical workloads see an approximately **10%–20% performance improvement**. Actual gains vary with thread count, log format, argument types, and output mode.
-- **Compatibility** — [Fixed Linux artifacts requiring glibc 2.38+ (#72)](https://github.com/Tencent/BqLog/issues/72): everything is now built on Ubuntu 22.04 (glibc 2.35), Windows Server 2022, and the lowest supported BSD releases, so older distros and BSD systems work out of the box.
-- **Build/CI** — BSD build-time dependencies are now served from self-hosted, immutable snapshots, making releases reproducible and immune to upstream package removal.
-
-**v2.4.0 highlights:**
-
-- **Bug fix** — [Completely resolved the issue where memory usage could keep growing in certain cases when logging with compressed file Appenders (#70)](https://github.com/Tencent/BqLog/issues/70).
-- **Bug fix** — Fixed `log.buffer_policy_when_full` parsing so `discard`, `block`, and `expand` are applied correctly.
-- **Configuration** — Added the `write_cache_size` option for tuning each file Appender's write cache from 64 KiB to 4 MiB.
-
-> Full changelog → [CHANGELOG.md](CHANGELOG.md)
-
----
-
 ## 💡 If you have the following pain points, try BqLog
 
 - If your client product (especially games) wants to satisfy this "impossible triangle" at the same time:
@@ -47,14 +40,50 @@
   - Good performance (log as little as possible)
   - Save storage space (better not log at all)
 - If you are a backend service developer and your current logging library cannot handle **high-concurrency scenarios**, causing log loss or application stalls.
-- If your programming language is one of C++, Java, C#, Kotlin, TypeScript, JavaScript, Python, or you use multiple languages at the same time and want a **unified cross-language logging solution**.
+- If your programming language is one of C++, Java, C#, Kotlin, TypeScript, JavaScript, Python, Go, or you use multiple languages at the same time and want a **unified cross-language logging solution**.
+
+---
+
+## 🎯 What BqLog is for
+
+**Extreme speed is where BqLog starts, not where it stops.** It is a mature, industrial-grade component, built for products that ship:
+
+- **Content to play a supporting role.** On a modern machine a logging system should take as little of the system as it can. The logging threads and the consumer thread alike should use as little CPU, memory and disk I/O as possible. We do not optimize for benchmark scores; every optimization targets real use.
+- **Compatible everywhere it runs.** Windows, macOS, Linux, iOS, Android, HarmonyOS, OpenHarmony and the Unix family; C++, Java/Kotlin, C#, Python, TypeScript/ArkTS and Go sharing one core and even one log object; game engines, mobile toolchains without an STL, strict `-Werror` builds.
+- **Built for the bad day.** Logs written before a crash are recovered after it; a full disk neither crashes nor hangs the app; corrupted files are recovered as far as possible; log files can be encrypted to protect privacy.
+- **Care about the coding experience.** One line to create a log, one line to write; the internals stay as transparent as possible, without complicated configuration; every interface is friendly to IDE code completion; integration tools such as UE Blueprints are provided.
+
+---
+
+[![Download](https://img.shields.io/badge/⬇_Download-Release_2.8.3-blue.svg?style=for-the-badge)](https://github.com/Tencent/BqLog/releases)
+
+## 📋 What's New in v2.8.x
+
+- **New encrypted log format**: an upgraded encryption scheme that resists known-plaintext attacks and AI-assisted analysis.
+- **Tool compatibility**: `BqLog_LogDecoder` now decodes compressed logs written by every 2.x release.
+- **Unreal Engine 6**: experimental support for Verse scripting on UE6, with generated wrappers and category log wrappers. See the [engine integration guide](docs/ENGINE_INTEGRATION.md).
+- **Fast mode code size**: the slow path behind `log.fast_info<"...">()` is now shared by argument types, shrinking the generated code noticeably (50%–65% less with GCC and Clang, about 25% with MSVC) with no change to the call site's instructions or runtime cost.
+
+## 📋 What's New in v2.7.x
+
+- **C++20 modules**: `import bq.log;` replaces the header include, with a macro-free fast mode available in module form.
+- **Console platforms**: experimental support for PlayStation 4, PlayStation 5, and Nintendo Switch.
+- **Multi-process**: several processes can write to the same log directory, each with its own recovery data.
+- **Package repositories**: Homebrew, vcpkg, and NuGet.
+
+## 📋 What's New in v2.6.x
+
+- **Fast mode**: C++-only `BQ_LOG_FAST_*` macros that inline level checks, timestamps, and parameter writes at the call site, cutting call-thread latency.
+- **Whole-pipeline gains**: on the same benchmark, text output is 14%–30% faster and compressed output up to about 40% faster. See [Benchmark](docs/BENCHMARK.md).
+
+> Full changelog → [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
 ## ✨ Highlights
 
 - Significant performance advantage over common open-source logging libraries (see [Benchmark](#-benchmark-results)); suitable for server, client, and mobile.
-- Low memory usage: in the Benchmark case (10 threads, 20,000,000 log entries), BqLog itself uses about 2-3 MB of memory. And in mobile platform scenarios, it's generally around 1 MB.
+- Low memory usage: in the Benchmark case (10 threads, 2,000,000 log entries each), the whole benchmark process peaks at no more than 3.1 MB on macOS. On mobile platforms, BqLog itself generally uses around 1 MB.
 - Provides a high-performance, high-compression real-time compressed log format.
 - Supports strong hybrid encryption (asymmetric + symmetric) for log content protection with nearly zero performance overhead (optional).
 - Works well inside game engines (`Unity`, `Unreal`, etc.), with UE Blueprint and builtin data type support.
@@ -65,6 +94,7 @@
 - Depends only on the standard C library and platform APIs; can be compiled with Android `ANDROID_STL = none`.
 - Supports `C++11` and later standards and works under very strict compiler options.
 - Build system is based on `CMake` and provides multi-platform scripts, easy to integrate.
+- Available through Homebrew, vcpkg and NuGet, with `find_package` / pkg-config support.
 - Supports custom parameter types.
 - Very friendly for code completion and IDE hints.
 
@@ -74,10 +104,44 @@
 
 | Platforms | Languages |
 |-----------|-----------|
-| Windows 64-bit, macOS, Linux (incl. embedded), iOS, Android, HarmonyOS, OpenHarmony, Unix (FreeBSD, NetBSD, OpenBSD, Solaris, etc.) | C++ (C++11+), Java / Kotlin, C# (Unity, .NET), ArkTS / C++ (HarmonyOS & OpenHarmony share the same package), JavaScript / TypeScript (Node.js), Python 3.7+, Unreal Engine (UE4, UE5 & UE6 development builds) |
+| Windows 64-bit, macOS, Linux (incl. embedded), iOS, Android, HarmonyOS, OpenHarmony, Unix (FreeBSD, NetBSD, OpenBSD, Solaris, etc.) | C++ (C++11+), Java / Kotlin, C# (Unity, .NET), ArkTS / C++ (HarmonyOS & OpenHarmony share the same package), JavaScript / TypeScript (Node.js), Python 3.7+, Go, Unreal Engine (UE4, UE5 & UE6 development builds) |
+| PlayStation 4, PlayStation 5, Nintendo Switch (experimental, source integration) | C++ (C++11+) |
 
 **Hardware architectures**: x86, x86_64, ARM32, ARM64
 **Integration methods**: Dynamic library, Static library, Source code
+
+---
+
+## 📦 Install
+
+| Ecosystem | Install | Library | CLI tools | Package page |
+|-----------|---------|:-------:|:---------:|--------------|
+| [**Homebrew**](docs/INTEGRATION_GUIDE.md#c-dynamic--static--source)<br>macOS · Linux | `brew install bqlog` | ✅ | ✅ | [formulae.brew.sh](https://formulae.brew.sh/formula/bqlog) |
+| [**vcpkg**](docs/INTEGRATION_GUIDE.md#c-dynamic--static--source)<br>Windows · Linux · macOS | `vcpkg install bqlog` | ✅ | `bqlog[tools]` | [vcpkg.io](https://vcpkg.io/en/package/bqlog.html) |
+| [**NuGet**](docs/INTEGRATION_GUIDE.md#c-unity--tuanjie-engine--net)<br>C# · .NET · Unity | `dotnet add package BqLog` | ✅ | — | [nuget.org](https://www.nuget.org/packages/BqLog) |
+| [**Maven Central — Java**](docs/INTEGRATION_GUIDE.md#java-server--desktop)<br>Java · Kotlin · server | `implementation("com.tencent.bqlog:java:2.+")` | ✅ | — | [com.tencent.bqlog:java](https://central.sonatype.com/artifact/com.tencent.bqlog/java) |
+| [**Maven Central — Android**](docs/INTEGRATION_GUIDE.md#android)<br>Android · Kotlin | `implementation("com.tencent.bqlog:android:2.+")` | ✅ | — | [com.tencent.bqlog:android](https://central.sonatype.com/artifact/com.tencent.bqlog/android) |
+| [**PyPI**](docs/INTEGRATION_GUIDE.md#python)<br>Python 3.7+ | `pip install bqlog` | ✅ | — | [pypi.org](https://pypi.org/project/bqlog/) |
+| [**npm**](docs/INTEGRATION_GUIDE.md#nodejs)<br>Node.js · TypeScript | `npm install @pippocao/bqlog` | ✅ | — | [npmjs.com](https://www.npmjs.com/package/@pippocao/bqlog) |
+| [**ohpm**](docs/INTEGRATION_GUIDE.md#harmonyos--openharmony-arkts--c)<br>HarmonyOS · OpenHarmony | `ohpm install bqlog` | ✅ | — | [ohpm.openharmony.cn](https://ohpm.openharmony.cn/#/cn/detail/bqlog) |
+| [**Go modules**](docs/INTEGRATION_GUIDE.md#go)<br>Go | `go get github.com/Tencent/BqLog/go/v2@latest` | ✅ | — | [pkg.go.dev](https://pkg.go.dev/github.com/Tencent/BqLog/go/v2) |
+| [**Unity**](docs/INTEGRATION_GUIDE.md#unity--tuanjie-engine--unreal-engine)<br>UPM tarball | *Install package from tarball* | ✅ | — | [release page](https://github.com/Tencent/BqLog/releases) |
+| [**Unreal Engine**](docs/INTEGRATION_GUIDE.md#unity--tuanjie-engine--unreal-engine)<br>UE4 · UE5 | *copy into `Plugins/`* | ✅ | — | [release page](https://github.com/Tencent/BqLog/releases) · [Fab](https://www.fab.com/listings/386d1c78-e164-4e97-8b3e-e88cbf9b6acf) |
+
+> [!IMPORTANT]
+> **Not in the table?** iOS, tvOS and the other Apple platforms are integrated through Xcode or CMake instead of a package manager — start at [iOS / Apple platforms](docs/INTEGRATION_GUIDE.md#ios--apple-platforms-c--objective-c). Embedded Linux, the BSD family and plain source builds are covered by the same [Integration Guide](docs/INTEGRATION_GUIDE.md) and by the prebuilt archives on the [release page](https://github.com/Tencent/BqLog/releases).
+
+---
+
+## 📖 Why is BqLog so fast? — a three-part series
+
+BqLog's speed is not magic. This series derives the whole design step by step, with diagrams:
+
+1. **[Part 1: High-Performance Realtime Compressed Log Format](<docs/Article 1_Why is BqLog so fast - High Performance Realtime Compressed Log Format.MD>)** — from one line of text to a compressed format: templates, VLQ, UTF-Mixed, segments and encryption
+2. **[Part 2: From Ring Buffer to Adaptive Data Bus](<docs/Article 2_Why is BqLog so fast - From Ring Buffer to Adaptive Data Bus.MD>)** — from kFifo and LMAX Disruptor to BqLog's adaptive bus: fetch_add + rollback, MISO/SISO, lock-free thread management and crash recovery
+3. **[Part 3: Optimizing the Compressed Log Pipeline](<docs/Article 3_Why is BqLog so fast - Optimizing the Compressed Log Pipeline.MD>)** — how much work can share one memory load: fused copy+hash, template caches, length backfill, batched I/O
+
+All diagrams and the series index live in [Performance Design](docs/PERFORMANCE_DESIGN.md).
 
 ---
 
@@ -100,6 +164,7 @@ Your program accesses the core engine through `BqLog Wrapper` (C++, Java, C#, Ty
 > Before calling any API, you need to integrate BqLog into your project first:
 > - **Standard environments** (C++, Java, C#, Python, Node.js, etc.) → [Integration Guide](docs/INTEGRATION_GUIDE.md)
 > - **Game engines** (Unity, Tuanjie Engine, Unreal Engine) → [Game Engine Integration Guide](docs/ENGINE_INTEGRATION.md)
+> - **Anything else** → [FAQ](docs/FAQ.md)
 
 ### C++
 
@@ -118,6 +183,15 @@ int main() {
     return 0;
 }
 ```
+
+**C++ only fast mode.** On the hottest C++ paths, the `BQ_LOG_FAST_*` macros write the same log entry for a fraction of the cost on the calling thread. Details in [API Reference — fast mode](docs/API_REFERENCE.md#fast-mode).
+
+```cpp
+BQ_LOG_FAST_INFO(log, "Hello BqLog fast mode! int:{}, float:{}", 123, 3.14f);
+log.fast_info<"Hello BqLog fast mode! int:{}, float:{}">(123, 3.14f);  // C++20, the only form with import bq.log;
+```
+
+The output is identical to `log.info`. The price: a little more memory. A macro call site also binds the log object and format string of its first call, so keep one log object per macro call site; `fast_info<...>` has no such limit.
 
 ### Java
 
@@ -167,6 +241,28 @@ my_log.info("Hello from Python! params: {}, {}", "text", 123)
 log.force_flush_all_logs()
 ```
 
+### Go
+
+```go
+package main
+
+import bq "github.com/Tencent/BqLog/go/v2"
+
+func main() {
+    config := `
+appenders_config.console.type=console
+appenders_config.console.levels=[all]
+`
+    log := bq.Create_log("go_log", config, nil)
+    if !log.Is_valid() {
+        panic("invalid log config")
+    }
+    defer log.Force_flush()
+
+    log.Info("Hello from Go! params: {}, {}", "text", 123)
+}
+```
+
 ### TypeScript (HarmonyOS / OpenHarmony ArkTS)
 
 > The same `bqlog` package on ohpm works for both **HarmonyOS** (NEXT) and **OpenHarmony** (4.1+ / API 11+). Same install, same import, same code.
@@ -188,62 +284,33 @@ bq.log.force_flush_all_logs();
 
 ## 📊 Benchmark results
 
-Test: 1–10 threads, each writing 2,000,000 log entries. Environment: MacBook Pro, Apple M4 Pro (14-core: 10P + 4E), 48 GB, macOS.
+Logging is not the core of an application, and a logger that takes a lot of CPU or memory is not good enough. So the benchmark measures the total cost on realistic workloads: the time to get every entry onto disk, together with the CPU and memory spent on it; it also measures the latency of a single call on the logging thread. Test cases and full data: [Benchmark](docs/BENCHMARK.md).
 
-Comparison: BqLog (Text / Compress / Compress+Encrypt) vs spdlog 1.17.0, glog 0.7.1, fmtlog, quill 11.1.0, Log4j2 2.23.1.
+**Throughput, 4 parameters, macOS (Apple M4 Pro).** 2,000,000 entries per thread, timed until everything is on disk; every library uses fixed size buffers that block when full; BqLog in C++ fast mode:
 
-#### Throughput — Total Time Cost with 4 parameters (ms)
+| | 1 Thread | 4 Threads | 10 Threads |
+|---|---:|---:|---:|
+| BqLog, compressed | 39 ms / CPU 76 ms | 148 ms / CPU 734 ms | 375 ms / CPU 3984 ms |
+| BqLog, text | 152 ms / CPU 303 ms | 617 ms / CPU 3047 ms | 1548 ms / CPU 16307 ms |
+| quill | 331 ms / CPU 493 ms | 1517 ms / CPU 4697 ms | 4338 ms / CPU 29048 ms |
+| fmtlog | 254 ms / CPU 475 ms | 1089 ms / CPU 5310 ms | 2982 ms / CPU 32093 ms |
+| Log4j2 (Java) | 665 ms / CPU 2810 ms | 1872 ms / CPU 9206 ms | 3754 ms / CPU 19383 ms |
+| spdlog (async) | 535 ms / CPU 966 ms | 6758 ms / CPU 20142 ms | - |
+| glog (synchronous) | 2322 ms / CPU 2318 ms | 9929 ms / CPU 30661 ms | - |
 
-|                              | 1 Thread | 2 Threads | 3 Threads | 4 Threads | 5 Threads | 6 Threads | 7 Threads | 8 Threads | 9 Threads | 10 Threads |
-|------------------------------|----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|------------|
-| BqLog Compress (C++)         | 79       | 99        | 115       | 170       | 222       | 311       | 324       | 372       | 484       | 759        |
-| BqLog Compress+Encrypt (C++) | 83       | 106       | 134       | 189       | 223       | 328       | 337       | 390       | 532       | 995        |
-| BqLog Text (C++)             | 202      | 417       | 648       | 910       | 1167      | 1425      | 1718      | 1969      | 2281      | 2718       |
-| fmtlog                       | 248      | 489       | 765       | 1059      | 1341      | 1588      | 1906      | 2234      | 2379      | 2818       |
-| quill                        | 425      | 805       | 1222      | 1700      | 2108      | 2592      | 2951      | 3458      | 3957      | 4316       |
-| spdlog                       | 434      | 1366      | 3133      | 4779      | 6228      | 9241      | 10829     | 11348     | 11197     | 12003      |
-| Log4j2 (Java)                | 946      | 1841      | 2422      | 3685      | 5542      | 5245      | 5775      | 5786      | 8048      | 8752       |
-| glog                         | 2138     | 3812      | 7144      | 10446     | 13552     | 21695     | 28806     | 35153     | 40397     | 45162      |
-
-#### Peak Memory Usage (MB)
-
-|                              | 1 Thread | 4 Threads | 10 Threads |
-|------------------------------|----------|-----------|------------|
-| BqLog Compress (C++)         | 2.7      | 3.0       | 3.9        |
-| BqLog Compress+Encrypt (C++) | 2.8      | 3.2       | 4.2        |
-| BqLog Text (C++)             | 2.7      | 3.5       | 4.4        |
-| spdlog                       | 2.1      | 2.2       | 2.4        |
-| glog                         | 2.1      | 2.5       | 3.2        |
-| fmtlog                       | 3.9      | 6.1       | 12.7       |
-| quill                        | 272.9    | 1058.5    | 2746.6     |
-
-#### Output File Size (1 thread, 4M log entries)
-
-| Library | Format | Size | Compression Ratio |
-|---------|--------|------|-------------------|
-| BqLog Compress | Binary | 45 MB | **6.7x** smaller |
-| BqLog Compress+Encrypt | Encrypted | 45 MB | **6.7x** smaller |
-| BqLog Text | Text | 302 MB | — |
-| spdlog | Text | 293 MB | — |
-| quill | Text | 255 MB | — |
-| fmtlog | Text | 285 MB | — |
-| glog | Text | 348 MB | — |
-
-- BqLog Compress: **2–3x faster** than fmtlog, **3–16x** than spdlog, **25–60x** than glog
-- Encryption adds **near-zero overhead**
-- Compressed format is **6.7x smaller** than text
-- BqLog uses only **2.7–4.4 MB** memory across all modes and thread counts
-
-> For full benchmark code, methodology, and feature comparison, see [Benchmark](docs/BENCHMARK.md).
+- BqLog's compressed format takes several times less total time and CPU than every other logging library of its kind.
+- Peak memory: BqLog stays within 3.1 MB at 10 threads.
+- With growing buffers, against a queue that grows as well, BqLog is 2 to 8 times faster, with less CPU time and about half the peak memory.
+- Latency of a single call on the logging thread: BqLog is in the lowest tier of the libraries measured (1 thread: p50 4 ns, p99 29 ns).
 
 ---
 
 ## 🔄 Changes from 1.x to 2.x
 
-1. Added HarmonyOS support, including ArkTS and C++.
-2. Added Node.js support (CJS and ESM).
+1. Added HarmonyOS support, plus PS4 / PS5 / Switch (experimental, source integration).
+2. Added TypeScript (Node.js, ArkTS), Python and Go support.
 3. Improved cross-platform compatibility, stability and generality; supports more Unix systems.
-4. Average performance improved by ~80% for UTF-8, and by >500% for UTF-16 environments (C#, Unreal, Unity).
+4. Significant performance improvements, most visible in UTF-16 environments (C#, Unreal, Unity). See [benchmark](docs/BENCHMARK.md).
 5. Android no longer must be used together with Java.
 6. Removed the `is_in_sandbox` config and replaced it with `base_dir_type`; added filters for snapshots and support for opening a new log file on each startup. See [Configuration](docs/CONFIGURATION.md).
 7. Added high-performance hybrid asymmetric encryption, ***almost zero overhead***; see [Advanced Usage — Encryption](docs/ADVANCED_USAGE.md#6-log-encryption-and-decryption).
@@ -251,7 +318,7 @@ Comparison: BqLog (Text / Compress / Compress+Encrypt) vs spdlog 1.17.0, glog 0.
 9. The repository no longer ships binaries. From 2.x on, please download platform- and language-specific packages from the [Releases page](https://github.com/Tencent/BqLog/releases).
 10. The size of a single log entry is not limited by `log.buffer_size` anymore;
 11. The timezone can be specified manually.
-12. The `raw_file` appender is deprecated and no longer maintained in 2.x; please use the `compressed_file` appender instead.
+12. The `raw_file` appender has been removed. An appender configured with `type=raw_file` is ignored with a warning; please use the `compressed_file` appender instead.
 13. The Recovery feature's reliability has been improved and it has been promoted from experimental (beta) to stable (release). see [Advanced Usage — Data Protection](docs/ADVANCED_USAGE.md#3-data-protection-on-abnormal-exit).
 
 ---
@@ -260,16 +327,21 @@ Comparison: BqLog (Text / Compress / Compress+Encrypt) vs spdlog 1.17.0, glog 0.
 
 | Document | Description |
 |----------|-------------|
+| [Development Guidelines](DEVELOPMENT_GUIDELINES.md) | Coding rules for contributors |
+| [FAQ](docs/FAQ.md) | Common questions: comparisons, platforms, distribution channels, crash recovery |
 | [Integration Guide](docs/INTEGRATION_GUIDE.md) | Full integration steps for all platforms + all language demos |
 | [Game Engine Integration](docs/ENGINE_INTEGRATION.md) | Unity, Tuanjie Engine, Unreal Engine plugins and Blueprint usage |
 | [API Reference](docs/API_REFERENCE.md) | Core APIs, sync/async logging, Appender overview, build & tools |
 | [Configuration](docs/CONFIGURATION.md) | Full configuration reference (appenders, log, snapshot) |
 | [Advanced Usage](docs/ADVANCED_USAGE.md) | No Heap Alloc, Category, crash recovery, custom types, encryption |
-| [Benchmark](docs/BENCHMARK.md) | Full benchmark code (C++, Java, Log4j) and results |
+| [Benchmark](docs/BENCHMARK.md) | Benchmark code, methodology, and results |
+| [Performance Design](docs/PERFORMANCE_DESIGN.md) | Compressed file format, adaptive data bus, and write-path optimizations |
 
 ---
 
 ## 🤝 How to contribute
+
+Please read the [Development Guidelines](DEVELOPMENT_GUIDELINES.md) first.
 
 If you want to contribute code, please make sure your changes can pass the following workflows under GitHub Actions in the repository:
 

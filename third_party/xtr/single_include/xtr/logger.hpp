@@ -340,19 +340,6 @@ private:
 };
 
 #include <cstddef>
-
-namespace xtr::detail
-{
-    enum class prefault_flags_t
-    {
-        none,
-        read_write
-    };
-
-    void prefault_rw(void* addr, std::size_t length);
-}
-
-#include <cstddef>
 #include <utility>
 
 #include <sys/mman.h>
@@ -442,8 +429,7 @@ public:
         std::size_t length, // must be multiple of page size
         int fd = -1,
         std::size_t offset = 0, // must be multiple of page size
-        int flags = 0,
-        prefault_flags_t prefault_flags = prefault_flags_t::none);
+        int flags = 0);
 
     ~mirrored_memory_mapping();
 
@@ -642,6 +628,12 @@ namespace xtr::detail
 {
     inline constexpr std::size_t dynamic_capacity = std::size_t(-1);
 
+#if defined(MAP_POPULATE)
+    inline constexpr int srb_flags = MAP_POPULATE;
+#else
+    inline constexpr int srb_flags = 0;
+#endif
+
     template<std::size_t Capacity>
     class synchronized_ring_buffer;
 
@@ -749,24 +741,16 @@ public:
     static constexpr bool is_dynamic = Capacity == dynamic_capacity;
 
 public:
-    synchronized_ring_buffer(
-        int fd = -1,
-        std::size_t offset = 0,
-        int flags = 0,
-        prefault_flags_t prefault_flags = prefault_flags_t::read_write)
+    synchronized_ring_buffer(int fd = -1, std::size_t offset = 0, int flags = srb_flags)
         requires(!is_dynamic)
     {
-        m_ = mirrored_memory_mapping{capacity(), fd, offset, flags, prefault_flags};
+        m_ = mirrored_memory_mapping{capacity(), fd, offset, flags};
         nread_plus_capacity_ = wrnread_plus_capacity_ = capacity();
         wrbase_ = begin();
     }
 
     explicit synchronized_ring_buffer(
-        size_type min_capacity,
-        int fd = -1,
-        std::size_t offset = 0,
-        int flags = 0,
-        prefault_flags_t prefault_flags = prefault_flags_t::read_write)
+        size_type min_capacity, int fd = -1, std::size_t offset = 0, int flags = srb_flags)
         requires is_dynamic
         :
         m_(align_to_page_size(
@@ -777,8 +761,7 @@ public:
 #endif
            fd,
            offset,
-           flags,
-           prefault_flags)
+           flags)
     {
         assert(capacity() <= std::numeric_limits<size_type>::max());
         wrbase_ = begin();
@@ -1664,7 +1647,7 @@ namespace xtr::detail
     {
         const std::size_t n = std::min(DstSz - 1, std::size(src));
         if (std::size(src) > 0) [[likely]]
-            std::memcpy(dst, std::data(src), n);
+            std::memcpy(dst, &src[0], n);
         dst[n] = '\0';
     }
 }
@@ -5015,10 +4998,22 @@ namespace xtr::detail
         return file_descriptor(fd);
     }
 #endif
+
+    inline void prefault_write(void* addr, std::size_t length)
+    {
+#if defined(MADV_POPULATE_WRITE)
+        if (::madvise(addr, length, MADV_POPULATE_WRITE) == 0)
+            return;
+#endif
+        volatile std::byte* const p = static_cast<volatile std::byte*>(addr);
+        const std::size_t page_size = align_to_page_size(1);
+        for (std::size_t i = 0; i < length; i += page_size)
+            p[i] = p[i];
+    }
 }
 
 inline xtr::detail::mirrored_memory_mapping::mirrored_memory_mapping(
-    std::size_t length, int fd, std::size_t offset, int flags, prefault_flags_t prefault_flags)
+    std::size_t length, int fd, std::size_t offset, int flags)
 {
     assert(!(flags & MAP_ANONYMOUS) || fd == -1);
     assert((flags & MAP_FIXED) == 0); // Not implemented (would be easy though)
@@ -5069,12 +5064,8 @@ inline xtr::detail::mirrored_memory_mapping::mirrored_memory_mapping(
         }
 
         reserve.release(); // mapping was destroyed by mremap
-
-        if (prefault_flags == prefault_flags_t::read_write)
-            prefault_rw(m_.get(), length * 2);
-
         mirror.release(); // mirror will be recreated in ~mirrored_memory_mapping
-
+        prefault_write(m_.get(), length * 2);
         return;
 #else
         if (!(temp_fd = shm_open_anon(O_RDWR, S_IRUSR | S_IWUSR)))
@@ -5113,11 +5104,8 @@ inline xtr::detail::mirrored_memory_mapping::mirrored_memory_mapping(
     m_ = memory_mapping(reserve.get(), length, prot, flags, fd, offset);
 
     reserve.release(); // mapping was destroyed when m_ was created
-
-    if (prefault_flags == prefault_flags_t::read_write)
-        prefault_rw(m_.get(), length * 2);
-
-    mirror.release(); // mirror will be recreated in ~mirrored_memory_mapping
+    mirror.release();  // mirror will be recreated in ~mirrored_memory_mapping
+    prefault_write(m_.get(), length * 2);
 }
 
 inline xtr::detail::mirrored_memory_mapping::~mirrored_memory_mapping()
@@ -5230,20 +5218,6 @@ inline void xtr::posix_fd_storage::submit_buffer(char* buf, std::size_t size)
         size -= std::size_t(nwritten);
         buf += std::size_t(nwritten);
     }
-}
-
-#include <sys/mman.h>
-
-inline void xtr::detail::prefault_rw(void* addr, std::size_t length)
-{
-#if defined(MADV_POPULATE_WRITE)
-    if (::madvise(addr, length, MADV_POPULATE_WRITE) == 0)
-        return;
-#endif
-    volatile std::byte* const p = static_cast<volatile std::byte*>(addr);
-    const std::size_t page_size = align_to_page_size(1);
-    for (std::size_t i = 0; i < length; i += page_size)
-        p[i] = p[i];
 }
 
 #include <cassert>

@@ -17,6 +17,9 @@ using bq.impl;
 
 namespace bq
 {
+    /// <summary>
+    /// A log object: create one with <c>log.create_log</c>, then log through it.
+    /// </summary>
     public class @log
     {
         private static log_category_base default_category_ = new log_category_base();
@@ -27,6 +30,9 @@ namespace bq
         private unsafe uint* merged_log_level_bitmap_ = null;
         private unsafe byte* categories_mask_array_ = null;
         private unsafe uint* print_stack_level_bitmap_ = null;
+        // One uint per category: bit (1 << level) set when that level is enabled without stack trace (see
+        // __api_get_log_category_level_words_by_log_id). null on an older library; the separate bitmaps are used then.
+        private unsafe uint* category_level_words_ = null;
         protected List<string> categories_name_array_ = new List<string>();
 
         protected static log get_log_by_id(ulong log_id)
@@ -47,6 +53,7 @@ namespace bq
                 log.merged_log_level_bitmap_ = log_invoker.__api_get_log_merged_log_level_bitmap_by_log_id(log_id);
                 log.categories_mask_array_ = log_invoker.__api_get_log_category_masks_array_by_log_id(log_id);
                 log.print_stack_level_bitmap_ = log_invoker.__api_get_log_print_stack_level_bitmap_by_log_id(log_id);
+                log.category_level_words_ = get_category_level_words(log_id);
             }
 
             uint category_count = log_invoker.__api_get_log_categories_count(log_id);
@@ -66,10 +73,27 @@ namespace bq
             log.log_id_ = log_id;
             return log;
         }
+        private static unsafe uint* get_category_level_words(ulong log_id)
+        {
+            try
+            {
+                return log_invoker.__api_get_log_category_level_words_by_log_id(log_id);
+            }
+            catch (EntryPointNotFoundException)
+            {
+                return null; // older native library
+            }
+        }
+
         private bool is_enable_for(log_category_base category, log_level level)
         {
             unsafe
             {
+                // common case: enabled without stack trace, one load and one bit test
+                if (category_level_words_ != null && (category_level_words_[log_category_base.get_index(category)] & (1u << (int)level)) != 0)
+                {
+                    return true;
+                }
                 if ((*merged_log_level_bitmap_ & (1 << (int)level)) == 0 || categories_mask_array_[log_category_base.get_index(category)] == 0)
                 {
                     return false;
@@ -118,6 +142,22 @@ namespace bq
         public static void enable_auto_crash_handle()
         {
             log_invoker.__api_enable_auto_crash_handler();
+        }
+
+        /// <summary>
+        /// Whether crash recovery can work here, and what is missing when it cannot.
+        /// </summary>
+        public static recovery_capability get_recovery_capability()
+        {
+            return (recovery_capability)log_invoker.__api_get_recovery_capability();
+        }
+
+        /// <summary>
+        /// What the linked library was built with; attach it to a bug report.
+        /// </summary>
+        public static platform_capability get_platform_capabilities()
+        {
+            return (platform_capability)log_invoker.__api_get_platform_capabilities();
         }
 
         /// <summary>
@@ -354,8 +394,12 @@ namespace bq
         /// </summary>
         /// <param name="level">the log level to check for stack trace information</param>
         /// <returns>true if stack trace information is enabled for the specified log level, false otherwise</returns>
-        internal static unsafe bool is_stack_trace_enable_for(log log, log_level level)
+        internal static unsafe bool is_stack_trace_enable_for(log log, log_level level, log_category_base category)
         {
+            if (log.category_level_words_ != null && (log.category_level_words_[log_category_base.get_index(category)] & (1u << (int)level)) != 0)
+            {
+                return false;
+            }
             return (*log.print_stack_level_bitmap_ & (1 << (int)level)) != 0;
         }
 
@@ -376,6 +420,7 @@ namespace bq
                 merged_log_level_bitmap_ = rhs.merged_log_level_bitmap_;
                 categories_mask_array_ = rhs.categories_mask_array_;
                 print_stack_level_bitmap_ = rhs.print_stack_level_bitmap_;
+                category_level_words_ = rhs.category_level_words_;
             }
 
             uint category_count = log_invoker.__api_get_log_categories_count(log_id_);
