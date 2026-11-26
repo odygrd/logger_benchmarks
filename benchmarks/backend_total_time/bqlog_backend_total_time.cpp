@@ -51,7 +51,7 @@ int main()
   pin_other_threads_on_windows(5);
   set_thread_affinity(1);
 
-  log_obj.info("Warm up");
+  BQ_LOG_FAST_INFO(log_obj, "Warm up");
   log_obj.force_flush();
 
   // start counting the time until backend worker finishes
@@ -62,28 +62,28 @@ int main()
     switch (iteration % 5)
     {
     case 0:
-      log_obj.info("Iteration: {} int: {} double: {}", iteration, iteration * 2,
+      BQ_LOG_FAST_INFO(log_obj, "Iteration: {} int: {} double: {}", iteration, iteration * 2,
              static_cast<double>(iteration) / 2);
       break;
     case 1:
-      log_obj.info("Order: {} quantity: {} price: {}", iteration, iteration * 2,
+      BQ_LOG_FAST_INFO(log_obj, "Order: {} quantity: {} price: {}", iteration, iteration * 2,
              static_cast<double>(iteration) / 2);
       break;
     case 2:
-      log_obj.info("Request: {} bytes: {} elapsed: {}", iteration, iteration * 2,
+      BQ_LOG_FAST_INFO(log_obj, "Request: {} bytes: {} elapsed: {}", iteration, iteration * 2,
              static_cast<double>(iteration) / 2);
       break;
     case 3:
-      log_obj.info("Session: {} sequence: {} latency: {}", iteration, iteration * 2,
+      BQ_LOG_FAST_INFO(log_obj, "Session: {} sequence: {} latency: {}", iteration, iteration * 2,
              static_cast<double>(iteration) / 2);
       break;
     default:
-      log_obj.info("Worker: {} processed: {} load: {}", iteration, iteration * 2,
+      BQ_LOG_FAST_INFO(log_obj, "Worker: {} processed: {} load: {}", iteration, iteration * 2,
              static_cast<double>(iteration) / 2);
       break;
     }
   }
-  log_obj.info("End");
+  BQ_LOG_FAST_INFO(log_obj, "End");
 
   // block until all messages are flushed
   log_obj.force_flush();
