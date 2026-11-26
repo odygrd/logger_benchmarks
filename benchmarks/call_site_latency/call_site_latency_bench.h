@@ -11,7 +11,6 @@
 #include <iostream>
 #include <numeric>
 #include <random>
-#include <sched.h>
 #include <string>
 #include <thread>
 #include <vector>
@@ -39,21 +38,6 @@ inline void wait([[maybe_unused]] std::chrono::nanoseconds min,
   // when in perf use sleep as the other variables add noise
   std::this_thread::sleep_for(max);
 #endif
-}
-
-inline void set_thread_affinity(size_t cpu_num)
-{
-  // Set this thread affinity
-  cpu_set_t cpuset;
-  CPU_ZERO(&cpuset);
-  CPU_SET(cpu_num, &cpuset);
-
-  auto const err = sched_setaffinity(0, sizeof(cpuset), &cpuset);
-
-  if (err == -1)
-  {
-    throw std::system_error(errno, std::system_category());
-  }
 }
 
 inline size_t messages_for_thread(size_t messages_per_iteration, size_t thread_count, size_t thread_num) noexcept

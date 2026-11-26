@@ -1,7 +1,7 @@
 #pragma once
 #include <chrono>
 #include <cstdint>
-#include <pthread.h>
+#include "../bench_platform.h"
 
 #if defined(_WIN32)
   #include <intrin.h>
@@ -31,15 +31,6 @@
 
 // #define BENCH_INT_INT_DOUBLE
 // #define BENCH_INT_INT_LARGESTR
-
-inline void set_pthread_affinity(pthread_t thread, int cpu)
-{
-  cpu_set_t cpus;
-  CPU_ZERO(&cpus);
-  CPU_SET(cpu, &cpus);
-  if (::pthread_setaffinity_np(thread, sizeof(cpus), &cpus) != 0)
-    abort();
-}
 
 // RDTSC is not a serializing instruction. Fence both sides so the measured
 // logging calls cannot move into or out of the timed region.
