@@ -39,6 +39,7 @@ CALL_SITE_BENCHMARKS = [
     "benchmark_reckless_call_site_latency_int_int_largestr",
     "benchmark_boost_log_call_site_latency_int_int_largestr",
     "benchmark_bqlog_call_site_latency_int_int_largestr",
+    "benchmark_quill_with_functions_unbounded_call_site_latency_vector_largestr",
     "benchmark_quill_unbounded_call_site_latency_vector_largestr",
     "benchmark_quill_bounded_call_site_latency_vector_largestr",
     "benchmark_fmtlog_call_site_latency_int_vector_largestr",

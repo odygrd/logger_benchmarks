@@ -11,6 +11,12 @@ target_sources(${TARGET_NAME} PRIVATE benchmark_quill_with_functions_call_site_l
 target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
 target_link_libraries(${TARGET_NAME} PRIVATE quill)
 
+set(TARGET_NAME benchmark_quill_with_functions_unbounded_call_site_latency_vector_largestr)
+add_executable(${TARGET_NAME})
+target_sources(${TARGET_NAME} PRIVATE benchmark_quill_with_functions_call_site_latency.cpp)
+target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
+target_link_libraries(${TARGET_NAME} PRIVATE quill)
+
 # ------- #
 set(TARGET_NAME benchmark_quill_unbounded_call_site_latency_int_int_double)
 add_executable(${TARGET_NAME})
