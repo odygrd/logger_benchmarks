@@ -22,7 +22,7 @@ void iyengar_nanoLog_benchmark(std::vector<int32_t> thread_count_array, size_t n
   // Iyengar NanoLog has no debug level: log at INFO with the level set to WARN
   nanolog::set_log_level(nanolog::LogLevel::WARN);
   auto log_func = [](uint64_t i, uint64_t j, double d){
-    LOG_INFO << "Logging int: " << i << ", int: " << j << ", double: " << d;
+    LOG_INFO << "Logging int: " << i << ", int: " << j << ", double: " << BENCH_DISABLED_ARG(d);
   };
 #elif defined(BENCH_INT_INT_DOUBLE)
   auto log_func = [](uint64_t i, uint64_t j, double d){

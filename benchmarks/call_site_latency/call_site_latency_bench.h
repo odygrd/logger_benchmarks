@@ -439,6 +439,13 @@ inline void run_benchmark_mode(char const* benchmark_name, SampleMode mode, int3
 
   size_t const total_messages = (WARMUP_ITERATIONS + num_iterations) * mode.calls_per_sample * thread_count_size;
   print_latency_results(benchmark_name, mode, thread_count, total_messages, latencies_combined);
+
+#if defined(BENCH_DISABLED_EXPENSIVE_ARG)
+  // A logger that evaluates the arguments of a disabled statement computes the argument on every call
+  uint64_t const evaluations = g_bench_expensive_argument_calls.exchange(0, std::memory_order_relaxed);
+  std::cout << "Disabled argument: " << (evaluations != 0 ? "evaluated" : "skipped") << ", computed "
+            << evaluations << " times in " << total_messages << " calls\n\n";
+#endif
 }
 
 /**
@@ -456,7 +463,10 @@ inline void run_benchmark(char const* benchmark_name, int32_t thread_count, size
     return;
   }
 
-#if defined(BENCH_SCENARIO_DISABLED)
+#if defined(BENCH_SCENARIO_DISABLED) && defined(BENCH_DISABLED_EXPENSIVE_ARG)
+  run_benchmark_mode(benchmark_name, SampleMode{"disabled_argument", DISABLED_HOT_CALLS, false, true}, thread_count,
+                     num_iterations / 10, on_thread_start, log_func, on_thread_exit);
+#elif defined(BENCH_SCENARIO_DISABLED)
   run_benchmark_mode(benchmark_name, SampleMode{"disabled_hot", DISABLED_HOT_CALLS, false, true}, thread_count,
                      num_iterations / 10, on_thread_start, log_func, on_thread_exit);
   run_benchmark_mode(benchmark_name, SampleMode{"disabled_cold", 1, true, true}, thread_count, num_iterations,

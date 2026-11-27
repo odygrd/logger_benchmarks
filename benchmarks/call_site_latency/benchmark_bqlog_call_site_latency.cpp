@@ -35,7 +35,7 @@ void bqlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
 #ifdef BENCH_SCENARIO_DISABLED
   // A statement below the logger's level
   auto log_func = [&log_obj](uint64_t i, uint64_t j, double d)
-  { BQ_LOG_FAST_DEBUG(log_obj, "Logging int: {}, int: {}, double: {}", i, j, d); };
+  { BQ_LOG_FAST_DEBUG(log_obj, "Logging int: {}, int: {}, double: {}", i, j, BENCH_DISABLED_ARG(d)); };
 #elif defined(BENCH_INT_INT_DOUBLE)
   auto log_func = [&log_obj](uint64_t i, uint64_t j, double d)
   { BQ_LOG_FAST_INFO(log_obj, "Logging int: {}, int: {}, double: {}", i, j, d); };

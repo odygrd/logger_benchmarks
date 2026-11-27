@@ -44,7 +44,7 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   // A statement below the logger's level
   logger->set_level(spdlog::level::info);
   auto log_func = [logger](uint64_t i, uint64_t j, double d)
-  { SPDLOG_LOGGER_DEBUG(logger, "Logging int: {}, int: {}, double: {}", i, j, d); };
+  { SPDLOG_LOGGER_DEBUG(logger, "Logging int: {}, int: {}, double: {}", i, j, BENCH_DISABLED_ARG(d)); };
 #elif defined(BENCH_INT_INT_DOUBLE)
   auto log_func = [logger](uint64_t i, uint64_t j, double d)
   { SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, double: {}", i, j, d); };

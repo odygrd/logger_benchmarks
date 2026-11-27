@@ -113,12 +113,21 @@ The `--update` path does not reapply or refresh `vendor_patches`; it stages the 
 | `burst` | 1 and 4 | The mean of 20 back-to-back calls per thread, every 2 to 2.2 ms |
 | `cold` | 1 | One call after the caller has read a buffer four times the size of its L2 cache (at least 4 MiB), so the logger's data comes from L3 or memory |
 | `disabled` | 1 | A debug statement while the level is info: the mean of 1,000 calls (`disabled_hot`) and one call after the cache sweep (`disabled_cold`) |
+| `disabled_argument` | 1 | The `disabled_hot` statement with an argument that takes tens of nanoseconds to compute, and whether the logger computed it |
 
 - All threads follow the same schedule, so with four threads the calls of a sample are made at the same time.
 - Payloads are built before timing, and the first iterations are a warm-up that is not recorded.
 - Results are printed in nanoseconds with one decimal, including the worst sample.
 - The cold scenario prints how long a line read before the sweep takes to reload, to show that the sweep evicts
   the L2 cache.
+- A disabled statement is a load of the logger's level, a comparison and a branch. The level does not change
+  during a run, as in an application, so the branch is predicted correctly on every call: `disabled_hot` is the
+  steady cost of the check and `disabled_cold` its cost when the level is loaded from L3, never a misprediction.
+  The `timer_only` binary measures the loop and the timer themselves, which are part of every number.
+- `disabled_argument` passes `bench_expensive_argument()` as the last argument of the `disabled_hot` statement and
+  prints whether the logger computed it. A logger that checks the level before it evaluates the arguments skips
+  the computation; a logger whose log call is a function computes the argument on every call. The `timer_only`
+  binary computes the argument on every call: it is the cost of the argument.
 
 Every scenario gives every library the same settings where it has them:
 

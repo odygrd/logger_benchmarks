@@ -43,7 +43,7 @@ void fmtlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   // A statement below the logger's level
   fmtlog::setLogLevel(fmtlog::INF);
   auto log_func = [](uint64_t i, uint64_t j, double d)
-  { FMTLOG(fmtlog::DBG, "Logging int: {}, int: {}, double: {}", i, j, d); };
+  { FMTLOG(fmtlog::DBG, "Logging int: {}, int: {}, double: {}", i, j, BENCH_DISABLED_ARG(d)); };
 #elif defined(BENCH_INT_INT_DOUBLE)
   auto log_func = [](uint64_t i, uint64_t j, double d)
   { FMTLOG(fmtlog::INF, "Logging int: {}, int: {}, double: {}", i, j, d); };

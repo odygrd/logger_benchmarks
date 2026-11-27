@@ -43,7 +43,7 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   // A statement below the logger's level
   binlog::default_session().setMinSeverity(binlog::Severity::info);
   auto log_func = [](uint64_t i, uint64_t j, double d)
-  { BINLOG_DEBUG("Logging int: {}, int: {}, double: {}", i, j, d); };
+  { BINLOG_DEBUG("Logging int: {}, int: {}, double: {}", i, j, BENCH_DISABLED_ARG(d)); };
 #elif defined(BENCH_INT_INT_DOUBLE)
   auto log_func = [](uint64_t i, uint64_t j, double d) {
     BINLOG_INFO("Logging int: {}, int: {}, double: {}", i, j, d);

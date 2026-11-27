@@ -86,7 +86,7 @@ void boost_log_benchmark(std::vector<int32_t> thread_count_array, size_t num_ite
   auto log_func = [&logger](uint64_t i, uint64_t j, double d)
   {
     BOOST_LOG_SEV(logger, logging::trivial::debug)
-      << "Logging int: " << i << ", int: " << j << ", double: " << d;
+      << "Logging int: " << i << ", int: " << j << ", double: " << BENCH_DISABLED_ARG(d);
   };
 #elif defined(BENCH_INT_INT_DOUBLE)
   char const* benchmark_type = "[benchmark_type: int_int_double]";

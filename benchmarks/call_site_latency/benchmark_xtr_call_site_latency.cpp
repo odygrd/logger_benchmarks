@@ -39,7 +39,7 @@ void xtr_benchmark(std::vector<int32_t> thread_count_array, size_t num_iteration
 #ifdef BENCH_SCENARIO_DISABLED
   // A statement below the sink's level
   auto log_func = [](uint64_t i, uint64_t j, double d)
-  { BENCH_XTR_LOG(debug, *tl_sink, "Logging int: {}, int: {}, double: {}", i, j, d); };
+  { BENCH_XTR_LOG(debug, *tl_sink, "Logging int: {}, int: {}, double: {}", i, j, BENCH_DISABLED_ARG(d)); };
 #elif defined(BENCH_INT_INT_DOUBLE)
   auto log_func = [](uint64_t i, uint64_t j, double d)
   { BENCH_XTR_LOG(info, *tl_sink, "Logging int: {}, int: {}, double: {}", i, j, d); };

@@ -207,7 +207,12 @@ SCENARIOS = {
 DISABLED_SCENARIOS = {
     "disabled_hot": "Disabled Statement, Hot",
     "disabled_cold": "Disabled Statement, Cold",
+    "disabled_argument": "Disabled Statement, Expensive Argument",
 }
+
+# In the disabled argument scenario the timer only benchmark computes the argument on every call:
+# it is the cost of the argument, not the measurement floor
+ARGUMENT_ONLY_NAME = "Argument only (no logging)"
 
 PAYLOADS = ("int_int_double", "int_int_largestr", "vector_largestr")
 PERCENTILES = ("p50", "p75", "p90", "p95", "p99", "p999")
@@ -287,6 +292,12 @@ def parse_latency_bench(bench_path: str, content: str) -> list[dict]:
         values = list(map(float, match.groups()))
         result = {"logger": logger_key, "thread_count": int(thread_count), "payload": payload, "scenario": scenario}
         result.update(dict(zip(PERCENTILES, values)))
+
+        # The disabled argument scenario also reports whether the logger computed the argument
+        argument = re.search(r"^Disabled argument: (evaluated|skipped)", content[header.end():end], re.MULTILINE)
+        if argument:
+            result["argument_evaluated"] = argument.group(1) == "evaluated"
+
         results.append(result)
 
     return results
@@ -360,6 +371,11 @@ def collect_latency_results(stat: str = "mean") -> dict:
     for key, logger_results in samples.items():
         for logger, results_list in logger_results.items():
             combined[key][logger] = combine(results_list, PERCENTILES, stat, best)
+
+            # Evaluated when any run computed the argument: it is a property of the logger, not a timing
+            evaluated = [item["argument_evaluated"] for item in results_list if "argument_evaluated" in item]
+            if evaluated:
+                combined[key][logger]["argument_evaluated"] = any(evaluated)
 
     return combined
 
@@ -441,20 +457,27 @@ def latency_rows(results: dict, scenario: str, payload: str, thread_count: int) 
         if not logger_info:
             continue
 
+        name = logger_info["name"]
+        if scenario == "disabled_argument" and logger == "Timer only":
+            name = ARGUMENT_ONLY_NAME
+
         rows.append(
             {
-                "name": logger_info["name"],
+                "name": name,
                 "url": logger_info["url"],
                 "values": [data[key] for key in PERCENTILES],
                 "runs": data.get("runs"),
+                "argument_evaluated": data.get("argument_evaluated"),
                 # Ties keep alphabetical order, never a library's own order
-                "sort_key": (data["p90"], data["p95"], data["p99"], data["p999"], logger_info["name"].casefold()),
+                "sort_key": (data["p90"], data["p95"], data["p99"], data["p999"], name.casefold()),
             }
         )
 
     rows.sort(key=lambda row: row["sort_key"])
     for row in rows:
         del row["sort_key"]
+        if row["argument_evaluated"] is None:
+            del row["argument_evaluated"]
     return rows
 
 
@@ -465,7 +488,17 @@ def format_latency_table(results: dict, scenario: str, payload: str, thread_coun
 
     columns = ["Library", "50th", "75th", "90th", "95th", "99th", "99.9th"]
     cells = [[link(row["name"], row["url"])] + [f"{value:.1f}" for value in row["values"]] for row in rows]
-    return f"{title}\n\n" + render_table(columns, cells, 73, [6] * 6)
+    widths = [6] * 6
+
+    if any("argument_evaluated" in row for row in rows):
+        # Whether the logger computed the argument of the disabled statement
+        columns.append("Argument")
+        widths.append(9)
+        for row, row_cells in zip(rows, cells):
+            evaluated = row.get("argument_evaluated")
+            row_cells.append("-" if evaluated is None else ("evaluated" if evaluated else "skipped"))
+
+    return f"{title}\n\n" + render_table(columns, cells, 73, widths)
 
 
 def throughput_rows(results: dict, threads: int) -> list[dict]:

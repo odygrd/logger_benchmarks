@@ -21,7 +21,7 @@ void platformlab_nanolog(std::vector<int32_t> thread_count_array, size_t num_ite
   // A statement below the logger's level
   NanoLog::setLogLevel(NanoLog::NOTICE);
   auto log_func = [](uint64_t i, uint64_t j, double d) {
-    NANO_LOG(DEBUG, "Logging int: %lu, int: %lu, double: %f", i, j, d);
+    NANO_LOG(DEBUG, "Logging int: %lu, int: %lu, double: %f", i, j, BENCH_DISABLED_ARG(d));
   };
 #elif defined(BENCH_INT_INT_DOUBLE)
   auto log_func = [](uint64_t i, uint64_t j, double d) {

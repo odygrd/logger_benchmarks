@@ -1,7 +1,8 @@
 # Every call site latency benchmark is built once per payload and scenario, see
 # call_site_latency_bench_common.h for the scenarios. Targets are named
 # benchmark_<library>_call_site_latency_<payload>_<scenario>, and the disabled level
-# benchmark benchmark_<library>_call_site_latency_disabled.
+# benchmarks benchmark_<library>_call_site_latency_disabled and
+# benchmark_<library>_call_site_latency_disabled_argument.
 
 set(BENCH_ALL_PAYLOADS int_int_double int_int_largestr vector_largestr)
 set(BENCH_ALL_SCENARIOS burst single cold)
@@ -37,6 +38,13 @@ function(add_call_site_latency_benchmark LIBRARY)
     set(TARGET_NAME benchmark_${LIBRARY}_call_site_latency_disabled)
     add_executable(${TARGET_NAME} ${ARG_SOURCE})
     target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE BENCH_SCENARIO_DISABLED ${ARG_DEFINITIONS})
+    target_link_libraries(${TARGET_NAME} PRIVATE ${ARG_LIBRARIES})
+
+    # The same statement with an argument that is expensive to compute
+    set(TARGET_NAME benchmark_${LIBRARY}_call_site_latency_disabled_argument)
+    add_executable(${TARGET_NAME} ${ARG_SOURCE})
+    target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE BENCH_SCENARIO_DISABLED
+      BENCH_DISABLED_EXPENSIVE_ARG ${ARG_DEFINITIONS})
     target_link_libraries(${TARGET_NAME} PRIVATE ${ARG_LIBRARIES})
   endif ()
 endfunction()

@@ -54,7 +54,7 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   char const* benchmark_type = "[benchmark_type: int_int_double]";
 
   auto log_func = [logger](uint64_t i, uint64_t j, double d)
-  { quill::debug(logger, "Logging int: {}, int: {}, double: {}", i, j, d); };
+  { quill::debug(logger, "Logging int: {}, int: {}, double: {}", i, j, BENCH_DISABLED_ARG(d)); };
 #elif defined(BENCH_INT_INT_DOUBLE)
   char const* benchmark_type = "[benchmark_type: int_int_double]";
 

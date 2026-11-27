@@ -51,7 +51,9 @@ def find_benchmarks(build_dir: Path, scenarios: list[str] | None, include_huge_p
         def scenario_of(path: Path) -> str:
             if "backend_total_time" in path.name:
                 return "throughput"
-            return path.stem.rsplit("_", 1)[-1]
+            # benchmark_<library>_call_site_latency_disabled_argument is a disabled scenario too
+            stem = path.stem[: -len("_argument")] if path.stem.endswith("_disabled_argument") else path.stem
+            return stem.rsplit("_", 1)[-1]
 
         paths = [path for path in paths if scenario_of(path) in scenarios]
 

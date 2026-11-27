@@ -11,6 +11,8 @@
 #endif
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <cstring>
 
 /**
  * Every call site latency benchmark is built once per scenario. The scenario is selected with one
@@ -23,6 +25,9 @@
  *   the logger's data comes from L3 or memory. One thread only.
  * - Disabled: a debug statement while the logger's level is info, hot (the mean of 1,000 calls)
  *   and cold. One thread only.
+ * - Disabled argument: the hot disabled statement with an argument that is expensive to compute,
+ *   which shows whether a logger evaluates the arguments of a statement it filters out. Built
+ *   with BENCH_DISABLED_EXPENSIVE_ARG on top of the disabled scenario.
  *
  * All threads follow the same schedule of start times, so with several threads the calls of each
  * sample are made at the same time.
@@ -100,3 +105,51 @@ inline void bench_compiler_barrier() noexcept
   asm volatile("" ::: "memory");
 #endif
 }
+
+/**
+ * The calls of bench_expensive_argument() and the result of its last call
+ */
+inline std::atomic<uint64_t> g_bench_expensive_argument_calls{0};
+inline std::atomic<uint64_t> g_bench_expensive_argument_state{0};
+
+/**
+ * An argument that is expensive to compute: 64 dependent xorshift rounds, several hundred CPU
+ * cycles. It is never inlined and counts its calls, so the compiler cannot drop a call that the
+ * logger makes, and the count tells whether the logger evaluated the argument. Each call starts
+ * from the result of the call before it, so the CPU cannot run two calls at the same time and
+ * every call takes the whole time. It is called by one thread.
+ */
+#if defined(_MSC_VER) && !defined(__clang__)
+__declspec(noinline)
+#else
+__attribute__((noinline))
+#endif
+inline double bench_expensive_argument(double value) noexcept
+{
+  g_bench_expensive_argument_calls.store(g_bench_expensive_argument_calls.load(std::memory_order_relaxed) + 1,
+                                         std::memory_order_relaxed);
+
+  uint64_t x;
+  std::memcpy(&x, &value, sizeof(x));
+  x = (x ^ g_bench_expensive_argument_state.load(std::memory_order_relaxed)) | 1;
+
+  for (int round = 0; round < 64; ++round)
+  {
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+  }
+
+  g_bench_expensive_argument_state.store(x, std::memory_order_relaxed);
+  return static_cast<double>(x >> 11);
+}
+
+/**
+ * The last argument of the disabled statement: the payload, or an expensive function of it when
+ * the benchmark is built with BENCH_DISABLED_EXPENSIVE_ARG
+ */
+#if defined(BENCH_DISABLED_EXPENSIVE_ARG)
+  #define BENCH_DISABLED_ARG(value) bench_expensive_argument(value)
+#else
+  #define BENCH_DISABLED_ARG(value) (value)
+#endif

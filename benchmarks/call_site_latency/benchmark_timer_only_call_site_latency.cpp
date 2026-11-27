@@ -17,8 +17,14 @@ volatile uintptr_t g_sink = 0;
 /***/
 void timer_only_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterations_per_thread)
 {
+#if defined(BENCH_DISABLED_EXPENSIVE_ARG)
+  // The reference of the disabled argument scenario: the argument is computed on every call
+  auto log_func = [](uint64_t i, uint64_t j, double d)
+  { g_sink = static_cast<uintptr_t>(i + j) + static_cast<uintptr_t>(bench_expensive_argument(d)); };
+#else
   auto log_func = [](uint64_t i, uint64_t j, auto const& v)
   { g_sink = static_cast<uintptr_t>(i + j) + reinterpret_cast<uintptr_t>(&v); };
+#endif
 
   auto on_start = []() {};
   auto on_exit = []() {};
