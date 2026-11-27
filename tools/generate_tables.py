@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import re
 import statistics
 from collections import defaultdict
@@ -209,8 +210,22 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def run_failed(content: str) -> bool:
+    """
+    A run that lost messages, or whose benchmark did not exit cleanly, is never published
+    """
+    if re.search(r"^delivery: .*FAIL$", content, re.MULTILINE):
+        return True
+    exit_code = re.search(r"^exit code: (-?\d+)$", content, re.MULTILINE)
+    return exit_code is not None and exit_code.group(1) != "0"
+
+
 def read_bench_file(filepath: Path) -> tuple[str, str]:
     content = filepath.read_text(encoding="utf-8")
+    if run_failed(content):
+        print(f"skipping {filepath.name}: a delivery check failed or the benchmark did not exit cleanly",
+              file=sys.stderr)
+        return "", ""
     bench_path_match = re.search(r"^bench: (.+)$", content, re.MULTILINE)
     bench_path = bench_path_match.group(1).strip() if bench_path_match else ""
     return bench_path, content

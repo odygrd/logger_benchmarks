@@ -177,10 +177,16 @@ def main() -> int:
     parser.add_argument("--scenarios", nargs="*", default=None,
                         help="only these scenarios: burst single cold disabled throughput")
     parser.add_argument("--include-huge-pages", action="store_true", help="also run the Quill huge pages variants")
+    parser.add_argument("--only", default=None,
+                        help="only the binaries whose name matches this regular expression, to rerun some of them")
+    parser.add_argument("--tag", default="",
+                        help="added to the results file names, so a rerun does not overwrite earlier results")
     parser.add_argument("--keep-logs", action="store_true", help="keep the log files the benchmarks write")
     args = parser.parse_args()
 
     benchmarks = find_benchmarks(args.build_dir, args.scenarios, args.include_huge_pages)
+    if args.only:
+        benchmarks = [bench for bench in benchmarks if re.search(args.only, bench.name)]
     if IS_WINDOWS:
         benchmarks = [bench for bench in benchmarks
                       if not any(library in bench.name for library in WINDOWS_EXCLUDED_LIBRARIES)]
@@ -200,7 +206,7 @@ def main() -> int:
         random.Random(seed + pass_number).shuffle(order)
 
         for index, bench in enumerate(order):
-            output_path = run_dir / f"bench_results_run{pass_number}_{index}.txt"
+            output_path = run_dir / f"bench_results_run{pass_number}_{args.tag}{index}.txt"
             print(f"[pass {pass_number} {index + 1}/{len(order)}] {bench.name}")
 
             if hasattr(os, "sync"):

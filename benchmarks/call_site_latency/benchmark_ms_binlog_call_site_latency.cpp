@@ -21,11 +21,17 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
     // pin to cpu
     set_thread_affinity(5);
 
-    binlog::Session::ConsumeResult consume_result;
-    do
+    // done is read before consuming, so once it is set one more consume writes every record logged
+    // before it
+    while (true)
     {
-      consume_result = binlog::consume(logfile);
-    } while (!done.load(std::memory_order_acquire) || consume_result.bytesConsumed != 0);
+      bool const finished = done.load(std::memory_order_acquire);
+      binlog::Session::ConsumeResult const consume_result = binlog::consume(logfile);
+      if (finished && consume_result.bytesConsumed == 0)
+      {
+        break;
+      }
+    }
   });
 
   // wait for the backend thread to start

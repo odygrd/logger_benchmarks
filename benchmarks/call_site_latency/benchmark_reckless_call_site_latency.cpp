@@ -28,7 +28,7 @@ void reckless_benchmark(std::vector<int32_t> thread_count_array, size_t num_iter
   };
 #elif defined(BENCH_INT_INT_LARGESTR)
   auto log_func = [&g_log](uint64_t i, uint64_t j, std::string const& s) {
-    g_log.info("Logging int: %i, int: %d, string: %s", i, j, s);
+    g_log.info("Logging int: %d, int: %d, string: %s", i, j, s);
   };
 #endif
 

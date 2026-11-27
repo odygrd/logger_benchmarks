@@ -48,20 +48,14 @@ int main()
   backend->add_stream(boost::make_shared<std::ofstream>(log_file));
   backend->auto_flush(false);
 
-  // Create async frontend with thread initialization to pin backend thread to CPU 5
-  boost::shared_ptr<async_sink_t> sink = boost::make_shared<async_sink_t>(
-    backend,
-    keywords::start_thread =
-      [](const std::function<void()>& thread_func)
+  // The sink's feeding thread is started here and pinned to CPU 5. keywords::start_thread only takes
+  // a bool, so the sink must not start its own thread.
+  boost::shared_ptr<async_sink_t> sink = boost::make_shared<async_sink_t>(backend, keywords::start_thread = false);
+  std::thread feeding_thread(
+    [sink]()
     {
-      std::thread t(
-        [thread_func]()
-        {
-          // Pin backend thread to CPU 5
-          set_thread_affinity(5);
-          thread_func();
-        });
-      t.detach();
+      set_thread_affinity(5);
+      sink->run();
     });
 
   // Set formatter - using optimized format with timestamp
@@ -81,7 +75,8 @@ int main()
   logging::core::get()->add_global_attribute("ThreadID", attrs::current_thread_id());
   logging::core::get()->add_global_attribute("TimeStamp", attrs::local_clock());
 
-  src::severity_logger<logging::trivial::severity_level> logger;
+  // Shared by every logging thread, so the thread-safe logger
+  src::severity_logger_mt<logging::trivial::severity_level> logger;
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -110,4 +105,6 @@ int main()
 
   // Cleanup
   logging::core::get()->remove_sink(sink);
+  sink->stop();
+  feeding_thread.join();
 }

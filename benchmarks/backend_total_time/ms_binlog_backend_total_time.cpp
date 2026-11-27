@@ -34,12 +34,14 @@ int main()
       // pin to cpu
       set_thread_affinity(5);
 
-      binlog::Session::ConsumeResult consume_result;
+      // done is read before consuming, so once it is set one more consume writes every record logged
+      // before it, including the end line
       while (true)
       {
-        consume_result = binlog::consume(logfile);
+        bool const finished = done.load(std::memory_order_acquire);
+        binlog::Session::ConsumeResult const consume_result = binlog::consume(logfile);
 
-        if (done.load(std::memory_order_acquire) && consume_result.bytesConsumed == 0)
+        if (finished && consume_result.bytesConsumed == 0)
         {
           break;
         }
