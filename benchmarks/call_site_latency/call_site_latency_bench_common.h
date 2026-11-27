@@ -95,7 +95,8 @@ inline uint64_t serialized_rdtsc() noexcept
 
 /**
  * Stops the compiler from keeping values loaded by one logging call in registers for the next, so
- * a disabled statement reloads the logger's level on every call
+ * a disabled statement reloads the logger's level on every call. Every scenario makes it after
+ * every call.
  */
 inline void bench_compiler_barrier() noexcept
 {

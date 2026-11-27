@@ -298,7 +298,6 @@ struct SampleMode
   char const* name;
   size_t calls_per_sample;
   bool cold;
-  bool barrier_between_calls;
 };
 
 /***/
@@ -325,6 +324,7 @@ inline void run_log_benchmark(size_t num_iterations, SampleMode mode, TOnThreadS
 
   Schedule schedule{start_tsc.load(std::memory_order_acquire), ns_rdtsc_tick};
   size_t const total_iterations = WARMUP_ITERATIONS + num_iterations;
+  size_t const calls_per_sample = mode.calls_per_sample;
   latencies.reserve(num_iterations);
 
   for (size_t i = 0; i < total_iterations; ++i)
@@ -340,13 +340,12 @@ inline void run_log_benchmark(size_t num_iterations, SampleMode mode, TOnThreadS
     touch_payload(v, payload_sink);
 
     auto const start = serialized_rdtsc();
-    for (size_t j = 0; j < mode.calls_per_sample; ++j)
+    for (size_t j = 0; j < calls_per_sample; ++j)
     {
       log_func(i, j, v);
-      if (mode.barrier_between_calls)
-      {
-        bench_compiler_barrier();
-      }
+      // Emits no instruction. It is not behind a flag of the mode: the flag would be read from
+      // memory in the timed loop, from a cache line that the cold scenarios have evicted.
+      bench_compiler_barrier();
     }
     auto const end = serialized_rdtsc();
 
@@ -354,7 +353,7 @@ inline void run_log_benchmark(size_t num_iterations, SampleMode mode, TOnThreadS
     if (i >= WARMUP_ITERATIONS)
     {
       latencies.push_back(static_cast<double>(end - start) * ns_rdtsc_tick /
-                          static_cast<double>(mode.calls_per_sample));
+                          static_cast<double>(calls_per_sample));
     }
   }
 
@@ -464,18 +463,18 @@ inline void run_benchmark(char const* benchmark_name, int32_t thread_count, size
   }
 
 #if defined(BENCH_SCENARIO_DISABLED) && defined(BENCH_DISABLED_EXPENSIVE_ARG)
-  run_benchmark_mode(benchmark_name, SampleMode{"disabled_argument", DISABLED_HOT_CALLS, false, true}, thread_count,
+  run_benchmark_mode(benchmark_name, SampleMode{"disabled_argument", DISABLED_HOT_CALLS, false}, thread_count,
                      num_iterations / 10, on_thread_start, log_func, on_thread_exit);
 #elif defined(BENCH_SCENARIO_DISABLED)
-  run_benchmark_mode(benchmark_name, SampleMode{"disabled_hot", DISABLED_HOT_CALLS, false, true}, thread_count,
+  run_benchmark_mode(benchmark_name, SampleMode{"disabled_hot", DISABLED_HOT_CALLS, false}, thread_count,
                      num_iterations / 10, on_thread_start, log_func, on_thread_exit);
-  run_benchmark_mode(benchmark_name, SampleMode{"disabled_cold", 1, true, true}, thread_count, num_iterations,
+  run_benchmark_mode(benchmark_name, SampleMode{"disabled_cold", 1, true}, thread_count, num_iterations,
                      on_thread_start, log_func, on_thread_exit);
 #elif defined(BENCH_COLD_CACHE)
-  run_benchmark_mode(benchmark_name, SampleMode{bench_scenario_name(), messages_per_iteration, true, false},
+  run_benchmark_mode(benchmark_name, SampleMode{bench_scenario_name(), messages_per_iteration, true},
                      thread_count, num_iterations, on_thread_start, log_func, on_thread_exit);
 #else
-  run_benchmark_mode(benchmark_name, SampleMode{bench_scenario_name(), messages_per_iteration, false, false},
+  run_benchmark_mode(benchmark_name, SampleMode{bench_scenario_name(), messages_per_iteration, false},
                      thread_count, num_iterations, on_thread_start, log_func, on_thread_exit);
 #endif
 }
