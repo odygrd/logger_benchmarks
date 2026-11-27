@@ -380,7 +380,42 @@ def collect_backend_results(stat: str = "mean") -> dict:
     return combined
 
 
-def format_latency_table(results: dict, scenario: str, payload: str, thread_count: int, heading: str) -> str:
+# Output format of the tables, set from --format: markdown for READMEs, rst for the Quill docs page
+OUTPUT_FORMAT = "markdown"
+
+
+def link(name: str, url: str) -> str:
+    return f"`{name} <{url}>`__" if OUTPUT_FORMAT == "rst" else f"[{name}]({url})"
+
+
+def heading(title: str, level: int) -> str:
+    if OUTPUT_FORMAT == "rst":
+        return f"{title}\n{'-~^'[level - 2] * len(title)}"
+    return f"{'#' * level} {title}"
+
+
+def render_table(columns: list[str], rows: list[list[str]], first_width: int, widths: list[int]) -> str:
+    """
+    A table with a library column and centred value columns
+    """
+    if OUTPUT_FORMAT == "rst":
+        table = ".. list-table::\n   :header-rows: 1\n   :class: bench-table bench-center\n\n"
+        for row in [columns] + rows:
+            table += f"   * - {row[0]}\n"
+            for cell in row[1:]:
+                table += f"     - {cell.strip()}\n"
+        return table
+
+    table = f"| {columns[0].ljust(first_width)} | " + " | ".join(
+        column.center(width) for column, width in zip(columns[1:], widths)) + " |\n"
+    table += f"|{'-' * (first_width + 2)}|" + "|".join(f":{'-' * width}:" for width in widths) + "|\n"
+    for row in rows:
+        table += f"| {row[0].ljust(first_width)} | " + " | ".join(
+            cell.center(width) for cell, width in zip(row[1:], widths)) + " |\n"
+    return table
+
+
+def format_latency_table(results: dict, scenario: str, payload: str, thread_count: int, title: str) -> str:
     logger_results = results.get((scenario, payload, thread_count), {})
     if not logger_results:
         return ""
@@ -398,7 +433,7 @@ def format_latency_table(results: dict, scenario: str, payload: str, thread_coun
 
         rows.append(
             {
-                "name": f"[{logger_info['name']}]({logger_info['url']})",
+                "name": link(logger_info["name"], logger_info["url"]),
                 "values": [data[key] for key in PERCENTILES],
                 # Ties keep alphabetical order, never a library's own order
                 "sort_key": (data["p90"], data["p95"], data["p99"], data["p999"], logger_info["name"].casefold()),
@@ -407,15 +442,9 @@ def format_latency_table(results: dict, scenario: str, payload: str, thread_coun
 
     rows.sort(key=lambda row: row["sort_key"])
 
-    table = f"{heading}\n\n"
-    table += "| Library                                                                   |  50th  |  75th  |  90th  |  95th  |  99th  | 99.9th |\n"
-    table += "|---------------------------------------------------------------------------|:------:|:------:|:------:|:------:|:------:|:------:|\n"
-
-    for row in rows:
-        cells = " | ".join(f"{value:^6.1f}" for value in row["values"])
-        table += f"| {row['name'].ljust(73)} | {cells} |\n"
-
-    return table
+    columns = ["Library", "50th", "75th", "90th", "95th", "99th", "99.9th"]
+    cells = [[row["name"]] + [f"{value:.1f}" for value in row["values"]] for row in rows]
+    return f"{title}\n\n" + render_table(columns, cells, 73, [6] * 6)
 
 
 def format_throughput_table(results: dict, workload: str, threads: int) -> str:
@@ -427,7 +456,7 @@ def format_throughput_table(results: dict, workload: str, threads: int) -> str:
 
         for logger_info in BACKEND_LOGGER_MAP.values():
             if logger_info["name"] == logger:
-                rows.append({"name": f"[{logger_info['name']}]({logger_info['url']})", **data})
+                rows.append({"name": link(logger_info["name"], logger_info["url"]), **data})
                 break
 
     if not rows:
@@ -435,17 +464,13 @@ def format_throughput_table(results: dict, workload: str, threads: int) -> str:
 
     rows.sort(key=lambda row: (-row["throughput"], row["name"]))
 
-    heading = "1 Producer Thread" if threads == 1 else f"{threads} Producer Threads"
-    table = f"**{heading}**\n\n"
-    table += "| Library                                                                    | million msg/second | elapsed time | producers done |\n"
-    table += "|----------------------------------------------------------------------------|:------------------:|:------------:|:--------------:|\n"
-
+    title = "1 Producer Thread" if threads == 1 else f"{threads} Producer Threads"
+    columns = ["Library", "million msg/second", "elapsed time", "producers done"]
+    cells = []
     for row in rows:
-        elapsed = f"{row['elapsed_ms']:.0f} ms"
         producers = f"{row['producers_ms']:.0f} ms" if row.get("producers_ms") is not None else "-"
-        table += f"| {row['name'].ljust(74)} | {row['throughput']:>18.2f} | {elapsed:^12} | {producers:^14} |\n"
-
-    return table
+        cells.append([row["name"], f"{row['throughput']:.2f}", f"{row['elapsed_ms']:.0f} ms", producers])
+    return f"**{title}**\n\n" + render_table(columns, cells, 74, [18, 12, 14])
 
 
 def main() -> None:
@@ -458,7 +483,11 @@ def main() -> None:
         "(the lowest 90th, then 95th, 99th and 99.9th percentile for latency, the highest msg/s for throughput)",
     )
     parser.add_argument("--best-of-runs", action="store_true", help="the same as --stat best")
+    parser.add_argument("--format", choices=("markdown", "rst"), default="markdown",
+                        help="markdown tables, or reStructuredText list-tables as the Quill docs page uses")
     args = parser.parse_args()
+    global OUTPUT_FORMAT
+    OUTPUT_FORMAT = args.format
     stat = "best" if args.best_of_runs else args.stat
 
     latency_results = collect_latency_results(stat)
@@ -473,9 +502,9 @@ def main() -> None:
             ]
             tables = [table for table in tables if table]
             if tables:
-                sections.append(f"### {LATENCY_SECTION_METADATA[payload]['title']}\n\n" + "\n".join(tables))
+                sections.append(heading(LATENCY_SECTION_METADATA[payload]["title"], 3) + "\n\n" + "\n".join(tables))
         if sections:
-            print(f"## {scenario_title}\n")
+            print(heading(scenario_title, 2) + "\n")
             print("\n".join(sections))
 
     disabled = [
@@ -484,14 +513,14 @@ def main() -> None:
     ]
     disabled = [table for table in disabled if table]
     if disabled:
-        print("## Disabled Statement\n")
+        print(heading("Disabled Statement", 2) + "\n")
         print("\n".join(disabled))
 
     for workload, title in THROUGHPUT_WORKLOADS.items():
         throughput = [format_throughput_table(backend_results, workload, threads) for threads in (1, 4)]
         throughput = [table for table in throughput if table]
         if throughput:
-            print(f"## {title}\n")
+            print(heading(title, 2) + "\n")
             print("\n".join(throughput))
 
 

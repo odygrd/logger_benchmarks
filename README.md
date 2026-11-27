@@ -191,6 +191,13 @@ python3 tools/generate_tables.py --stat median > tables.md
 
 The same rule applies to every library.
 
+`--format rst` prints reStructuredText `list-table` blocks instead, as the
+[Quill benchmarks page](https://quillcpp.readthedocs.io/en/latest/benchmarks.html) uses:
+
+```bash
+python3 tools/generate_tables.py --stat median --format rst > tables.rst
+```
+
 ## Windows (MSVC)
 
 The benchmarks also build and run on Windows with MSVC. Linux builds are unaffected: every
