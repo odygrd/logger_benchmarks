@@ -67,11 +67,20 @@ inline void sleep_for_ns(uint64_t ns) noexcept
 #if defined(_WIN32)
   if (ns < 1'000'000ull)
   {
-    auto const deadline = std::chrono::steady_clock::now() + std::chrono::nanoseconds{ns};
+    // Compare nanosecond counts rather than time_points: MSVC cannot import the time_point
+    // comparison from the quill module
+    auto const now_ns = []() noexcept
+    {
+      return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                     std::chrono::steady_clock::now().time_since_epoch())
+                                     .count());
+    };
+
+    uint64_t const deadline = now_ns() + ns;
     do
     {
       ::SwitchToThread();
-    } while (std::chrono::steady_clock::now() < deadline);
+    } while (now_ns() < deadline);
     return;
   }
 
