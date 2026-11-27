@@ -20,10 +20,8 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   // Setup
   quill::BackendOptions backend_options;
   backend_options.cpu_affinity = {static_cast<uint16_t>(bench_cpu(5))};
-#ifndef BENCH_SCENARIO_DEFAULTS
   // The backend never sleeps, the most responsive setting every library is given where it has one
   backend_options.sleep_duration = std::chrono::nanoseconds{0};
-#endif
   quill::Backend::start(backend_options);
 
   // wait for the backend thread to start

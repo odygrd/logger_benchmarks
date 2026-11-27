@@ -1,9 +1,7 @@
 #define FMT_HEADER_ONLY
-#ifndef BENCH_SCENARIO_DEFAULTS
-  // Write with plain write(2) calls, as every other library does. As shipped, XTR uses io_uring
-  // when liburing is available.
-  #define XTR_USE_IO_URING 0
-#endif
+// Write with plain write(2) calls, as every other library does. As shipped, XTR uses io_uring
+// when liburing is available.
+#define XTR_USE_IO_URING 0
 
 #include "call_site_latency_bench.h"
 
@@ -13,13 +11,8 @@
 #include <optional>
 #include <string>
 
-#ifdef BENCH_SCENARIO_DEFAULTS
-  // As shipped, the background thread reads the clock when it processes the message
-  #define BENCH_XTR_LOG(LEVEL, SINK, ...) XTR_LOGL(LEVEL, SINK, __VA_ARGS__)
-#else
-  // The calling thread reads the CPU timestamp counter, as Quill and fmtlog do
-  #define BENCH_XTR_LOG(LEVEL, SINK, ...) XTR_LOGL_TSC(LEVEL, SINK, __VA_ARGS__)
-#endif
+// The calling thread reads the CPU timestamp counter, as Quill and fmtlog do
+#define BENCH_XTR_LOG(LEVEL, SINK, ...) XTR_LOGL_TSC(LEVEL, SINK, __VA_ARGS__)
 
 namespace
 {

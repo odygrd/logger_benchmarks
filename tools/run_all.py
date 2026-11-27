@@ -175,7 +175,7 @@ def main() -> int:
     parser.add_argument("--first-pass", type=int, default=1, help="number of the first pass, to resume a run")
     parser.add_argument("--seed", type=int, default=None, help="seed of the run order, random by default")
     parser.add_argument("--scenarios", nargs="*", default=None,
-                        help="only these scenarios: burst single cold disabled defaults throughput")
+                        help="only these scenarios: burst single cold disabled throughput")
     parser.add_argument("--include-huge-pages", action="store_true", help="also run the Quill huge pages variants")
     parser.add_argument("--keep-logs", action="store_true", help="keep the log files the benchmarks write")
     args = parser.parse_args()

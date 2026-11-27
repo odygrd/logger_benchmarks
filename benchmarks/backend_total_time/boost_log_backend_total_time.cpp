@@ -88,47 +88,12 @@ int main()
   BOOST_LOG_SEV(logger, logging::trivial::info) << "Warm up";
   sink->flush();
 
-#if defined(BENCH_MANY_STATEMENTS)
-  // 256 distinct statements, see many_statements.h
+  // 256 distinct statements in a fixed pseudo-random order, see many_statements.h
   #define BENCH_LOG_STREAM(stream) BOOST_LOG_SEV(logger, logging::trivial::info) stream
   auto log_statement = [&](size_t iteration)
   {
   #include "many_statements/stream.inc"
   };
-#else
-  auto log_statement = [&](size_t iteration)
-  {
-    // Cycle between five log statements: an application does not repeat a single one
-    switch (iteration % 5)
-    {
-    case 0:
-      BOOST_LOG_SEV(logger, logging::trivial::info)
-        << "Iteration: " << iteration << " int: " << (iteration * 2)
-        << " double: " << (static_cast<double>(iteration) / 2);
-      break;
-    case 1:
-      BOOST_LOG_SEV(logger, logging::trivial::info)
-        << "Order: " << iteration << " quantity: " << (iteration * 2)
-        << " price: " << (static_cast<double>(iteration) / 2);
-      break;
-    case 2:
-      BOOST_LOG_SEV(logger, logging::trivial::info)
-        << "Request: " << iteration << " bytes: " << (iteration * 2)
-        << " elapsed: " << (static_cast<double>(iteration) / 2);
-      break;
-    case 3:
-      BOOST_LOG_SEV(logger, logging::trivial::info)
-        << "Session: " << iteration << " sequence: " << (iteration * 2)
-        << " latency: " << (static_cast<double>(iteration) / 2);
-      break;
-    default:
-      BOOST_LOG_SEV(logger, logging::trivial::info)
-        << "Worker: " << iteration << " processed: " << (iteration * 2)
-        << " load: " << (static_cast<double>(iteration) / 2);
-      break;
-    }
-  };
-#endif
 
   // Each producer logs a warm-up line first, so its per-thread state is created before timing
   auto on_producer_start = [&](size_t) { BOOST_LOG_SEV(logger, logging::trivial::info) << "Warm up"; };

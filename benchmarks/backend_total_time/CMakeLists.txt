@@ -1,21 +1,13 @@
-# Every throughput benchmark is built four times: BENCHMARK_<library>_backend_total_time with one
-# producer thread, BENCHMARK_<library>_backend_total_time_4_threads with four, and both again with a
-# _many_statements suffix, logging 256 distinct statements instead of five (see many_statements.h).
+# Every throughput benchmark is built twice: BENCHMARK_<library>_backend_total_time with one
+# producer thread, and BENCHMARK_<library>_backend_total_time_4_threads with four.
 function(add_throughput_benchmark LIBRARY SOURCE)
-  foreach (WORKLOAD "" "_many_statements")
-    set(TARGET_NAME BENCHMARK_${LIBRARY}_backend_total_time${WORKLOAD})
+  set(TARGET_NAME BENCHMARK_${LIBRARY}_backend_total_time)
+  add_executable(${TARGET_NAME} ${SOURCE})
+  target_link_libraries(${TARGET_NAME} ${ARGN})
 
-    add_executable(${TARGET_NAME} ${SOURCE})
-    add_executable(${TARGET_NAME}_4_threads ${SOURCE})
-    target_compile_definitions(${TARGET_NAME}_4_threads PRIVATE BENCH_THROUGHPUT_THREADS=4)
-
-    foreach (TARGET ${TARGET_NAME} ${TARGET_NAME}_4_threads)
-      if (WORKLOAD)
-        target_compile_definitions(${TARGET} PRIVATE BENCH_MANY_STATEMENTS)
-      endif ()
-      target_link_libraries(${TARGET} ${ARGN})
-    endforeach ()
-  endforeach ()
+  add_executable(${TARGET_NAME}_4_threads ${SOURCE})
+  target_compile_definitions(${TARGET_NAME}_4_threads PRIVATE BENCH_THROUGHPUT_THREADS=4)
+  target_link_libraries(${TARGET_NAME}_4_threads ${ARGN})
 endfunction()
 
 add_throughput_benchmark(quill quill_backend_total_time.cpp quill fmt::fmt)

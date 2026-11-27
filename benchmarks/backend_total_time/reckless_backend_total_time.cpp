@@ -46,42 +46,12 @@ int main()
   g_log.flush();
 
   // start counting the time until backend worker finishes
-#if defined(BENCH_MANY_STATEMENTS)
-  // 256 distinct statements, see many_statements.h
+  // 256 distinct statements in a fixed pseudo-random order, see many_statements.h
   #define BENCH_LOG(...) g_log.info(__VA_ARGS__)
   auto log_statement = [&](size_t iteration)
   {
   #include "many_statements/reckless.inc"
   };
-#else
-  auto log_statement = [&](size_t iteration)
-  {
-    // Cycle between five log statements: an application does not repeat a single one
-    switch (iteration % 5)
-    {
-    case 0:
-      g_log.info("Iteration: %d, int: %d, double: %f", iteration, iteration * 2,
-                 static_cast<double>(iteration) / 2);
-      break;
-    case 1:
-      g_log.info("Order: %d, quantity: %d, price: %f", iteration, iteration * 2,
-                 static_cast<double>(iteration) / 2);
-      break;
-    case 2:
-      g_log.info("Request: %d, bytes: %d, elapsed: %f", iteration, iteration * 2,
-                 static_cast<double>(iteration) / 2);
-      break;
-    case 3:
-      g_log.info("Session: %d, sequence: %d, latency: %f", iteration, iteration * 2,
-                 static_cast<double>(iteration) / 2);
-      break;
-    default:
-      g_log.info("Worker: %d, processed: %d, load: %f", iteration, iteration * 2,
-                 static_cast<double>(iteration) / 2);
-      break;
-    }
-  };
-#endif
 
   // Each producer logs a warm-up line first, so its per-thread state is created before timing
   auto on_producer_start = [&](size_t) { g_log.info("Warm up"); };

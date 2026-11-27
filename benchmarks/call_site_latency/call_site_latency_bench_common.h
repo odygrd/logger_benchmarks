@@ -23,12 +23,11 @@
  *   the logger's data comes from L3 or memory. One thread only.
  * - Disabled: a debug statement while the logger's level is info, hot (the mean of 1,000 calls)
  *   and cold. One thread only.
- * - Defaults: the single scenario with every library configured as shipped.
  *
  * All threads follow the same schedule of start times, so with several threads the calls of each
  * sample are made at the same time.
  */
-#if defined(BENCH_SCENARIO_SINGLE) || defined(BENCH_SCENARIO_DEFAULTS)
+#if defined(BENCH_SCENARIO_SINGLE)
   #define THREAD_LIST_COUNT std::vector<int32_t>{1, 4}
   #define ITERATIONS std::size_t{100'000}
   #define MESSAGES_PER_ITERATION std::size_t{1}
@@ -70,8 +69,6 @@ inline char const* bench_scenario_name() noexcept
 {
 #if defined(BENCH_SCENARIO_SINGLE)
   return "single";
-#elif defined(BENCH_SCENARIO_DEFAULTS)
-  return "defaults";
 #elif defined(BENCH_SCENARIO_COLD)
   return "cold";
 #elif defined(BENCH_SCENARIO_DISABLED)

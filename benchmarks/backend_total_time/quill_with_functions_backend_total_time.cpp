@@ -64,42 +64,12 @@ int main()
   logger->flush_log(0);
 
   // start counting the time until backend worker finishes
-#if defined(BENCH_MANY_STATEMENTS)
-  // 256 distinct statements, see many_statements.h
+  // 256 distinct statements in a fixed pseudo-random order, see many_statements.h
   #define BENCH_LOG(...) quill::info(logger, __VA_ARGS__)
   auto log_statement = [&](size_t iteration)
   {
   #include "many_statements/fmt.inc"
   };
-#else
-  auto log_statement = [&](size_t iteration)
-  {
-    // Cycle between five log statements: an application does not repeat a single one
-    switch (iteration % 5)
-    {
-    case 0:
-      quill::info(logger, "Iteration: {} int: {} double: {}", iteration, iteration * 2,
-                  static_cast<double>(iteration) / 2);
-      break;
-    case 1:
-      quill::info(logger, "Order: {} quantity: {} price: {}", iteration, iteration * 2,
-                  static_cast<double>(iteration) / 2);
-      break;
-    case 2:
-      quill::info(logger, "Request: {} bytes: {} elapsed: {}", iteration, iteration * 2,
-                  static_cast<double>(iteration) / 2);
-      break;
-    case 3:
-      quill::info(logger, "Session: {} sequence: {} latency: {}", iteration, iteration * 2,
-                  static_cast<double>(iteration) / 2);
-      break;
-    default:
-      quill::info(logger, "Worker: {} processed: {} load: {}", iteration, iteration * 2,
-                  static_cast<double>(iteration) / 2);
-      break;
-    }
-  };
-#endif
 
   // Each producer logs a warm-up line first, so its per-thread state is created before timing
   auto on_producer_start = [&](size_t) { quill::info(logger, "Warm up"); };

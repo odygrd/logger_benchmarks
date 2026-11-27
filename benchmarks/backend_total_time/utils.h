@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../bench_platform.h"
+#include "many_statements.h"
 
 #include <atomic>
 #include <chrono>
@@ -108,7 +109,3 @@ inline void print_throughput(ProducerTimes const& times, std::chrono::steady_clo
     BENCH_THROUGHPUT_THREADS, static_cast<long long>(producers_ms), file_size_mb, expected_log_lines);
   std::fflush(stdout);
 }
-
-#if defined(BENCH_MANY_STATEMENTS)
-  #include "many_statements.h"
-#endif

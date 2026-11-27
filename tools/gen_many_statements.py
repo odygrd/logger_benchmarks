@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-Generates the log statements of the many statements throughput benchmarks, into
+Generates the log statements of the throughput benchmarks, into
 benchmarks/backend_total_time/many_statements/.
 
-The other throughput benchmarks cycle between five log statements, so the backend keeps seeing
-the same few format strings, argument types and call sites. An application has hundreds of
-statements, logged in no fixed order. These benchmarks log NUM_STATEMENTS distinct statements of
-one to five mixed arguments, in the pseudo-random order of bench_statement_order (see
-many_statements.h).
+A benchmark that repeats a few log statements keeps the backend on the same few format strings,
+argument types and call sites. An application has hundreds of statements, logged in no fixed
+order. The throughput benchmarks log NUM_STATEMENTS distinct statements of one to five mixed
+arguments, in the pseudo-random order of bench_statement_order (see many_statements.h).
 
 Every library writes the same messages. Libraries take their arguments in different ways, so one
 file is generated per call style:

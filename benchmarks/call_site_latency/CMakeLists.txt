@@ -4,7 +4,7 @@
 # benchmark benchmark_<library>_call_site_latency_disabled.
 
 set(BENCH_ALL_PAYLOADS int_int_double int_int_largestr vector_largestr)
-set(BENCH_ALL_SCENARIOS burst single cold defaults)
+set(BENCH_ALL_SCENARIOS burst single cold)
 
 # add_call_site_latency_benchmark(<library> SOURCE <file> LIBRARIES <libs...>
 #                                 [PAYLOADS <payloads...>] [SCENARIOS <scenarios...>]
@@ -48,10 +48,9 @@ add_call_site_latency_benchmark(quill_unbounded DISABLED
 add_call_site_latency_benchmark(quill_with_functions_unbounded DISABLED
   SOURCE benchmark_quill_with_functions_call_site_latency.cpp LIBRARIES quill)
 
-# The bounded queue is a Quill option rather than its default, so it has no defaults scenario
 add_call_site_latency_benchmark(quill_bounded
   SOURCE benchmark_quill_call_site_latency.cpp LIBRARIES quill
-  SCENARIOS burst single cold DEFINITIONS QUILL_USE_BOUNDED_DROPPING_QUEUE)
+  DEFINITIONS QUILL_USE_BOUNDED_DROPPING_QUEUE)
 
 add_call_site_latency_benchmark(quill_bounded_huge_pages
   SOURCE benchmark_quill_call_site_latency.cpp LIBRARIES quill

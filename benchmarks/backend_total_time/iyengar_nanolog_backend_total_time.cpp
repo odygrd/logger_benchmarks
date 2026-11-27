@@ -63,42 +63,12 @@ int main()
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // start counting the time until backend worker finishes
-#if defined(BENCH_MANY_STATEMENTS)
-  // 256 distinct statements, see many_statements.h
+  // 256 distinct statements in a fixed pseudo-random order, see many_statements.h
   #define BENCH_LOG_STREAM(stream) LOG_INFO stream
   auto log_statement = [&](size_t iteration)
   {
   #include "many_statements/stream.inc"
   };
-#else
-  auto log_statement = [&](size_t iteration)
-  {
-    // Cycle between five log statements: an application does not repeat a single one
-    switch (iteration % 5)
-    {
-    case 0:
-      LOG_INFO << "Iteration: " << iteration << " int: " << iteration * 2
-               << " double: " << static_cast<double>(iteration) / 2;
-      break;
-    case 1:
-      LOG_INFO << "Order: " << iteration << " quantity: " << iteration * 2
-               << " price: " << static_cast<double>(iteration) / 2;
-      break;
-    case 2:
-      LOG_INFO << "Request: " << iteration << " bytes: " << iteration * 2
-               << " elapsed: " << static_cast<double>(iteration) / 2;
-      break;
-    case 3:
-      LOG_INFO << "Session: " << iteration << " sequence: " << iteration * 2
-               << " latency: " << static_cast<double>(iteration) / 2;
-      break;
-    default:
-      LOG_INFO << "Worker: " << iteration << " processed: " << iteration * 2
-               << " load: " << static_cast<double>(iteration) / 2;
-      break;
-    }
-  };
-#endif
 
   // Each producer logs a warm-up line first, so its per-thread state is created before timing
   auto on_producer_start = [&](size_t) { LOG_CRIT << "Warm up"; };

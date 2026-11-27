@@ -24,14 +24,6 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
     binlog::Session::ConsumeResult consume_result;
     do
     {
-#ifdef BENCH_SCENARIO_DEFAULTS
-      // The application owns the consume loop. As shipped, it sleeps like Quill's default backend.
-      if (consume_result.bytesConsumed == 0)
-      {
-        std::this_thread::sleep_for(std::chrono::microseconds{500});
-      }
-#endif
-
       consume_result = binlog::consume(logfile);
     } while (!done.load(std::memory_order_acquire) || consume_result.bytesConsumed != 0);
   });

@@ -32,42 +32,12 @@ int main()
   NanoLog::sync();
 
   // start counting the time until backend worker finishes
-#if defined(BENCH_MANY_STATEMENTS)
-  // 256 distinct statements, see many_statements.h
+  // 256 distinct statements in a fixed pseudo-random order, see many_statements.h
   #define BENCH_LOG(...) NANO_LOG(NOTICE, __VA_ARGS__)
   auto log_statement = [&](size_t iteration)
   {
   #include "many_statements/printf.inc"
   };
-#else
-  auto log_statement = [&](size_t iteration)
-  {
-    // Cycle between five log statements: an application does not repeat a single one
-    switch (iteration % 5)
-    {
-    case 0:
-      NANO_LOG(NOTICE, "Iteration: %lu int: %lu double: %f", iteration, iteration * 2,
-               static_cast<double>(iteration) / 2);
-      break;
-    case 1:
-      NANO_LOG(NOTICE, "Order: %lu quantity: %lu price: %f", iteration, iteration * 2,
-               static_cast<double>(iteration) / 2);
-      break;
-    case 2:
-      NANO_LOG(NOTICE, "Request: %lu bytes: %lu elapsed: %f", iteration, iteration * 2,
-               static_cast<double>(iteration) / 2);
-      break;
-    case 3:
-      NANO_LOG(NOTICE, "Session: %lu sequence: %lu latency: %f", iteration, iteration * 2,
-               static_cast<double>(iteration) / 2);
-      break;
-    default:
-      NANO_LOG(NOTICE, "Worker: %lu processed: %lu load: %f", iteration, iteration * 2,
-               static_cast<double>(iteration) / 2);
-      break;
-    }
-  };
-#endif
 
   // Each producer logs a warm-up line first, so its per-thread state is created before timing
   auto on_producer_start = [&](size_t) { NANO_LOG(NOTICE, "Warm up"); };

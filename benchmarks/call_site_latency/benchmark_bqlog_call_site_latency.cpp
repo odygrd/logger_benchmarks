@@ -14,12 +14,8 @@ void bqlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   // CPU 5 so the worker inherits that affinity before the benchmark moves caller threads.
   // On Windows the worker is pinned explicitly instead.
 
-#if defined(BENCH_SCENARIO_DEFAULTS)
-  #define BQLOG_WORKER_CONFIG ""
-#else
-  // The worker never sleeps, the most responsive setting every library is given where it has one
-  #define BQLOG_WORKER_CONFIG "log.worker_interval_ms=0\n"
-#endif
+// The worker never sleeps, the most responsive setting every library is given where it has one
+#define BQLOG_WORKER_CONFIG "log.worker_interval_ms=0\n"
 #if defined(BENCH_SCENARIO_DISABLED)
   #define BQLOG_LEVELS "[info,warning,error,fatal]"
 #else

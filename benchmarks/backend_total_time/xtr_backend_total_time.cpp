@@ -66,41 +66,12 @@ int main()
   XTR_LOGL_TSC(info, sink, "Warm up");
   sink.sync();
 
-#if defined(BENCH_MANY_STATEMENTS)
-  // 256 distinct statements, see many_statements.h
+  // 256 distinct statements in a fixed pseudo-random order, see many_statements.h
   #define BENCH_LOG(...) XTR_LOGL_TSC(info, *tl_sink, __VA_ARGS__)
   auto log_statement = [&](size_t iteration)
   {
   #include "many_statements/fmt.inc"
   };
-#else
-  auto log_statement = [&](size_t iteration)
-  {
-    switch (iteration % 5)
-    {
-    case 0:
-      XTR_LOGL_TSC(info, *tl_sink, "Iteration: {} int: {} double: {}", iteration, iteration * 2,
-                   static_cast<double>(iteration) / 2);
-      break;
-    case 1:
-      XTR_LOGL_TSC(info, *tl_sink, "Order: {} quantity: {} price: {}", iteration, iteration * 2,
-                   static_cast<double>(iteration) / 2);
-      break;
-    case 2:
-      XTR_LOGL_TSC(info, *tl_sink, "Request: {} bytes: {} elapsed: {}", iteration, iteration * 2,
-                   static_cast<double>(iteration) / 2);
-      break;
-    case 3:
-      XTR_LOGL_TSC(info, *tl_sink, "Session: {} sequence: {} latency: {}", iteration, iteration * 2,
-                   static_cast<double>(iteration) / 2);
-      break;
-    default:
-      XTR_LOGL_TSC(info, *tl_sink, "Worker: {} processed: {} load: {}", iteration, iteration * 2,
-                   static_cast<double>(iteration) / 2);
-      break;
-    }
-  };
-#endif
 
   // Each producer creates its sink and logs a warm-up line before timing starts
   auto on_producer_start = [](size_t)
