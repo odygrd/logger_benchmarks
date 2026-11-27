@@ -1,5 +1,10 @@
 #include "call_site_latency_bench.h"
 
+#ifdef BENCH_SCENARIO_DISABLED
+  // Compile the debug statement in, so its level is checked at runtime
+  #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#endif
+
 #include "spdlog/async.h"
 #include "spdlog/fmt/ranges.h"
 #include "spdlog/sinks/basic_file_sink.h"
@@ -22,7 +27,8 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
     set_thread_affinity(5);
   };
 
-  spdlog::init_thread_pool(8388608, 1, on_backend_start);
+  // The default queue size and one worker thread, as spdlog::init_thread_pool() uses
+  spdlog::init_thread_pool(spdlog::details::default_async_q_size, 1, on_backend_start);
 
   auto sink = std::make_shared<spdlog::sinks::basic_file_sink_st>(
     "spdlog_call_site_latency_percentile_linux_benchmark.log");
@@ -34,7 +40,12 @@ void spdlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Define a logging lambda
-#ifdef BENCH_INT_INT_DOUBLE
+#ifdef BENCH_SCENARIO_DISABLED
+  // A statement below the logger's level
+  logger->set_level(spdlog::level::info);
+  auto log_func = [logger](uint64_t i, uint64_t j, double d)
+  { SPDLOG_LOGGER_DEBUG(logger, "Logging int: {}, int: {}, double: {}", i, j, d); };
+#elif defined(BENCH_INT_INT_DOUBLE)
   auto log_func = [logger](uint64_t i, uint64_t j, double d)
   { SPDLOG_LOGGER_INFO(logger, "Logging int: {}, int: {}, double: {}", i, j, d); };
 #elif defined(BENCH_INT_INT_LARGESTR)

@@ -14,19 +14,33 @@ void bqlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   // CPU 5 so the worker inherits that affinity before the benchmark moves caller threads.
   // On Windows the worker is pinned explicitly instead.
 
-  bq::log log_obj = bq::log::create_log("text", R"(
-        log.buffer_size=131072
+#if defined(BENCH_SCENARIO_DEFAULTS)
+  #define BQLOG_WORKER_CONFIG ""
+#else
+  // The worker never sleeps, the most responsive setting every library is given where it has one
+  #define BQLOG_WORKER_CONFIG "log.worker_interval_ms=0\n"
+#endif
+#if defined(BENCH_SCENARIO_DISABLED)
+  #define BQLOG_LEVELS "[info,warning,error,fatal]"
+#else
+  #define BQLOG_LEVELS "[all]"
+#endif
+  bq::log log_obj = bq::log::create_log("text", BQLOG_WORKER_CONFIG R"(
         log.thread_mode=async
         log.reliable_level=normal
         appenders_config.appender_0.type=text_file
-        appenders_config.appender_0.levels=[all]
+        appenders_config.appender_0.levels=)" BQLOG_LEVELS R"(
         appenders_config.appender_0.file_name= bqlog_call_site_latency_percentile_linux_benchmark.log
         appenders_config.appender_0.capacity_limit= 1
     )");
 
   pin_other_threads_on_windows(5);
 
-#ifdef BENCH_INT_INT_DOUBLE
+#ifdef BENCH_SCENARIO_DISABLED
+  // A statement below the logger's level
+  auto log_func = [&log_obj](uint64_t i, uint64_t j, double d)
+  { BQ_LOG_FAST_DEBUG(log_obj, "Logging int: {}, int: {}, double: {}", i, j, d); };
+#elif defined(BENCH_INT_INT_DOUBLE)
   auto log_func = [&log_obj](uint64_t i, uint64_t j, double d)
   { BQ_LOG_FAST_INFO(log_obj, "Logging int: {}, int: {}, double: {}", i, j, d); };
 #elif defined(BENCH_INT_INT_LARGESTR)

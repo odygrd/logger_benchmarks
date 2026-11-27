@@ -1,12 +1,33 @@
 #define FMT_HEADER_ONLY
-#define XTR_USE_IO_URING 0
+#ifndef BENCH_SCENARIO_DEFAULTS
+  // Write with plain write(2) calls, as every other library does. As shipped, XTR uses io_uring
+  // when liburing is available.
+  #define XTR_USE_IO_URING 0
+#endif
 
 #include "call_site_latency_bench.h"
 
 #include "fmt/ranges.h"
 #include "xtr/logger.hpp"
 
+#include <optional>
 #include <string>
+
+#ifdef BENCH_SCENARIO_DEFAULTS
+  // As shipped, the background thread reads the clock when it processes the message
+  #define BENCH_XTR_LOG(LEVEL, SINK, ...) XTR_LOGL(LEVEL, SINK, __VA_ARGS__)
+#else
+  // The calling thread reads the CPU timestamp counter, as Quill and fmtlog do
+  #define BENCH_XTR_LOG(LEVEL, SINK, ...) XTR_LOGL_TSC(LEVEL, SINK, __VA_ARGS__)
+#endif
+
+namespace
+{
+xtr::logger* g_log = nullptr;
+
+// Each thread's sink, created in the warm-up so the timed calls never create it
+thread_local std::optional<xtr::sink> tl_sink;
+} // namespace
 
 /***/
 void xtr_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterations_per_thread)
@@ -14,6 +35,7 @@ void xtr_benchmark(std::vector<int32_t> thread_count_array, size_t num_iteration
   std::remove("xtr_call_site_latency_percentile_linux_benchmark.log");
 
   xtr::logger log("xtr_call_site_latency_percentile_linux_benchmark.log");
+  g_log = &log;
 
   set_pthread_affinity(log.consumer_thread_native_handle(), 5);
 
@@ -21,29 +43,30 @@ void xtr_benchmark(std::vector<int32_t> thread_count_array, size_t num_iteration
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Define a logging lambda
-#ifdef BENCH_INT_INT_DOUBLE
-  auto log_func = [&log](uint64_t i, uint64_t j, double d) {
-    thread_local auto sink = log.get_sink("main");
-    XTR_LOGL_TSC(info, sink, "Logging int: {}, int: {}, double: {}", i, j, d);
-  };
+#ifdef BENCH_SCENARIO_DISABLED
+  // A statement below the sink's level
+  auto log_func = [](uint64_t i, uint64_t j, double d)
+  { BENCH_XTR_LOG(debug, *tl_sink, "Logging int: {}, int: {}, double: {}", i, j, d); };
+#elif defined(BENCH_INT_INT_DOUBLE)
+  auto log_func = [](uint64_t i, uint64_t j, double d)
+  { BENCH_XTR_LOG(info, *tl_sink, "Logging int: {}, int: {}, double: {}", i, j, d); };
 #elif defined(BENCH_INT_INT_LARGESTR)
-  auto log_func = [&log](uint64_t i, uint64_t j, std::string const& s) {
-    thread_local auto sink = log.get_sink("main");
-    XTR_LOGL_TSC(info, sink, "Logging int: {}, int: {}, string: {}", i, j, s);
-  };
+  auto log_func = [](uint64_t i, uint64_t j, std::string const& s)
+  { BENCH_XTR_LOG(info, *tl_sink, "Logging int: {}, int: {}, string: {}", i, j, s); };
 #elif defined(BENCH_VECTOR_LARGESTR)
-  auto log_func = [&log](uint64_t i, uint64_t j, std::vector<std::string> const& s)
-  {
-    thread_local auto sink = log.get_sink("main");
-    XTR_LOGL_TSC(info, sink, "Logging int: {}, int: {}, vector: {}", i, j, s);
-  };
+  auto log_func = [](uint64_t i, uint64_t j, std::vector<std::string> const& s)
+  { BENCH_XTR_LOG(info, *tl_sink, "Logging int: {}, int: {}, vector: {}", i, j, s); };
 #endif
 
-  auto on_start = [&log]()
+  auto on_start = []()
   {
-    thread_local auto sink = log.get_sink("main");
-    XTR_LOGL_TSC(info, sink, "Warm up");
-    sink.sync();
+    if (!tl_sink)
+    {
+      tl_sink.emplace(g_log->get_sink("main"));
+      tl_sink->set_level(xtr::log_level_t::info);
+    }
+    BENCH_XTR_LOG(info, *tl_sink, "Warm up");
+    tl_sink->sync();
   };
 
   auto on_exit = []() {};

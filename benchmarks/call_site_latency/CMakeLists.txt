@@ -1,248 +1,108 @@
-# ------- #
-set(TARGET_NAME benchmark_quill_with_functions_unbounded_call_site_latency_int_int_double)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_with_functions_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-target_link_libraries(${TARGET_NAME} PRIVATE quill)
+# Every call site latency benchmark is built once per payload and scenario, see
+# call_site_latency_bench_common.h for the scenarios. Targets are named
+# benchmark_<library>_call_site_latency_<payload>_<scenario>, and the disabled level
+# benchmark benchmark_<library>_call_site_latency_disabled.
 
-set(TARGET_NAME benchmark_quill_with_functions_unbounded_call_site_latency_int_int_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_with_functions_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE quill)
+set(BENCH_ALL_PAYLOADS int_int_double int_int_largestr vector_largestr)
+set(BENCH_ALL_SCENARIOS burst single cold defaults)
 
-set(TARGET_NAME benchmark_quill_with_functions_unbounded_call_site_latency_vector_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_with_functions_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE quill)
+# add_call_site_latency_benchmark(<library> SOURCE <file> LIBRARIES <libs...>
+#                                 [PAYLOADS <payloads...>] [SCENARIOS <scenarios...>]
+#                                 [DEFINITIONS <definitions...>] [DISABLED])
+function(add_call_site_latency_benchmark LIBRARY)
+  cmake_parse_arguments(ARG "DISABLED" "SOURCE" "LIBRARIES;PAYLOADS;SCENARIOS;DEFINITIONS" ${ARGN})
 
-# ------- #
-set(TARGET_NAME benchmark_quill_unbounded_call_site_latency_int_int_double)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-target_link_libraries(${TARGET_NAME} PRIVATE quill)
+  if (NOT ARG_PAYLOADS)
+    set(ARG_PAYLOADS ${BENCH_ALL_PAYLOADS})
+  endif ()
+  if (NOT ARG_SCENARIOS)
+    set(ARG_SCENARIOS ${BENCH_ALL_SCENARIOS})
+  endif ()
 
-set(TARGET_NAME benchmark_quill_unbounded_call_site_latency_int_int_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE quill)
+  foreach (PAYLOAD ${ARG_PAYLOADS})
+    string(TOUPPER "BENCH_${PAYLOAD}" PAYLOAD_DEFINITION)
+    foreach (SCENARIO ${ARG_SCENARIOS})
+      set(TARGET_NAME benchmark_${LIBRARY}_call_site_latency_${PAYLOAD}_${SCENARIO})
+      add_executable(${TARGET_NAME} ${ARG_SOURCE})
+      target_compile_definitions(${TARGET_NAME} PRIVATE ${PAYLOAD_DEFINITION} ${ARG_DEFINITIONS})
+      if (NOT SCENARIO STREQUAL "burst")
+        string(TOUPPER "BENCH_SCENARIO_${SCENARIO}" SCENARIO_DEFINITION)
+        target_compile_definitions(${TARGET_NAME} PRIVATE ${SCENARIO_DEFINITION})
+      endif ()
+      target_link_libraries(${TARGET_NAME} PRIVATE ${ARG_LIBRARIES})
+    endforeach ()
+  endforeach ()
 
-set(TARGET_NAME benchmark_quill_unbounded_call_site_latency_vector_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE quill)
+  if (ARG_DISABLED)
+    set(TARGET_NAME benchmark_${LIBRARY}_call_site_latency_disabled)
+    add_executable(${TARGET_NAME} ${ARG_SOURCE})
+    target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE BENCH_SCENARIO_DISABLED ${ARG_DEFINITIONS})
+    target_link_libraries(${TARGET_NAME} PRIVATE ${ARG_LIBRARIES})
+  endif ()
+endfunction()
 
-# ------- #
-set(TARGET_NAME benchmark_quill_bounded_call_site_latency_int_int_double)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE QUILL_USE_BOUNDED_DROPPING_QUEUE)
-target_link_libraries(${TARGET_NAME} PRIVATE quill)
+# Quill
+add_call_site_latency_benchmark(quill_unbounded DISABLED
+  SOURCE benchmark_quill_call_site_latency.cpp LIBRARIES quill)
 
-set(TARGET_NAME benchmark_quill_bounded_call_site_latency_int_int_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR QUILL_USE_BOUNDED_DROPPING_QUEUE)
-target_link_libraries(${TARGET_NAME} PRIVATE quill)
+add_call_site_latency_benchmark(quill_with_functions_unbounded DISABLED
+  SOURCE benchmark_quill_with_functions_call_site_latency.cpp LIBRARIES quill)
 
-set(TARGET_NAME benchmark_quill_bounded_call_site_latency_vector_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR QUILL_USE_BOUNDED_DROPPING_QUEUE)
-target_link_libraries(${TARGET_NAME} PRIVATE quill)
+# The bounded queue is a Quill option rather than its default, so it has no defaults scenario
+add_call_site_latency_benchmark(quill_bounded
+  SOURCE benchmark_quill_call_site_latency.cpp LIBRARIES quill
+  SCENARIOS burst single cold DEFINITIONS QUILL_USE_BOUNDED_DROPPING_QUEUE)
 
-# ------- #
-set(TARGET_NAME benchmark_quill_bounded_call_site_latency_int_int_double_huge_pages)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE QUILL_USE_BOUNDED_DROPPING_QUEUE QUILL_USE_HUGE_PAGES)
-target_link_libraries(${TARGET_NAME} PRIVATE quill)
+add_call_site_latency_benchmark(quill_bounded_huge_pages
+  SOURCE benchmark_quill_call_site_latency.cpp LIBRARIES quill
+  SCENARIOS burst DEFINITIONS QUILL_USE_BOUNDED_DROPPING_QUEUE QUILL_USE_HUGE_PAGES)
 
-set(TARGET_NAME benchmark_quill_bounded_call_site_latency_int_int_largestr_huge_pages)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR QUILL_USE_BOUNDED_DROPPING_QUEUE QUILL_USE_HUGE_PAGES)
-target_link_libraries(${TARGET_NAME} PRIVATE quill)
+# PlatformLab NanoLog is Linux only and has no std::vector support
+if (NOT WIN32)
+  add_call_site_latency_benchmark(platformlab DISABLED
+    SOURCE benchmark_platformlab_nanolog_call_site_latency.cpp
+    LIBRARIES platformlab_nanolog rt Threads::Threads PAYLOADS int_int_double int_int_largestr)
+endif ()
 
-set(TARGET_NAME benchmark_quill_bounded_call_site_latency_vector_largestr_huge_pages)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_quill_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR QUILL_USE_BOUNDED_DROPPING_QUEUE QUILL_USE_HUGE_PAGES)
-target_link_libraries(${TARGET_NAME} PRIVATE quill)
+# Iyengar NanoLog does not compile with MSVC and has no std::vector support
+if (NOT WIN32)
+  add_call_site_latency_benchmark(iyengar_nanolog DISABLED
+    SOURCE benchmark_iyengar_nanolog_call_site_latency.cpp
+    LIBRARIES IyengarNanoLog Threads::Threads PAYLOADS int_int_double int_int_largestr)
+endif ()
 
-# ------- #
-# platform lab
-if(NOT WIN32)
-    # PlatformLab NanoLog is Linux only
-    set(TARGET_NAME benchmark_platformlab_call_site_latency_int_int_double)
-    add_executable(${TARGET_NAME})
-    target_sources(${TARGET_NAME} PRIVATE benchmark_platformlab_nanolog_call_site_latency.cpp)
-    target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-    target_link_libraries(${TARGET_NAME} PRIVATE platformlab_nanolog rt Threads::Threads)
+# Reckless does not compile with MSVC and the current Windows SDK, has no std::vector support and
+# no runtime log level
+if (NOT WIN32)
+  add_call_site_latency_benchmark(reckless
+    SOURCE benchmark_reckless_call_site_latency.cpp
+    LIBRARIES reckless Threads::Threads PAYLOADS int_int_double int_int_largestr)
+endif ()
 
-    set(TARGET_NAME benchmark_platformlab_call_site_latency_int_int_largestr)
-    add_executable(${TARGET_NAME})
-    target_sources(${TARGET_NAME} PRIVATE benchmark_platformlab_nanolog_call_site_latency.cpp)
-    target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-    target_link_libraries(${TARGET_NAME} PRIVATE platformlab_nanolog rt Threads::Threads)
-endif()
+add_call_site_latency_benchmark(spdlog DISABLED
+  SOURCE benchmark_spdlog_call_site_latency.cpp LIBRARIES spdlog Threads::Threads)
 
-# Iyengar NanoLog
-if(NOT WIN32)
-    # Iyengar NanoLog does not compile with MSVC
-    set(TARGET_NAME benchmark_iyengar_nanolog_call_site_latency_int_int_double)
-    add_executable(${TARGET_NAME})
-    target_sources(${TARGET_NAME} PRIVATE benchmark_iyengar_nanolog_call_site_latency.cpp)
-    target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-    target_link_libraries(${TARGET_NAME} PRIVATE IyengarNanoLog Threads::Threads)
+# g3log has no std::vector support, and filters levels at runtime only when built with
+# G3_DYNAMIC_LOGGING
+add_call_site_latency_benchmark(g3log
+  SOURCE benchmark_g3log_call_site_latency.cpp LIBRARIES g3log PAYLOADS int_int_double int_int_largestr)
 
-    set(TARGET_NAME benchmark_iyengar_nanolog_call_site_latency_int_int_largestr)
-    add_executable(${TARGET_NAME})
-    target_sources(${TARGET_NAME} PRIVATE benchmark_iyengar_nanolog_call_site_latency.cpp)
-    target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-    target_link_libraries(${TARGET_NAME} PRIVATE IyengarNanoLog Threads::Threads)
-endif()
+add_call_site_latency_benchmark(ms_binlog DISABLED
+  SOURCE benchmark_ms_binlog_call_site_latency.cpp LIBRARIES binlog Threads::Threads)
 
-# Reckless
-if(NOT WIN32)
-    # Reckless does not compile with MSVC and the current Windows SDK
-    set(TARGET_NAME benchmark_reckless_call_site_latency_int_int_double)
-    add_executable(${TARGET_NAME})
-    target_sources(${TARGET_NAME} PRIVATE benchmark_reckless_call_site_latency.cpp)
-    target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-    target_link_libraries(${TARGET_NAME} PRIVATE reckless Threads::Threads)
+add_call_site_latency_benchmark(fmtlog DISABLED
+  SOURCE benchmark_fmtlog_call_site_latency.cpp LIBRARIES fmtlog Threads::Threads)
 
-    set(TARGET_NAME benchmark_reckless_call_site_latency_int_int_largestr)
-    add_executable(${TARGET_NAME})
-    target_sources(${TARGET_NAME} PRIVATE benchmark_reckless_call_site_latency.cpp)
-    target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-    target_link_libraries(${TARGET_NAME} PRIVATE reckless Threads::Threads)
-endif()
+# XTR is Linux only
+if (NOT WIN32)
+  add_call_site_latency_benchmark(xtr DISABLED
+    SOURCE benchmark_xtr_call_site_latency.cpp LIBRARIES xtr Threads::Threads)
+endif ()
 
-# spdlog
-set(TARGET_NAME benchmark_spdlog_call_site_latency_int_int_double)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_spdlog_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-target_link_libraries(${TARGET_NAME} PRIVATE spdlog Threads::Threads)
+# BqLog has no std::vector support
+add_call_site_latency_benchmark(bqlog DISABLED
+  SOURCE benchmark_bqlog_call_site_latency.cpp LIBRARIES bqlog Threads::Threads
+  PAYLOADS int_int_double int_int_largestr)
 
-set(TARGET_NAME benchmark_spdlog_call_site_latency_int_int_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_spdlog_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE spdlog Threads::Threads)
-
-set(TARGET_NAME benchmark_spdlog_call_site_latency_int_vector_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_spdlog_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE spdlog Threads::Threads)
-
-# g3log
-set(TARGET_NAME benchmark_g3log_call_site_latency_int_int_double)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_g3log_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-target_link_libraries(${TARGET_NAME} PRIVATE g3log)
-
-set(TARGET_NAME benchmark_g3log_call_site_latency_int_int_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_g3log_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE g3log)
-
-# ms binlog
-set(TARGET_NAME benchmark_ms_binlog_call_site_latency_int_int_double)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_ms_binlog_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-target_link_libraries(${TARGET_NAME} PRIVATE binlog Threads::Threads)
-
-set(TARGET_NAME benchmark_ms_binlog_call_site_latency_int_int_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_ms_binlog_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE binlog Threads::Threads)
-
-set(TARGET_NAME benchmark_ms_binlog_call_site_latency_int_vector_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_ms_binlog_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE binlog Threads::Threads)
-
-# fmtlog
-set(TARGET_NAME benchmark_fmtlog_call_site_latency_int_int_double)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_fmtlog_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-target_link_libraries(${TARGET_NAME} PRIVATE fmtlog Threads::Threads)
-
-set(TARGET_NAME benchmark_fmtlog_call_site_latency_int_int_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_fmtlog_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE fmtlog Threads::Threads)
-
-set(TARGET_NAME benchmark_fmtlog_call_site_latency_int_vector_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_fmtlog_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE fmtlog Threads::Threads)
-
-# xtr
-if(NOT WIN32)
-    # XTR is Linux only
-    set(TARGET_NAME benchmark_xtr_call_site_latency_int_int_double)
-    add_executable(${TARGET_NAME})
-    target_sources(${TARGET_NAME} PRIVATE benchmark_xtr_call_site_latency.cpp)
-    target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-    target_link_libraries(${TARGET_NAME} PRIVATE xtr Threads::Threads)
-
-    set(TARGET_NAME benchmark_xtr_call_site_latency_int_int_largestr)
-    add_executable(${TARGET_NAME})
-    target_sources(${TARGET_NAME} PRIVATE benchmark_xtr_call_site_latency.cpp)
-    target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-    target_link_libraries(${TARGET_NAME} PRIVATE xtr Threads::Threads)
-
-    set(TARGET_NAME benchmark_xtr_call_site_latency_int_vector_largestr)
-    add_executable(${TARGET_NAME})
-    target_sources(${TARGET_NAME} PRIVATE benchmark_xtr_call_site_latency.cpp)
-    target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
-    target_link_libraries(${TARGET_NAME} PRIVATE xtr Threads::Threads)
-endif()
-
-# bqlog
-set(TARGET_NAME benchmark_bqlog_call_site_latency_int_int_double)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_bqlog_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-target_link_libraries(${TARGET_NAME} PRIVATE bqlog Threads::Threads)
-
-set(TARGET_NAME benchmark_bqlog_call_site_latency_int_int_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_bqlog_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE bqlog Threads::Threads)
-
-# Boost.Log
-set(TARGET_NAME benchmark_boost_log_call_site_latency_int_int_double)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_boost_log_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_DOUBLE)
-target_link_libraries(${TARGET_NAME} PRIVATE boost_log Threads::Threads)
-
-set(TARGET_NAME benchmark_boost_log_call_site_latency_int_int_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_boost_log_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_INT_INT_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE boost_log Threads::Threads)
-
-set(TARGET_NAME benchmark_boost_log_call_site_latency_int_vector_largestr)
-add_executable(${TARGET_NAME})
-target_sources(${TARGET_NAME} PRIVATE benchmark_boost_log_call_site_latency.cpp)
-target_compile_definitions(${TARGET_NAME} PRIVATE BENCH_VECTOR_LARGESTR)
-target_link_libraries(${TARGET_NAME} PRIVATE boost_log Threads::Threads)
+add_call_site_latency_benchmark(boost_log DISABLED
+  SOURCE benchmark_boost_log_call_site_latency.cpp LIBRARIES boost_log Threads::Threads)

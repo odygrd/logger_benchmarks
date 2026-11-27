@@ -16,8 +16,6 @@
 
 #include "utils.h"
 
-static constexpr size_t total_iterations = 4'000'000;
-
 /**
  * The backend worker just spins, so we just measure the total time elapsed for total_iterations
  */
@@ -30,7 +28,9 @@ int main()
 
   using log_t = reckless::severity_log<reckless::indent<4>, ' ', reckless::severity_field, reckless::timestamp_field>;
   reckless::file_writer writer(log_file.c_str());
-  log_t g_log(&writer, 512UL * 1024UL, 128UL * 1024UL * 1024UL);
+  // A 1 MiB input buffer, the queue size every library is given where it can be set, and the
+  // default output buffer
+  log_t g_log(&writer, 1024UL * 1024UL, 0);
   g_log.permanent_error_policy(reckless::error_policy::block);
   g_log.temporary_error_policy(reckless::error_policy::block);
 
@@ -46,8 +46,7 @@ int main()
   g_log.flush();
 
   // start counting the time until backend worker finishes
-  auto const start_time = std::chrono::steady_clock::now();
-  for (size_t iteration = 0; iteration < total_iterations; ++iteration)
+  auto log_statement = [&](size_t iteration)
   {
     // Cycle between five log statements: an application does not repeat a single one
     switch (iteration % 5)
@@ -73,21 +72,17 @@ int main()
                  static_cast<double>(iteration) / 2);
       break;
     }
-  }
+  };
+
+  // Each producer logs a warm-up line first, so its per-thread state is created before timing
+  auto on_producer_start = [&](size_t) { g_log.info("Warm up"); };
+
+  ProducerTimes const times = run_producers(on_producer_start, log_statement);
+  auto const start_time = times.start;
 
   g_log.error("End");
   g_log.flush();
 
   auto const end_time = std::chrono::steady_clock::now();
-  auto const delta = end_time - start_time;
-
-  auto delta_d = std::chrono::duration_cast<std::chrono::duration<double>>(delta).count();
-
-  std::cout << fmt::format(
-                 "throughput is {:.2f} million msgs/sec average, total time elapsed: {} ms, log "
-                 "file size {:.2f} MB \n",
-                 total_iterations / delta_d / 1e6,
-                 std::chrono::duration_cast<std::chrono::milliseconds>(delta).count(),
-                 static_cast<double>(std::filesystem::file_size(log_file)) / (1024 * 1024))
-            << std::endl;
+  print_throughput(times, end_time, static_cast<double>(std::filesystem::file_size(log_file)) / (1024 * 1024));
 }

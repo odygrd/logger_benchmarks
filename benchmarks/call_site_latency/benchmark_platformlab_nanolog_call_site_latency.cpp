@@ -17,7 +17,13 @@ void platformlab_nanolog(std::vector<int32_t> thread_count_array, size_t num_ite
   // wait for the backend thread to start
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
-#ifdef BENCH_INT_INT_DOUBLE
+#ifdef BENCH_SCENARIO_DISABLED
+  // A statement below the logger's level
+  NanoLog::setLogLevel(NanoLog::NOTICE);
+  auto log_func = [](uint64_t i, uint64_t j, double d) {
+    NANO_LOG(DEBUG, "Logging int: %lu, int: %lu, double: %f", i, j, d);
+  };
+#elif defined(BENCH_INT_INT_DOUBLE)
   auto log_func = [](uint64_t i, uint64_t j, double d) {
     NANO_LOG(NOTICE, "Logging int: %lu, int: %lu, double: %f", i, j, d);
   };

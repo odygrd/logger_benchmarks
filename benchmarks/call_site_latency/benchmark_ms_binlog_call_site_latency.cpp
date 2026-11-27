@@ -24,10 +24,13 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
     binlog::Session::ConsumeResult consume_result;
     do
     {
+#ifdef BENCH_SCENARIO_DEFAULTS
+      // The application owns the consume loop. As shipped, it sleeps like Quill's default backend.
       if (consume_result.bytesConsumed == 0)
       {
-        std::this_thread::sleep_for(std::chrono::nanoseconds{300});
+        std::this_thread::sleep_for(std::chrono::microseconds{500});
       }
+#endif
 
       consume_result = binlog::consume(logfile);
     } while (!done.load(std::memory_order_acquire) || consume_result.bytesConsumed != 0);
@@ -38,7 +41,12 @@ void binlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
 
   // --- Benchmark ---
   // Define a logging lambda
-#ifdef BENCH_INT_INT_DOUBLE
+#ifdef BENCH_SCENARIO_DISABLED
+  // A statement below the logger's level
+  binlog::default_session().setMinSeverity(binlog::Severity::info);
+  auto log_func = [](uint64_t i, uint64_t j, double d)
+  { BINLOG_DEBUG("Logging int: {}, int: {}, double: {}", i, j, d); };
+#elif defined(BENCH_INT_INT_DOUBLE)
   auto log_func = [](uint64_t i, uint64_t j, double d) {
     BINLOG_INFO("Logging int: {}, int: {}, double: {}", i, j, d);
   };

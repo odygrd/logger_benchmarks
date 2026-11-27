@@ -1,4 +1,9 @@
 #include "call_site_latency_bench.h"
+
+#ifndef BENCH_SCENARIO_DEFAULTS
+  // Block when the queue is full instead of dropping the message, as every other library does
+  #define FMTLOG_BLOCK 1
+#endif
 #include "fmt/ranges.h"
 #include "fmtlog/fmtlog.h"
 #include <atomic>
@@ -14,6 +19,13 @@ void fmtlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   std::remove("fmtlog_call_site_latency_percentile_linux_benchmark.log");
   fmtlog::setLogFile("fmtlog_call_site_latency_percentile_linux_benchmark.log", true);
 
+#ifdef BENCH_SCENARIO_DEFAULTS
+  // As shipped: fmtlog's own polling thread, which polls once a second by default
+  set_thread_affinity(5);
+  fmtlog::startPollingThread();
+#else
+  // The application owns the polling loop. It never sleeps, the most responsive setting every
+  // library is given where it has one.
   std::atomic<bool> done{false};
 
   std::thread backend(
@@ -29,11 +41,17 @@ void fmtlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
 
       fmtlog::poll(true);
     });
+#endif
 
   // wait for the backend thread to start
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
-#ifdef BENCH_INT_INT_DOUBLE
+#ifdef BENCH_SCENARIO_DISABLED
+  // A statement below the logger's level
+  fmtlog::setLogLevel(fmtlog::INF);
+  auto log_func = [](uint64_t i, uint64_t j, double d)
+  { FMTLOG(fmtlog::DBG, "Logging int: {}, int: {}, double: {}", i, j, d); };
+#elif defined(BENCH_INT_INT_DOUBLE)
   auto log_func = [](uint64_t i, uint64_t j, double d)
   { FMTLOG(fmtlog::INF, "Logging int: {}, int: {}, double: {}", i, j, d); };
 #elif defined(BENCH_INT_INT_LARGESTR)
@@ -60,8 +78,12 @@ void fmtlog_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterat
   }
 
   // stop the backend thread
+#ifdef BENCH_SCENARIO_DEFAULTS
+  fmtlog::stopPollingThread();
+#else
   done.store(true, std::memory_order_release);
   backend.join();
+#endif
 }
 
 /***/

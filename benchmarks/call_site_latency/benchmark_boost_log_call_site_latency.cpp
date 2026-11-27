@@ -84,7 +84,17 @@ void boost_log_benchmark(std::vector<int32_t> thread_count_array, size_t num_ite
   sink->flush();
 
   // Define logging lambda based on benchmark type
-#ifdef BENCH_INT_INT_DOUBLE
+#ifdef BENCH_SCENARIO_DISABLED
+  // A statement below the logger's level
+  char const* benchmark_type = "[benchmark_type: int_int_double]";
+
+  logging::core::get()->set_filter(logging::trivial::severity >= logging::trivial::info);
+  auto log_func = [&logger](uint64_t i, uint64_t j, double d)
+  {
+    BOOST_LOG_SEV(logger, logging::trivial::debug)
+      << "Logging int: " << i << ", int: " << j << ", double: " << d;
+  };
+#elif defined(BENCH_INT_INT_DOUBLE)
   char const* benchmark_type = "[benchmark_type: int_int_double]";
 
   auto log_func = [&logger](uint64_t i, uint64_t j, double d)

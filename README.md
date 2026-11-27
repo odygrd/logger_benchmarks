@@ -19,7 +19,7 @@ cmake -DCMAKE_BUILD_TYPE=Release -S . -B cmake-build-release
 cmake --build cmake-build-release
 ```
 
-Run the benchmark batch:
+Run every benchmark, five passes:
 
 ```bash
 python3 tools/run_all.py
@@ -28,13 +28,7 @@ python3 tools/run_all.py
 Generate markdown tables from the collected results:
 
 ```bash
-python3 tools/generate_tables.py
-```
-
-If you want to save the generated tables to a file:
-
-```bash
-python3 tools/generate_tables.py > tables.md
+python3 tools/generate_tables.py --stat median > tables.md
 ```
 
 ## Dependencies
@@ -105,55 +99,90 @@ Treat every `target_dir` listed in `vendor_manifest.json` as vendor-owned. Local
 If you intentionally change a vendored tree and want to re-record that delta, run `capture-patch`.
 The `--update` path does not reapply or refresh `vendor_patches`; it stages the raw upstream tree.
 
+## Benchmarks
+
+### Call Site Latency
+
+`benchmarks/call_site_latency` times the log call on the calling thread. Every library is built once per payload
+(`int_int_double`, `int_int_largestr`, `vector_largestr`) and scenario, as
+`benchmark_<library>_call_site_latency_<payload>_<scenario>`:
+
+| Scenario | Threads | What a sample is |
+|----------|---------|------------------|
+| `single` | 1 and 4 | One call, every 100 to 300 us |
+| `burst` | 1 and 4 | The mean of 20 back-to-back calls per thread, every 2 to 2.2 ms |
+| `cold` | 1 | One call after the caller has read a buffer four times the size of its L2 cache (at least 4 MiB), so the logger's data comes from L3 or memory |
+| `defaults` | 1 and 4 | The `single` scenario with every library configured as shipped |
+| `disabled` | 1 | A debug statement while the level is info: the mean of 1,000 calls (`disabled_hot`) and one call after the cache sweep (`disabled_cold`) |
+
+- All threads follow the same schedule, so with four threads the calls of a sample are made at the same time.
+- Payloads are built before timing, and the first iterations are a warm-up that is not recorded.
+- Results are printed in nanoseconds with one decimal, including the worst sample.
+- The cold scenario prints how long a line read before the sweep takes to reload, to show that the sweep evicts
+  the L2 cache.
+
+Every scenario except `defaults` gives every library the same settings where it has them:
+
+- The backend never sleeps: Quill `sleep_duration = 0`, BqLog `log.worker_interval_ms=0`, and loops that never
+  sleep for fmtlog and MS BinLog, whose applications own the backend loop.
+- Each library's default queue capacity, blocking when full (fmtlog `FMTLOG_BLOCK=1`).
+- Timestamps read on the calling thread where the library offers it (XTR `XTR_LOGL_TSC`).
+
+`defaults` keeps each library as its documentation sets it up: Quill's 500 us backend sleep, BqLog's 66 ms worker
+interval, fmtlog's own polling thread (once a second) and dropping queue, a 500 us sleep in MS BinLog's consume loop,
+and XTR's default macros and io_uring.
+
+### Throughput
+
+`benchmarks/backend_total_time` logs 4,000,000 messages, cycling through five statements, and times until every
+message has been written to the file. `BENCHMARK_<library>_backend_total_time` uses one producer thread and
+`BENCHMARK_<library>_backend_total_time_4_threads` four, each logging a quarter of the messages. Both report when the
+producers finished and when the last message was written.
+
+- Each library gets a 1 MiB queue per thread where its size can be set, and blocks when it is full.
+- The clock stops once the data has been handed to the kernel: XTR uses a storage without `fsync`, and spdlog stops
+  when its worker has flushed, before the thread pool shuts down.
+
 ## Running Benchmarks
 
-`tools/run_all.py` sequentially runs the configured `call_site_latency` and
-`backend_total_time` benchmark executables and writes their stdout into
-`bench_results_*.txt` files in the repo root. It waits for each executable to finish
-before starting the next one and stops if an executable fails.
-It expects every benchmark binary to exist and exits with an error if any are missing.
-
-Example:
+`tools/run_all.py` finds every benchmark binary in the build directory and runs them one at a time, writing
+`bench_results_run<pass>_<n>.txt` files in the repo root. By default it makes five passes.
 
 ```bash
 python3 tools/run_all.py
+python3 tools/run_all.py --passes 3 --scenarios single throughput
 ```
 
-The benchmarks use CPUs 0-5 for their caller and backend threads, so those CPUs must be
-available to the process. The runner gives BqLog's worker an initial CPU 5 affinity because
-BqLog creates that worker before the benchmark repins its caller threads.
+- Each pass runs the binaries in a random order. The seed is printed and recorded in every results file; pass
+  `--seed` to repeat an order.
+- Dirty pages are written back between binaries, so one benchmark's log file is not written to disk during the
+  next one.
+- Every results file starts with the system configuration (kernel, CPU, kernel command line, governor, turbo, idle
+  states) and ends with a delivery check: the lines of each text log against the lines the benchmark should have
+  written. A `FAIL` is also printed while running. The log files are deleted afterwards unless `--keep-logs` is
+  given.
+
+The benchmarks use CPUs 0-5 for their caller and backend threads, so those CPUs must be available to the process.
+The runner gives BqLog's worker an initial CPU 5 affinity because BqLog creates that worker before the benchmark
+repins its caller threads. Do not run anything else on the machine at the same time.
 
 ## Generating Tables
 
-`tools/generate_tables.py` scans the repo root for
-`bench_results_*.txt`, parses those benchmark outputs, averages matching rows across files, and prints markdown tables.
-
-Example:
+`tools/generate_tables.py` scans the repo root for `bench_results_*.txt` and prints markdown tables for every
+scenario, the disabled statement and throughput with one and four producers.
 
 ```bash
-python3 tools/generate_tables.py
+python3 tools/generate_tables.py --stat median > tables.md
 ```
 
-To keep the tables:
+`--stat` chooses how the passes of each library are combined:
 
-```bash
-python3 tools/generate_tables.py > tables.md
-```
+- `mean` (the default): the mean of every value.
+- `median`: the median of every value, recommended with five or more passes.
+- `best` (or `--best-of-runs`): each library's best run, the lowest 90th percentile (then 95th, 99th and 99.9th)
+  for latency and the highest msg/s for throughput.
 
-To combine several passes, rename each pass's files before starting the next one, because `tools/run_all.py` writes
-`bench_results_0.txt` onwards every time:
-
-```bash
-for f in bench_results_[0-9]*.txt; do mv "$f" "${f/bench_results_/bench_results_run1_}"; done
-```
-
-`--best-of-runs` shows each library's best run instead of the average: the run with the lowest 90th percentile (then
-95th, 99th and 99.9th) for each latency table, and the highest msg/s for throughput. The same rule applies to every
-library.
-
-```bash
-python3 tools/generate_tables.py --best-of-runs > tables.md
-```
+The same rule applies to every library.
 
 ## Windows (MSVC)
 

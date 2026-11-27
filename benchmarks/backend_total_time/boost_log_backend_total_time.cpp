@@ -31,8 +31,6 @@ namespace attrs = boost::log::attributes;
 // Type definitions for async sink
 typedef sinks::asynchronous_sink<sinks::text_ostream_backend> async_sink_t;
 
-static constexpr size_t total_iterations = 4'000'000;
-
 /**
  * The backend worker just spins, so we just measure the total time elapsed for total_iterations
  */
@@ -90,9 +88,7 @@ int main()
   BOOST_LOG_SEV(logger, logging::trivial::info) << "Warm up";
   sink->flush();
 
-  auto const start_time = std::chrono::steady_clock::now();
-
-  for (size_t iteration = 0; iteration < total_iterations; ++iteration)
+  auto log_statement = [&](size_t iteration)
   {
     // Cycle between five log statements: an application does not repeat a single one
     switch (iteration % 5)
@@ -123,23 +119,20 @@ int main()
         << " load: " << (static_cast<double>(iteration) / 2);
       break;
     }
-  }
+  };
+
+  // Each producer logs a warm-up line first, so its per-thread state is created before timing
+  auto on_producer_start = [&](size_t) { BOOST_LOG_SEV(logger, logging::trivial::info) << "Warm up"; };
+
+  ProducerTimes const times = run_producers(on_producer_start, log_statement);
+  auto const start_time = times.start;
 
   BOOST_LOG_SEV(logger, logging::trivial::error) << "End";
 
   sink->flush();
 
   auto const end_time = std::chrono::steady_clock::now();
-  auto const delta = end_time - start_time;
-
-  auto delta_d = std::chrono::duration_cast<std::chrono::duration<double>>(delta).count();
-
-  std::cout << "throughput is " << (total_iterations / delta_d / 1e6) << " million msgs/sec average, "
-            << "total time elapsed: "
-            << std::chrono::duration_cast<std::chrono::milliseconds>(delta).count() << " ms, "
-            << "log file size "
-            << (static_cast<double>(std::filesystem::file_size(log_file)) / (1024 * 1024)) << " MB"
-            << std::endl;
+  print_throughput(times, end_time, static_cast<double>(std::filesystem::file_size(log_file)) / (1024 * 1024));
 
   // Cleanup
   logging::core::get()->remove_sink(sink);

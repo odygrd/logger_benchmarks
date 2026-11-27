@@ -9,10 +9,21 @@
 
 #include "utils.h"
 
+/**
+ * A bounded blocking queue of 1 MiB per thread, the queue size every library is given where it can
+ * be set. Quill's default unbounded queue would grow during the run instead.
+ */
+struct ThroughputFrontendOptions : quill::FrontendOptions
+{
+  static constexpr quill::QueueType queue_type = quill::QueueType::BoundedBlocking;
+  static constexpr size_t initial_queue_capacity = 1024 * 1024;
+};
+
+using frontend_t = quill::FrontendImpl<ThroughputFrontendOptions>;
+using logger_t = quill::LoggerImpl<ThroughputFrontendOptions>;
+
 #include <chrono>
 #include <iostream>
-
-static constexpr size_t total_iterations = 4'000'000;
 
 /**
  * The backend worker just spins, so we just measure the total time elapsed for total_iterations
@@ -29,11 +40,10 @@ int main()
   quill::BackendOptions backend_options;
   backend_options.cpu_affinity = {static_cast<uint16_t>(bench_cpu(5))};
   backend_options.sleep_duration = std::chrono::nanoseconds{0};
-  backend_options.log_timestamp_ordering_grace_period = std::chrono::microseconds{1};
   quill::Backend::start(backend_options);
 
   // Frontend
-  auto file_sink = quill::Frontend::create_or_get_sink<quill::FileSink>(
+  auto file_sink = frontend_t::create_or_get_sink<quill::FileSink>(
     log_file,
     []()
     {
@@ -44,7 +54,7 @@ int main()
     }(),
     quill::FileEventNotifier{});
 
-  quill::Logger* logger = quill::Frontend::create_or_get_logger(
+  logger_t* logger = frontend_t::create_or_get_logger(
     "root", std::move(file_sink),
     quill::PatternFormatterOptions{
       "%(time) [%(thread_id)] %(short_source_location) %(log_level) %(message)", "%H:%M:%S.%Qns",
@@ -54,8 +64,7 @@ int main()
   logger->flush_log(0);
 
   // start counting the time until backend worker finishes
-  auto const start_time = std::chrono::steady_clock::now();
-  for (size_t iteration = 0; iteration < total_iterations; ++iteration)
+  auto log_statement = [&](size_t iteration)
   {
     // Cycle between five log statements: an application does not repeat a single one
     switch (iteration % 5)
@@ -81,21 +90,18 @@ int main()
                static_cast<double>(iteration) / 2);
       break;
     }
-  }
+  };
+
+  // Each producer logs a warm-up line first, so its per-thread state is created before timing
+  auto on_producer_start = [&](size_t) { LOG_INFO(logger, "Warm up"); };
+
+  ProducerTimes const times = run_producers(on_producer_start, log_statement);
+  auto const start_time = times.start;
   LOG_ERROR(logger, "End");
 
   // block until all messages are flushed
   logger->flush_log(0);
 
   auto const end_time = std::chrono::steady_clock::now();
-  auto const delta = end_time - start_time;
-
-  auto delta_d = std::chrono::duration_cast<std::chrono::duration<double>>(delta).count();
-
-  std::cout << fmtquill::format("throughput is {:.2f} million msgs/sec average, total time elapsed: {} ms, log "
-                 "file size {:.2f} MB \n",
-                 total_iterations / delta_d / 1e6,
-                 std::chrono::duration_cast<std::chrono::milliseconds>(delta).count(),
-                 static_cast<double>(std::filesystem::file_size(log_file)) / (1024 * 1024))
-            << std::endl;
+  print_throughput(times, end_time, static_cast<double>(std::filesystem::file_size(log_file)) / (1024 * 1024));
 }

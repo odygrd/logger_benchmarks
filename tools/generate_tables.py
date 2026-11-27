@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import statistics
 from collections import defaultdict
 from pathlib import Path
 
@@ -110,7 +111,7 @@ BACKEND_LOGGER_MAP = {
         "url": "https://www.boost.org",
     },
     "BENCHMARK_nanolog_backend_total_time": {
-        "name": "PlatformLab NanoLog",
+        "name": "PlatformLab NanoLog (binary log)",
         "url": "https://github.com/PlatformLab/NanoLog",
     },
     "BENCHMARK_iyengar_nanolog_backend_total_time": {
@@ -121,6 +122,7 @@ BACKEND_LOGGER_MAP = {
 
 README_THROUGHPUT_LOGGERS = {
     "MS BinLog (binary log)",
+    "PlatformLab NanoLog (binary log)",
     "BqLog (binary log)",
     "XTR",
     "Quill",
@@ -134,7 +136,7 @@ README_THROUGHPUT_LOGGERS = {
 
 LATENCY_SECTION_METADATA = {
     "int_int_double": {
-        "title": "#### Logging Numbers",
+        "title": "Logging Numbers",
         "loggers": {
             "Quill - Bounded",
             "Quill - Unbounded",
@@ -153,7 +155,7 @@ LATENCY_SECTION_METADATA = {
         },
     },
     "int_int_largestr": {
-        "title": "#### Logging Large Strings",
+        "title": "Logging Large Strings",
         "loggers": {
             "Quill - Bounded",
             "Quill - Unbounded",
@@ -172,7 +174,7 @@ LATENCY_SECTION_METADATA = {
         },
     },
     "vector_largestr": {
-        "title": "#### Logging Complex Types",
+        "title": "Logging Complex Types",
         "loggers": {
             "Quill - Bounded",
             "Quill - Unbounded",
@@ -187,6 +189,22 @@ LATENCY_SECTION_METADATA = {
 }
 
 
+SCENARIOS = {
+    "single": "Single Call",
+    "burst": "Burst of 20 Calls",
+    "cold": "Cold Cache",
+    "defaults": "Default Settings",
+}
+
+DISABLED_SCENARIOS = {
+    "disabled_hot": "Disabled Statement, Hot",
+    "disabled_cold": "Disabled Statement, Cold",
+}
+
+PAYLOADS = ("int_int_double", "int_int_largestr", "vector_largestr")
+PERCENTILES = ("p50", "p75", "p90", "p95", "p99", "p999")
+
+
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -198,67 +216,68 @@ def read_bench_file(filepath: Path) -> tuple[str, str]:
     return bench_path, content
 
 
+def bench_name(bench_path: str) -> str:
+    name = Path(bench_path).name
+    return name[: -len(".exe")] if name.endswith(".exe") else name
+
+
+def payload_of(name: str) -> str:
+    if "vector_largestr" in name:
+        return "vector_largestr"
+    if "largestr" in name:
+        return "int_int_largestr"
+    return "int_int_double"
+
+
 def parse_latency_bench(bench_path: str, content: str) -> list[dict]:
     results = []
+    name = bench_name(bench_path)
+    payload = payload_of(name)
 
-    benchmark_type = "int_int_double"
-    if "vector_largestr" in bench_path or "int_vector_largestr" in bench_path:
-        benchmark_type = "vector_largestr"
-    elif "int_int_largestr" in bench_path or "largestr" in bench_path:
-        benchmark_type = "int_int_largestr"
-
-    sections = re.split(r"Thread Count \d+", content)
-    headers = re.findall(
-        r"Thread Count (\d+) - Total messages \d+ - Logger: ([^-]+) - Benchmark: ([^\n]+)",
-        content,
+    headers = list(
+        re.finditer(
+            r"Thread Count (\d+) - Total messages \d+ - Logger: ([^-]+) - Benchmark: ([^\n]*?)(?: - Scenario: (\w+))?\n",
+            content,
+        )
     )
 
-    for index, (thread_count, logger_raw, _benchmark_info) in enumerate(headers):
+    for index, header in enumerate(headers):
+        thread_count, logger_raw, _benchmark_info, scenario = header.groups()
+        # Results written before the scenarios existed are the burst scenario
+        scenario = scenario or "burst"
         logger = logger_raw.strip()
         logger_key = logger
 
         if logger == "Quill":
-            if "with_functions" in bench_path or "quill_with_functions" in bench_path:
+            if "with_functions" in name:
                 logger_key = QUILL_MACRO_FREE_MODE
-            elif "quill_unbounded" in bench_path:
+            elif "quill_unbounded" in name:
                 logger_key = "Quill - Unbounded"
-            elif "quill_bounded" in bench_path:
+            elif "quill_bounded" in name:
                 logger_key = "Quill - Bounded"
 
-        if index + 1 >= len(sections):
-            continue
-
-        match = re.search(
-            r"\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|",
-            sections[index + 1],
-        )
+        end = headers[index + 1].start() if index + 1 < len(headers) else len(content)
+        number = r"\s*([0-9]+(?:\.[0-9]+)?)\s*\|"
+        match = re.search(r"\|" + number * 6, content[header.end():end])
         if not match:
             continue
 
-        p50, p75, p90, p95, p99, p999 = map(int, match.groups())
-        results.append(
-            {
-                "logger": logger_key,
-                "thread_count": int(thread_count),
-                "benchmark_type": benchmark_type,
-                "p50": p50,
-                "p75": p75,
-                "p90": p90,
-                "p95": p95,
-                "p99": p99,
-                "p999": p999,
-            }
-        )
+        values = list(map(float, match.groups()))
+        result = {"logger": logger_key, "thread_count": int(thread_count), "payload": payload, "scenario": scenario}
+        result.update(dict(zip(PERCENTILES, values)))
+        results.append(result)
 
     return results
 
 
 def parse_backend_bench(bench_path: str, content: str) -> dict | None:
-    bench_name = Path(bench_path).name
-    if bench_name.endswith(".exe"):
-        # Windows executables
-        bench_name = bench_name[: -len(".exe")]
-    logger_info = BACKEND_LOGGER_MAP.get(bench_name)
+    name = bench_name(bench_path)
+    threads = 1
+    if name.endswith("_4_threads"):
+        threads = 4
+        name = name[: -len("_4_threads")]
+
+    logger_info = BACKEND_LOGGER_MAP.get(name)
     if not logger_info:
         return None
 
@@ -269,14 +288,37 @@ def parse_backend_bench(bench_path: str, content: str) -> dict | None:
     if not match:
         return None
 
+    producers = re.search(r"producers done after: (\d+) ms", content)
     return {
         "logger": logger_info["name"],
+        "threads": threads,
         "throughput": float(match.group(1)),
-        "elapsed_ms": int(match.group(2)),
+        "elapsed_ms": float(match.group(2)),
+        "producers_ms": float(producers.group(1)) if producers else None,
     }
 
 
-def collect_latency_results(best_of_runs: bool = False) -> dict:
+def combine(results_list: list[dict], keys: tuple[str, ...], stat: str, best) -> dict:
+    """
+    Combines the runs of one library: the mean or median of every value, or the single best run
+    """
+    if stat == "best":
+        return best(results_list)
+
+    combined = {}
+    for key in keys:
+        values = [item[key] for item in results_list if item.get(key) is not None]
+        if not values:
+            combined[key] = None
+        elif stat == "median":
+            combined[key] = statistics.median(values)
+        else:
+            combined[key] = sum(values) / len(values)
+    combined["runs"] = len(results_list)
+    return combined
+
+
+def collect_latency_results(stat: str = "mean") -> dict:
     samples = defaultdict(lambda: defaultdict(list))
 
     for filepath in sorted(repo_root().glob("bench_results_*.txt")):
@@ -285,33 +327,23 @@ def collect_latency_results(best_of_runs: bool = False) -> dict:
             continue
 
         for result in parse_latency_bench(bench_path, content):
-            key = (result["benchmark_type"], result["thread_count"])
+            key = (result["scenario"], result["payload"], result["thread_count"])
             samples[key][result["logger"]].append(result)
 
-    averaged = defaultdict(dict)
+    def best(results_list):
+        # The single run with the lowest 90th percentile, then 95th, 99th and 99.9th
+        return min(results_list, key=lambda item: (item["p90"], item["p95"], item["p99"], item["p999"]))
+
+    combined = defaultdict(dict)
     for key, logger_results in samples.items():
         for logger, results_list in logger_results.items():
-            if best_of_runs:
-                # The single run with the lowest 90th percentile, then 95th, 99th and 99.9th
-                averaged[key][logger] = min(
-                    results_list, key=lambda item: (item["p90"], item["p95"], item["p99"], item["p999"])
-                )
-                continue
+            combined[key][logger] = combine(results_list, PERCENTILES, stat, best)
 
-            averaged[key][logger] = {
-                "p50": round(sum(item["p50"] for item in results_list) / len(results_list)),
-                "p75": round(sum(item["p75"] for item in results_list) / len(results_list)),
-                "p90": round(sum(item["p90"] for item in results_list) / len(results_list)),
-                "p95": round(sum(item["p95"] for item in results_list) / len(results_list)),
-                "p99": round(sum(item["p99"] for item in results_list) / len(results_list)),
-                "p999": round(sum(item["p999"] for item in results_list) / len(results_list)),
-            }
-
-    return averaged
+    return combined
 
 
-def collect_backend_results(best_of_runs: bool = False) -> dict:
-    samples = defaultdict(list)
+def collect_backend_results(stat: str = "mean") -> dict:
+    samples = defaultdict(lambda: defaultdict(list))
 
     for filepath in sorted(repo_root().glob("bench_results_*.txt")):
         bench_path, content = read_bench_file(filepath)
@@ -320,27 +352,28 @@ def collect_backend_results(best_of_runs: bool = False) -> dict:
 
         result = parse_backend_bench(bench_path, content)
         if result:
-            samples[result["logger"]].append(result)
+            samples[result["threads"]][result["logger"]].append(result)
 
-    averaged = {}
-    for logger, results_list in samples.items():
-        if best_of_runs:
-            # The single run with the highest throughput
-            averaged[logger] = max(results_list, key=lambda item: item["throughput"])
-            continue
+    def best(results_list):
+        # The single run with the highest throughput
+        return max(results_list, key=lambda item: item["throughput"])
 
-        averaged[logger] = {
-            "throughput": sum(item["throughput"] for item in results_list) / len(results_list),
-            "elapsed_ms": round(sum(item["elapsed_ms"] for item in results_list) / len(results_list)),
-        }
+    combined = defaultdict(dict)
+    for threads, logger_results in samples.items():
+        for logger, results_list in logger_results.items():
+            combined[threads][logger] = combine(
+                results_list, ("throughput", "elapsed_ms", "producers_ms"), stat, best
+            )
 
-    return averaged
+    return combined
 
 
-def format_latency_table(results: dict, benchmark_type: str, thread_count: int) -> str:
-    key = (benchmark_type, thread_count)
-    logger_results = results.get(key, {})
-    allowed_loggers = LATENCY_SECTION_METADATA[benchmark_type]["loggers"]
+def format_latency_table(results: dict, scenario: str, payload: str, thread_count: int, heading: str) -> str:
+    logger_results = results.get((scenario, payload, thread_count), {})
+    if not logger_results:
+        return ""
+
+    allowed_loggers = LATENCY_SECTION_METADATA[payload]["loggers"]
 
     rows = []
     for logger, data in logger_results.items():
@@ -351,81 +384,54 @@ def format_latency_table(results: dict, benchmark_type: str, thread_count: int) 
         if not logger_info:
             continue
 
-        if logger == "Quill - Bounded":
-            tie_breaker = 0
-        elif logger == "Quill - Unbounded":
-            tie_breaker = 1
-        elif logger.startswith("Quill"):
-            tie_breaker = 2
-        else:
-            tie_breaker = 3
-
         rows.append(
             {
                 "name": f"[{logger_info['name']}]({logger_info['url']})",
-                "p50": data["p50"],
-                "p75": data["p75"],
-                "p90": data["p90"],
-                "p95": data["p95"],
-                "p99": data["p99"],
-                "p999": data["p999"],
-                "sort_key": (
-                    data["p90"],
-                    data["p95"],
-                    data["p99"],
-                    data["p999"],
-                    tie_breaker,
-                    logger_info["name"].casefold(),
-                ),
+                "values": [data[key] for key in PERCENTILES],
+                # Ties keep alphabetical order, never a library's own order
+                "sort_key": (data["p90"], data["p95"], data["p99"], data["p999"], logger_info["name"].casefold()),
             }
         )
 
     rows.sort(key=lambda row: row["sort_key"])
 
-    header = "##### 1 Thread Logging\n\n" if thread_count == 1 else "##### 4 Threads Logging Simultaneously\n\n"
-
-    table = header
+    table = f"{heading}\n\n"
     table += "| Library                                                                   |  50th  |  75th  |  90th  |  95th  |  99th  | 99.9th |\n"
     table += "|---------------------------------------------------------------------------|:------:|:------:|:------:|:------:|:------:|:------:|\n"
 
     for row in rows:
-        name_padded = row["name"].ljust(73)
-        table += (
-            f"| {name_padded} | {row['p50']:^6} | {row['p75']:^6} | {row['p90']:^6} | "
-            f"{row['p95']:^6} | {row['p99']:^6} | {row['p999']:^6} |\n"
-        )
+        cells = " | ".join(f"{value:^6.1f}" for value in row["values"])
+        table += f"| {row['name'].ljust(73)} | {cells} |\n"
 
     return table
 
 
-def format_throughput_table(results: dict) -> str:
+def format_throughput_table(results: dict, threads: int) -> str:
     rows = []
 
-    for logger, data in results.items():
+    for logger, data in results.get(threads, {}).items():
         if logger not in README_THROUGHPUT_LOGGERS:
             continue
 
-        for bench_name, logger_info in BACKEND_LOGGER_MAP.items():
+        for logger_info in BACKEND_LOGGER_MAP.values():
             if logger_info["name"] == logger:
-                rows.append(
-                    {
-                        "name": f"[{logger_info['name']}]({logger_info['url']})",
-                        "throughput": data["throughput"],
-                        "elapsed_ms": data["elapsed_ms"],
-                    }
-                )
+                rows.append({"name": f"[{logger_info['name']}]({logger_info['url']})", **data})
                 break
+
+    if not rows:
+        return ""
 
     rows.sort(key=lambda row: (-row["throughput"], row["name"]))
 
-    table = "### Throughput\n\n"
-    table += "| Library                                                            | million msg/second | elapsed time |\n"
-    table += "|--------------------------------------------------------------------|:------------------:|:------------:|\n"
+    heading = "1 Producer Thread" if threads == 1 else f"{threads} Producer Threads"
+    table = f"**{heading}**\n\n"
+    table += "| Library                                                                    | million msg/second | elapsed time | producers done |\n"
+    table += "|----------------------------------------------------------------------------|:------------------:|:------------:|:--------------:|\n"
 
     for row in rows:
-        name_padded = row["name"].ljust(66)
-        elapsed = f"{row['elapsed_ms']} ms"
-        table += f"| {name_padded} | {row['throughput']:>18.2f} | {elapsed:^12} |\n"
+        elapsed = f"{row['elapsed_ms']:.0f} ms"
+        producers = f"{row['producers_ms']:.0f} ms" if row.get("producers_ms") is not None else "-"
+        table += f"| {row['name'].ljust(74)} | {row['throughput']:>18.2f} | {elapsed:^12} | {producers:^14} |\n"
 
     return table
 
@@ -433,23 +439,47 @@ def format_throughput_table(results: dict) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate markdown tables from bench_results_*.txt files.")
     parser.add_argument(
-        "--best-of-runs",
-        action="store_true",
-        help="for every library, show its best run instead of the average of all runs: the lowest 90th, then 95th, "
-        "99th and 99.9th percentile for latency, and the highest msg/s for throughput",
+        "--stat",
+        choices=("mean", "median", "best"),
+        default="mean",
+        help="how the runs of each library are combined: the mean or median of every value, or its best run "
+        "(the lowest 90th, then 95th, 99th and 99.9th percentile for latency, the highest msg/s for throughput)",
     )
+    parser.add_argument("--best-of-runs", action="store_true", help="the same as --stat best")
     args = parser.parse_args()
+    stat = "best" if args.best_of_runs else args.stat
 
-    latency_results = collect_latency_results(args.best_of_runs)
-    backend_results = collect_backend_results(args.best_of_runs)
+    latency_results = collect_latency_results(stat)
+    backend_results = collect_backend_results(stat)
 
-    for benchmark_type in ("int_int_double", "int_int_largestr", "vector_largestr"):
-        print(LATENCY_SECTION_METADATA[benchmark_type]["title"])
-        print()
-        print(format_latency_table(latency_results, benchmark_type, 1))
-        print(format_latency_table(latency_results, benchmark_type, 4))
+    for scenario, scenario_title in SCENARIOS.items():
+        sections = []
+        for payload in PAYLOADS:
+            tables = [
+                format_latency_table(latency_results, scenario, payload, 1, "**1 Thread Logging**"),
+                format_latency_table(latency_results, scenario, payload, 4, "**4 Threads Logging Simultaneously**"),
+            ]
+            tables = [table for table in tables if table]
+            if tables:
+                sections.append(f"### {LATENCY_SECTION_METADATA[payload]['title']}\n\n" + "\n".join(tables))
+        if sections:
+            print(f"## {scenario_title}\n")
+            print("\n".join(sections))
 
-    print(format_throughput_table(backend_results))
+    disabled = [
+        format_latency_table(latency_results, scenario, "int_int_double", 1, f"**{title}**")
+        for scenario, title in DISABLED_SCENARIOS.items()
+    ]
+    disabled = [table for table in disabled if table]
+    if disabled:
+        print("## Disabled Statement\n")
+        print("\n".join(disabled))
+
+    throughput = [format_throughput_table(backend_results, threads) for threads in (1, 4)]
+    throughput = [table for table in throughput if table]
+    if throughput:
+        print("## Throughput\n")
+        print("\n".join(throughput))
 
 
 if __name__ == "__main__":

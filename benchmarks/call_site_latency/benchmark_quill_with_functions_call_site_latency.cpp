@@ -20,7 +20,10 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   // Setup
   quill::BackendOptions backend_options;
   backend_options.cpu_affinity = {static_cast<uint16_t>(bench_cpu(5))};
+#ifndef BENCH_SCENARIO_DEFAULTS
+  // The backend never sleeps, the most responsive setting every library is given where it has one
   backend_options.sleep_duration = std::chrono::nanoseconds{0};
+#endif
   quill::Backend::start(backend_options);
 
   // wait for the backend thread to start
@@ -48,7 +51,13 @@ void quill_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterati
   logger->set_log_level(quill::LogLevel::Info);
 
   // Define a logging lambda
-#ifdef BENCH_INT_INT_DOUBLE
+#ifdef BENCH_SCENARIO_DISABLED
+  // A statement below the logger's level
+  char const* benchmark_type = "[benchmark_type: int_int_double]";
+
+  auto log_func = [logger](uint64_t i, uint64_t j, double d)
+  { quill::debug(logger, "Logging int: {}, int: {}, double: {}", i, j, d); };
+#elif defined(BENCH_INT_INT_DOUBLE)
   char const* benchmark_type = "[benchmark_type: int_int_double]";
 
   auto log_func = [logger](uint64_t i, uint64_t j, double d)

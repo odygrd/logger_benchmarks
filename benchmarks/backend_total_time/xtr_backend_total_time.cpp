@@ -2,22 +2,43 @@
 #define XTR_USE_IO_URING 0
 
 #include "fmt/format.h"
+#include "xtr/io/posix_fd_storage.hpp"
 #include "xtr/logger.hpp"
 
-#include <atomic>
-#include <fstream>
-#include <iostream>
-#include <string>
-#include <thread>
-#include <vector>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <chrono>
-#include <iostream>
+#include <filesystem>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
 
 #include "utils.h"
-#include <filesystem>
 
-static constexpr size_t total_iterations = 4'000'000;
+namespace
+{
+/**
+ * XTR's storage without the fsync in sync(). Every library's clock stops once its data has been
+ * handed to the kernel; XTR's sink.sync() would also wait for the disk.
+ */
+class no_fsync_storage final : public xtr::posix_fd_storage
+{
+public:
+  using xtr::posix_fd_storage::posix_fd_storage;
+
+  void sync() noexcept override {}
+};
+
+xtr::logger* g_log = nullptr;
+
+// Each producer's sink, created before timing starts. The sinks outlive the producer threads, so
+// the main thread can wait on them after the producers have finished.
+thread_local xtr::sink* tl_sink = nullptr;
+std::mutex g_sinks_mutex;
+std::vector<std::unique_ptr<xtr::sink>> g_sinks;
+} // namespace
 
 /**
  * The backend worker just spins, so we just measure the total time elapsed for total_iterations
@@ -29,64 +50,72 @@ int main()
   std::filesystem::path log_file{"benchmark_xtr_backend_total_time.log"};
   std::remove(log_file.c_str());
 
-  xtr::logger log(log_file.c_str());
-
-  cpu_set_t cpus;
-  CPU_ZERO(&cpus);
-  CPU_SET(5, &cpus);
-  if (::pthread_setaffinity_np(log.consumer_thread_native_handle(), sizeof(cpus), &cpus) != 0)
+  int const fd = ::open(log_file.c_str(), O_CREAT | O_WRONLY | O_TRUNC | O_APPEND, 0644);
+  if (fd == -1)
   {
     abort();
   }
+  xtr::logger log(std::make_unique<no_fsync_storage>(fd, log_file.string()));
+  ::close(fd);
+  g_log = &log;
 
-  // start counting the time until backend worker finishes
+  set_pthread_affinity(log.consumer_thread_native_handle(), 5);
+
   auto sink = log.get_sink("main");
 
   XTR_LOGL_TSC(info, sink, "Warm up");
   sink.sync();
 
-  auto const start_time = std::chrono::steady_clock::now();
-  for (size_t iteration = 0; iteration < total_iterations; ++iteration)
+  auto log_statement = [&](size_t iteration)
   {
-    // Cycle between five log statements: an application does not repeat a single one
     switch (iteration % 5)
     {
     case 0:
-      XTR_LOGL_TSC(info, sink, "Iteration: {} int: {} double: {}", iteration, iteration * 2,
+      XTR_LOGL_TSC(info, *tl_sink, "Iteration: {} int: {} double: {}", iteration, iteration * 2,
                    static_cast<double>(iteration) / 2);
       break;
     case 1:
-      XTR_LOGL_TSC(info, sink, "Order: {} quantity: {} price: {}", iteration, iteration * 2,
+      XTR_LOGL_TSC(info, *tl_sink, "Order: {} quantity: {} price: {}", iteration, iteration * 2,
                    static_cast<double>(iteration) / 2);
       break;
     case 2:
-      XTR_LOGL_TSC(info, sink, "Request: {} bytes: {} elapsed: {}", iteration, iteration * 2,
+      XTR_LOGL_TSC(info, *tl_sink, "Request: {} bytes: {} elapsed: {}", iteration, iteration * 2,
                    static_cast<double>(iteration) / 2);
       break;
     case 3:
-      XTR_LOGL_TSC(info, sink, "Session: {} sequence: {} latency: {}", iteration, iteration * 2,
+      XTR_LOGL_TSC(info, *tl_sink, "Session: {} sequence: {} latency: {}", iteration, iteration * 2,
                    static_cast<double>(iteration) / 2);
       break;
     default:
-      XTR_LOGL_TSC(info, sink, "Worker: {} processed: {} load: {}", iteration, iteration * 2,
+      XTR_LOGL_TSC(info, *tl_sink, "Worker: {} processed: {} load: {}", iteration, iteration * 2,
                    static_cast<double>(iteration) / 2);
       break;
     }
-  }
+  };
 
+  // Each producer creates its sink and logs a warm-up line before timing starts
+  auto on_producer_start = [](size_t)
+  {
+    auto producer_sink = std::make_unique<xtr::sink>(g_log->get_sink("main"));
+    tl_sink = producer_sink.get();
+    XTR_LOGL_TSC(info, *tl_sink, "Warm up");
+    std::lock_guard<std::mutex> const lock{g_sinks_mutex};
+    g_sinks.push_back(std::move(producer_sink));
+  };
+
+  ProducerTimes const times = run_producers(on_producer_start, log_statement);
+
+  // Wait until the consumer has written every producer's messages, then the end line
+  for (auto& producer_sink : g_sinks)
+  {
+    producer_sink->sync();
+  }
   XTR_LOGL_TSC(error, sink, "End");
   sink.sync();
 
   auto const end_time = std::chrono::steady_clock::now();
-  auto const delta = end_time - start_time;
+  print_throughput(times, end_time, static_cast<double>(std::filesystem::file_size(log_file)) / (1024 * 1024));
 
-  auto delta_d = std::chrono::duration_cast<std::chrono::duration<double>>(delta).count();
-
-  std::cout << fmt::format(
-                 "throughput is {:.2f} million msgs/sec average, total time elapsed: {} ms, log "
-                 "file size {:.2f} MB \n",
-                 total_iterations / delta_d / 1e6,
-                 std::chrono::duration_cast<std::chrono::milliseconds>(delta).count(),
-                 static_cast<double>(std::filesystem::file_size(log_file)) / (1024 * 1024))
-            << std::endl;
+  // The sinks must close before the logger is destroyed
+  g_sinks.clear();
 }

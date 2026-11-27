@@ -15,8 +15,6 @@
 
 #include "utils.h"
 
-static constexpr size_t total_iterations = 4'000'000;
-
 /**
  * The backend worker just spins, so we just measure the total time elapsed for total_iterations
  */
@@ -39,13 +37,12 @@ int main()
   // On Windows the worker is pinned explicitly instead.
 
   bq::log log_obj = bq::log::create_log("text", R"(
-        log.buffer_size=131072
+        log.buffer_size=1048576
+        log.worker_interval_ms=0
         log.thread_mode=async
-        log.reliable_level=normal
         appenders_config.appender_0.type=compressed_file
         appenders_config.appender_0.levels=[all]
         appenders_config.appender_0.file_name= benchmark_bqlog_backend_total_time
-        appenders_config.appender_0.capacity_limit= 1
     )");
 
   pin_other_threads_on_windows(5);
@@ -55,8 +52,7 @@ int main()
   log_obj.force_flush();
 
   // start counting the time until backend worker finishes
-  auto const start_time = std::chrono::steady_clock::now();
-  for (size_t iteration = 0; iteration < total_iterations; ++iteration)
+  auto log_statement = [&](size_t iteration)
   {
     // Cycle between five log statements: an application does not repeat a single one
     switch (iteration % 5)
@@ -82,22 +78,18 @@ int main()
              static_cast<double>(iteration) / 2);
       break;
     }
-  }
+  };
+
+  // Each producer logs a warm-up line first, so its per-thread state is created before timing
+  auto on_producer_start = [&](size_t) { BQ_LOG_FAST_INFO(log_obj, "Warm up"); };
+
+  ProducerTimes const times = run_producers(on_producer_start, log_statement);
+  auto const start_time = times.start;
   BQ_LOG_FAST_INFO(log_obj, "End");
 
   // block until all messages are flushed
   log_obj.force_flush();
 
   auto const end_time = std::chrono::steady_clock::now();
-  auto const delta = end_time - start_time;
-
-  auto delta_d = std::chrono::duration_cast<std::chrono::duration<double>>(delta).count();
-
-  std::cout << fmt::format(
-                 "throughput is {:.2f} million msgs/sec average, total time elapsed: {} ms, log "
-                 "file size {:.2f} MB \n",
-                 total_iterations / delta_d / 1e6,
-                 std::chrono::duration_cast<std::chrono::milliseconds>(delta).count(),
-                 static_cast<double>(std::filesystem::file_size(log_file)) / (1024 * 1024))
-            << std::endl;
+  print_throughput(times, end_time, static_cast<double>(std::filesystem::file_size(log_file)) / (1024 * 1024));
 }
