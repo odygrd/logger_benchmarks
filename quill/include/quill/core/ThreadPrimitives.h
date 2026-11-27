@@ -34,6 +34,10 @@ extern "C"
   #include <time.h>
 #endif
 
+#if defined(_WIN32) && !defined(QUILL_MODULE)
+  #include <chrono>
+#endif
+
 QUILL_BEGIN_NAMESPACE
 
 namespace detail
@@ -49,6 +53,9 @@ QUILL_NODISCARD constexpr unsigned long sleep_timeout_ms(uint64_t ns) noexcept
 
 /**
  * Mirrors std::this_thread::sleep_for(std::chrono::nanoseconds{ns}).
+ *
+ * On Windows, Sleep() cannot wait less than the system timer tick, 1 ms to 15.6 ms, so a wait shorter
+ * than 1 ms yields until it has passed instead of sleeping for a whole tick.
  */
 inline void sleep_for_ns(uint64_t ns) noexcept
 {
@@ -58,6 +65,16 @@ inline void sleep_for_ns(uint64_t ns) noexcept
   }
 
 #if defined(_WIN32)
+  if (ns < 1'000'000ull)
+  {
+    auto const deadline = std::chrono::steady_clock::now() + std::chrono::nanoseconds{ns};
+    do
+    {
+      ::SwitchToThread();
+    } while (std::chrono::steady_clock::now() < deadline);
+    return;
+  }
+
   ::Sleep(sleep_timeout_ms(ns));
 #else
   struct timespec ts;
