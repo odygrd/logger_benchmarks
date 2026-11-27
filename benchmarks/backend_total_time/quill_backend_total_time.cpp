@@ -65,7 +65,7 @@ int main()
 
   // start counting the time until backend worker finishes
   // 256 distinct statements in a fixed pseudo-random order, see many_statements.h
-  #define BENCH_LOG(...) LOG_INFO(logger, __VA_ARGS__)
+  #define BENCH_LOG(fmt, ...) LOG_INFO(logger, fmt, __VA_ARGS__)
   auto log_statement = [&](size_t iteration)
   {
   #include "many_statements/fmt.inc"
