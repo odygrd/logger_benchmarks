@@ -197,6 +197,13 @@ The same rule applies to every library.
 python3 tools/generate_tables.py --stat median --format rst > tables.rst
 ```
 
+`--format json` prints every table's rows as data. The Quill documentation builds its benchmark pages, with
+the Linux and Windows results side by side, from one such file per platform:
+
+```bash
+python3 tools/generate_tables.py --stat best --format json > results_linux.json
+```
+
 ## Windows (MSVC)
 
 The benchmarks also build and run on Windows with MSVC. Linux builds are unaffected: every

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import statistics
 from collections import defaultdict
@@ -302,7 +303,7 @@ def combine(results_list: list[dict], keys: tuple[str, ...], stat: str, best) ->
     Combines the runs of one library: the mean or median of every value, or the single best run
     """
     if stat == "best":
-        return best(results_list)
+        return {**best(results_list), "runs": len(results_list)}
 
     combined = {}
     for key in keys:
@@ -402,11 +403,11 @@ def render_table(columns: list[str], rows: list[list[str]], first_width: int, wi
     return table
 
 
-def format_latency_table(results: dict, scenario: str, payload: str, thread_count: int, title: str) -> str:
+def latency_rows(results: dict, scenario: str, payload: str, thread_count: int) -> list[dict]:
+    """
+    The rows of one latency table, sorted: name, url and the six percentiles
+    """
     logger_results = results.get((scenario, payload, thread_count), {})
-    if not logger_results:
-        return ""
-
     allowed_loggers = LATENCY_SECTION_METADATA[payload]["loggers"]
 
     rows = []
@@ -420,21 +421,35 @@ def format_latency_table(results: dict, scenario: str, payload: str, thread_coun
 
         rows.append(
             {
-                "name": link(logger_info["name"], logger_info["url"]),
+                "name": logger_info["name"],
+                "url": logger_info["url"],
                 "values": [data[key] for key in PERCENTILES],
+                "runs": data.get("runs"),
                 # Ties keep alphabetical order, never a library's own order
                 "sort_key": (data["p90"], data["p95"], data["p99"], data["p999"], logger_info["name"].casefold()),
             }
         )
 
     rows.sort(key=lambda row: row["sort_key"])
+    for row in rows:
+        del row["sort_key"]
+    return rows
+
+
+def format_latency_table(results: dict, scenario: str, payload: str, thread_count: int, title: str) -> str:
+    rows = latency_rows(results, scenario, payload, thread_count)
+    if not rows:
+        return ""
 
     columns = ["Library", "50th", "75th", "90th", "95th", "99th", "99.9th"]
-    cells = [[row["name"]] + [f"{value:.1f}" for value in row["values"]] for row in rows]
+    cells = [[link(row["name"], row["url"])] + [f"{value:.1f}" for value in row["values"]] for row in rows]
     return f"{title}\n\n" + render_table(columns, cells, 73, [6] * 6)
 
 
-def format_throughput_table(results: dict, threads: int) -> str:
+def throughput_rows(results: dict, threads: int) -> list[dict]:
+    """
+    The rows of one throughput table, fastest first
+    """
     rows = []
 
     for logger, data in results.get(threads, {}).items():
@@ -443,21 +458,47 @@ def format_throughput_table(results: dict, threads: int) -> str:
 
         for logger_info in BACKEND_LOGGER_MAP.values():
             if logger_info["name"] == logger:
-                rows.append({"name": link(logger_info["name"], logger_info["url"]), **data})
+                rows.append({"name": logger_info["name"], "url": logger_info["url"], **data})
                 break
 
+    rows.sort(key=lambda row: (-row["throughput"], row["name"]))
+    return rows
+
+
+def format_throughput_table(results: dict, threads: int) -> str:
+    rows = throughput_rows(results, threads)
     if not rows:
         return ""
-
-    rows.sort(key=lambda row: (-row["throughput"], row["name"]))
 
     title = "1 Producer Thread" if threads == 1 else f"{threads} Producer Threads"
     columns = ["Library", "million msg/second", "elapsed time", "producers done"]
     cells = []
     for row in rows:
         producers = f"{row['producers_ms']:.0f} ms" if row.get("producers_ms") is not None else "-"
-        cells.append([row["name"], f"{row['throughput']:.2f}", f"{row['elapsed_ms']:.0f} ms", producers])
+        cells.append([link(row["name"], row["url"]), f"{row['throughput']:.2f}", f"{row['elapsed_ms']:.0f} ms", producers])
     return f"**{title}**\n\n" + render_table(columns, cells, 74, [18, 12, 14])
+
+
+def results_json(latency_results: dict, backend_results: dict, stat: str) -> dict:
+    """
+    Every table as data: the rows of each latency table by scenario, payload and threads, and of each
+    throughput table by producer threads
+    """
+    latency = []
+    for scenario in list(SCENARIOS) + list(DISABLED_SCENARIOS):
+        for payload in PAYLOADS:
+            for threads in (1, 4):
+                rows = latency_rows(latency_results, scenario, payload, threads)
+                if rows:
+                    latency.append({"scenario": scenario, "payload": payload, "threads": threads, "rows": rows})
+
+    throughput = []
+    for threads in (1, 4):
+        rows = throughput_rows(backend_results, threads)
+        if rows:
+            throughput.append({"threads": threads, "rows": rows})
+
+    return {"stat": stat, "percentiles": list(PERCENTILES), "latency": latency, "throughput": throughput}
 
 
 def main() -> None:
@@ -470,8 +511,9 @@ def main() -> None:
         "(the lowest 90th, then 95th, 99th and 99.9th percentile for latency, the highest msg/s for throughput)",
     )
     parser.add_argument("--best-of-runs", action="store_true", help="the same as --stat best")
-    parser.add_argument("--format", choices=("markdown", "rst"), default="markdown",
-                        help="markdown tables, or reStructuredText list-tables as the Quill docs page uses")
+    parser.add_argument("--format", choices=("markdown", "rst", "json"), default="markdown",
+                        help="markdown tables, reStructuredText list-tables, or json: every table's rows, which "
+                        "the Quill docs build their benchmark pages from")
     args = parser.parse_args()
     global OUTPUT_FORMAT
     OUTPUT_FORMAT = args.format
@@ -479,6 +521,10 @@ def main() -> None:
 
     latency_results = collect_latency_results(stat)
     backend_results = collect_backend_results(stat)
+
+    if OUTPUT_FORMAT == "json":
+        print(json.dumps(results_json(latency_results, backend_results, stat), indent=1))
+        return
 
     for scenario, scenario_title in SCENARIOS.items():
         sections = []
