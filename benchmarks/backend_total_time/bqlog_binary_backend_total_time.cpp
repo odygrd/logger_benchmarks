@@ -37,7 +37,6 @@ int main()
   // On Windows the worker is pinned explicitly instead.
 
   bq::log log_obj = bq::log::create_log("text", R"(
-        log.buffer_size=1048576
         log.worker_interval_ms=0
         log.thread_mode=async
         appenders_config.appender_0.type=compressed_file

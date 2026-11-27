@@ -1,7 +1,5 @@
 #define FMT_HEADER_ONLY
 #define XTR_USE_IO_URING 0
-// The 1 MiB queue per thread every library is given where it can be set (the default is 256 KiB)
-#define XTR_SINK_CAPACITY (1024UL * 1024UL)
 
 #include "fmt/format.h"
 #include "xtr/io/posix_fd_storage.hpp"
