@@ -1,0 +1,21 @@
+Quill wait fix check (logger_benchmarks 679671e, vendored Quill c1691b8 + Windows short-wait fix)
+Machine: same Windows PC as results/windows and results/windows-rerun, idle (CPU load 3-14% before runs).
+Run: python toolsun_all.py --passes 3 --only "quill_bounded_blocking|bqlog_backend_total_time|bqlog_binary_backend_total_time" --tag rerun2
+Seed: 2025011927. All 15 runs exited 0; every text delivery check OK (BqLog binary logs are not checked).
+
+BENCHMARK_quill_bounded_blocking_backend_total_time, million msg/s:
+  this run (short-wait fix):       4.63  4.63  4.68   (bench_results_run1_rerun23, run2_rerun22, run3_rerun22)
+  earlier (yield-64 change):        1.50  1.49  1.51
+  earlier unbounded Quill:          4.30  4.29  4.36
+
+Elapsed / producers done (ms): 863/857, 863/857, 854/848
+Quill stderr "blocking occurrences": 200, 200, 200 (one extra standalone run: 199, then 200)
+
+CPU time vs wall time, one standalone bounded run (high priority, measured with the process handle):
+  4.65 million msg/s, wall 891 ms, CPU 1734 ms (user 1328 ms, kernel 406 ms) -> about 1.95 cores busy
+
+BqLog (default buffer sizes, log.buffer_size no longer set), million msg/s:
+  bqlog_backend_total_time:                    6.25  6.04  6.35
+  bqlog_backend_total_time_4_threads:          5.78  6.02  5.91
+  bqlog_binary_backend_total_time:            14.50 14.73 14.82
+  bqlog_binary_backend_total_time_4_threads:  14.26 14.51 13.97
