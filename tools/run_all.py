@@ -111,10 +111,26 @@ def system_fingerprint() -> str:
     return "\n".join(lines)
 
 
+def tracked_files(run_dir: Path) -> set[str]:
+    """
+    The files git tracks in the run directory, which are never benchmark logs: editing README.md during
+    a run must not make it count as a log and be deleted
+    """
+    try:
+        output = subprocess.run(["git", "ls-files"], cwd=run_dir, capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return set()
+    return {line for line in output.splitlines() if "/" not in line}
+
+
+TRACKED_FILES: set[str] = set()
+
+
 def run_dir_files(run_dir: Path) -> dict[Path, float]:
     files = {}
     for path in run_dir.iterdir():
-        if path.is_file() and not NOT_LOGS.match(path.name):
+        if path.is_file() and not NOT_LOGS.match(path.name) and path.name not in TRACKED_FILES \
+                and not path.name.startswith("."):
             files[path] = path.stat().st_mtime
     return files
 
@@ -200,6 +216,7 @@ def main() -> int:
     creation_flags = subprocess.HIGH_PRIORITY_CLASS if IS_WINDOWS else 0
     fingerprint = system_fingerprint()
     run_dir = repo_root()
+    TRACKED_FILES.update(tracked_files(run_dir))
 
     for pass_number in range(args.first_pass, args.first_pass + args.passes):
         order = list(benchmarks)
