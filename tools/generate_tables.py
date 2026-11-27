@@ -13,6 +13,10 @@ from pathlib import Path
 QUILL_MACRO_FREE_MODE = "Quill - Macro Free Mode"
 
 LATENCY_LOGGER_MAP = {
+    "Timer only": {
+        "name": "Timer only (no logging)",
+        "url": "https://github.com/odygrd/logger_benchmarks/blob/master/benchmarks/call_site_latency/benchmark_timer_only_call_site_latency.cpp",
+    },
     "Quill - Unbounded": {
         "name": "Quill Unbounded Queue",
         "url": "https://github.com/odygrd/quill",
@@ -140,6 +144,7 @@ LATENCY_SECTION_METADATA = {
     "int_int_double": {
         "title": "Logging Numbers",
         "loggers": {
+            "Timer only",
             "Quill - Bounded",
             "Quill - Unbounded",
             QUILL_MACRO_FREE_MODE,
@@ -159,6 +164,7 @@ LATENCY_SECTION_METADATA = {
     "int_int_largestr": {
         "title": "Logging Large Strings",
         "loggers": {
+            "Timer only",
             "Quill - Bounded",
             "Quill - Unbounded",
             QUILL_MACRO_FREE_MODE,
@@ -178,6 +184,7 @@ LATENCY_SECTION_METADATA = {
     "vector_largestr": {
         "title": "Logging Complex Types",
         "loggers": {
+            "Timer only",
             "Quill - Bounded",
             "Quill - Unbounded",
             QUILL_MACRO_FREE_MODE,

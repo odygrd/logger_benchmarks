@@ -41,6 +41,10 @@ function(add_call_site_latency_benchmark LIBRARY)
   endif ()
 endfunction()
 
+# The measurement floor: the harness with a call that logs nothing
+add_call_site_latency_benchmark(timer_only DISABLED
+  SOURCE benchmark_timer_only_call_site_latency.cpp LIBRARIES Threads::Threads)
+
 # Quill
 add_call_site_latency_benchmark(quill_unbounded DISABLED
   SOURCE benchmark_quill_call_site_latency.cpp LIBRARIES quill)
