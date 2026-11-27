@@ -66,6 +66,14 @@ int main()
   XTR_LOGL_TSC(info, sink, "Warm up");
   sink.sync();
 
+#if defined(BENCH_MANY_STATEMENTS)
+  // 256 distinct statements, see many_statements.h
+  #define BENCH_LOG(...) XTR_LOGL_TSC(info, *tl_sink, __VA_ARGS__)
+  auto log_statement = [&](size_t iteration)
+  {
+  #include "many_statements/fmt.inc"
+  };
+#else
   auto log_statement = [&](size_t iteration)
   {
     switch (iteration % 5)
@@ -92,6 +100,7 @@ int main()
       break;
     }
   };
+#endif
 
   // Each producer creates its sink and logs a warm-up line before timing starts
   auto on_producer_start = [](size_t)

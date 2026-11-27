@@ -46,6 +46,14 @@ int main()
   g_log.flush();
 
   // start counting the time until backend worker finishes
+#if defined(BENCH_MANY_STATEMENTS)
+  // 256 distinct statements, see many_statements.h
+  #define BENCH_LOG(...) g_log.info(__VA_ARGS__)
+  auto log_statement = [&](size_t iteration)
+  {
+  #include "many_statements/reckless.inc"
+  };
+#else
   auto log_statement = [&](size_t iteration)
   {
     // Cycle between five log statements: an application does not repeat a single one
@@ -73,6 +81,7 @@ int main()
       break;
     }
   };
+#endif
 
   // Each producer logs a warm-up line first, so its per-thread state is created before timing
   auto on_producer_start = [&](size_t) { g_log.info("Warm up"); };

@@ -120,6 +120,12 @@ BACKEND_LOGGER_MAP = {
     },
 }
 
+# The throughput benchmarks cycle between five log statements, or with _many_statements log 256
+THROUGHPUT_WORKLOADS = {
+    "five": "Throughput",
+    "many": "Throughput, 256 Distinct Statements",
+}
+
 README_THROUGHPUT_LOGGERS = {
     "MS BinLog (binary log)",
     "PlatformLab NanoLog (binary log)",
@@ -277,6 +283,11 @@ def parse_backend_bench(bench_path: str, content: str) -> dict | None:
         threads = 4
         name = name[: -len("_4_threads")]
 
+    workload = "five"
+    if name.endswith("_many_statements"):
+        workload = "many"
+        name = name[: -len("_many_statements")]
+
     logger_info = BACKEND_LOGGER_MAP.get(name)
     if not logger_info:
         return None
@@ -291,6 +302,7 @@ def parse_backend_bench(bench_path: str, content: str) -> dict | None:
     producers = re.search(r"producers done after: (\d+) ms", content)
     return {
         "logger": logger_info["name"],
+        "workload": workload,
         "threads": threads,
         "throughput": float(match.group(1)),
         "elapsed_ms": float(match.group(2)),
@@ -352,16 +364,16 @@ def collect_backend_results(stat: str = "mean") -> dict:
 
         result = parse_backend_bench(bench_path, content)
         if result:
-            samples[result["threads"]][result["logger"]].append(result)
+            samples[(result["workload"], result["threads"])][result["logger"]].append(result)
 
     def best(results_list):
         # The single run with the highest throughput
         return max(results_list, key=lambda item: item["throughput"])
 
     combined = defaultdict(dict)
-    for threads, logger_results in samples.items():
+    for key, logger_results in samples.items():
         for logger, results_list in logger_results.items():
-            combined[threads][logger] = combine(
+            combined[key][logger] = combine(
                 results_list, ("throughput", "elapsed_ms", "producers_ms"), stat, best
             )
 
@@ -406,10 +418,10 @@ def format_latency_table(results: dict, scenario: str, payload: str, thread_coun
     return table
 
 
-def format_throughput_table(results: dict, threads: int) -> str:
+def format_throughput_table(results: dict, workload: str, threads: int) -> str:
     rows = []
 
-    for logger, data in results.get(threads, {}).items():
+    for logger, data in results.get((workload, threads), {}).items():
         if logger not in README_THROUGHPUT_LOGGERS:
             continue
 
@@ -475,11 +487,12 @@ def main() -> None:
         print("## Disabled Statement\n")
         print("\n".join(disabled))
 
-    throughput = [format_throughput_table(backend_results, threads) for threads in (1, 4)]
-    throughput = [table for table in throughput if table]
-    if throughput:
-        print("## Throughput\n")
-        print("\n".join(throughput))
+    for workload, title in THROUGHPUT_WORKLOADS.items():
+        throughput = [format_throughput_table(backend_results, workload, threads) for threads in (1, 4)]
+        throughput = [table for table in throughput if table]
+        if throughput:
+            print(f"## {title}\n")
+            print("\n".join(throughput))
 
 
 if __name__ == "__main__":

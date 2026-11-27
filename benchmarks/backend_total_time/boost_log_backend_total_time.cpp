@@ -88,6 +88,14 @@ int main()
   BOOST_LOG_SEV(logger, logging::trivial::info) << "Warm up";
   sink->flush();
 
+#if defined(BENCH_MANY_STATEMENTS)
+  // 256 distinct statements, see many_statements.h
+  #define BENCH_LOG_STREAM(stream) BOOST_LOG_SEV(logger, logging::trivial::info) stream
+  auto log_statement = [&](size_t iteration)
+  {
+  #include "many_statements/stream.inc"
+  };
+#else
   auto log_statement = [&](size_t iteration)
   {
     // Cycle between five log statements: an application does not repeat a single one
@@ -120,6 +128,7 @@ int main()
       break;
     }
   };
+#endif
 
   // Each producer logs a warm-up line first, so its per-thread state is created before timing
   auto on_producer_start = [&](size_t) { BOOST_LOG_SEV(logger, logging::trivial::info) << "Warm up"; };
