@@ -1,0 +1,22 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_g3log_call_site_latency_int_int_largestr_cold.exe
+pass: 2
+seed: 2678771158
+position: 19
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Cold cache check: sweeping 8192 KiB, a line read before the sweep reloads in 8.85862 ns (median)
+Thread Count 1 - Total messages 20500 - Logger: G3Log - Benchmark: Caller Thread Latency - Scenario: cold
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  5500.8  |  5664.1  |  5970.6  |  6316.8  |  9373.4  |  17203.3  |  132233.1  |
+
+
+stderr:
+g3log g3FileSink shutdown at: 14:23:29 976977
+Log file at: [./g2log_logger.g3log.20261127-142325.log]
+
+
+exit code: 0
+wall time: 4.3 s
+delivery: g2log_logger.g3log.20261127-142325.log lines 20507, expected >= 20500: OK

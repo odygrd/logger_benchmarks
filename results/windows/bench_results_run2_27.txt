@@ -1,0 +1,32 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_quill_bounded_call_site_latency_vector_largestr_burst.exe
+pass: 2
+seed: 2678771158
+position: 27
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 202000 - Logger: Quill - Benchmark: Caller Thread Latency, Bounded - [benchmark_type: vector_largestr] - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  75.3  |  79.6  |  88.3  |  117.5  |  140.6  |  236.7  |  654.7  |
+
+Thread Count 4 - Total messages 808000 - Logger: Quill - Benchmark: Caller Thread Latency, Bounded - [benchmark_type: vector_largestr] - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  76.8  |  80.0  |  85.8  |  92.4  |  133.8  |  186.0  |  2162.0  |
+
+
+stderr:
+14:25:22 Quill INFO: Dropped 29 events from thread 53108
+14:25:29 Quill INFO: Dropped 11 events from thread 53108
+14:25:32 Quill INFO: Dropped 29 events from thread 53108
+14:25:36 Quill INFO: Dropped 10 events from thread 33984
+14:25:36 Quill INFO: Dropped 30 events from thread 14056
+14:25:36 Quill INFO: Dropped 30 events from thread 51556
+14:25:36 Quill INFO: Dropped 51 events from thread 40568
+14:25:38 Quill INFO: Dropped 31 events from thread 40568
+14:25:53 Quill INFO: Dropped 10 events from thread 40568
+
+
+exit code: 0
+wall time: 44.3 s
+delivery: benchmark_quill_unbounded_call_site_latency.log lines 1009774, expected >= 1010000: FAIL

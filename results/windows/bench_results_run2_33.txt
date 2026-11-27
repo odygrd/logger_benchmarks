@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_ms_binlog_call_site_latency_int_int_largestr_single.exe
+pass: 2
+seed: 2678771158
+position: 33
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 101000 - Logger: Ms binLog - Benchmark: Caller Thread Latency - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  103.1  |  113.4  |  154.6  |  181.2  |  417.2  |  1473.0  |  30898.6  |
+
+Thread Count 4 - Total messages 404000 - Logger: Ms binLog - Benchmark: Caller Thread Latency - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  143.8  |  163.8  |  198.6  |  232.2  |  409.1  |  1418.7  |  219554.4  |
+
+
+exit code: 0
+wall time: 43.8 s
+delivery: binlog_call_site_latency_percentile_linux_benchmark.blog binary, not checked

@@ -1,0 +1,21 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\backend_total_time\BENCHMARK_quill_backend_total_time_4_threads.exe
+pass: 3
+seed: 2678771158
+position: 81
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+throughput is 4.46 million msgs/sec average, total time elapsed: 896 ms, producer threads: 4, producers done after: 880 ms, log file size 398.31 MB, expected log lines: 4000006
+
+
+stderr:
+15:28:31 Quill INFO: Experienced 50 blocking occurrences on thread 54232
+15:28:31 Quill INFO: Experienced 49 blocking occurrences on thread 14888
+15:28:31 Quill INFO: Experienced 50 blocking occurrences on thread 47452
+15:28:31 Quill INFO: Experienced 50 blocking occurrences on thread 61596
+
+
+exit code: 0
+wall time: 1.2 s
+delivery: benchmark_quill_backend_total_time.log lines 4000006, expected == 4000006: OK

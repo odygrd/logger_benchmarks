@@ -1,0 +1,21 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_spdlog_call_site_latency_disabled.exe
+pass: 2
+seed: 2678771158
+position: 13
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 2500000 - Logger: Spdlog - Benchmark: Caller Thread Latency - Scenario: disabled_hot
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  6.6  |  6.6  |  6.6  |  6.6  |  6.9  |  8.2  |  8.5  |
+
+Cold cache check: sweeping 8192 KiB, a line read before the sweep reloads in 10.4947 ns (median)
+Thread Count 1 - Total messages 20500 - Logger: Spdlog - Benchmark: Caller Thread Latency - Scenario: disabled_cold
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  79.8  |  89.0  |  107.4  |  130.8  |  191.0  |  300.6  |  704.8  |
+
+
+exit code: 0
+wall time: 3.6 s
+delivery: not checked, disabled statements write nothing

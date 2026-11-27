@@ -1,0 +1,19 @@
+Quill compile-time benchmark, Windows (MSVC)
+
+quill commit: 5741442003b759f082ae45166d5233c43cde7943
+compiler: Microsoft (R) C/C++ Optimizing Compiler Version 19.44.35217 for x64
+generator: Ninja (Visual Studio 2022 x64 developer environment)
+configure: cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DQUILL_BUILD_BENCHMARKS=ON "-DCMAKE_CXX_FLAGS=/DWIN32 /D_WINDOWS /EHsc /GR /arch:AVX2" ..
+timed: cmake --build . --target BENCHMARK_quill_compile_time -j 4 (build directory deleted before each configure)
+
+clean build 1: 12.56 s
+clean build 2: 12.49 s
+clean build 3: 12.36 s
+median: 12.49 s
+
+BENCHMARK_quill_compile_time.exe: 4619776 bytes
+compile_time_bench.cpp.obj: 21875866 bytes
+
+CPU: 12th Gen Intel(R) Core(TM) i5-12600K
+OS: Microsoft Windows 11 Home 26H2, build 26300 (10.0.26300.0)
+power plan: Balanced

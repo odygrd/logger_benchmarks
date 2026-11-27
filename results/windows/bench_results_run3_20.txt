@@ -1,0 +1,21 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_bqlog_call_site_latency_int_int_largestr_burst.exe
+pass: 3
+seed: 2678771158
+position: 20
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+[Bq]platform capabilities: mmap=1 multi_process=1 file_lock=1 crash_handler=0 backtrace=1 dirent=1 thread_name=1 default_base_dir=1 user_counter=1 base_dir=C:\Users\odygr\CLionProjects\logger_benchmarks
+Thread Count 1 - Total messages 202000 - Logger: bqlog - Benchmark: Caller Thread Latency - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  20.5  |  23.7  |  30.5  |  36.5  |  52.3  |  140.0  |  1347.9  |
+
+Thread Count 4 - Total messages 808000 - Logger: bqlog - Benchmark: Caller Thread Latency - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  23.0  |  26.4  |  32.6  |  35.0  |  43.5  |  131.1  |  1287.8  |
+
+
+exit code: 0
+wall time: 42.9 s
+delivery: bqlog_call_site_latency_percentile_linux_benchmark.log_20261127_1.log lines 1010005, expected >= 1010000: OK

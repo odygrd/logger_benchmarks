@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_quill_with_functions_unbounded_call_site_latency_int_int_double_burst.exe
+pass: 3
+seed: 2678771158
+position: 13
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 202000 - Logger: Quill - Benchmark: Caller Thread Latency, Macro Free Mode - [benchmark_type: int_int_double] - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  17.6  |  19.0  |  21.3  |  24.9  |  34.8  |  135.0  |  1458.6  |
+
+Thread Count 4 - Total messages 808000 - Logger: Quill - Benchmark: Caller Thread Latency, Macro Free Mode - [benchmark_type: int_int_double] - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  19.9  |  21.5  |  24.0  |  27.0  |  34.7  |  50.2  |  1186.1  |
+
+
+exit code: 0
+wall time: 43.8 s
+delivery: benchmark_quill_functions_unbounded_call_site_latency.log lines 1010005, expected >= 1010000: OK

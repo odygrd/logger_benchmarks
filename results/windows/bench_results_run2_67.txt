@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_quill_with_functions_unbounded_call_site_latency_int_int_double_single.exe
+pass: 2
+seed: 2678771158
+position: 67
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 101000 - Logger: Quill - Benchmark: Caller Thread Latency, Macro Free Mode - [benchmark_type: int_int_double] - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  30.9  |  37.4  |  52.1  |  65.1  |  118.8  |  258.2  |  148955.7  |
+
+Thread Count 4 - Total messages 404000 - Logger: Quill - Benchmark: Caller Thread Latency, Macro Free Mode - [benchmark_type: int_int_double] - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  32.6  |  47.2  |  103.6  |  147.6  |  275.1  |  480.1  |  29212.4  |
+
+
+exit code: 0
+wall time: 41.8 s
+delivery: benchmark_quill_functions_unbounded_call_site_latency.log lines 505005, expected >= 505000: OK

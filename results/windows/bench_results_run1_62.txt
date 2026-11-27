@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_quill_unbounded_call_site_latency_vector_largestr_single.exe
+pass: 1
+seed: 2678771158
+position: 62
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 101000 - Logger: Quill - Benchmark: Caller Thread Latency, Unbounded - [benchmark_type: vector_largestr] - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  93.3  |  112.3  |  135.6  |  156.3  |  238.2  |  578.9  |  26437.3  |
+
+Thread Count 4 - Total messages 404000 - Logger: Quill - Benchmark: Caller Thread Latency, Unbounded - [benchmark_type: vector_largestr] - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  99.3  |  124.8  |  150.3  |  173.1  |  273.4  |  541.5  |  240383.6  |
+
+
+exit code: 0
+wall time: 42.1 s
+delivery: benchmark_quill_unbounded_call_site_latency.log lines 505005, expected >= 505000: OK

@@ -1,0 +1,25 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_g3log_call_site_latency_int_int_double_single.exe
+pass: 3
+seed: 2678771158
+position: 51
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 101000 - Logger: G3Log - Benchmark: Caller Thread Latency - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  3539.5  |  3711.0  |  4283.9  |  5110.7  |  8122.9  |  29799.4  |  267699.3  |
+
+Thread Count 4 - Total messages 404000 - Logger: G3Log - Benchmark: Caller Thread Latency - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  6674.8  |  7109.9  |  7578.7  |  7969.3  |  9243.2  |  26918.0  |  1515098.6  |
+
+
+stderr:
+g3log g3FileSink shutdown at: 15:16:16 929298
+Log file at: [./g2log_logger.g3log.20261127-151533.log]
+
+
+exit code: 0
+wall time: 43.8 s
+delivery: g2log_logger.g3log.20261127-151533.log lines 505011, expected >= 505000: OK

@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_fmtlog_call_site_latency_int_int_largestr_single.exe
+pass: 3
+seed: 2678771158
+position: 25
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 101000 - Logger: fmtlog - Benchmark: Caller Thread Latency - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  30.9  |  47.7  |  59.1  |  87.3  |  176.3  |  427.0  |  28292.8  |
+
+Thread Count 4 - Total messages 404000 - Logger: fmtlog - Benchmark: Caller Thread Latency - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  31.5  |  44.5  |  71.1  |  116.1  |  160.0  |  300.0  |  27416.6  |
+
+
+exit code: 0
+wall time: 43.8 s
+delivery: fmtlog_call_site_latency_percentile_linux_benchmark.log lines 505005, expected >= 505000: OK

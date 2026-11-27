@@ -1,0 +1,25 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_g3log_call_site_latency_int_int_double_burst.exe
+pass: 1
+seed: 2678771158
+position: 61
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 202000 - Logger: G3Log - Benchmark: Caller Thread Latency - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  1457.4  |  1754.5  |  1844.2  |  2021.4  |  2748.7  |  5030.1  |  18365.3  |
+
+Thread Count 4 - Total messages 808000 - Logger: G3Log - Benchmark: Caller Thread Latency - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  5389.2  |  5868.7  |  6209.0  |  6373.6  |  6647.1  |  8305.3  |  18785.9  |
+
+
+stderr:
+g3log g3FileSink shutdown at: 14:02:56 183890
+Log file at: [./g2log_logger.g3log.20261127-140210.log]
+
+
+exit code: 0
+wall time: 45.9 s
+delivery: g2log_logger.g3log.20261127-140210.log lines 1010011, expected >= 1010000: OK

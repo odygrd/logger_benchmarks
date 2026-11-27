@@ -1,0 +1,24 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_quill_bounded_call_site_latency_int_int_double_single.exe
+pass: 3
+seed: 2678771158
+position: 43
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 101000 - Logger: Quill - Benchmark: Caller Thread Latency, Bounded - [benchmark_type: int_int_double] - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  26.6  |  27.7  |  38.5  |  54.3  |  86.3  |  218.6  |  28759.9  |
+
+Thread Count 4 - Total messages 404000 - Logger: Quill - Benchmark: Caller Thread Latency, Bounded - [benchmark_type: int_int_double] - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  28.2  |  29.3  |  49.9  |  80.8  |  113.9  |  247.4  |  26002.7  |
+
+
+stderr:
+15:12:57 Quill WARNING: A record is 3 us out of timestamp order. For delayed publishers, consider increasing BackendOptions::log_timestamp_ordering_grace_period to at least 8 us.
+
+
+exit code: 0
+wall time: 41.8 s
+delivery: benchmark_quill_unbounded_call_site_latency.log lines 505005, expected >= 505000: OK

@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_spdlog_call_site_latency_vector_largestr_single.exe
+pass: 2
+seed: 2678771158
+position: 44
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 101000 - Logger: Spdlog - Benchmark: Caller Thread Latency - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  11054.2  |  11188.2  |  11424.8  |  11731.8  |  14104.4  |  40226.5  |  1482916.5  |
+
+Thread Count 4 - Total messages 404000 - Logger: Spdlog - Benchmark: Caller Thread Latency - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  11150.2  |  11621.7  |  12114.3  |  12570.6  |  21065.6  |  37133.4  |  1530385.0  |
+
+
+exit code: 0
+wall time: 42.0 s
+delivery: spdlog_call_site_latency_percentile_linux_benchmark.log lines 505005, expected >= 505000: OK

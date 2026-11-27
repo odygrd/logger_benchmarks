@@ -1,0 +1,14 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\backend_total_time\BENCHMARK_fmtlog_backend_total_time.exe
+pass: 1
+seed: 2678771158
+position: 9
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+throughput is 1.50 million msgs/sec average, total time elapsed: 2660 ms, producer threads: 1, producers done after: 2643 ms, log file size 406.45 MB, expected log lines: 4000003
+
+
+exit code: 0
+wall time: 4.0 s
+delivery: benchmark_fmtlog_backend_total_time.log lines 4000003, expected == 4000003: OK

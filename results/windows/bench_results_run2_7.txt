@@ -1,0 +1,28 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_quill_unbounded_call_site_latency_vector_largestr_burst.exe
+pass: 2
+seed: 2678771158
+position: 7
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 202000 - Logger: Quill - Benchmark: Caller Thread Latency, Unbounded - [benchmark_type: vector_largestr] - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  73.1  |  78.7  |  89.4  |  118.3  |  145.6  |  324.4  |  1575.3  |
+
+Thread Count 4 - Total messages 808000 - Logger: Quill - Benchmark: Caller Thread Latency, Unbounded - [benchmark_type: vector_largestr] - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  75.1  |  79.3  |  87.0  |  95.0  |  136.0  |  259.9  |  2053.3  |
+
+
+stderr:
+14:19:36 Quill INFO: Allocated a new SPSC queue with a capacity of 256 KiB (previously 128 KiB) from thread 67464
+14:19:38 Quill INFO: Allocated a new SPSC queue with a capacity of 512 KiB (previously 256 KiB) from thread 67464
+14:19:55 Quill INFO: Allocated a new SPSC queue with a capacity of 256 KiB (previously 128 KiB) from thread 67124
+14:20:01 Quill INFO: Allocated a new SPSC queue with a capacity of 256 KiB (previously 128 KiB) from thread 53092
+14:20:01 Quill INFO: Allocated a new SPSC queue with a capacity of 256 KiB (previously 128 KiB) from thread 60196
+
+
+exit code: 0
+wall time: 44.3 s
+delivery: benchmark_quill_unbounded_call_site_latency.log lines 1010005, expected >= 1010000: OK

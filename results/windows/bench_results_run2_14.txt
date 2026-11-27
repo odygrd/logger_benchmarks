@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_fmtlog_call_site_latency_vector_largestr_burst.exe
+pass: 2
+seed: 2678771158
+position: 14
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 202000 - Logger: fmtlog - Benchmark: Caller Thread Latency - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  601.9  |  620.1  |  633.7  |  644.9  |  721.3  |  1974.9  |  3963.8  |
+
+Thread Count 4 - Total messages 808000 - Logger: fmtlog - Benchmark: Caller Thread Latency - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  674.8  |  717.0  |  769.0  |  973.4  |  1319.4  |  2206.1  |  6561.3  |
+
+
+exit code: 0
+wall time: 46.3 s
+delivery: fmtlog_call_site_latency_percentile_linux_benchmark.log lines 1010005, expected >= 1010000: OK

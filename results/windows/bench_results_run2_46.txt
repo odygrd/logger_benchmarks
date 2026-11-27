@@ -1,0 +1,17 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_spdlog_call_site_latency_vector_largestr_cold.exe
+pass: 2
+seed: 2678771158
+position: 46
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Cold cache check: sweeping 8192 KiB, a line read before the sweep reloads in 9.03664 ns (median)
+Thread Count 1 - Total messages 20500 - Logger: Spdlog - Benchmark: Caller Thread Latency - Scenario: cold
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  12756.1  |  13081.1  |  13445.2  |  13860.7  |  17533.2  |  59975.3  |  1501617.7  |
+
+
+exit code: 0
+wall time: 3.4 s
+delivery: spdlog_call_site_latency_percentile_linux_benchmark.log lines 20501, expected >= 20500: OK

@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_spdlog_call_site_latency_int_int_largestr_burst.exe
+pass: 3
+seed: 2678771158
+position: 70
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 202000 - Logger: Spdlog - Benchmark: Caller Thread Latency - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  216.9  |  238.4  |  302.5  |  328.5  |  453.8  |  1623.2  |  13242.8  |
+
+Thread Count 4 - Total messages 808000 - Logger: Spdlog - Benchmark: Caller Thread Latency - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  1116.9  |  1303.6  |  1493.0  |  1656.5  |  2452.0  |  4168.8  |  12456.1  |
+
+
+exit code: 0
+wall time: 43.8 s
+delivery: spdlog_call_site_latency_percentile_linux_benchmark.log lines 1010005, expected >= 1010000: OK

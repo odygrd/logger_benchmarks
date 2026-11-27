@@ -1,0 +1,17 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_fmtlog_call_site_latency_int_int_largestr_cold.exe
+pass: 2
+seed: 2678771158
+position: 8
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Cold cache check: sweeping 8192 KiB, a line read before the sweep reloads in 11.6222 ns (median)
+Thread Count 1 - Total messages 20500 - Logger: fmtlog - Benchmark: Caller Thread Latency - Scenario: cold
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  157.9  |  184.5  |  218.1  |  248.5  |  332.0  |  436.2  |  15281.1  |
+
+
+exit code: 0
+wall time: 4.3 s
+delivery: fmtlog_call_site_latency_percentile_linux_benchmark.log lines 20501, expected >= 20500: OK
