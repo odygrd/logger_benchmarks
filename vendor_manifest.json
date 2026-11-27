@@ -3,7 +3,7 @@
     {
       "name": "quill",
       "repo_url": "https://github.com/odygrd/quill.git",
-      "ref": "d1cf1416647f4f3a8f52735ff9697f0c244ece97",
+      "ref": "5741442003b759f082ae45166d5233c43cde7943",
       "target_dir": "quill",
       "skip_update": true
     },

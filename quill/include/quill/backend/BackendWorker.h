@@ -151,6 +151,11 @@ public:
       QUILL_THROW(QuillError{"BackendOptions::sleep_duration must not be negative"});
     }
 
+    if ((options.spin_wait_duration.count() < 0) || (options.spin_wait_duration > std::chrono::milliseconds{1}))
+    {
+      QUILL_THROW(QuillError{"BackendOptions::spin_wait_duration must be between 0 and 1 ms"});
+    }
+
     if (options.log_timestamp_ordering_grace_period.count() < 0)
     {
       QUILL_THROW(
@@ -716,6 +721,17 @@ private:
         {
           detail::yield_thread();
         }
+        else if (_options.spin_wait_duration.count() != 0)
+        {
+          // Reading the queues again at once would keep taking their cache lines from the
+          // threads that log, see BackendOptions::spin_wait_duration
+          auto const deadline = std::chrono::steady_clock::now() + _options.spin_wait_duration;
+
+          do
+          {
+            cpu_pause();
+          } while (std::chrono::steady_clock::now() < deadline);
+        }
       }
     }
 
@@ -1234,12 +1250,15 @@ private:
       }
       else
       {
-        bool const runtime_metadata_event =
-          (transit_event->macro_metadata->event() == MacroMetadata::Event::LogWithRuntimeMetadataDeepCopy) ||
-          (transit_event->macro_metadata->event() == MacroMetadata::Event::LogWithRuntimeMetadataShallowCopy) ||
-          (transit_event->macro_metadata->event() == MacroMetadata::Event::LogWithRuntimeMetadataHybridCopy);
+        MacroMetadata::Event const record_event = transit_event->macro_metadata->event();
+        bool const is_static_runtime_metadata =
+          (record_event == MacroMetadata::Event::LogWithStaticRuntimeMetadata);
+        bool const is_dynamic_runtime_metadata =
+          (record_event == MacroMetadata::Event::LogWithRuntimeMetadataDeepCopy) ||
+          (record_event == MacroMetadata::Event::LogWithRuntimeMetadataShallowCopy) ||
+          (record_event == MacroMetadata::Event::LogWithRuntimeMetadataHybridCopy);
 
-        if (runtime_metadata_event)
+        if (is_static_runtime_metadata || is_dynamic_runtime_metadata)
         {
           _apply_runtime_metadata(read_pos, transit_event);
         }
@@ -1269,7 +1288,7 @@ private:
               _populate_formatted_log_message(transit_event, formatted_msg, macro_metadata.message_format(),
                                               macro_metadata.message_format_size(), nullptr);
             }
-            else if (runtime_metadata_event)
+            else if (is_dynamic_runtime_metadata)
             {
               // Runtime metadata format strings are user generated and can be unique per call;
               // caching them would grow the cache without bound for the lifetime of the backend, so
@@ -3110,6 +3129,19 @@ private:
 
   void _apply_runtime_metadata(std::byte*& read_pos, TransitEvent* transit_event)
   {
+    if (transit_event->macro_metadata->event() == MacroMetadata::Event::LogWithStaticRuntimeMetadata)
+    {
+      StaticRuntimeMetadata meta;
+      std::memcpy(&meta, read_pos, sizeof(meta));
+      read_pos += sizeof(meta);
+
+      LogLevel const log_level = transit_event->macro_metadata->log_level();
+      TransitEvent::RuntimeMetadata& runtime_metadata = transit_event->ensure_runtime_metadata();
+      runtime_metadata.set_static(meta, log_level);
+      transit_event->macro_metadata = &runtime_metadata.macro_metadata;
+      return;
+    }
+
     char const* fmt;
     char const* file;
     char const* function;
