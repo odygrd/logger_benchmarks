@@ -11,6 +11,12 @@ function(add_throughput_benchmark LIBRARY SOURCE)
 endfunction()
 
 add_throughput_benchmark(quill quill_backend_total_time.cpp quill fmt::fmt)
+
+# Quill with a bounded blocking queue of 1 MiB, to check a producer that blocks on a full queue. Not
+# in the published tables.
+add_executable(BENCHMARK_quill_bounded_blocking_backend_total_time quill_backend_total_time.cpp)
+target_compile_definitions(BENCHMARK_quill_bounded_blocking_backend_total_time PRIVATE BENCH_QUILL_BOUNDED_BLOCKING)
+target_link_libraries(BENCHMARK_quill_bounded_blocking_backend_total_time quill fmt::fmt)
 add_throughput_benchmark(quill_with_functions quill_with_functions_backend_total_time.cpp quill fmt::fmt)
 add_throughput_benchmark(fmtlog fmtlog_backend_total_time.cpp fmtlog fmt::fmt)
 add_throughput_benchmark(spdlog spdlog_backend_total_time.cpp spdlog fmt::fmt Threads::Threads)

@@ -138,7 +138,8 @@ file. `BENCHMARK_<library>_backend_total_time` uses one producer thread and
 `BENCHMARK_<library>_backend_total_time_4_threads` four, each logging a quarter of the messages. Both report when the
 producers finished and when the last message was written.
 
-- Each library gets a 1 MiB queue per thread where its size can be set, and blocks when it is full.
+- Each library keeps its default queue type. Fixed-size queues are 1 MiB per thread where the size can be set,
+  and block when full; Quill's default unbounded queue grows instead.
 - The clock stops once the data has been handed to the kernel: XTR uses a storage without `fsync`, and spdlog stops
   when its worker has flushed, before the thread pool shuts down.
 

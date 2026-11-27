@@ -1298,11 +1298,14 @@ private:
       (void)macro_metadata;
       thread_context->increment_failure_counter();
 
+      // Yield before sleeping: the backend usually frees space within microseconds, and a sleep
+      // lasts at least the OS timer granularity, 1 ms or more on Windows
+      uint32_t attempt{0};
       do
       {
         if constexpr (frontend_options_t::blocking_queue_retry_interval_ns > 0)
         {
-          detail::sleep_for_ns(frontend_options_t::blocking_queue_retry_interval_ns);
+          detail::backoff_wait(attempt, frontend_options_t::blocking_queue_retry_interval_ns);
         }
 
         // not enough space to push to queue, keep trying
@@ -1331,11 +1334,14 @@ private:
       (void)macro_metadata;
       thread_context->increment_failure_counter();
 
+      // Yield before sleeping: the backend usually frees space within microseconds, and a sleep
+      // lasts at least the OS timer granularity, 1 ms or more on Windows
+      uint32_t attempt{0};
       do
       {
         if constexpr (frontend_options_t::blocking_queue_retry_interval_ns > 0)
         {
-          detail::sleep_for_ns(frontend_options_t::blocking_queue_retry_interval_ns);
+          detail::backoff_wait(attempt, frontend_options_t::blocking_queue_retry_interval_ns);
         }
 
         // not enough space to push to queue, keep trying

@@ -9,9 +9,10 @@
 
 #include "utils.h"
 
+#if defined(BENCH_QUILL_BOUNDED_BLOCKING)
 /**
- * A bounded blocking queue of 1 MiB per thread, the queue size every library is given where it can
- * be set. Quill's default unbounded queue would grow during the run instead.
+ * A bounded blocking queue of 1 MiB per thread, to measure a producer that blocks on a full queue.
+ * Not published: the throughput tables use Quill's default queue.
  */
 struct ThroughputFrontendOptions : quill::FrontendOptions
 {
@@ -21,6 +22,11 @@ struct ThroughputFrontendOptions : quill::FrontendOptions
 
 using frontend_t = quill::FrontendImpl<ThroughputFrontendOptions>;
 using logger_t = quill::LoggerImpl<ThroughputFrontendOptions>;
+#else
+// Quill's default frontend: an unbounded queue per thread that grows when it is full
+using frontend_t = quill::Frontend;
+using logger_t = quill::Logger;
+#endif
 
 #include <chrono>
 #include <iostream>
