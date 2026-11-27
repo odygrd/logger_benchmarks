@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_timer_only_call_site_latency_vector_largestr_single.exe
+pass: 1
+seed: 1803039289
+position: 0
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 101000 - Logger: Timer only - Benchmark: Caller Thread Latency - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  14.6  |  15.2  |  16.3  |  18.4  |  23.9  |  35.8  |  9512.3  |
+
+Thread Count 4 - Total messages 404000 - Logger: Timer only - Benchmark: Caller Thread Latency - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  15.7  |  16.3  |  19.0  |  22.2  |  25.5  |  58.1  |  33788.7  |
+
+
+exit code: 0
+wall time: 40.7 s
+delivery: no log file found

@@ -1,0 +1,21 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_ms_binlog_call_site_latency_disabled.exe
+pass: 2
+seed: 1803039289
+position: 12
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 2500000 - Logger: Ms binLog - Benchmark: Caller Thread Latency - Scenario: disabled_hot
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  5.4  |  5.6  |  5.7  |  5.7  |  5.9  |  8.2  |  8.9  |
+
+Cold cache check: sweeping 8192 KiB, a line read before the sweep reloads in 9.85044 ns (median)
+Thread Count 1 - Total messages 20500 - Logger: Ms binLog - Benchmark: Caller Thread Latency - Scenario: disabled_cold
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  129.7  |  153.0  |  170.4  |  183.9  |  240.9  |  329.3  |  7599.3  |
+
+
+exit code: 0
+wall time: 5.6 s
+delivery: not checked, disabled statements write nothing

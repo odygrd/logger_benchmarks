@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_boost_log_call_site_latency_int_int_largestr_burst.exe
+pass: 1
+seed: 1803039289
+position: 25
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 202000 - Logger: Boost.Log - Benchmark: Caller Thread Latency, Async - [benchmark_type: int_int_largestr] - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  1297.1  |  1351.9  |  1677.6  |  1800.4  |  2233.2  |  5701.6  |  14881.1  |
+
+Thread Count 4 - Total messages 808000 - Logger: Boost.Log - Benchmark: Caller Thread Latency, Async - [benchmark_type: int_int_largestr] - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  4391.7  |  4624.9  |  4858.5  |  5061.3  |  5407.2  |  7230.3  |  14452.9  |
+
+
+exit code: 0
+wall time: 43.2 s
+delivery: benchmark_boost_log_call_site_latency.log lines 1010006, expected >= 1010000: OK

@@ -1,0 +1,21 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_timer_only_call_site_latency_disabled.exe
+pass: 1
+seed: 1803039289
+position: 6
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 2500000 - Logger: Timer only - Benchmark: Caller Thread Latency - Scenario: disabled_hot
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  0.3  |  0.3  |  0.3  |  0.3  |  0.3  |  0.4  |  0.6  |
+
+Cold cache check: sweeping 8192 KiB, a line read before the sweep reloads in 9.47745 ns (median)
+Thread Count 1 - Total messages 20500 - Logger: Timer only - Benchmark: Caller Thread Latency - Scenario: disabled_cold
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  37.4  |  53.7  |  64.6  |  93.3  |  118.8  |  323.9  |  4567.1  |
+
+
+exit code: 0
+wall time: 2.6 s
+delivery: not checked, disabled statements write nothing

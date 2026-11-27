@@ -1,0 +1,75 @@
+Quill throughput on Windows, 1 producer thread (unless noted), 4,000,000 messages
+==================================================================================
+
+Machine: same Windows PC and checkout as the first Windows run, idle, MSVC 19.44 x64, Ninja, Release.
+Every run started with HIGH_PRIORITY_CLASS, as tools/run_all.py does on Windows.
+Rerun seed (tools/run_all.py --passes 3 --tag rerun): 1803039289
+
+Three configurations, million msgs/sec per run
+----------------------------------------------
+
+A. Old benchmark, commit 6ffd0f3 (git worktree, own build dir, same installed Boost)
+   5 alternating statements, Quill default unbounded queue, Quill d1cf141,
+   log_timestamp_ordering_grace_period 1 us
+   BENCHMARK_quill_backend_total_time:   5.74   5.64   5.66        (total ~700 ms)
+   Delivery: 4000002 lines in each run (warm-up + 4M + end), exit code 0.
+   The queue grows to 128 MiB during the run.
+
+B. Current benchmark, master 5102ef9: 256 statements, Quill default unbounded queue, Quill 1a0fa1d,
+   default grace period (5 us)
+   BENCHMARK_quill_backend_total_time:            4.30   4.29   4.36   (total ~925 ms, producer done ~150 ms)
+   BENCHMARK_quill_backend_total_time_4_threads:  4.32   4.30   4.30   (total ~930 ms, producers done ~41 ms)
+   The queue also grows to 128 MiB.
+
+C. Current benchmark with a 1 MiB bounded blocking queue, Quill 1a0fa1d (yield before sleeping)
+   BENCHMARK_quill_bounded_blocking_backend_total_time:  1.50   1.49   1.51   (total ~2660 ms, producer done ~2660 ms)
+   First Windows run today, same design with Quill 5741442 (no yield): 1.50   1.48   1.51
+
+Breakdown of the drop from ~5.7 to ~1.5
+---------------------------------------
+
+1. A -> B, 5.7 -> 4.3 (-24%). The queue type is the same (unbounded) in both. What changed: 256 distinct
+   statements in a pseudo-random order instead of 5 alternating ones, different argument types per
+   statement, Quill d1cf141 -> 1a0fa1d, grace period 1 us -> 5 us. In both A and B the producer
+   finishes long before the backend (150 ms of ~925 ms in B), so this is the backend's speed:
+   decoding and formatting 256 different statements costs more per message than 5 hot ones. These
+   runs do not separate the statement count from the Quill version or the grace period.
+   The ~5 M msg/s seen before matches A.
+
+2. B -> C, 4.3 -> 1.5 (-65%). This is the largest part of the drop, and the only difference is the
+   queue: same binary source, statements and Quill, but a 1 MiB bounded blocking queue instead of
+   the default unbounded one. In C the producer finishes only when the backend does, so it waits
+   on the queue.
+
+3. The yield-before-sleep fix in Quill 1a0fa1d did not change C (1.50/1.49/1.51 now against
+   1.50/1.48/1.51 with 5741442).
+
+Extra measurements for C (no source changes)
+--------------------------------------------
+
+- Process CPU time, one run each with high priority:
+    bounded blocking: wall 2.67 s, user 2.50 s + kernel 0.14 s = 2.64 s CPU  (1.52 M msg/s)
+    unbounded:        wall 0.96 s, user 1.19 s + kernel 0.67 s = 1.86 s CPU  (4.37 M msg/s)
+  The backend spins (sleep_duration 0) for the whole run, so in the bounded run nearly all of the
+  2.64 s of CPU is the backend. The producer is off-CPU, sleeping in the blocking retry loop, for most of the run.
+- Sleep(1) on this machine, from a process that does not raise the timer resolution: 15.5 ms on average.
+  With blocking_queue_retry_interval_ns = 800, once the 64 yields are used up each retry calls
+  Sleep(1), and that takes ~15.5 ms here, not 1 ms.
+- Quill's "Experienced N blocking occurrences" reports add up to only 6-9 blocked calls per run
+  (7, 6, 9 in the three rerun passes, 4 in each pass of the first run). The counter is
+  incremented once per blocked call, not per retry, so each blocked call lasts hundreds of ms,
+  that is many 15.5 ms sleeps in a row.
+- On an idle core, 64 SwitchToThread calls return in microseconds. The backend publishes its read
+  position every 5% of the queue (~52 KiB) or when it has drained the queue. So the yields almost
+  never last long enough, and the producer drops into the 15.5 ms sleeps.
+
+Conclusion: the drop from the old ~5 M msg/s to 1.5 M msg/s comes mostly from the 1 MiB bounded
+blocking queue. On Windows a blocked producer spends its time in Sleep(1) calls that last ~15.5 ms,
+and the yield fix does not bridge the wait. A smaller part, ~5.7 -> ~4.3, comes from the new
+workload with 256 statements and/or the Quill update. With the default unbounded queue, as
+published now, Quill measures 4.3 M msg/s for 1 and 4 producers.
+
+Not established: why one blocked call stays blocked for hundreds of ms while the backend spins.
+The spinning backend should drain a 1 MiB queue in a few ms. Explaining that would need
+instrumentation in Quill, for example timing each blocked call and counting its retries, which
+was outside this task.

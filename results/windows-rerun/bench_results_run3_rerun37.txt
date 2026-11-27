@@ -1,0 +1,14 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\backend_total_time\BENCHMARK_ms_binlog_backend_total_time_4_threads.exe
+pass: 3
+seed: 1803039289
+position: 37
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+throughput is 33.14 million msgs/sec average, total time elapsed: 120 ms, producer threads: 4, producers done after: 120 ms, log file size 148.82 MB, expected log lines: 4000006
+
+
+exit code: 0
+wall time: 1.2 s
+delivery: benchmark_ms_binlog_backend_total_time.blog binary, not checked

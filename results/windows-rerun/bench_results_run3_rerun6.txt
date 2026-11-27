@@ -1,0 +1,17 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_boost_log_call_site_latency_vector_largestr_cold.exe
+pass: 3
+seed: 1803039289
+position: 6
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Cold cache check: sweeping 8192 KiB, a line read before the sweep reloads in 10.0878 ns (median)
+Thread Count 1 - Total messages 20500 - Logger: Boost.Log - Benchmark: Caller Thread Latency, Async - [benchmark_type: vector_largestr] - Scenario: cold
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  9191.1  |  9582.8  |  9969.7  |  10374.9  |  13217.8  |  36746.0  |  225476.0  |
+
+
+exit code: 0
+wall time: 2.5 s
+delivery: benchmark_boost_log_call_site_latency.log lines 20502, expected >= 20500: OK

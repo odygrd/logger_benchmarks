@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_timer_only_call_site_latency_int_int_largestr_burst.exe
+pass: 3
+seed: 1803039289
+position: 34
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 202000 - Logger: Timer only - Benchmark: Caller Thread Latency - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  1.2  |  1.4  |  1.6  |  1.8  |  2.8  |  8.4  |  16.7  |
+
+Thread Count 4 - Total messages 808000 - Logger: Timer only - Benchmark: Caller Thread Latency - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  1.4  |  1.7  |  1.8  |  2.4  |  5.9  |  11.4  |  300.2  |
+
+
+exit code: 0
+wall time: 42.7 s
+delivery: no log file found

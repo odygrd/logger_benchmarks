@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_ms_binlog_call_site_latency_int_int_double_burst.exe
+pass: 1
+seed: 1803039289
+position: 30
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 202000 - Logger: Ms binLog - Benchmark: Caller Thread Latency - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  60.4  |  67.4  |  73.0  |  78.0  |  100.7  |  381.8  |  1680.1  |
+
+Thread Count 4 - Total messages 808000 - Logger: Ms binLog - Benchmark: Caller Thread Latency - Scenario: burst
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  84.6  |  93.6  |  107.9  |  121.3  |  145.0  |  470.8  |  3015.6  |
+
+
+exit code: 0
+wall time: 45.7 s
+delivery: binlog_call_site_latency_percentile_linux_benchmark.blog binary, not checked

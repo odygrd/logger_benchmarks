@@ -1,0 +1,21 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_boost_log_call_site_latency_disabled.exe
+pass: 1
+seed: 1803039289
+position: 15
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 2500000 - Logger: Boost.Log - Benchmark: Caller Thread Latency, Async - [benchmark_type: int_int_double] - Scenario: disabled_hot
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  80.2  |  82.1  |  82.6  |  83.3  |  92.7  |  194.1  |  1539.9  |
+
+Cold cache check: sweeping 8192 KiB, a line read before the sweep reloads in 9.11293 ns (median)
+Thread Count 1 - Total messages 20500 - Logger: Boost.Log - Benchmark: Caller Thread Latency, Async - [benchmark_type: int_int_double] - Scenario: disabled_cold
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  466.0  |  506.7  |  730.3  |  849.6  |  1112.7  |  2437.6  |  160418.5  |
+
+
+exit code: 0
+wall time: 3.0 s
+delivery: not checked, disabled statements write nothing

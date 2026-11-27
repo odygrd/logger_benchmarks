@@ -1,0 +1,17 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_ms_binlog_call_site_latency_int_int_double_cold.exe
+pass: 2
+seed: 1803039289
+position: 9
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Cold cache check: sweeping 8192 KiB, a line read before the sweep reloads in 9.37574 ns (median)
+Thread Count 1 - Total messages 20500 - Logger: Ms binLog - Benchmark: Caller Thread Latency - Scenario: cold
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  205.6  |  224.1  |  272.4  |  463.3  |  823.0  |  2345.4  |  30165.7  |
+
+
+exit code: 0
+wall time: 4.2 s
+delivery: binlog_call_site_latency_percentile_linux_benchmark.blog binary, not checked

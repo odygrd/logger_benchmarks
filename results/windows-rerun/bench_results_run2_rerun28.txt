@@ -1,0 +1,28 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\backend_total_time\BENCHMARK_quill_with_functions_backend_total_time.exe
+pass: 2
+seed: 1803039289
+position: 28
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+throughput is 3.60 million msgs/sec average, total time elapsed: 1112 ms, producer threads: 1, producers done after: 178 ms, log file size 398.31 MB, expected log lines: 4000003
+
+
+stderr:
+16:20:50 Quill INFO: Allocated a new SPSC queue with a capacity of 256 KiB (previously 128 KiB) from thread 56656
+16:20:50 Quill INFO: Allocated a new SPSC queue with a capacity of 512 KiB (previously 256 KiB) from thread 56656
+16:20:50 Quill INFO: Allocated a new SPSC queue with a capacity of 1024 KiB (previously 512 KiB) from thread 56656
+16:20:50 Quill INFO: Allocated a new SPSC queue with a capacity of 2048 KiB (previously 1024 KiB) from thread 56656
+16:20:50 Quill INFO: Allocated a new SPSC queue with a capacity of 4096 KiB (previously 2048 KiB) from thread 56656
+16:20:50 Quill INFO: Allocated a new SPSC queue with a capacity of 8192 KiB (previously 4096 KiB) from thread 56656
+16:20:50 Quill INFO: Allocated a new SPSC queue with a capacity of 16384 KiB (previously 8192 KiB) from thread 56656
+16:20:50 Quill INFO: Allocated a new SPSC queue with a capacity of 32768 KiB (previously 16384 KiB) from thread 56656
+16:20:50 Quill INFO: Allocated a new SPSC queue with a capacity of 65536 KiB (previously 32768 KiB) from thread 56656
+16:20:51 Quill INFO: Allocated a new SPSC queue with a capacity of 131072 KiB (previously 65536 KiB) from thread 56656
+16:20:51 Quill INFO: Allocated a new SPSC queue with a capacity of 262144 KiB (previously 131072 KiB) from thread 56656
+
+
+exit code: 0
+wall time: 1.4 s
+delivery: benchmark_quill_backend_total_time.log lines 4000003, expected == 4000003: OK

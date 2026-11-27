@@ -1,0 +1,14 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\backend_total_time\BENCHMARK_boost_log_backend_total_time_4_threads.exe
+pass: 2
+seed: 1803039289
+position: 15
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+throughput is 0.52 million msgs/sec average, total time elapsed: 7729 ms, producer threads: 4, producers done after: 5248 ms, log file size 407.68 MB, expected log lines: 4000006
+
+
+exit code: 0
+wall time: 8.1 s
+delivery: benchmark_boost_log_backend_total_time.log lines 4000006, expected == 4000006: OK

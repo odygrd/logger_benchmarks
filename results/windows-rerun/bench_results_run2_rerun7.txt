@@ -1,0 +1,20 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\call_site_latency\benchmark_boost_log_call_site_latency_vector_largestr_single.exe
+pass: 2
+seed: 1803039289
+position: 7
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+Thread Count 1 - Total messages 101000 - Logger: Boost.Log - Benchmark: Caller Thread Latency, Async - [benchmark_type: vector_largestr] - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  6371.6  |  6582.1  |  6955.3  |  7444.2  |  11284.8  |  30696.2  |  260906.6  |
+
+Thread Count 4 - Total messages 404000 - Logger: Boost.Log - Benchmark: Caller Thread Latency, Async - [benchmark_type: vector_largestr] - Scenario: single
+ |  50th | 75th | 90th | 95th | 99th | 99.9th | Worst |
+ |  10214.3  |  10803.5  |  11511.0  |  12044.9  |  13499.4  |  29205.9  |  248173.4  |
+
+
+exit code: 0
+wall time: 41.4 s
+delivery: benchmark_boost_log_call_site_latency.log lines 505006, expected >= 505000: OK

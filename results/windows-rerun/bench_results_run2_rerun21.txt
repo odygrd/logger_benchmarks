@@ -1,0 +1,53 @@
+bench: C:\Users\odygr\CLionProjects\logger_benchmarks\cmake-build-release\benchmarks\backend_total_time\BENCHMARK_quill_with_functions_backend_total_time_4_threads.exe
+pass: 2
+seed: 1803039289
+position: 21
+platform: Windows-11-10.0.26300-SP0
+python: 3.12.15
+processor: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+
+throughput is 3.21 million msgs/sec average, total time elapsed: 1247 ms, producer threads: 4, producers done after: 50 ms, log file size 398.31 MB, expected log lines: 4000006
+
+
+stderr:
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 256 KiB (previously 128 KiB) from thread 67416
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 256 KiB (previously 128 KiB) from thread 64360
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 256 KiB (previously 128 KiB) from thread 50928
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 256 KiB (previously 128 KiB) from thread 55268
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 512 KiB (previously 256 KiB) from thread 67416
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 512 KiB (previously 256 KiB) from thread 64360
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 512 KiB (previously 256 KiB) from thread 50928
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 512 KiB (previously 256 KiB) from thread 55268
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 1024 KiB (previously 512 KiB) from thread 55268
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 1024 KiB (previously 512 KiB) from thread 50928
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 1024 KiB (previously 512 KiB) from thread 67416
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 1024 KiB (previously 512 KiB) from thread 64360
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 2048 KiB (previously 1024 KiB) from thread 50928
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 2048 KiB (previously 1024 KiB) from thread 55268
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 2048 KiB (previously 1024 KiB) from thread 67416
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 2048 KiB (previously 1024 KiB) from thread 64360
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 4096 KiB (previously 2048 KiB) from thread 67416
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 4096 KiB (previously 2048 KiB) from thread 64360
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 4096 KiB (previously 2048 KiB) from thread 50928
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 4096 KiB (previously 2048 KiB) from thread 55268
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 8192 KiB (previously 4096 KiB) from thread 55268
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 8192 KiB (previously 4096 KiB) from thread 50928
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 8192 KiB (previously 4096 KiB) from thread 67416
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 8192 KiB (previously 4096 KiB) from thread 64360
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 16384 KiB (previously 8192 KiB) from thread 64360
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 16384 KiB (previously 8192 KiB) from thread 55268
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 16384 KiB (previously 8192 KiB) from thread 67416
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 16384 KiB (previously 8192 KiB) from thread 50928
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 32768 KiB (previously 16384 KiB) from thread 50928
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 32768 KiB (previously 16384 KiB) from thread 67416
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 32768 KiB (previously 16384 KiB) from thread 64360
+16:17:54 Quill INFO: Allocated a new SPSC queue with a capacity of 32768 KiB (previously 16384 KiB) from thread 55268
+16:17:55 Quill INFO: Allocated a new SPSC queue with a capacity of 65536 KiB (previously 32768 KiB) from thread 50928
+16:17:55 Quill INFO: Allocated a new SPSC queue with a capacity of 65536 KiB (previously 32768 KiB) from thread 67416
+16:17:55 Quill INFO: Allocated a new SPSC queue with a capacity of 65536 KiB (previously 32768 KiB) from thread 64360
+16:17:55 Quill INFO: Allocated a new SPSC queue with a capacity of 65536 KiB (previously 32768 KiB) from thread 55268
+
+
+exit code: 0
+wall time: 1.6 s
+delivery: benchmark_quill_backend_total_time.log lines 4000006, expected == 4000006: OK
