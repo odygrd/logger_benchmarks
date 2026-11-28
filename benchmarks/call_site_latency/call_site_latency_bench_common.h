@@ -107,6 +107,66 @@ inline void bench_compiler_barrier() noexcept
 #endif
 }
 
+#if defined(_MSC_VER) && !defined(__clang__)
+  #define BENCH_NOINLINE __declspec(noinline)
+#else
+  #define BENCH_NOINLINE __attribute__((noinline))
+#endif
+
+/**
+ * Spins for the given number of iterations of a loop of one decrement and branch. The empty
+ * statement keeps the compiler from removing the loop and adds no instruction with GCC and Clang.
+ * It is never inlined, so every caller runs the same loop at the same speed.
+ */
+BENCH_NOINLINE inline void bench_counted_spin(uint64_t iterations) noexcept
+{
+  for (; iterations != 0; --iterations)
+  {
+#if defined(_MSC_VER) && !defined(__clang__)
+    __nop();
+#else
+    asm volatile("");
+#endif
+  }
+}
+
+/**
+ * Has no value of its own: computing its address makes a thread read its thread pointer
+ */
+inline thread_local char bench_thread_local_anchor = 0;
+
+/**
+ * Written by bench_touch_thread_state(), which puts the page of the benchmark's own globals in the
+ * TLB: the variable that the timer only benchmark stores to is on it
+ */
+inline std::atomic<uintptr_t> g_bench_thread_state_sink{0};
+
+/**
+ * Puts back in the cache what a running thread always has there and the cache sweep of the cold
+ * scenarios evicted with the rest:
+ * - The 4 KiB of stack below the caller, where the timed function and the functions of the logger
+ *   that it calls have their frames. One byte of every cache line is written, and the fence waits
+ *   until the writes have reached the cache.
+ * - The thread pointer, which computing the address of a thread local reads.
+ * - The translation of the page of the benchmark's own globals.
+ *
+ * The data of the logger stays evicted. It is never inlined, so that its frame is where those
+ * frames will be.
+ */
+BENCH_NOINLINE inline void bench_touch_thread_state() noexcept
+{
+  volatile char frame[4096];
+  for (size_t i = 0; i < sizeof(frame); i += 64)
+  {
+    frame[i] = 0;
+  }
+  frame[sizeof(frame) - 1] = 0;
+
+  g_bench_thread_state_sink.store(reinterpret_cast<uintptr_t>(&bench_thread_local_anchor), std::memory_order_relaxed);
+
+  _mm_mfence();
+}
+
 /**
  * The calls of bench_expensive_argument() and the result of its last call
  */
@@ -120,12 +180,7 @@ inline std::atomic<uint64_t> g_bench_expensive_argument_state{0};
  * from the result of the call before it, so the CPU cannot run two calls at the same time and
  * every call takes the whole time. It is called by one thread.
  */
-#if defined(_MSC_VER) && !defined(__clang__)
-__declspec(noinline)
-#else
-__attribute__((noinline))
-#endif
-inline double bench_expensive_argument(double value) noexcept
+BENCH_NOINLINE inline double bench_expensive_argument(double value) noexcept
 {
   g_bench_expensive_argument_calls.store(g_bench_expensive_argument_calls.load(std::memory_order_relaxed) + 1,
                                          std::memory_order_relaxed);

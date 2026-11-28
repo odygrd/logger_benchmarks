@@ -15,6 +15,7 @@
 #include <random>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 #if !defined(_WIN32)
@@ -167,6 +168,19 @@ private:
 /**
  * A shared schedule of sample start times. Every thread draws the same sequence of gaps, so with
  * several threads the calls of a sample are made at the same time.
+ *
+ * A thread waits for its next start time in two stages: counted loops of one decrement and branch
+ * for most of the gap, then a loop that reads the timestamp counter for the last 16 to 20 us. Both
+ * are needed on the Intel Golden Cove cores these benchmarks run on:
+ * - Reading the timestamp counter for the whole gap leaves the branch predictor in a state that an
+ *   application does not log from. After about 40 us in one small loop that is fetched and predicted
+ *   on every iteration, the first taken branches after the loop are mispredicted, on every sample,
+ *   and one of them can be a branch of the timed log call: about 8 ns added to a call of 5 ns. The
+ *   counted loop is replayed from the loop buffer of the CPU without the branch predictor, and the
+ *   timestamp loop that follows it is shorter than that.
+ * - A counted loop until the start time leaves a second effect: with four threads leaving it at the
+ *   same time, the calls made in the first microseconds after it stall for about 10 ns, in up to a
+ *   third of the samples. After 16 us or more of the timestamp loop they do not.
  */
 class Schedule
 {
@@ -174,15 +188,53 @@ public:
   Schedule(uint64_t start_tsc, double ns_rdtsc_tick)
     : _next(start_tsc), _ticks_per_ns(1.0 / ns_rdtsc_tick), _gen(0x51ee'50a7u),
       _dist(static_cast<int64_t>(std::chrono::nanoseconds{MIN_WAIT_DURATION}.count()),
-            static_cast<int64_t>(std::chrono::nanoseconds{MAX_WAIT_DURATION}.count()))
+            static_cast<int64_t>(std::chrono::nanoseconds{MAX_WAIT_DURATION}.count())),
+      _fine_wait_ticks(static_cast<uint64_t>(fine_wait_ns * _ticks_per_ns))
   {
+    // The speed of the counted loop on this core: the fastest of a few runs
+    for (int trial = 0; trial < 3; ++trial)
+    {
+      uint64_t const begin = __rdtsc();
+      bench_counted_spin(calibration_iterations);
+      uint64_t const elapsed = __rdtsc() - begin;
+      _iterations_per_tick =
+        std::max(_iterations_per_tick, static_cast<double>(calibration_iterations) / static_cast<double>(elapsed));
+    }
+    _min_iterations_per_tick = _iterations_per_tick / 8;
   }
 
   /**
-   * Spins until the next start time. A thread that fell behind starts at once.
+   * Waits until the next start time. A thread that fell behind starts at once.
+   *
+   * It is never inlined, so that the benchmark loop is compiled the same way whatever this
+   * function does.
    */
-  void wait_next() noexcept
+  BENCH_NOINLINE void wait_next() noexcept
   {
+    // Counted loops until less than a quarter more than the fine wait is left. Each one aims short
+    // of the start of the fine wait, so that a loop that runs slower than the last one did does not
+    // overrun it.
+    for (;;)
+    {
+      uint64_t const now = __rdtsc();
+      if ((now >= _next) || ((_next - now) <= _fine_wait_ticks + _fine_wait_ticks / 4))
+      {
+        break;
+      }
+
+      uint64_t const iterations = static_cast<uint64_t>(
+        static_cast<double>(_next - now - _fine_wait_ticks) * _iterations_per_tick * coarse_wait_fraction);
+      bench_counted_spin(iterations);
+
+      if (iterations >= min_measured_iterations)
+      {
+        // Follow the speed of the core. The floor keeps one interrupted loop from shrinking the
+        // loops that follow it to nothing.
+        _iterations_per_tick = std::max(
+          _min_iterations_per_tick, static_cast<double>(iterations) / static_cast<double>(__rdtsc() - now));
+      }
+    }
+
     while (__rdtsc() < _next)
     {
     }
@@ -190,10 +242,20 @@ public:
   }
 
 private:
+  // The timestamp loop runs for this and up to a quarter more: long enough for the second effect
+  // above, and short of the first
+  static constexpr double fine_wait_ns = 16'000.0;
+  static constexpr double coarse_wait_fraction = 15.0 / 16.0;
+  static constexpr uint64_t calibration_iterations = uint64_t{1} << 16;
+  static constexpr uint64_t min_measured_iterations = uint64_t{1} << 12;
+
   uint64_t _next;
   double _ticks_per_ns;
   std::mt19937 _gen;
   std::uniform_int_distribution<int64_t> _dist;
+  uint64_t _fine_wait_ticks;
+  double _iterations_per_tick{0};
+  double _min_iterations_per_tick{0};
 };
 
 inline void wait_for_all_threads_to_start(std::atomic<size_t>& started_threads, size_t participant_count,
@@ -291,17 +353,64 @@ inline void touch_payload(bench_payload_t const& payload, std::atomic<size_t>& s
 }
 
 /**
- * How a sample is measured
+ * Reads what the callable that makes the log call has captured, so that what the benchmark itself
+ * keeps for the call is in the cache when the call starts, as the payload is: the pointer to the
+ * logger, for the libraries that are given one. The logger it points to is not read.
+ */
+template <typename TLogFunc>
+inline void touch_log_func([[maybe_unused]] TLogFunc const& log_func, [[maybe_unused]] std::atomic<size_t>& sink) noexcept
+{
+  if constexpr (!std::is_empty_v<TLogFunc>)
+  {
+    auto const* bytes = reinterpret_cast<unsigned char const*>(&log_func);
+    size_t sum = 0;
+    for (size_t i = 0; i < sizeof(TLogFunc); ++i)
+    {
+      sum += bytes[i];
+    }
+    sink.store(sum, std::memory_order_relaxed);
+  }
+}
+
+/**
+ * How a sample is measured. The number of calls per sample is a template argument of the functions
+ * below, a constant of the scenario.
  */
 struct SampleMode
 {
   char const* name;
-  size_t calls_per_sample;
   bool cold;
 };
 
+/**
+ * The timed region: CallsPerSample calls between two reads of the timestamp counter. Returns the
+ * ticks between the two reads.
+ *
+ * It is a function of its own, never inlined, so that nothing of the harness is in the timed region:
+ * - What the calls need from the harness arrives in registers, as arguments. Inlined into the
+ *   benchmark loop, the compiler kept the number of calls per sample on the stack for some
+ *   libraries and read it back between the two timestamps, from a cache line that the cold
+ *   scenarios had evicted.
+ * - The number of calls is a constant: with one call per sample the region is the call alone,
+ *   without the branches of a loop around it.
+ * - The region is compiled the same way whatever the rest of the harness does.
+ */
+template <size_t CallsPerSample, typename TLogFunc>
+BENCH_NOINLINE uint64_t bench_timed_calls(TLogFunc const& log_func, size_t i, bench_payload_t const& v)
+{
+  uint64_t const start = serialized_rdtsc();
+  for (size_t j = 0; j < CallsPerSample; ++j)
+  {
+    log_func(i, j, v);
+    // Emits no instruction, and every scenario makes it after every call
+    bench_compiler_barrier();
+  }
+  uint64_t const end = serialized_rdtsc();
+  return end - start;
+}
+
 /***/
-template <typename TOnThreadStart, typename TLogFunc, typename TOnThreadExit>
+template <size_t CallsPerSample, typename TOnThreadStart, typename TLogFunc, typename TOnThreadExit>
 inline void run_log_benchmark(size_t num_iterations, SampleMode mode, TOnThreadStart const& on_thread_start,
                               TLogFunc const& log_func, TOnThreadExit const& on_thread_exit,
                               std::atomic<size_t>& started_threads, std::atomic<uint64_t>& start_tsc,
@@ -324,7 +433,6 @@ inline void run_log_benchmark(size_t num_iterations, SampleMode mode, TOnThreadS
 
   Schedule schedule{start_tsc.load(std::memory_order_acquire), ns_rdtsc_tick};
   size_t const total_iterations = WARMUP_ITERATIONS + num_iterations;
-  size_t const calls_per_sample = mode.calls_per_sample;
   latencies.reserve(num_iterations);
 
   for (size_t i = 0; i < total_iterations; ++i)
@@ -336,24 +444,18 @@ inline void run_log_benchmark(size_t num_iterations, SampleMode mode, TOnThreadS
     if (sweeper)
     {
       sweeper->sweep();
+      // The sweep also evicted what a running thread always has in its cache
+      bench_touch_thread_state();
     }
     touch_payload(v, payload_sink);
+    touch_log_func(log_func, payload_sink);
 
-    auto const start = serialized_rdtsc();
-    for (size_t j = 0; j < calls_per_sample; ++j)
-    {
-      log_func(i, j, v);
-      // Emits no instruction. It is not behind a flag of the mode: the flag would be read from
-      // memory in the timed loop, from a cache line that the cold scenarios have evicted.
-      bench_compiler_barrier();
-    }
-    auto const end = serialized_rdtsc();
+    uint64_t const ticks = bench_timed_calls<CallsPerSample>(log_func, i, v);
 
     // The first iterations warm up the logger and are not recorded
     if (i >= WARMUP_ITERATIONS)
     {
-      latencies.push_back(static_cast<double>(end - start) * ns_rdtsc_tick /
-                          static_cast<double>(calls_per_sample));
+      latencies.push_back(static_cast<double>(ticks) * ns_rdtsc_tick / static_cast<double>(CallsPerSample));
     }
   }
 
@@ -390,7 +492,7 @@ inline void print_latency_results(char const* benchmark_name, SampleMode mode, i
 }
 
 /***/
-template <typename TOnThreadStart, typename TLogFunc, typename TOnThreadExit>
+template <size_t CallsPerSample, typename TOnThreadStart, typename TLogFunc, typename TOnThreadExit>
 inline void run_benchmark_mode(char const* benchmark_name, SampleMode mode, int32_t thread_count,
                                size_t num_iterations, TOnThreadStart const& on_thread_start,
                                TLogFunc const& log_func, TOnThreadExit const& on_thread_exit)
@@ -418,7 +520,8 @@ inline void run_benchmark_mode(char const* benchmark_name, SampleMode mode, int3
 
   for (size_t thread_num = 0; thread_num < thread_count_size; ++thread_num)
   {
-    threads.emplace_back(run_log_benchmark<TOnThreadStart, TLogFunc, TOnThreadExit>, num_iterations, mode,
+    threads.emplace_back(run_log_benchmark<CallsPerSample, TOnThreadStart, TLogFunc, TOnThreadExit>,
+                         num_iterations, mode,
                          std::cref(on_thread_start), std::cref(log_func), std::cref(on_thread_exit),
                          std::ref(started_threads), std::ref(start_tsc), thread_count_size, thread_num + 1,
                          std::ref(latencies[thread_num]), ns_rdtsc_tick);
@@ -436,7 +539,7 @@ inline void run_benchmark_mode(char const* benchmark_name, SampleMode mode, int3
     latencies_combined.insert(latencies_combined.end(), elem.begin(), elem.end());
   }
 
-  size_t const total_messages = (WARMUP_ITERATIONS + num_iterations) * mode.calls_per_sample * thread_count_size;
+  size_t const total_messages = (WARMUP_ITERATIONS + num_iterations) * CallsPerSample * thread_count_size;
   print_latency_results(benchmark_name, mode, thread_count, total_messages, latencies_combined);
 
 #if defined(BENCH_DISABLED_EXPENSIVE_ARG)
@@ -448,12 +551,13 @@ inline void run_benchmark_mode(char const* benchmark_name, SampleMode mode, int3
 }
 
 /**
- * Runs the scenario the benchmark is built for. messages_per_iteration is the number of calls
- * each thread makes per sample.
+ * Runs the scenario the benchmark is built for. Each thread makes MESSAGES_PER_ITERATION calls per
+ * sample, a constant of the scenario: the messages_per_iteration argument is kept for the callers
+ * and must be that constant.
  */
 template <typename TOnThreadStart, typename TLogFunc, typename TOnThreadExit>
 inline void run_benchmark(char const* benchmark_name, int32_t thread_count, size_t num_iterations,
-                          size_t messages_per_iteration, TOnThreadStart const& on_thread_start,
+                          [[maybe_unused]] size_t messages_per_iteration, TOnThreadStart const& on_thread_start,
                           TLogFunc const& log_func, TOnThreadExit const& on_thread_exit)
 {
   if (thread_count <= 0)
@@ -462,19 +566,25 @@ inline void run_benchmark(char const* benchmark_name, int32_t thread_count, size
     return;
   }
 
-#if defined(BENCH_SCENARIO_DISABLED) && defined(BENCH_DISABLED_EXPENSIVE_ARG)
-  run_benchmark_mode(benchmark_name, SampleMode{"disabled_argument", DISABLED_HOT_CALLS, false}, thread_count,
-                     num_iterations / 10, on_thread_start, log_func, on_thread_exit);
-#elif defined(BENCH_SCENARIO_DISABLED)
-  run_benchmark_mode(benchmark_name, SampleMode{"disabled_hot", DISABLED_HOT_CALLS, false}, thread_count,
-                     num_iterations / 10, on_thread_start, log_func, on_thread_exit);
-  run_benchmark_mode(benchmark_name, SampleMode{"disabled_cold", 1, true}, thread_count, num_iterations,
-                     on_thread_start, log_func, on_thread_exit);
-#elif defined(BENCH_COLD_CACHE)
-  run_benchmark_mode(benchmark_name, SampleMode{bench_scenario_name(), messages_per_iteration, true},
-                     thread_count, num_iterations, on_thread_start, log_func, on_thread_exit);
+#if defined(BENCH_SCENARIO_DISABLED)
+  constexpr size_t hot_calls = DISABLED_HOT_CALLS;
 #else
-  run_benchmark_mode(benchmark_name, SampleMode{bench_scenario_name(), messages_per_iteration, false},
-                     thread_count, num_iterations, on_thread_start, log_func, on_thread_exit);
+  constexpr size_t calls_per_sample = MESSAGES_PER_ITERATION;
+#endif
+
+#if defined(BENCH_SCENARIO_DISABLED) && defined(BENCH_DISABLED_EXPENSIVE_ARG)
+  run_benchmark_mode<hot_calls>(benchmark_name, SampleMode{"disabled_argument", false}, thread_count,
+                                num_iterations / 10, on_thread_start, log_func, on_thread_exit);
+#elif defined(BENCH_SCENARIO_DISABLED)
+  run_benchmark_mode<hot_calls>(benchmark_name, SampleMode{"disabled_hot", false}, thread_count,
+                                num_iterations / 10, on_thread_start, log_func, on_thread_exit);
+  run_benchmark_mode<1>(benchmark_name, SampleMode{"disabled_cold", true}, thread_count, num_iterations,
+                        on_thread_start, log_func, on_thread_exit);
+#elif defined(BENCH_COLD_CACHE)
+  run_benchmark_mode<calls_per_sample>(benchmark_name, SampleMode{bench_scenario_name(), true}, thread_count,
+                                       num_iterations, on_thread_start, log_func, on_thread_exit);
+#else
+  run_benchmark_mode<calls_per_sample>(benchmark_name, SampleMode{bench_scenario_name(), false}, thread_count,
+                                       num_iterations, on_thread_start, log_func, on_thread_exit);
 #endif
 }
