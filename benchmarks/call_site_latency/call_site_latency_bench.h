@@ -15,7 +15,6 @@
 #include <random>
 #include <string>
 #include <thread>
-#include <type_traits>
 #include <vector>
 
 #if !defined(_WIN32)
@@ -328,7 +327,7 @@ inline std::vector<bench_payload_t> make_payloads([[maybe_unused]] size_t thread
  * Reads the payload so it is in the cache when the call starts, as an argument the caller has
  * just computed would be
  */
-inline void touch_payload(bench_payload_t const& payload, std::atomic<size_t>& sink) noexcept
+inline void touch_payload(bench_payload_t const& payload, volatile size_t& sink) noexcept
 {
 #if defined(BENCH_VECTOR_LARGESTR)
   size_t sum = 0;
@@ -339,37 +338,17 @@ inline void touch_payload(bench_payload_t const& payload, std::atomic<size_t>& s
       sum += static_cast<unsigned char>(c);
     }
   }
-  sink.store(sum, std::memory_order_relaxed);
+  sink = sum;
 #elif defined(BENCH_INT_INT_LARGESTR)
   size_t sum = 0;
   for (char c : payload)
   {
     sum += static_cast<unsigned char>(c);
   }
-  sink.store(sum, std::memory_order_relaxed);
+  sink = sum;
 #else
-  sink.store(static_cast<size_t>(payload), std::memory_order_relaxed);
+  sink = static_cast<size_t>(payload);
 #endif
-}
-
-/**
- * Reads what the callable that makes the log call has captured, so that what the benchmark itself
- * keeps for the call is in the cache when the call starts, as the payload is: the pointer to the
- * logger, for the libraries that are given one. The logger it points to is not read.
- */
-template <typename TLogFunc>
-inline void touch_log_func([[maybe_unused]] TLogFunc const& log_func, [[maybe_unused]] std::atomic<size_t>& sink) noexcept
-{
-  if constexpr (!std::is_empty_v<TLogFunc>)
-  {
-    auto const* bytes = reinterpret_cast<unsigned char const*>(&log_func);
-    size_t sum = 0;
-    for (size_t i = 0; i < sizeof(TLogFunc); ++i)
-    {
-      sum += bytes[i];
-    }
-    sink.store(sum, std::memory_order_relaxed);
-  }
 }
 
 /**
@@ -421,7 +400,7 @@ inline void run_log_benchmark(size_t num_iterations, SampleMode mode, TOnThreadS
   set_thread_affinity(current_thread_num);
 
   std::vector<bench_payload_t> const payloads = make_payloads(current_thread_num);
-  std::atomic<size_t> payload_sink{0};
+  volatile size_t payload_sink{0};
   std::unique_ptr<CacheSweeper> sweeper;
   if (mode.cold)
   {
@@ -448,7 +427,6 @@ inline void run_log_benchmark(size_t num_iterations, SampleMode mode, TOnThreadS
       bench_touch_thread_state();
     }
     touch_payload(v, payload_sink);
-    touch_log_func(log_func, payload_sink);
 
     uint64_t const ticks = bench_timed_calls<CallsPerSample>(log_func, i, v);
 

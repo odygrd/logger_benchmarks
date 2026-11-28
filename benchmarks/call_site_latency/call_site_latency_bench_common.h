@@ -136,22 +136,17 @@ BENCH_NOINLINE inline void bench_counted_spin(uint64_t iterations) noexcept
 inline thread_local char bench_thread_local_anchor = 0;
 
 /**
- * Written by bench_touch_thread_state(), which puts the page of the benchmark's own globals in the
- * TLB: the variable that the timer only benchmark stores to is on it
- */
-inline std::atomic<uintptr_t> g_bench_thread_state_sink{0};
-
-/**
  * Puts back in the cache what a running thread always has there and the cache sweep of the cold
  * scenarios evicted with the rest:
  * - The 4 KiB of stack below the caller, where the timed function and the functions of the logger
  *   that it calls have their frames. One byte of every cache line is written, and the fence waits
  *   until the writes have reached the cache.
  * - The thread pointer, which computing the address of a thread local reads.
- * - The translation of the page of the benchmark's own globals.
  *
- * The data of the logger stays evicted. It is never inlined, so that its frame is where those
- * frames will be.
+ * Everything else stays evicted, the logger's data included: nothing is written to a global,
+ * which could share a cache line with a logger's state. It is never inlined, so that its frame is
+ * where the frames of the timed call will be. Both addresses are stored to volatile locals, so no
+ * compiler can shrink the frame or skip the thread pointer read.
  */
 BENCH_NOINLINE inline void bench_touch_thread_state() noexcept
 {
@@ -162,7 +157,8 @@ BENCH_NOINLINE inline void bench_touch_thread_state() noexcept
   }
   frame[sizeof(frame) - 1] = 0;
 
-  g_bench_thread_state_sink.store(reinterpret_cast<uintptr_t>(&bench_thread_local_anchor), std::memory_order_relaxed);
+  [[maybe_unused]] volatile char* volatile frame_address = frame;
+  [[maybe_unused]] char* volatile tls_address = &bench_thread_local_anchor;
 
   _mm_mfence();
 }

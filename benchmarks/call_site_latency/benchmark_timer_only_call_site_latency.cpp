@@ -6,24 +6,22 @@
 
 /**
  * The measurement floor: the same harness, schedule and payloads as every library, with a call that only stores its
- * arguments instead of logging them. Its numbers are the cost of timing a sample, which is part of every library's
- * numbers too.
+ * arguments, to a volatile on the calling thread's own stack, instead of logging them. Its numbers are the cost of
+ * timing a sample, which is part of every library's numbers too. Each thread stores to its own stack, so the threads
+ * share no cache line.
  */
-namespace
-{
-volatile uintptr_t g_sink = 0;
-}
-
-/***/
 void timer_only_benchmark(std::vector<int32_t> thread_count_array, size_t num_iterations_per_thread)
 {
 #if defined(BENCH_DISABLED_EXPENSIVE_ARG)
   // The reference of the disabled argument scenario: the argument is computed on every call
   auto log_func = [](uint64_t i, uint64_t j, double d)
-  { g_sink = static_cast<uintptr_t>(i + j) + static_cast<uintptr_t>(bench_expensive_argument(d)); };
+  {
+    [[maybe_unused]] volatile uintptr_t sink =
+      static_cast<uintptr_t>(i + j) + static_cast<uintptr_t>(bench_expensive_argument(d));
+  };
 #else
   auto log_func = [](uint64_t i, uint64_t j, auto const& v)
-  { g_sink = static_cast<uintptr_t>(i + j) + reinterpret_cast<uintptr_t>(&v); };
+  { [[maybe_unused]] volatile uintptr_t sink = static_cast<uintptr_t>(i + j) + reinterpret_cast<uintptr_t>(&v); };
 #endif
 
   auto on_start = []() {};
